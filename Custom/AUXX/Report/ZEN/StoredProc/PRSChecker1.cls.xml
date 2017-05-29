@@ -1,0 +1,715 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.AUXX.Report.ZEN.StoredProc.PRSChecker1">
+<ProcedureBlock>0</ProcedureBlock>
+<Super>Report.Abstract</Super>
+<TimeCreated>61801,51485.810149</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/AUXX/Report/ZEN/StoredProc/PRSChecker1.xml#1 $</Default>
+</Parameter>
+
+<UDLText name="T">
+<Content><![CDATA[
+// Report Name: Trak PRS Checker 1 Report <br>
+
+]]></Content>
+</UDLText>
+
+<UDLText name="T">
+<Content><![CDATA[
+// Report Code: Trak. <br>
+
+]]></Content>
+</UDLText>
+
+<UDLText name="T">
+<Content><![CDATA[
+// Logtrak Number:  <br>
+
+]]></Content>
+</UDLText>
+
+<UDLText name="T">
+<Content><![CDATA[
+// TRC Number:  70181 <br>
+
+]]></Content>
+</UDLText>
+
+<UDLText name="T">
+<Content><![CDATA[
+// TRC 174417 5 May 2014 Message 18 removed as checks on Barthel scores no longer required
+
+]]></Content>
+</UDLText>
+
+<UDLText name="T">
+<Content><![CDATA[
+// TRC 205396 7/7/16 Add validation to report an error if ‘A’ is present as the Diagnosis Prefix field, where the episode Discharge Date is >= 01/07/201 (This functionality was done in User screen already)
+
+]]></Content>
+</UDLText>
+
+<UDLText name="T">
+<Content><![CDATA[
+// TRC 205396 7/7/16 Procedure Time validation is needed where the Procedure Date is mandatory (This functionality was done in User screen already)
+
+]]></Content>
+</UDLText>
+
+<Method name="GetRecordsClose">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>QHandle:%Library.Binary</FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Clean up by purging the temporary node in ^CacheTemp global
+ New repid
+ Set repid=$li(QHandle,2)
+ 
+  //Close Monitor (if configured to capture stats)
+ i mon Do ..MonitorEnd(mon)
+ 
+ Kill ^CacheTemp("TRAK",repid)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="GetRecordsExecute">
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,DateFrom:%Date,DateTo:%Date,Hospital:%String]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+
+ // Get reportid i.e. use $INCREMENT to add another node to ^CacheTemp global. 
+ // We use ^CacheTemp global because it will always use memory before disk
+ New repid,ind
+
+ // Use $Increment to get the next node
+ Set repid=$I(^CacheTemp("TRAK"))
+
+  //Start Monitor (if configured to capture stats)
+ s mon=..MonitorBegin()
+ 
+ // Build data into ^CacheTemp(ReportID)
+ // e.g. Set ^CacheTemp(ReportID,Index)=$LB(f1,f2,f3)
+ New Number,String,Date,Time,c,n
+ n ORIGHOSPDesc,ORIGCTDSPCode,HOSPDesc,PAADMADMNo,AdmDateNo,PAADMAdmDate,PAADMDischgDate,PAADMDischgDate2,WARDCode,BirthDate,PAPMIDOB,PAPMINo,PAPMIName,PAPMIName2,ADSOUCode,ADSOUReasonForCritCareTransfer,REACode,TransferOut,TransferIn,CARETYPCode,SRPCCode,MRADMWeight,MRADMICUHours,CTSEXCode,IPATCode,PAADMVisitStatus,QUALCode,PAPERID,PAPMIDVAnumber,CTCOUCode,INDSTCode,PAADMTrafficAccidentDR,PAADMRowId,WARDRowId,CTZIPCode,PAPMIRowId,SIGNFCode,MRADMRowId,PAADMDischargeBarthelScore,PAADMBarthelScore,PAADMOnsetDate,CSPCode,ReadmToRehab,SRPCCode,PAADMRUGTotal,MRADMDischRUGTotal,CTCforBarthel,CTCforOnsetDays,ACASCode,ACASCodeB,FreeText1,Days,MRDIAPrefix,ANAOPNo
+ n QUESID,Message1,Message2,Message3,Message4,Message5,Message6,Message7,Message8,Message9,Message10,Message11,Message12,Message13,Message14,Message15,Message16,Message17,Message18,Message19,Message20,Message21,Message22,Message23,Message24,Message25,Message26,Message27,Message28,Message29,Message30,Message31,Message32,RHCA,TRFDate,INSTCode,ICU,MRCID1,MRCID2,MRCID3,TempPostCode,SEPREFCode,SEPREFCount,SEPREFX,OPER,ZIP8888,PC8888,ACCOMT1,Barthel,CSPRehab,RUG,AgeOnDisch,Message,PAPERIns
+ s (QUESID,ORIGHOSPDesc,ORIGCTDSPCode,HOSPDesc,PAADMADMNo,AdmDateNo,PAADMAdmDate,PAADMDischgDate,PAADMDischgDate2,WARDCode,BirthDate,PAPMIDOB,PAPMINo,PAPMIName,PAPMIName2,ADSOUCode,ADSOUReasonForCritCareTransfer,REACode,TransferOut,TransferIn,CARETYPCode,SRPCCode,MRADMWeight,MRADMICUHours,CTSEXCode,IPATCode,PAADMVisitStatus,QUALCode,PAPERID,PAPMIDVAnumber,CTCOUCode,INDSTCode,PAADMTrafficAccidentDR,PAADMRowId,WARDRowId,CTZIPCode,PAPMIRowId,SIGNFCode,MRADMRowId,PAADMDischargeBarthelScore,PAADMBarthelScore,PAADMOnsetDate,CSPCode,ReadmToRehab,SRPCCode,PAADMRUGTotal,MRADMDischRUGTotal,CTCforBarthel,CTCforOnsetDays,ACASCode,FreeText1,Days,MRDIAPrefix,ANAOPNo)=""
+ s (Message1,Message2,Message3,Message4,Message5,Message6,Message7,Message8,Message9,Message10,Message11,Message12,Message13,Message14,Message15,Message16,Message17,Message18,Message19,Message20,Message21,Message22,Message23,Message24,Message25,Message26,Message27,Message28,Message29,Message30,Message31,Message32,RHCA,TRFDate,INSTCode,ICU,MRCID1,MRCID2,MRCID3,SEPREFX,ACCOMT1,Barthel,CSPRehab,RUG,AgeOnDisch,Message,PAPERIns)=""
+ S (TempPostCode,SEPREFCode,SEPREFCount,OPER,ZIP8888,ACASCodeB,PC8888)=0
+ s ind=1
+
+ //Convert ODBC dates to cache format
+ s DateFrom=$$intdate^SSUTIL4(DateFrom)
+ s DateTo=$$intdate^SSUTIL4(DateTo)
+
+ // Strip white space/control chars from blank variables
+ i $g(Hospital)'="" s Hospital=$zstrip(Hospital,"*C")
+
+ &sql(declare GetRecords cursor for
+select
+PAADM_OriginalAdmissionDR->PAADM_Hospital_Dr->HOSP_Desc,
+PAADM_OriginalAdmissionDR->PAADM_MainMRADM_dr->MRADM_DischType_DR->CTDSP_Code,
+PAADM_Hospital_DR->HOSP_Desc,
+PAADM_ADMNo,
+PAADM_AdmDate,
+PAADM_AdmDate,
+PAADM_DischgDate,
+PAADM_DischgDate,
+PAADM_CurrentWard_DR->WARD_Code,
+PAADM_PAPMI_DR->PAPMI_DOB,
+PAADM_PAPMI_DR->PAPMI_DOB,
+PAADM_PAPMI_DR->PAPMI_No,
+PAADM_PAPMI_DR->PAPMI_Name,
+PAADM_PAPMI_DR->PAPMI_Name2,
+PAADM_AdmSrc_DR->ADSOU_Code,
+PAADM_AdmSrc_DR->ADSOU_ReasonForCritCareTransfer,
+PAADM_AdmReason_DR->REA_Code,
+PAADM_MainMRADM_DR->MRADM_TransfDest_DR->TRD_Code TransferOut,
+PAADM_MainMRADM_DR->MRADM_TransDest2_DR->TRD_Code TransferIn,
+PAADM_MainMRADM_DR->MRADM_CareType_DR->CARETYP_Code,
+PAADM_MainMRADM_DR->MRADM_SourceReferralPalCare_DR->SRPC_Code,
+PAADM_MainMRADM_DR->MRADM_Weight,
+PAADM_MainMRADM_DR->MRADM_ICUHours,
+PAADM_PAPMI_DR->PAPMI_SEX_DR->CTSEX_Code,
+PAADM_InPatAdmType_DR->IPAT_Code,
+PAADM_VisitStatus,
+PAADM_QualifStatus_DR->QUAL_Code,
+PAADM_PAPMI_DR->PAPMI_PAPER_DR->PAPER_ID,
+PAADM_PAPMI_dR->PAPMI_DVAnumber,
+case when PAADM_PAPMI_dR->PAPMI_CountryOfBirth_DR->CTCOU_Code in ('1100','1101','1102','1103','1104','1105','1106','1107','1108','1109','1200') then 'Aus' else 'Overseas' end,
+case when PAADM_PAPMI_dR->PAPMI_IndigStat_DR->INDST_Code in ('5','6','7') then 'Indig' else 'NonI' end,
+PAADM_TrafficAccident_DR,
+PAADM_RowId,
+PAADM_CurrentWard_DR,
+PAADM_PAPMI_dR->PAPMI_PAPER_dR->PAPER_ZIP_dR->CTZIP_Code,
+PAADM_PAPMI_DR,
+PAADM_DepCode_DR->CTLOC_SignifFacility_DR->SIGNF_Code,
+PAADM_MainMRADM_DR,
+PAADM_DischargeBarthelScore,
+PAADM_BarthelScore,
+PAADM_OnsetDate,
+PAADM_ClinicalSubProgram_DR->CSP_Code,
+PAADM_ReadmToRehab_DR,
+PAADM_MainMRADM_DR->MRADM_SourceReferralPalCare_DR->SRPC_Code,
+PAADM_RUGTotal,
+PAADM_MainMRADM_DR->MRADM_DischRUGTotal,
+case when PAADM_MainMRADM_DR->MRADM_CareType_DR->CARETYP_Code in ('6') then PAADM_MainMRADM_DR->MRADM_CareType_DR->CARETYP_Code else '0' end,
+case when PAADM_MainMRADM_DR->MRADM_CareType_DR->CARETYP_Code in ('2', '6', 'P') then PAADM_MainMRADM_DR->MRADM_CareType_DR->CARETYP_Code else '0' end,
+PAADM_MainMRADM_DR->MRADM_ACAS_DR->ACAS_Code,
+case when (PAADM_MainMRADM_DR->MRADM_ACAS_DR->ACAS_Code='' OR PAADM_MainMRADM_DR->MRADM_ACAS_DR->ACAS_Code='5') then 0 else PAADM_MainMRADM_DR->MRADM_ACAS_DR->ACAS_Code end,
+PAADM_PAAdm2_DR->PAADM2_Freetext1,
+CASE WHEN PAADM_PAPMI_dR->PAPMI_PAPER_dR->PAPER_InsType_DR->INST_Code IN ('AXA',' FEHE',' GUF',' HBA',' MBA',' MBF',' MCL',' MUI',' MUN',' MUOF',' SGI',' TAS',' UAD',' UAF') THEN PAADM_PAPMI_dR->PAPMI_PAPER_dR->PAPER_InsType_DR->INST_Code else null end
+FROM    sqluser.PA_Adm
+WHERE    PAADM_Type='I' and PAADM_VisitStatus in ('A','D') and
+PAADM_AdmDate between :DateFrom and :DateTo
+ AND (({fn CONCAT( ',', {fn CONCAT((:Hospital),',')})} [ {fn CONCAT( ',', {fn CONCAT((PAADM_Hospital_DR->HOSP_RowId),',')})}) OR (:Hospital IS NULL))
+)
+ &sql(open GetRecords)
+
+
+ //fetch first row
+ &sql(fetch GetRecords into :ORIGHOSPDesc,:ORIGCTDSPCode,:HOSPDesc,:PAADMADMNo,:AdmDateNo,:PAADMAdmDate,:PAADMDischgDate,:PAADMDischgDate2,:WARDCode,:BirthDate,:PAPMIDOB,:PAPMINo,:PAPMIName,:PAPMIName2,:ADSOUCode,:ADSOUReasonForCritCareTransfer,:REACode,:TransferOut,:TransferIn,:CARETYPCode,:SRPCCode,:MRADMWeight,:MRADMICUHours,:CTSEXCode,:IPATCode,:PAADMVisitStatus,:QUALCode,:PAPERID,:PAPMIDVAnumber,:CTCOUCode,:INDSTCode,:PAADMTrafficAccidentDR,:PAADMRowId,:WARDRowId,:CTZIPCode,:PAPMIRowId,:SIGNFCode,:MRADMRowId,:PAADMDischargeBarthelScore,:PAADMBarthelScore,:PAADMOnsetDate,:CSPCode,:ReadmToRehab,:SRPCCode,:PAADMRUGTotal,:MRADMDischRUGTotal,:CTCforBarthel,:CTCforOnsetDays,:ACASCode,:ACASCodeB,:FreeText1,:PAPERIns)
+
+ while 'SQLCODE{
+ i CTZIPCode'="8888" s ZIP8888=0
+ i CTZIPCode="8888" s ZIP8888=1
+ s PC8888=ZIP8888+TempPostCode
+ 
+ d GetCheckMRDIAPrefix
+ d GetBlankOpTime
+ d GetMRCID1 
+ d GetMRCID2
+ d GetMRCID3
+ d GetACCOMT1 
+ d GetTempPostCode
+ d GetSEPREFCode
+ d GetSEPREFCount
+ d GetSEPREFX
+ d GetOPER
+ d GetQues
+ d GetRHCA
+ d GetTRFDate
+ d GetCurrentPayor
+ d GetICU
+ d FormatDates
+ 
+ s (Message,Message1,Message2,Message3,Message4,Message5,Message6,Message7,Message8,Message9,Message10,Message11,Message12,Message13,Message14,Message15,Message16,Message17,Message18,Message19,Message20,Message21,Message22,Message23,Message24,Message25,Message26,Message27,Message28,Message29,Message30,Message31,Message32)=""
+ 
+ i CARETYPCode="" s Message1=""
+ i MRADMWeight="" s Message1=""
+ i CARETYPCode="U",MRADMWeight<999 s Message1="Unqualified Care Type, Admission Weight<999gms"
+ 
+ i MRADMWeight="" s Message2=""
+ i CARETYPCode="" s Message2=""
+ i MRADMICUHours>0,CARETYPCode'="4",CARETYPCode'="" s Message2="Critical Care Hours/Care Type Conflict"
+ 
+ SET Days=($PIECE($HOROLOG,",",1)-BirthDate)
+
+ i PAADMDischgDate="" s AgeOnDisch=""
+ i PAADMDischgDate'="" s AgeOnDisch=(PAADMDischgDate-BirthDate)/365
+ 
+ i PAADMDischargeBarthelScore'="" s Barthel=PAADMDischargeBarthelScore 
+ i PAADMBarthelScore'="" s Barthel=PAADMBarthelScore
+ i PAADMDischargeBarthelScore="",PAADMBarthelScore="" s Barthel=""
+ /*
+ i CSPCode'="" s CSPRehab=CSPCode
+ i ReadmToRehab'="" s CSPRehab=ReadmToRehab
+ i CSPCode="",ReadmToRehab="" s CSPRehab=""
+ */
+ i SRPCCode'="" s RUG=SRPCCode
+ i PAADMRUGTotal'="" s RUG=PAADMRUGTotal
+ i MRADMDischRUGTotal'="" s RUG=MRADMDischRUGTotal
+ i SRPCCode="",MRADMDischRUGTotal="",PAADMRUGTotal="" s RUG=""
+ 
+ i Days="" s Message3=""
+ i CTSEXCode="" s Message3=""
+ i CTSEXCode'="U" s Message3=""
+ i CTSEXCode="U",Days>90 s Message3="Indeterminate Sex, Age>90 days"
+ 
+ i RHCA="" s Message4=""
+ i INDSTCode="" s Message4=""
+ i RHCA="RHCA",INDSTCode="Indig" s Message4="Reciprocal Health Care Account, Aboriginal or Torres Strait Islander"
+ 
+ i RHCA="" s Message5=""
+ i CTCOUCode="" s Message5=""
+ i RHCA="RHCA",CTCOUCode="Aus" s Message5="Reciprocal Health Care Account, not born overseas"
+
+ i TRFDate="" s Message6=""
+ i INSTCode="" s Message6=""
+ i INSTCode="DVA",TRFDate'="" s Message6="TAC Accident Date recorded for DVA case" 
+ 
+ i INSTCode="" s Message7=""
+ i INSTCode="TAC",TRFDate="" s Message7="TAC Accident Date missing" 
+
+ i TRFDate="" s Message8=""
+ i TRFDate>AdmDateNo s Message8="TAC Accident Date later than admit date"
+
+ i INSTCode="" s Message9=""
+ i INSTCode="DVA",PAPMIDVAnumber="" s Message9="DVA number missing"
+
+ i INSTCode'="" s Message10=""
+ i INSTCode="" s Message10="Payor for Episode Blank"
+
+
+ i ICU="" s Message11=""
+ i CARETYPCode="" s Message11=""
+ i ICU="ICU",CARETYPCode'="4",CARETYPCode'="" s Message11="Critical Care Ward/Care Type Conflict"
+
+ i MRCID1="" s Message12=""
+ i MRADMWeight="" s Message12=""
+ i MRADMWeight<999,MRADMWeight'="",MRCID1="Yes" s Message12="Admission Weight <999gms without a matching diagnosis code"
+
+ i MRCID2="Yes" s Message13=""
+ i MRADMWeight="" s Message13=""
+ i MRADMWeight<999,MRADMWeight'="",MRCID2="Yes" s Message13="Admission Weight <999gms without a matching diagnosis code"
+
+ i MRCID3="Yes" s Message14=""
+ i MRADMWeight="" s Message14=""
+ i MRADMWeight>6000,MRADMWeight'="",MRCID3="Yes",ADSOUCode="Y" s Message14="Admission Weight >6000gms without a matching diagnosis code - RETURNS NOTHING"
+
+ i RHCA="" s Message15=""
+ I PC8888>0 s Message15=""
+ i PC8888=0,RHCA="RHCA" s Message15="No overseas postcode for Reciprocal Health Care Account"
+
+ i ACCOMT1="Y" s Message16=""
+ i IPATCode'="Y" s Message16=""
+ i ACCOMT1="N",IPATCode="Y" s Message16="Newborn Admission Type, Accommodation Code not B or C"
+
+ i QUALCode="" s Message17=""
+ i AdmDateNo=BirthDate s Message17=""
+ i QUALCode="U",AdmDateNo'=BirthDate s Message17="Qualification Status U, Admission Date not equal to DOB"
+ /*
+ i CARETYPCode="" s Message18=""
+ i CTCforBarthel="0" s Message18=""
+ i CARETYPCode'="",CTCforBarthel'="0",Barthel="" s Message18="Barthel Scores incomplete"
+ 
+ i CARETYPCode="" s Message19=""
+ ;i CTCforOnsetDays="0" s Message19=""
+ i CARETYPCode'="",CTCforOnsetDays'="0",CSPRehab="" s Message19="Sub-Acute fields incomplete"
+
+ i CARETYPCode="" s Message20=""
+ i CARETYPCode="8",RUG="" s Message20="RUG fields incomplete"
+ */
+ i SEPREFCode=0 s Message21=""
+ i ACASCode'="1" s Message21=""
+ i SEPREFCode=1,ACASCode="1",PAADMVisitStatus="D" s Message21="R462 - Incompatible ACAS status & Sep Referral"
+
+ i SEPREFCount<=1 s Message22=""
+ i SEPREFX'="1" s Message22=""
+ i SEPREFCount>1,SEPREFX="1",PAADMVisitStatus="D" s Message22="R396 - Sep Referral X and other Sep Referrals"
+ 
+ ;  weird scripts behind SEPREF on discharge screen in SUP - impossible to set up proper testing scenarios
+ 
+ i PAADMDischgDate>AdmDateNo s Message23=""
+ i ACASCodeB="" s Message23=""
+ i PAADMDischgDate="" s Message23=""
+ i ACASCodeB>0,PAADMDischgDate=AdmDateNo s Message23="ACAS field complete for day case"
+ 
+ i PAADMDischgDate="" s Message24=""
+ i PAADMDischgDate=AdmDateNo s Message24=""
+ i AgeOnDisch<50 s Message24=""
+ i ACASCode'="" s Message24=""
+ i AgeOnDisch>=50,ACASCode="",PAADMDischgDate>AdmDateNo,PAADMVisitStatus="D" s Message24= "Patient over 50 non day case ACAS field blank"
+ 
+ ; need to verify above condition should not be otherwise filtered
+ 
+ i PAADMDischgDate="" s Message25=""
+ i PAADMDischgDate=AdmDateNo s Message25="" 
+ i AgeOnDisch>50 s Message25=""
+ i ACASCode="" s Message25=""
+ i AgeOnDisch<50,ACASCode'="",PAADMVisitStatus="D",PAADMDischgDate>AdmDateNo s Message25= "Patient under 50 ACAS non day case field completed" 
+ 
+ i ORIGHOSPDesc="" s Message26=""
+ i ORIGCTDSPCode="" s Message26=""
+ i ORIGHOSPDesc'=HOSPDesc,ORIGCTDSPCode="S",IPATCode="ST" s Message26= "Statistical Admission not matching discharge Hospital" 
+
+ i OPER="N" s Message27=""
+ i PAPERID'="" s Message27=""
+ i CARETYPCode="" s Message27=""
+ i OPER="Y",PAPERID="",PAADMVisitStatus="D",CARETYPCode="4" s Message27="Mental Health State Wide Patient ID missing"
+ 
+ i FreeText1="Y" s Message28=""
+ i ADSOUCode'="Y" s Message28=""
+ i FreeText1="",ADSOUCode="Y" s Message28="Addition of Mothers UR number not on baby episode"
+
+ i QUESID'="" S Message29=""
+ i CARETYPCode'="8" s Message29=""
+ i CARETYPCode="8",QUESID="" s Message29="Inpatient Palliative Care Questionnaire not completed"
+
+ i PAPERIns="" s Message30=""
+ i PAPERIns'="" s Message30="Invalid Current Health Fund"
+ 
+ i MRDIAPrefix'="A" s Message31=""
+ i MRDIAPrefix="A" s Message31="Diagnosis Prefix = A"
+ 
+ 
+ i ANAOPNo="" s Message32=""
+ i ANAOPNo'="",PAADMDischgDate>=64100 s Message32="Procedure Start Time incomplete"
+ 
+ ;s Message=Message1_$CHAR(10)_$CHAR(13)_Message2_$CHAR(10)_$CHAR(13)_Message3_$CHAR(10)_$CHAR(13)_Message4_$CHAR(10)_$CHAR(13)_Message5_$CHAR(10)_$CHAR(13)_Message6_$CHAR(10)_$CHAR(13)_Message7_$CHAR(10)_$CHAR(13)_Message8_$CHAR(10)_$CHAR(13)_Message9_$CHAR(10)_$CHAR(13)_Message10_$CHAR(10)_$CHAR(13)_Message11_$CHAR(10)_$CHAR(13)_Message12_$CHAR(10)_$CHAR(13)_Message13_$CHAR(10)_$CHAR(13)_Message14_$CHAR(10)_$CHAR(13)_Message15_$CHAR(10)_$CHAR(13)_Message16_$CHAR(10)_$CHAR(13)_Message17_$CHAR(10)_$CHAR(13)_Message18_$CHAR(10)_$CHAR(13)_Message19_$CHAR(10)_$CHAR(13)_Message20_$CHAR(10)_$CHAR(13)_Message21_$CHAR(13)_Message22_$CHAR(10)_$CHAR(13)_Message23_$CHAR(10)_$CHAR(13)_Message24_$CHAR(13)_Message25_$CHAR(10)_$CHAR(13)_Message26_$CHAR(10)_$CHAR(13)_Message27_$CHAR(10)_$CHAR(13)_Message28_$CHAR(10)_$CHAR(13)_Message29_$CHAR(10)_$CHAR(13)_Message30
+ i Message1'="" s Message=Message1
+ i Message2'="" s Message=Message_$s(Message'="":$c(13,10),1:"")_Message2
+ i Message3'="" s Message=Message_$s(Message'="":$c(13,10),1:"")_Message3
+ i Message4'="" s Message=Message_$s(Message'="":$c(13,10),1:"")_Message4
+ i Message5'="" s Message=Message_$s(Message'="":$c(13,10),1:"")_Message5
+ i Message6'="" s Message=Message_$s(Message'="":$c(13,10),1:"")_Message6
+ i Message7'="" s Message=Message_$s(Message'="":$c(13,10),1:"")_Message7
+ i Message8'="" s Message=Message_$s(Message'="":$c(13,10),1:"")_Message8
+ i Message9'="" s Message=Message_$s(Message'="":$c(13,10),1:"")_Message9
+ i Message10'="" s Message=Message_$s(Message'="":$c(13,10),1:"")_Message10
+ i Message11'="" s Message=Message_$s(Message'="":$c(13,10),1:"")_Message11
+ i Message12'="" s Message=Message_$s(Message'="":$c(13,10),1:"")_Message12
+ i Message13'="" s Message=Message_$s(Message'="":$c(13,10),1:"")_Message13
+ i Message14'="" s Message=Message_$s(Message'="":$c(13,10),1:"")_Message14
+ i Message15'="" s Message=Message_$s(Message'="":$c(13,10),1:"")_Message15
+ i Message16'="" s Message=Message_$s(Message'="":$c(13,10),1:"")_Message16
+ i Message17'="" s Message=Message_$s(Message'="":$c(13,10),1:"")_Message17
+ i Message18'="" s Message=Message_$s(Message'="":$c(13,10),1:"")_Message18
+ i Message19'="" s Message=Message_$s(Message'="":$c(13,10),1:"")_Message19
+ i Message19'="" s Message=Message_$s(Message'="":$c(13,10),1:"")_Message19
+ i Message20'="" s Message=Message_$s(Message'="":$c(13,10),1:"")_Message20
+ i Message21'="" s Message=Message_$s(Message'="":$c(13,10),1:"")_Message21
+ i Message22'="" s Message=Message_$s(Message'="":$c(13,10),1:"")_Message22
+ i Message23'="" s Message=Message_$s(Message'="":$c(13,10),1:"")_Message23
+ i Message24'="" s Message=Message_$s(Message'="":$c(13,10),1:"")_Message24
+ i Message25'="" s Message=Message_$s(Message'="":$c(13,10),1:"")_Message25
+ i Message26'="" s Message=Message_$s(Message'="":$c(13,10),1:"")_Message26
+ i Message27'="" s Message=Message_$s(Message'="":$c(13,10),1:"")_Message27
+ i Message28'="" s Message=Message_$s(Message'="":$c(13,10),1:"")_Message28
+ i Message29'="" s Message=Message_$s(Message'="":$c(13,10),1:"")_Message29
+ i Message30'="" s Message=Message_$s(Message'="":$c(13,10),1:"")_Message30
+ i Message31'="" s Message=Message_$s(Message'="":$c(13,10),1:"")_Message31
+ i Message32'="" s Message=Message_$s(Message'="":$c(13,10),1:"")_Message32
+
+ // build the row
+ ;s x1=$TR(Message,$C(13,10))
+ ;i $G(x1)'="" 
+ i Message'="" Set ^CacheTemp("TRAK",repid,HOSPDesc_PAADMADMNo_PAPMINo_ind)=$LB(ORIGHOSPDesc,ORIGCTDSPCode,HOSPDesc,PAADMADMNo,AdmDateNo,PAADMAdmDate,PAADMDischgDate,PAADMDischgDate2,WARDCode,BirthDate,PAPMIDOB,PAPMINo,PAPMIName,PAPMIName2,ADSOUCode,ADSOUReasonForCritCareTransfer,REACode,TransferOut,TransferIn,CARETYPCode,SRPCCode,MRADMWeight,MRADMICUHours,CTSEXCode,IPATCode,PAADMVisitStatus,QUALCode,PAPERID,PAPMIDVAnumber,CTCOUCode,INDSTCode,PAADMTrafficAccidentDR,PAADMRowId,WARDRowId,CTZIPCode,PAPMIRowId,SIGNFCode,MRADMRowId,PAADMDischargeBarthelScore,PAADMBarthelScore,PAADMOnsetDate,CSPCode,ReadmToRehab,SRPCCode,PAADMRUGTotal,MRADMDischRUGTotal,CTCforBarthel,CTCforOnsetDays,ACASCode,ACASCodeB,FreeText1,PAPERIns,Days,Message1,Message2,Message3,Message4,Message5,Message6,Message7,Message8,Message9,Message10,Message11,Message12,Message13,Message14,Message15,Message16,Message17,Message18,Message19,Message20,Message21,Message22,Message23,Message24,Message25,Message26,Message27,Message28,Message29,Message30,Message31,Message32,RHCA,TRFDate,INSTCode,ICU,MRCID1,MRCID2,MRCID3,TempPostCode,SEPREFCode,SEPREFCount,SEPREFX,OPER,QUESID,ZIP8888,PC8888,ACCOMT1,Barthel,CSPRehab,RUG,AgeOnDisch,ANAOPNo,Message)
+ s ind=ind+1
+ //fetch rows
+ &sql(fetch GetRecords into :ORIGHOSPDesc,:ORIGCTDSPCode,:HOSPDesc,:PAADMADMNo,:AdmDateNo,:PAADMAdmDate,:PAADMDischgDate,:PAADMDischgDate2,:WARDCode,:BirthDate,:PAPMIDOB,:PAPMINo,:PAPMIName,:PAPMIName2,:ADSOUCode,:ADSOUReasonForCritCareTransfer,:REACode,:TransferOut,:TransferIn,:CARETYPCode,:SRPCCode,:MRADMWeight,:MRADMICUHours,:CTSEXCode,:IPATCode,:PAADMVisitStatus,:QUALCode,:PAPERID,:PAPMIDVAnumber,:CTCOUCode,:INDSTCode,:PAADMTrafficAccidentDR,:PAADMRowId,:WARDRowId,:CTZIPCode,:PAPMIRowId,:SIGNFCode,:MRADMRowId,:PAADMDischargeBarthelScore,:PAADMBarthelScore,:PAADMOnsetDate,:CSPCode,:ReadmToRehab,:SRPCCode,:PAADMRUGTotal,:MRADMDischRUGTotal,:CTCforBarthel,:CTCforOnsetDays,:ACASCode,:ACASCodeB,:FreeText1,:PAPERIns)}
+
+ &sql(close GetRecords)
+
+ // Build QHandle (AtEnd,ReportID,Index)
+ Set QHandle=$lb(0,repid,0)
+
+ Quit $$$OK
+
+GetCheckMRDIAPrefix
+ Set (MRDIAPrefix) = ""
+  &SQL(DECLARE MRDIAPREFIX CURSOR FOR
+SELECT
+    MRDIA_Prefix
+	FROM SQLUser.MR_Diagnos
+	WHERE MRDIA_MRADM_ParRef=:MRADMRowId and MRDIA_Prefix='A') 
+               &SQL(OPEN MRDIAPREFIX)
+               &SQL(FETCH MRDIAPREFIX INTO :MRDIAPrefix)
+               &SQL(CLOSE MRDIAPREFIX)
+    quit           
+
+GetBlankOpTime
+ Set (ANAOPNo) = ""
+  &SQL(DECLARE OperTimeBlank CURSOR FOR
+SELECT
+ANAOP_No
+ from SQLUSER.or_anaest_operation
+where 
+anaop_par_ref->ana_paadm_parref=:PAADMRowId
+AND  anaop_opstarttime IS NULL AND ANAOP_StatePPP_DR->SPPP_OPERPROCDR->OPER_PROCDATEMANDATORY='Y' and 
+anaop_par_ref->ana_paadm_parref->PAADM_InPatAdmType_DR->ipat_CODE IN ('C','O') and anaop_par_ref->ana_paadm_parref->PAADM_visitstatus='D') 
+               &SQL(OPEN OperTimeBlank)
+               &SQL(FETCH OperTimeBlank INTO :ANAOPNo)
+               &SQL(CLOSE OperTimeBlank)
+    quit
+
+GetMRCID1
+ Set (MRCID1) = ""
+  &sql(SELECT
+    COUNT(MRDIA_ICDCODE_dR->MRCID_Code)
+	INTO :MRCID1
+	FROM SQLUser.MR_Diagnos
+	WHERE MRDIA_MRADM_ParRef=:MRADMRowId and SUBSTRING(MRDIA_ICDCODE_dR->MRCID_Code FROM 1 FOR 5) IN ('O28.1','P07.0', 'P07.2', 'P96.4', 'P01.8') 	      			
+)
+ if MRCID1'=0 s MRCID1="Yes"
+ else  set MRCID1=""
+ Quit
+
+GetMRCID2
+ Set (MRCID2) = ""
+  &sql(SELECT
+    COUNT(MRDIA_ICDCODE_dR->MRCID_Code)
+	INTO :MRCID2
+	FROM SQLUser.MR_Diagnos
+    WHERE	MRDIA_MRADM_ParRef=:MRADMRowId and SUBSTRING(MRDIA_ICDCode_DR->MRCID_Code FROM 1 FOR 4) IN ('O28.','P05.')
+ )
+ if MRCID2'=0 s MRCID2="Yes"
+ else  set MRCID2=""
+ Quit
+
+GetMRCID3
+ Set (MRCID3) = ""
+  &sql(SELECT
+    COUNT(MRDIA_ICDCODE_dR->MRCID_Code)
+	INTO :MRCID3
+	FROM SQLUser.MR_Diagnos
+    WHERE	MRDIA_MRADM_ParRef=:MRADMRowId and SUBSTRING(MRDIA_ICDCode_DR->MRCID_Code FROM 1 FOR 5) IN ('O28.1','P08.0', 'P08.1')
+ )
+ if MRCID3'=0 s MRCID3="Yes"
+ else  set MRCID3=""
+ Quit
+
+
+GetACCOMT1
+ Set (ACCOMT1) = ""
+  &sql(SELECT
+    COUNT(ROOM_AccomModationTypeDR->ACCOMT_Code)
+	INTO :ACCOMT1
+	FROM SQLUser.PAC_WardRoom
+    WHERE	ROOM_ParRef=:WARDRowId and ROOM_AccommodationTypeDR->ACCOMT_Code IN ('5', 'B', 'C')
+ )
+ if ACCOMT1'=0 s ACCOMT1="Y"
+ else  set ACCOMT1="N"
+ Quit
+ 
+
+GetTempPostCode
+	&sql(SELECT
+	COUNT(ADDR_ZIP_DR->CTZIP_Code)
+	INTO :TempPostCode
+	FROM SQLUser.PA_TempAddress
+	WHERE	ADDR_ParRef=:PAPMIRowId and ADDR_ZIP_DR->CTZIP_Code='8888' and
+	ADDR_DateTo is null
+	)
+	quit
+
+GetSEPREFCode
+	&sql(SELECT
+	COUNT(SEPREF_SEPREF_DR->SEPREF_Code)
+	INTO :SEPREFCode
+	FROM SQLUser.PA_AdmSepRef
+	WHERE	SEPREF_ParRef=:PAADMRowId and SEPREF_SEPREF_DR->SEPREF_Code='A'
+	)
+	quit
+
+GetSEPREFCount
+	&sql(SELECT
+	COUNT(SEPREF_SEPREF_DR->SEPREF_Code)
+	INTO :SEPREFCount
+	FROM SQLUser.PA_AdmSepRef
+	WHERE	SEPREF_ParRef=:PAADMRowId
+	)
+	quit
+
+GetSEPREFX
+	&sql(SELECT
+	COUNT(SEPREF_SEPREF_DR->SEPREF_Code)
+	INTO :SEPREFX
+	FROM SQLUser.PA_AdmSepRef
+	WHERE	SEPREF_ParRef=:PAADMRowId AND SEPREF_SEPREF_DR->SEPREF_Code='X'
+	)
+	quit
+	
+GetOPER
+ Set (OPER) = ""
+  &sql(SELECT
+    COUNT(PROC_Operation_DR->OPER_Code)
+	INTO :OPER
+	FROM SQLUser.MR_Procedures
+    WHERE	PROC_ParRef=:MRADMRowId and substring(PROC_Operation_DR->OPER_Code from 1 for 5)='93341'
+ )
+ if OPER'=0 s OPER="Y"
+ else  set OPER="N"
+ Quit	
+ 
+GetQues
+ Set (QUESID) = ""
+
+ &sql(SELECT
+	ID
+	INTO :QUESID
+	FROM Questionnaire.QAUIPC
+	WHERE	QUESPAADMDR=:PAADMRowId
+)
+ Quit
+	
+FormatDates
+ // Convert the dates to ODBC date format
+ If PAADMAdmDate Set PAADMAdmDate=..ConvertDateToODBC(PAADMAdmDate)
+ If PAADMDischgDate2 Set PAADMDischgDate2=..ConvertDateToODBC(PAADMDischgDate2)
+ If PAPMIDOB Set PAPMIDOB=..ConvertDateToODBC(PAPMIDOB)
+ If PAADMOnsetDate Set PAADMOnsetDate=..ConvertDateToODBC(PAADMOnsetDate)
+   Quit
+
+GetRHCA
+ s RHCA=##class(Custom.AUXX.Report.ZEN.StoredProc.PRSChecker1).GetRHCA(PAADMRowId)
+GetTRFDate
+ s TRFDate=##class(Custom.AUXX.Report.ZEN.StoredProc.PRSChecker1).GetTRFDate(PAADMTrafficAccidentDR)
+GetCurrentPayor
+ s INSTCode=##class(Custom.AUXX.Report.ZEN.StoredProc.PRSChecker1).GetCurrentPayor(PAADMRowId)
+GetICU
+ s ICU=##class(Custom.AUXX.Report.ZEN.StoredProc.PRSChecker1).GetICU(PAADMRowId)
+]]></Implementation>
+</Method>
+
+<Method name="GetRecordsFetch">
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,&Row:%Library.List,&AtEnd:%Library.Integer=0]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // This fetch method should never have to change. 
+
+ // repid - Report ID
+ // ind   - sequence index which represents each row
+
+ New repid,ind
+
+ // Restore QHandle
+ Set AtEnd=$li(QHandle,1)
+ Set repid=$li(QHandle,2)
+ Set ind=$li(QHandle,3)
+
+ Set ind=$o(^CacheTemp("TRAK",repid,ind))
+ If ind="" {	// if there are no more rows, finish fetching
+ Set AtEnd=1
+ Set Row=""
+ }
+ Else      {	// fetch row
+ Set Row=^CacheTemp("TRAK",repid,ind)
+ }
+
+ // Save QHandle
+ s QHandle=$lb(AtEnd,repid,ind)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Query name="GetRecords">
+<Type>%Library.Query</Type>
+<FormalSpec>DateFrom:%Date,DateTo:%Date,Hospital:%String</FormalSpec>
+<SqlProc>1</SqlProc>
+<Parameter name="CONTAINID" value="0"/>
+<Parameter name="ROWSPEC" value="ORIGHOSPDesc:%String,ORIGCTDSPCode:%String,HOSPDesc:%String(MAXLEN=255),PAADMADMNo:%String(MAXLEN=255),AdmDateNo:%String,PAADMAdmDate:%Date,PAADMDischgDate:%String,PAADMDischgDate2:%Date,WARDCode:%String(MAXLEN=255),BirthDate:%String,PAPMIDOB:%Date,PAPMINo:%String(MAXLEN=255),PAPMIName:%String(MAXLEN=255),PAPMIName2:%String(MAXLEN=255),ADSOUCode:%String,ADSOUReasonForCritCareTransfer:%String(MAXLEN=255),REACode:%String(MAXLEN=255),TransferOut:%String(MAXLEN=255),TransferIn:%String(MAXLEN=255),CARETYPCode:%String(MAXLEN=255),SRPCCode:%String(MAXLEN=255),MRADMWeight:%String(MAXLEN=255),MRADMICUHours:%String(MAXLEN=255),CTSEXCode:%String(MAXLEN=255),IPATCode:%String(MAXLEN=255),PAADMVisitStatus:%String(MAXLEN=255),QUALCode:%String(MAXLEN=255),PAPERID:%String(MAXLEN=255),PAPMIDVAnumber:%String(MAXLEN=255),CTCOUCode:%String(MAXLEN=255),INDSTCode:%String(MAXLEN=255),PAADMTrafficAccidentDR:%String(MAXLEN=255),PAADMRowId:%String(MAXLEN=255),WARDRowId:%String(MAXLEN=255),CTZIPCode:%String(MAXLEN=255),PAPMIRowId:%String(MAXLEN=255),SIGNFCode:%String(MAXLEN=255),MRADMRowId:%String,PAADMDischargeBarthelScore:%String,PAADMBarthelScore:%String,PAADMOnsetDate:%Date,CSPCode:%String,ReadmToRehab:%String,SRPCCode:%String,PAADMRUGTotal:%String,MRADMDischRUGTotal:%String,CTCforBarthel:%String,CTCforOnsetDays:%String,ACASCode:%String,ACASCodeB:%Integer,FreeText1:%String,PAPERIns:%String,Days:%String,Message1:%String,Message2:%String,Message3:%String,Message4:%String,Message5:%String,Message6:%String,Message7:%String,Message8:%String,Message9:%String,Message10:%String,Message11:%String,Message12:%String,Message13:%String,Message14:%String,Message15:%String,Message16:%String,Message17:%String,Message18:%String,Message19:%String,Message20:%String,Message21:%String,Message22:%String,Message23:%String,Message24:%String,Message25:%String,Message26:%String,Message27:%String,Message28:%String,Message29:%String,Message30:%String,Message31:%String,Message32:%String,RHCA:%String,TRFDate:%Date,INSTCode:%String,ICU:%String,MRCID1:%String,MRCID2:%String,MRCID3:%String,TempPostCode:%Integer,SEPREFCode:%Integer,SEPREFCount:%Integer,SEPREFX:%String,OPER:%Integer,QUESID:%String,ZIP8888:%Integer,PC8888:%Integer,ACCOMT1:%String,Barthel:%String,CSPRehab:%String,RUG:%String,AgeOnDisch:%String,ANAOPNo:%String,Message:%String(MAXLEN=9999)"/>
+</Query>
+
+<Method name="Freeze">
+<Description>
+Write out performance stats to websys.Monitor 
+[Previously private]</Description>
+<ClassMethod>1</ClassMethod>
+<Implementation><![CDATA[
+ Do mon.Freeze()
+ Do mon.%Save()
+ Do mon.%Close()
+ Quit
+]]></Implementation>
+</Method>
+
+<Method name="PerformanceCaptureStatsFlag">
+<Description>
+Return TrakCare Configuration Manager Capture Performance Statistics flag
+[Previously private]</Description>
+<ClassMethod>1</ClassMethod>
+<ReturnType>%Integer</ReturnType>
+<Implementation><![CDATA[	Quit $lg($g(^websys.ConfigurationD(1)),29)
+]]></Implementation>
+</Method>
+
+<Method name="GetRHCA">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>PAADMRowId:%Integer</FormalSpec>
+<ReturnType>%Integer</ReturnType>
+<Implementation><![CDATA[
+	New RHCA
+	Set RHCA=""
+	
+ &sql(SELECT
+    INS_InsType_DR->INST_Code
+	INTO :RHCA
+	FROM SQLUser.PA_AdmInsurance
+	WHERE INS_ParRef=:PAADMRowId and INS_InsType_DR->INST_Code='RHCA')
+	quit RHCA
+]]></Implementation>
+</Method>
+
+<Method name="GetTRFDate">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>PAADMRowId:%Integer</FormalSpec>
+<ReturnType>%Integer</ReturnType>
+<Implementation><![CDATA[
+	New TRFDate
+	Set TRFDate=""
+	
+ &sql(SELECT
+ TRF_AccidentDate
+	INTO :TRFDate
+	FROM SQLUser.PA_TrafficAccident
+	WHERE TRF_RowId=:PAADMTrafficAccidentDR)
+	quit TRFDate
+]]></Implementation>
+</Method>
+
+<Method name="GetCurrentPayor">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>PAADMRowId:%Integer</FormalSpec>
+<ReturnType>%Integer</ReturnType>
+<Implementation><![CDATA[
+	New INSTCode
+	Set INSTCode=""
+	
+	&sql(SELECT
+	INS_InsType_DR->INST_Code
+	INTO :INSTCode
+	FROM SQLUser.PA_AdmInsurance
+	WHERE	INS_ParRef=:PAADMRowId
+	GROUP BY INS_ParRef
+	HAVING MAX(INS_ChildSub) = INS_ChildSub)
+	quit INSTCode
+]]></Implementation>
+</Method>
+
+<Method name="GetICU">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>PAADMRowId:%Integer</FormalSpec>
+<ReturnType>%Integer</ReturnType>
+<Implementation><![CDATA[
+	New ICU
+	Set ICU=""
+	
+	&sql(SELECT
+	TRANS_WARD_DR->WARD_Code
+	INTO :ICU
+	FROM SQLUser.PA_AdmTransaction
+	WHERE	TRANS_ParRef=:PAADMRowId AND
+    TRANS_WARD_DR->WARD_Code in ('CCU','ICU'))
+	quit ICU
+]]></Implementation>
+</Method>
+
+<UDLText name="T">
+<Content><![CDATA[
+/*
+ClassMethod GetTempPostCode(PAPMIRowId As %Integer) As %String
+{
+	New TempPostCode
+	Set TempPostCode=""
+	
+	&sql(SELECT
+	ADDR_ZIP_DR->CTZIP_Code
+	INTO :TempPostCode
+	FROM SQLUser.PA_TempAddress
+	WHERE	ADDR_ParRef=:PAPMIRowId and ADDR_ZIP_DR->CTZIP_Code='8888' and
+	ADDR_DateTo is null
+	)
+	quit TempPostCode
+}
+*/
+]]></Content>
+</UDLText>
+</Class>
+</Export>

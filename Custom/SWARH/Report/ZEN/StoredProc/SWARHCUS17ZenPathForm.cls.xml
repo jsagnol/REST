@@ -1,0 +1,931 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.SWARH.Report.ZEN.StoredProc.SWARHCUS17ZenPathForm">
+<Description><![CDATA[
+<pre>
+***************************************************************************************************************************************
+* Class Description: SWARH Pathology Form ZEN report stored procedures class
+* Developer:Phuong-Dung HOANG
+* Associated ZEN Report Name: Pathology Form (Zen)<br>
+* Associated ZEN Report Code: SWARHZMTED017<br>
+* Created: 	28/10/2011 - PH
+* Modified: 08/08/2016 - PH - Review of pathology form before GO LIVE 25/08/2016 (EHRAP project)
+* Modified: 19/09/2016 - PH - Review of pathology form after latest requirement gathering from Sue Rondeau
+***************************************************************************************************************************************
+</pre>]]></Description>
+<ClassType/>
+<ProcedureBlock>0</ProcedureBlock>
+<Super>Custom.SWARH.Report.ZEN.StoredProc.Abstract</Super>
+<TimeCreated>61069,57378.390188</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/SWARH/Report/ZEN/StoredProc/SWARHCUS17ZenPathForm.xml#1 $</Default>
+</Parameter>
+
+<Method name="SWARHPatientDetailsClose">
+<Description>
+This is the Close component of the %Library.Query.
+This is standard code and should never have to change.
+This is where all the cleanup is performed, i.e. the purging of the temporary storage global ^CacheTemp.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>QHandle:%Library.Binary</FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Clean up by purging the temporary node in ^CacheTemp global
+ New repid
+ Set repid=$LIST(QHandle,2)
+ 
+ //Start Monitor (if configured to capture stats)
+ i mon Do ..MonitorEnd(mon)
+
+ Kill ^CacheTemp(..#CACHETEMPSUBSCRIPT,repid)
+ 
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="SWARHPatientDetailsExecute">
+<Description>
+This is the Execute section for the %Library.Query. 
+All of the logic will be performed here.
+A new node for the ^CacheTemp global will be created and each subscript of this global will contain
+a row for the report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,EpisodeId:%Integer]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+	
+ // Get reportid i.e. use $INCREMENT to add another node to ^CacheTemp global. 
+ // We use ^CacheTemp global because it will always use memory before disk
+ New repid,ind
+
+ // Use $Increment to get the next node
+ Set repid=$Increment(^CacheTemp(..#CACHETEMPSUBSCRIPT))
+ 
+ s ind=1, END=0
+ //Start Monitor (if configured to capture stats)
+ s mon=..MonitorBegin()
+
+ // Build data into ^CacheTemp(ReportID)
+ // e.g. Set ^CacheTemp(ReportID,Index)=$LB(f1,f2,f3)
+ New Number,String,Date,Time,c,n,str
+ n PAADMRowId,PAADMADMNo,PAADMHospId,PAADMAdmDate,PAADMVisitStatus,WARDCode,WARDDesc,HOSPDesc,HOSPRowId,PAPMIMedicare,PAPMIMedicareCode,PAPMIDVANumber,
+ HOSPPhone,PAPMIRowId,PAPMIDOB,INSTCode,EmpName,EmpStName,EmpCity,EmpZip,EmpPh,MRADMPresentComplaint,PAPMIName,PAPMIName2,PAPMIName3,PAPMINo,
+ PAADMType,PAPERStName,PAPERForeignAddress,TriageNurse,CTZIPCode,CTCITDesc,PAPERTel,PAPERMobPhone,HTTLCode,CTSEXCode,TRANSCTPCPDesc,
+ REFDDesc,REFDForename,FAMDTTLCode,REFDAddress,FAMDCITY,FAMDZIP,CLNDesc,CLNAddress1,CLNAddress2,CLNCity,CLNZip,
+ TreatingDoctor,TreatingDocTitle,PAPERRemark,ProviderNo,HealthFund,PAPMIHealthFundNo,
+ OEORDADMDR,OEORIRowId,OEORILabEpisodeNo,ARCIMCode,ARCIMDesc,OEORIDepProcNotes,OEORIsttDat,OEORIsttTim,OEORIDate,OEORITimeOrd,
+ SSUSRRegistrationNumber,SSUSRTTLCode,CTPCPDesc,OSTATCode,OEORIRemarks,CTLOCDesc,OEORIRowId,QuesCode
+ s (PAADMRowId,PAADMHospId,PAPMIRowId,OEORIRowId,OEORDADMDR,QuesCode,HOSPRowId)=0
+ s (PAADMADMNo,PAADMVisitStatus,WARDCode,WARDDesc,HOSPDesc,PAPMIMedicare,PAPMIMedicareCode,PAPMIDVANumber,HOSPPhone,PAPMIDOB,INSTCode,
+ EmpName,EmpStName,EmpCity,EmpZip,EmpPh,MRADMPresentComplaint,PAPMIName,PAPMIName2,PAPMIName3,PAPMINo,PAADMType,PAPERStName,
+ PAPERForeignAddress,TriageNurse,CTZIPCode,CTCITDesc,PAPERTel,PAPERMobPhone,TTLCode,CTSEXCode,REFDDesc,REFDForename,FAMDTTLCode,
+ REFDAddress,FAMDCITY,FAMDZIP,CLNDesc,CLNAddress1,CLNAddress2,CLNCity,CLNZip,TreatingDoctor,TreatingDocTitle,PAPERRemark,ProviderNo,
+ HealthFund,PAPMIHealthFundNo,
+ OEORILabEpisodeNo,ARCIMCode,ARCIMDesc,OEORIDepProcNotes,OEORIsttDat,OEORIsttTim,SSUSRRegistrationNumber,CTPCPDesc,OEORISttDat,OEORISttTim,
+ OEORIDate,OEORITimeOrd,OSTATCode,OEORIRemarks,CTLOCDesc,OEORIRowId)=""
+ s ind=1
+
+ &sql(select TOP 1
+ PAADM_RowID, 
+ PAADM_ADMNo,
+ PAADM_Hospital_DR,
+ PAADM_AdmDate,
+ PAADM_VisitStatus,
+ PAADM_CurrentWard_DR->WARD_Code,
+ PAADM_CurrentWard_DR->WARD_Desc,
+ PAADM_CurrentWard_DR->WARD_LocationDR->CTLOC_Hospital_DR->HOSP_Desc,
+ PAADM_CurrentWard_DR->WARD_LocationDR->CTLOC_Hospital_DR,
+ PAPMI_Medicare,
+ PAPMI_MedicareCode,
+ PAPMI_DVANumber,
+ PAADM_CurrentWard_DR->WARD_LocationDR->CTLOC_Hospital_DR->HOSP_Phone,
+ PAPMI_RowId,
+ PAPMI_DOB,
+ INS_InsType_DR->INST_Desc,
+ CONT_Name,CONT_address1,CONT_City_DR->CTCIT_Desc,CONT_Zip_DR->CTZIP_Code,CONT_Phone,
+ PAADM_MainMRADM_DR->MRADM_PresentComplaint, 
+ PAPMI_Name, 
+ PAPMI_Name2,
+ PAPMI_Name3,
+ PAPMI_No, 
+ PAADM_Type,
+ PAPER_StName,
+ PAPER_ForeignAddress,
+ PAADM_TriageNurse_DR->CTPCP_Desc as TriageNurse,
+ PAPER_Zip_DR->CTZIP_Code, 
+ PAPER_CityCode_DR->CTCIT_Desc,
+ PAPER_TelH,
+ PAPER_MobPhone,
+ PAPER_Title_DR->TTL_Code,
+ PAPER_Sex_DR->CTSEX_Code,
+ PAPER_FamilyDoctor_DR->REFD_Desc,
+ PAPER_FamilyDoctor_DR->REFD_Forename,
+ PAPER_FamilyDoctor_DR->REFD_Title_DR->TTL_Code as FAMDTTLCode,
+ PAPER_FamilyDoctor_DR->REFD_Address,
+ PAPER_FamilyDoctor_DR->REFD_City_DR->CTCIT_Desc as FAMDCITY,
+ PAPER_FamilyDoctor_DR->REFD_ctZIP_DR->CTZIP_Code AS FAMDZIP,
+ PAPER_FamilyDoctorClinic_DR->CLN_Clinic_DR->CLN_Desc,
+ PAPER_FamilyDoctorClinic_DR->CLN_Clinic_DR->CLN_Address1,
+ PAPER_FamilyDoctorClinic_DR->CLN_Clinic_DR->CLN_Address2,
+ PAPER_FamilyDoctorClinic_DR->CLN_Clinic_DR->CLN_City_DR->CTCIT_Desc,
+ PAPER_FamilyDoctorClinic_DR->CLN_Clinic_DR->CLN_Zip_DR->CTZIP_Code,
+ TRANS_CTCP_DR->CTPCP_Desc as TreatingDoctor,
+ TRANS_CTCP_DR->CTPCP_Title_DR->TTL_Code as TreatingDocTitle,
+ PAPER_Remark,
+ ADDR_ProvNumber,
+ PAPER_InsType_DR->INST_Desc as HealthFund,
+ PAPMI_HealthFundNo as PAPMIHealthFundNo
+ INTO :PAADMRowId,:PAADMADMNo,:PAADMHospId,:PAADMAdmDate,:PAADMVisitStatus,:WARDCode,:WARDDesc,:HOSPDesc,:HOSPRowId,:PAPMIMedicare,
+:PAPMIMedicareCode,:PAPMIDVANumber,:HOSPPhone,:PAPMIRowId,:PAPMIDOB,:INSTCode,
+:EmpName,:EmpStName,:EmpCity,:EmpZip,:EmpPh,
+:MRADMPresentComplaint,:PAPMIName,:PAPMIName2,:PAPMIName3,
+:PAPMINo,:PAADMType,:PAPERStName,:PAPERForeignAddress,:TriageNurse,
+:CTZIPCode,:CTCITDesc,:PAPERTel,:PAPERMobPhone,:TTLCode,:CTSEXCode,:REFDDesc,:REFDForename,:TTLCode,
+:REFDAddress,:FAMDCITY,:FAMDZIP,:CLNDesc,:CLNAddress1,:CLNAddress2,:CLNCity,:CLNZip,:TreatingDoctor,:TreatingDocTitle,:PAPERRemark,
+:ProviderNo,:HealthFund,:PAPMIHealthFundNo
+  FROM sqluser.PA_Adm
+ INNER JOIN sqluser.PA_PatMas ON PAADM_PAPMI_DR=PAPMI_RowId
+ LEFT JOIN sqluser.PA_FamilyDoctor ON (FAMD_ParRef=PAPMI_RowId AND FAMD_DateTo IS NULL)
+ INNER JOIN sqluser.PA_Person ON PAPMI_PAPER_DR=PAPER_RowId
+ LEFT JOIN  sqluser.PA_AdmInsurance ON INS_ParRef=PAADM_RowId
+ LEFT JOIN sqluser.PA_AdmTransaction ON TRANS_ParRef=PAADM_RowId
+ LEFT JOIN sqluser.PA_TrafficAccidentContact ON (CONT_ParRef=PAADM_TrafficAccident_DR AND CONT_DateTo IS NULL)
+ LEFT JOIN sqluser.CT_CareProvAddress ON (TRANS_CTCP_DR=ADDR_ParRef AND ADDR_Type='I')
+-- LEFT JOIN sqluser.PAC_RefDoctor ON REFD_RowId=PAPER_FamilyDoctor_DR
+ WHERE
+ PAADM_RowId =:EpisodeId AND
+ TRANS_TransType_DR=3 
+ ORDER BY TRANS_Childsub DESC, FAMD_Childsub DESC
+ )
+ Do FormatDates
+ Do FormatTimes
+
+ if PAPERStName'="" s PAPERStName=$LISTTOSTRING(PAPERStName)
+ if PAPERRemark'="" s PAPERRemark=$LISTTOSTRING(PAPERRemark)
+ if REFDAddress'="" s REFDAddress=$LISTTOSTRING(REFDAddress)
+ s INSTDesc=..GetPrimaryInsTypeDescForEpisode(EpisodeId)
+ if (WARDCode="ED") && (PAADMHospId=696) {
+	 s TreatingDoctor="Jo Brown"
+	 s TreatingDocTitle="Dr"
+	 s ProviderNo="2145728J"
+ }
+
+ // build the row
+ Set str=$LB(PAADMRowId,PAADMADMNo,PAADMHospId,PAADMAdmDate,PAADMVisitStatus,WARDCode,WARDDesc,HOSPDesc,HOSPRowId,PAPMIMedicare,PAPMIMedicareCode,PAPMIDVANumber,
+ HOSPPhone,PAPMIRowId,PAPMIDOB,INSTCode,EmpName,EmpStName,EmpCity,EmpZip,EmpPh,MRADMPresentComplaint,PAPMIName,PAPMIName2,PAPMIName3,PAPMINo,
+ PAADMType,PAPERStName,PAPERForeignAddress,TriageNurse,CTZIPCode,CTCITDesc,PAPERTel,PAPERMobPhone,TTLCode,CTSEXCode,REFDDesc,REFDForename,
+ FAMDTTLCode,REFDAddress,FAMDCITY,FAMDZIP,CLNDesc,CLNAddress1,CLNAddress2,CLNCity,CLNZip,TreatingDoctor,TreatingDocTitle,
+ PAPERRemark,ProviderNo,INSTDesc,HealthFund,PAPMIHealthFundNo)
+ Set ^CacheTemp(..#CACHETEMPSUBSCRIPT,repid,ind)=str
+
+ // Build QHandle (AtEnd,ReportID,Index)
+ Set QHandle=$lb(0,repid,0)
+
+ Quit $$$OK
+
+FormatDates
+ // Convert the dates to ODBC date format
+ If PAPMIDOB'="" Set PAPMIDOB=$ZD(PAPMIDOB,4,,4)
+ If OEORISttDat'="" Set OEORISttDat=$ZD(OEORISttDat,4)
+ If OEORIDate'="" Set OEORIDate=$ZD(OEORIDate,4)
+ If PAADMAdmDate'="" Set PAADMAdmDate=$ZD(PAADMAdmDate,4)
+ //If SPECDate'="" Set SPECDate=$ZD(SPECDate,4)
+ Quit
+
+FormatTimes
+ // Convert the times to ODBC time format
+ If OEORISttTim'="" Set OEORISttTim=$ZT(OEORISttTim,2)
+ If OEORITimeOrd'="" Set OEORITimeOrd=$ZT(OEORITimeOrd,2)
+ //If SPECTime'="" Set SPECTime=$ZT(SPECTime,2)
+ Quit
+]]></Implementation>
+</Method>
+
+<Method name="SWARHPatientDetailsFetch">
+<Description>
+This is the Fetch component of the %Library.Query. 
+This should never have to change. It is designed to fetch the row for each subscript of the ^CacheTemp
+global and return this row to the Crystal Report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,&Row:%Library.List,&AtEnd:%Library.Integer=0]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // This fetch method should never have to change. 
+
+ // repid - Report ID
+ // ind   - sequence index which represents each row
+
+ New repid,ind
+
+ // Restore QHandle
+ Set AtEnd=$li(QHandle,1)
+ Set repid=$li(QHandle,2)
+ Set ind=$li(QHandle,3)
+
+ Set ind=$o(^CacheTemp(..#CACHETEMPSUBSCRIPT,repid,ind))
+ If ind="" {  // if there are no more rows, finish fetching
+ Set AtEnd=1
+ Set Row=""
+ }
+ Else      {  // fetch row
+ Set Row=^CacheTemp(..#CACHETEMPSUBSCRIPT,repid,ind)
+ }
+
+ // Save QHandle
+ s QHandle=$lb(AtEnd,repid,ind)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Query name="SWARHPatientDetails">
+<Description>
+Vic Triage Report
+It expects 1 parameter of type integer and will return 40 odd fields:
+Field1 - Integer
+Field2 - String(MAXLEN=255)
+Field3 - Date
+Field4 - Time</Description>
+<Type>%Library.Query</Type>
+<FormalSpec>EpisodeId:%Integer</FormalSpec>
+<SqlProc>1</SqlProc>
+<Parameter name="CONTAINID" value="0"/>
+<Parameter name="ROWSPEC" value="PAADMRowId: %Integer,PAADMADMNo:%String(MAXLEN=255),PAADMHospId:%Integer,PAADMAdmDate:%Date,PAADMVisitStatus:%String(MAXLEN=255),WARDCode:%String(MAXLEN=255),WARDDesc:%String(MAXLEN=255),HOSPDesc:%String(MAXLEN=255),HOSPRowId:%Integer,PAPMIMedicare:%String(MAXLEN=255),PAPMIMedicareCode:%String(MAXLEN=255),PAPMIDVANumber:%String(MAXLEN=255),HOSPPhone:%String(MAXLEN=255),PAPMIRowId:%Integer,PAPMIDOB:%Date,INSTCode:%String(MAXLEN=255),EmpName:%String(MAXLEN=255),EmpStName:%String(MAXLEN=255),EmpCity:%String(MAXLEN=255),EmpZip:%String(MAXLEN=255),EmpPh:%String(MAXLEN=255),MRADMPresentComplaint:%String(MAXLEN=255),PAPMIName:%String(MAXLEN=255),PAPMIName2:%String(MAXLEN=255),PAPMIName3:%String(MAXLEN=255),PAPMINo:%String(MAXLEN=255),PAADMType:%String(MAXLEN=255),PAPERStName:%String(MAXLEN=255),PAPERForeignAddress:%String(MAXLEN=255),TriageNurse:%String(MAXLEN=255),CTZIPCode:%String(MAXLEN=255),CTCITDesc:%String(MAXLEN=255),PAPERTel:%String(MAXLEN=255),PAPERMobPhone:%String(MAXLEN=255),TTLCode:%String(MAXLEN=255),CTSEXCode:%String(MAXLEN=255),REFDDesc:%String(MAXLEN=255),REFDForename:%String(MAXLEN=255),FAMDTTLCode:%String(MAXLEN=255),REFDAddress:%String(MAXLEN=255),FAMDCITY:%String(MAXLEN=255),FAMDZIP:%String(MAXLEN=255),CLNDesc:%String(MAXLEN=255),CLNAddress1:%String(MAXLEN=255),CLNAddress2:%String(MAXLEN=255),CLNCity:%String(MAXLEN=255),CLNZip:%String(MAXLEN=255),TreatingDoctor:%String(MAXLEN=255),TreatingDocTitle:%String(MAXLEN=255),PAPERRemark:%String(MAXLEN=255),ProviderNo:%String(MAXLEN=255),INSTDesc:%String(MAXLEN=255),HealthFund:%String(MAXLEN=255),PAPMIHealthFundNo:%String(MAXLEN=255)"/>
+<Parameter name="SELECTMODE" value="ODBC"/>
+</Query>
+
+<Method name="SWARHOrderDetailsClose">
+<Description>
+This is the Close component of the %Library.Query.
+This is standard code and should never have to change.
+This is where all the cleanup is performed, i.e. the purging of the temporary storage global ^CacheTemp.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>QHandle:%Library.Binary</FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Clean up by purging the temporary node in ^CacheTemp global
+ New repid
+ Set repid=$LIST(QHandle,2)
+ 
+ //Start Monitor (if configured to capture stats)
+ i mon Do ..MonitorEnd(mon)
+
+ Kill ^CacheTemp(..#CACHETEMPSUBSCRIPT,repid)
+ 
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="SWARHOrderDetailsExecute">
+<Description>
+This is the Execute section for the %Library.Query. 
+All of the logic will be performed here.
+A new node for the ^CacheTemp global will be created and each subscript of this global will contain
+a row for the report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,EpisodeId:%Integer,LabEpisodeNo:%String]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Get reportid i.e. use $INCREMENT to add another node to ^CacheTemp global. 
+ // We use ^CacheTemp global because it will always use memory before disk
+ New repid,ind
+
+ // Use $Increment to get the next node
+ Set repid=$Increment(^CacheTemp(..#CACHETEMPSUBSCRIPT))
+ 
+ s ind=1, END=0
+ //Start Monitor (if configured to capture stats)
+ s mon=..MonitorBegin()
+
+ // Build data into ^CacheTemp(ReportID)
+ // e.g. Set ^CacheTemp(ReportID,Index)=$LB(f1,f2,f3)
+ New Number,String,Date,Time,c,n,str
+ n HospId, PAPMIDOB,PAADMAdmDate,OEORIRowId,OEORILabEpisodeNo,ARCIMCode,ARCIMDesc,OEORIDepProcNotes,SSUSRRegistrationNumber,SSUSRTTLCode,CTPCPDesc,SPECCode,SPECDate,SPECTime,OEORISttDat,OEORISttTim,OEORIDate,OEORITimeOrd,OSTATCode,OEORIRemarks,OrdCatRecLocDesc,OrdItmRecLocDesc,Vendor,OEORIAuthoriseClinician
+ s (HospId, PAPMIDOB,PAADMAdmDate,OEORIRowId,OEORILabEpisodeNo,ARCIMCode,ARCIMDesc,OEORIDepProcNotes,SSUSRRegistrationNumber,SSUSRTTLCode,CTPCPDesc,SPECCode,SPECDate,SPECTime,OEORISttDat,OEORISttTim,OEORIDate,OEORITimeOrd,OSTATCode,OEORIRemarks,OrdCatRecLocDesc,OrdItmRecLocDesc,Vendor,OEORIAuthoriseClinician)=""
+ s ind=1
+ 
+ s HospId=$p($g(^PAADM(EpisodeId,2)),"^",85)
+ 
+ //new select to declare cursor
+ &sql(declare SWARHOrderDetails cursor for 
+ SELECT
+ OEORI_RowId,
+ OEORI_LabEpisodeNo,
+ OEORI_ItmMast_DR->ARCIM_Code,
+ OEORI_ItmMast_DR->ARCIM_Desc,
+ $LISTTOSTRING(OEORI_DepProcNotes,""),
+ SSUSR_RegistrationNumber,
+ SSUSR_Title_DR->TTL_Code as SSUSRTTLCode,
+ OEORI_Doctor_DR->CTPCP_Desc,
+ SPEC_Code,
+ SPEC_Date,
+ SPEC_Time,
+ OEORI_SttDat,
+ OEORI_SttTim,
+ OEORI_Date,
+ OEORI_TimeOrd,
+ OEORI_ItemStat_DR->OSTAT_Code,
+ OEORI_Remarks,
+ --RL_RecLoc_DR->CTLOC_Desc,
+ ARCRL_RecLoc_DR->CTLOC_Desc,
+ OEORI_AuthoriseClinician_DR->CTPCP_Desc
+ FROM SQLUser.OE_OrdItem orderitem LEFT JOIN SQLUser.OE_OrdSpecimen ON OEORI_RowId=SPEC_Parref
+ --LEFT JOIN SQLUser.OEC_OrderCategory ON OEORI_Categ_DR=ORCAT_RowId
+ --LEFT JOIN SQLUser.OEC_OrdCatRecLoc ON( ORCAT_RowId=RL_ParRef AND RL_CTHospitalDR=:HospId AND (RL_DateTo IS NULL or RL_DateTo>GETDATE()))
+ LEFT JOIN SQLUser.ARC_ItmRecLoc ON (ARCRL_ARCIM_DR=OEORI_ItmMast_DR AND ARCRL_CTHospitalDR=:HospId AND (ARCRL_DateTo is NULL OR ARCRL_DateTo>GETDATE()))
+ LEFT JOIN SQLUser.SS_User ON OEORI_Doctor_DR=SSUSR_CTPCP_DR
+ WHERE OEORI_LabEpisodeNo=:LabEpisodeNo) 
+ 
+ &sql(open  SWARHOrderDetails)
+
+ //fetch first order record
+ &sql(fetch SWARHOrderDetails into :OEORIRowId,:OEORILabEpisodeNo,:ARCIMCode,:ARCIMDesc,:OEORIDepProcNotes,:SSUSRRegistrationNumber,:SSUSRTTLCode,
+ :CTPCPDesc,:SPECCode,:SPECDate,:SPECTime,:OEORISttDat,:OEORISttTim,:OEORIDate,:OEORITimeOrd,:OSTATCode,:OEORIRemarks,:OrdItmRecLocDesc,:OEORIAuthoriseClinician)
+
+ while 'SQLCODE{
+	if SPECDate'="" s SPECDate=$ZD(SPECDate,4)
+ 	if SPECTime'="" s SPECTime=$ZT(SPECTime,2)
+	Do FormatDates
+	Do FormatTimes
+	s Vendor=""
+	//if (OrdItmRecLocDesc'="") {
+	//	s Vendor=OrdItmRecLocDesc
+	//} elseif (OrdCatRecLocDesc'="") {
+	//	s Vendor=OrdCatRecLocDesc
+	//}
+	if OEORIRemarks'="" s OEORIRemarks=$LISTTOSTRING(OEORIRemarks)
+
+	set str=$LB(OEORIRowId,OEORILabEpisodeNo,ARCIMCode,ARCIMDesc,OEORIDepProcNotes,SSUSRRegistrationNumber,SSUSRTTLCode,CTPCPDesc,SPECCode,SPECDate,SPECTime,OEORISttDat,OEORISttTim,OEORIDate,OEORITimeOrd,OSTATCode,OEORIRemarks,OrdItmRecLocDesc,Vendor,OEORIAuthoriseClinician)
+
+	s ^CacheTemp(..#CACHETEMPSUBSCRIPT,repid,ind)=str
+	s ind=ind+1
+	s OEORIAuthoriseClinician=""
+	//fetch next order records
+	&sql(fetch SWARHOrderDetails into :OEORIRowId,:OEORILabEpisodeNo,:ARCIMCode,:ARCIMDesc,:OEORIDepProcNotes,:SSUSRRegistrationNumber,:SSUSRTTLCode,:CTPCPDesc,:SPECCode,:SPECDate,:SPECTime,:OEORISttDat,:OEORISttTim,:OEORIDate,:OEORITimeOrd,:OSTATCode,:OEORIRemarks,:OrdItmRecLocDesc,:OEORIAuthoriseClinician)
+}
+ if SPECDate'="" s SPECDate=$ZD(SPECDate,4)
+ if SPECTime'="" s SPECTime=$ZT(SPECTime,2)
+ Do FormatDates
+ Do FormatTimes
+
+ &sql(close SWARHOrderDetails)
+
+ // Build QHandle (AtEnd,ReportID,Index)
+ Set QHandle=$lb(0,repid,0)
+
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="SWARHOrderDetailsFetch">
+<Description>
+This is the Fetch component of the %Library.Query. 
+This should never have to change. It is designed to fetch the row for each subscript of the ^CacheTemp
+global and return this row to the Crystal Report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,&Row:%Library.List,&AtEnd:%Library.Integer=0]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // This fetch method should never have to change. 
+
+ // repid - Report ID
+ // ind   - sequence index which represents each row
+
+ New repid,ind
+
+ // Restore QHandle
+ Set AtEnd=$li(QHandle,1)
+ Set repid=$li(QHandle,2)
+ Set ind=$li(QHandle,3)
+
+ Set ind=$o(^CacheTemp(..#CACHETEMPSUBSCRIPT,repid,ind))
+ If ind="" {  // if there are no more rows, finish fetching
+ Set AtEnd=1
+ Set Row=""
+ }
+ Else      {  // fetch row
+ Set Row=^CacheTemp(..#CACHETEMPSUBSCRIPT,repid,ind)
+ }
+
+ // Save QHandle
+ s QHandle=$lb(AtEnd,repid,ind)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Query name="SWARHOrderDetails">
+<Description>
+Vic Triage Report
+It expects 1 parameter of type integer and will return 40 odd fields:
+Field1 - Integer
+Field2 - String(MAXLEN=255)
+Field3 - Date
+Field4 - Time</Description>
+<Type>%Library.Query</Type>
+<FormalSpec>EpisodeId:%Integer,LabEpisodeNo:%String</FormalSpec>
+<SqlProc>1</SqlProc>
+<Parameter name="CONTAINID" value="0"/>
+<Parameter name="ROWSPEC" value="OEORIRowId:%String(MAXLEN=255),OEORILabEpisodeNo:%String(MAXLEN=255),ARCIMCode:%String(MAXLEN=255),ARCIMDesc:%String(MAXLEN=255),OEORIDepProcNotes:%String(MAXLEN=1024),SSUSRRegistrationNumber:%String(MAXLEN=255),SSUSRTTLCode:%String(MAXLEN=255),CTPCPDesc:%String(MAXLEN=255),SPECCode:%String(MAXLEN=255),SPECDate:%Date,SPECTime:%String(MAXLEN=255),OEORISttDat:%String(MAXLEN=255),OEORISttTim:%String(MAXLEN=255),OEORIDate:%String(MAXLEN=255),OEORITimeOrd:%String(MAXLEN=255),OSTATCode:%String(MAXLEN=255),OEORIRemarks:%String(MAXLEN=255),OrdItmRecLocDesc:%String(MAXLEN=255),Vendor:%String(MAXLEN=255),OEORIAuthoriseClinician:%String(MAXLEN=255)"/>
+<Parameter name="SELECTMODE" value="ODBC"/>
+</Query>
+
+<Method name="SWARHPathReportClose">
+<Description>
+This is the Close component of the %Library.Query.
+This is standard code and should never have to change.
+This is where all the cleanup is performed, i.e. the purging of the temporary storage global ^CacheTemp.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>QHandle:%Library.Binary</FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Clean up by purging the temporary node in ^CacheTemp global
+ New repid
+ Set repid=$LIST(QHandle,2)
+ 
+ //Start Monitor (if configured to capture stats)
+ i mon Do ..MonitorEnd(mon)
+
+ Kill ^CacheTemp(..#CACHETEMPSUBSCRIPT,repid)
+ 
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="SWARHPathReportExecute">
+<Description>
+This is the Execute section for the %Library.Query. 
+All of the logic will be performed here.
+A new node for the ^CacheTemp global will be created and each subscript of this global will contain
+a row for the report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,EpisodeId:%Integer,LabEpisodeNo:%String]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+	
+ // Get reportid i.e. use $INCREMENT to add another node to ^CacheTemp global. 
+ // We use ^CacheTemp global because it will always use memory before disk
+ New repid,ind
+
+ // Use $Increment to get the next node
+ Set repid=$Increment(^CacheTemp(..#CACHETEMPSUBSCRIPT))
+ 
+ s ind=1, END=0
+ //Start Monitor (if configured to capture stats)
+ s mon=..MonitorBegin()
+
+ // Build data into ^CacheTemp(ReportID)
+ // e.g. Set ^CacheTemp(ReportID,Index)=$LB(f1,f2,f3)
+ New Number,String,Date,Time,c,n,str
+ n PAADMAdmDate,PAADMADMNo,PAADMHospId,PAADMVisitStatus,WARDCode,WARDDesc,HOSPDesc,PAPMIMedicare,PAPMIMedicareCode,PAPMIDVANumber,HOSPPhone,PAPMIRowId,PAPMIDOB,INSTCode,MRADMPresentComplaint,PAPMIName,PAPMIName2,PAPMIName3,PAPMINo,PAADMType,PAPERStName,PAPERForeignAddress,TriageNurse,CTZIPCode,CTCITDesc,TTLCode,CTSEXCode,TRANSCTPCPDesc,REFDDesc,REFDForename,FAMDTTLCode,REFDAddress,FAMDCITY,FAMDZIP,TreatingDoctor,TreatingDocTitle,OEORDADMDR,OEORILabEpisodeNo,ARCIMCode,ARCIMDesc,OEORIDepProcNotes,OEORIsttDat,OEORIsttTim,OEORIDate,OEORITimeOrd,SSUSRRegistrationNumber,SSUSRTTLCode,CTPCPDesc,SPECCode,SPECDate,SPECTime,OSTATCode,OEORIRemarks,CTLOCDesc,OEORIRowId
+ s (PAPMIRowId,OEORDADMDR)=0
+ s (PAADMAdmDate,PAADMADMNo,PAADMVisitStatus,WARDCode,WARDDesc,HOSPDesc,PAPMIMedicare,PAPMIMedicareCode,PAPMIDVANumber,HOSPPhone,PAPMIDOB,INSTCode,MRADMPresentComplaint,PAPMIName,PAPMIName2,PAPMIName3,PAPMINo,PAADMType,PAPERStName,PAPERForeignAddress,TriageNurse,CTZIPCode,CTCITDesc,TTLCode,CTSEXCode,REFDDesc,REFDForename,FAMDTTLCode,REFDAddress,FAMDCITY,FAMDZIP,TreatingDoctor,TreatingDocTitle,OEORILabEpisodeNo,ARCIMCode,ARCIMDesc,OEORIDepProcNotes,OEORIsttDat,OEORIsttTim,SSUSRRegistrationNumber,CTPCPDesc,SPECCode,SPECDate,SPECTime,OEORISttDat,OEORISttTim,OEORIDate,OEORITimeOrd,OSTATCode,OEORIRemarks,CTLOCDesc,OEORIRowId)=""
+ s ind=1
+
+ &sql(select 
+ PAADM_ADMNo,
+ PAADM_Hospital_DR,
+ PAADM_VisitStatus,
+ PAADM_CurrentWard_DR->WARD_Code,
+ PAADM_CurrentWard_DR->WARD_Desc,
+ PAADM_CurrentWard_DR->WARD_LocationDR->CTLOC_Hospital_DR->HOSP_Desc,
+ PAPMI_Medicare,
+ PAPMI_MedicareCode,
+ PAPMI_DVANumber,
+ PAADM_CurrentWard_DR->WARD_LocationDR->CTLOC_Hospital_DR->HOSP_Phone,
+ PAPMI_RowId,
+ PAPMI_DOB,
+ INS_InsType_DR->INST_Desc, 
+ PAADM_MainMRADM_DR->MRADM_PresentComplaint, 
+ PAPMI_Name, 
+ PAPMI_Name2,
+ PAPMI_Name3,
+ PAPMI_No, 
+ PAADM_Type,
+ PAPMI_PAPER_DR->PAPER_StName,
+ PAPMI_PAPER_DR->PAPER_ForeignAddress,
+ PAADM_TriageNurse_DR->CTPCP_Desc as TriageNurse,
+ PAPMI_PAPER_DR->PAPER_Zip_DR->CTZIP_Code, 
+ PAPMI_PAPER_DR->PAPER_CityCode_DR->CTCIT_Desc,
+ PAPMI_PAPER_DR->PAPER_Title_DR->TTL_Code,
+ PAPMI_PAPER_DR->PAPER_Sex_DR->CTSEX_Code,
+ PAPMI_PAPER_DR->PAPER_FamilyDoctor_DR->REFD_Desc,
+ PAPMI_PAPER_DR->PAPER_FamilyDoctor_DR->REFD_Forename,
+ PAPMI_PAPER_DR->PAPER_FamilyDoctor_DR->REFD_Title_DR->TTL_Code as FAMDTTLCode,
+ PAPMI_PAPER_DR->PAPER_FamilyDoctor_DR->REFD_Address,
+ PAPMI_PAPER_DR->PAPER_FamilyDoctor_DR->REFD_City_DR->CTCIT_Desc as FAMDCITY,
+ PAPMI_PAPER_DR->PAPER_FamilyDoctor_DR->REFD_ctZIP_DR->CTZIP_Code AS FAMDZIP,
+ TRANS_CTCP_DR->CTPCP_Desc as TreatingDoctor,
+ TRANS_CTCP_DR->CTPCP_Title_DR->TTL_Code as TreatingDocTitle
+ INTO :PAADMADMNo,:PAADMHospId,:PAADMVisitStatus,:WARDCode,:WARDDesc,:HOSPDesc,:PAPMIMedicare,
+:PAPMIMedicareCode,:PAPMIDVANumber,:HOSPPhone,:PAPMIRowId,:PAPMIDOB,:INSTCode,
+:MRADMPresentComplaint,:PAPMIName,:PAPMIName2,:PAPMIName3,
+:PAPMINo,:PAADMType,:PAPERStName,:PAPERForeignAddress,:TriageNurse,
+:CTZIPCode,:CTCITDesc,:TTLCode,:CTSEXCode,:REFDDesc,:REFDForename,:TTLCode,
+:REFDAddress,:FAMDCITY,:FAMDZIP,:TreatingDoctor,:TreatingDocTitle
+ FROM sqluser.PA_Adm, sqluser.PA_PatMas,sqluser.PA_AdmInsurance,
+ sqluser.PA_AdmTransaction
+ WHERE PAADM_PAPMI_DR=PAPMI_RowId AND PAADM_RowId=*INS_ParRef and 
+ PAADM_RowId =:EpisodeId and 
+ PAADM_RowId=TRANS_ParRef and TRANS_TransType_DR=3
+ order by TRANS_ChildSub desc 
+ )
+ Do FormatDates
+ Do FormatTimes
+
+ if PAPERStName'="" s PAPERStName=$LISTTOSTRING(PAPERStName)
+ if (PAADMVisitStatus="E") && (PAADMHospId=696) {
+	 s TreatingDoctor="Tim Baker"
+	 s TreatingDocTitle="DR"
+ }
+
+ //new select to declare cursor
+ &sql(declare SWARHPathReport cursor for 
+ select
+ OEORD_ADM_DR,
+ OEORI_LabEpisodeNo, 
+ OEORI_ItmMast_DR->ARCIM_Code, 
+ OEORI_ItmMast_DR->ARCIM_Desc,
+ OEORI_DepProcNotes,
+ SSUSR_RegistrationNumber,
+ SSUSR_Title_DR->TTL_Code as SSUSRTTLCode,
+ OEORI_Doctor_DR->CTPCP_Desc,
+ SPEC_Code,
+ SPEC_Date,
+ SPEC_Time, 
+ OEORI_SttDat, 
+ OEORI_SttTim, 
+ OEORI_Date,
+ OEORI_TimeOrd,
+ OEORI_ItemStat_DR->OSTAT_Code, 
+ OEORI_Remarks,
+ OEORI_RecDep_DR->CTLOC_Desc,
+ OEORI_RowId 
+ FROM  SQLUser.OE_Order LEFT JOIN sqluser.OE_OrdItem ON OEORD_RowId=OEORI_OEORD_ParRef
+ LEFT JOIN SQLUser.OE_OrdSpecimen ON OEORI_RowId=SPEC_Parref
+ LEFT JOIN sqlUser.SS_User ON OEORI_Doctor_DR=SSUSR_CTPCP_DR
+ WHERE OEORI_LabEpisodeNo=:LabEpisodeNo AND OEORD_ADM_DR=:EpisodeId)
+ &sql(open  SWARHPathReport)
+
+ // build the row
+ Set str=$LB(PAADMADMNo,PAADMHospId,PAADMVisitStatus,WARDCode,WARDDesc,HOSPDesc,PAPMIMedicare,PAPMIMedicareCode,PAPMIDVANumber,HOSPPhone,PAPMIRowId,PAPMIDOB,INSTCode,MRADMPresentComplaint,PAPMIName,PAPMIName2,PAPMIName3,PAPMINo,PAADMType,PAPERStName,PAPERForeignAddress,TriageNurse,CTZIPCode,CTCITDesc,TTLCode,CTSEXCode,REFDDesc,REFDForename,FAMDTTLCode,REFDAddress,FAMDCITY,FAMDZIP,TreatingDoctor,TreatingDocTitle)
+
+ //fetch first order record
+ &sql(fetch SWARHPathReport into :OEORDADMDR,:OEORILabEpisodeNo,:ARCIMCode,:ARCIMDesc,:OEORIDepProcNotes,:SSUSRRegistrationNumber,:SSUSRTTLCode,:CTPCPDesc,:SPECCode,:SPECDate,:SPECTime,:OEORISttDat,:OEORISttTim,:OEORIDate,:OEORITimeOrd,:OSTATCode,:OEORIRemarks,:CTLOCDesc,:OEORIRowId)
+
+ while 'SQLCODE{
+ if OEORIDepProcNotes'="" s OEORIDepProcNotes=$LISTTOSTRING(OEORIDepProcNotes)
+ if OEORIRemarks'="" s OEORIRemarks=$LISTTOSTRING(OEORIRemarks)
+ if SPECDate'="" s SPECDate=$ZD(SPECDate,4)
+ if SPECTime'="" s SPECTime=$ZT(SPECTime,2)
+ Do FormatDates
+ Do FormatTimes
+
+ set strNEWOP=$LB(OEORDADMDR,OEORILabEpisodeNo,ARCIMCode,ARCIMDesc,OEORIDepProcNotes,SSUSRRegistrationNumber,SSUSRTTLCode,CTPCPDesc,SPECCode,SPECDate,SPECTime,OEORISttDat,OEORISttTim,OEORIDate,OEORITimeOrd,OSTATCode,OEORIRemarks,CTLOCDesc,OEORIRowId)
+
+ Set ^CacheTemp(..#CACHETEMPSUBSCRIPT,repid,ind)=str_strNEWOP
+ s ind=ind+1
+ //fetch next order records
+ &sql(fetch SWARHPathReport into :OEORDADMDR,:OEORILabEpisodeNo,:ARCIMCode,:ARCIMDesc,:OEORIDepProcNotes,:SSUSRRegistrationNumber,:SSUSRTTLCode,:CTPCPDesc,:SPECCode,:SPECDate,:SPECTime,:OEORISttDat,:OEORISttTim,:OEORIDate,:OEORITimeOrd,:OSTATCode,:OEORIRemarks,:CTLOCDesc,:OEORIRowId)
+}
+
+ Do FormatDates
+ Do FormatTimes
+
+ &sql(close SWARHPathReport)
+
+ // Build QHandle (AtEnd,ReportID,Index)
+ Set QHandle=$lb(0,repid,0)
+
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="SWARHPathReportFetch">
+<Description>
+This is the Fetch component of the %Library.Query. 
+This should never have to change. It is designed to fetch the row for each subscript of the ^CacheTemp
+global and return this row to the Crystal Report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,&Row:%Library.List,&AtEnd:%Integer=0]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // This fetch method should never have to change. 
+
+ // repid - Report ID
+ // ind   - sequence index which represents each row
+
+ New repid,ind
+
+ // Restore QHandle
+ Set AtEnd=$li(QHandle,1)
+ Set repid=$li(QHandle,2)
+ Set ind=$li(QHandle,3)
+
+ Set ind=$o(^CacheTemp(..#CACHETEMPSUBSCRIPT,repid,ind))
+ If ind="" {  // if there are no more rows, finish fetching
+ Set AtEnd=1
+ Set Row=""
+ }
+ Else      {  // fetch row
+ Set Row=^CacheTemp(..#CACHETEMPSUBSCRIPT,repid,ind)
+ }
+
+ // Save QHandle
+ s QHandle=$lb(AtEnd,repid,ind)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Query name="SWARHPathReport">
+<Description>
+Vic Triage Report
+It expects 1 parameter of type integer and will return 40 odd fields:
+Field1 - Integer
+Field2 - String(MAXLEN=255)
+Field3 - Date
+Field4 - Time</Description>
+<Type>%Library.Query</Type>
+<FormalSpec>EpisodeId:%Integer,LabEpisodeNo:%String</FormalSpec>
+<SqlProc>1</SqlProc>
+<Parameter name="CONTAINID" value="0"/>
+<Parameter name="ROWSPEC" value="PAADMADMNo:%String(MAXLEN=255),PAADMHospId:%Integer,PAADMVisitStatus:%String(MAXLEN=255),WARDCode:%String(MAXLEN=255),WARDDesc:%String(MAXLEN=255),HOSPDesc:%String(MAXLEN=255),PAPMIMedicare:%String(MAXLEN=255),PAPMIMedicareCode:%String(MAXLEN=255),PAPMIDVANumber:%String(MAXLEN=255),HOSPPhone:%String(MAXLEN=255),PAPMIRowId:%Integer,PAPMIDOB:%Date,INSTCode:%String(MAXLEN=255),MRADMPresentComplaint:%String(MAXLEN=255),PAPMIName:%String(MAXLEN=255),PAPMIName2:%String(MAXLEN=255),PAPMIName3:%String(MAXLEN=255),PAPMINo:%String(MAXLEN=255),PAADMType:%String(MAXLEN=255),PAPERStName:%String(MAXLEN=255),PAPERForeignAddress:%String(MAXLEN=255),TriageNurse:%String(MAXLEN=255),CTZIPCode:%String(MAXLEN=255),CTCITDesc:%String(MAXLEN=255),TTLCode:%String(MAXLEN=255),CTSEXCode:%String(MAXLEN=255),REFDDesc:%String(MAXLEN=255),REFDForename:%String(MAXLEN=255),FAMDTTLCode:%String(MAXLEN=255),REFDAddress:%String(MAXLEN=255),FAMDCITY:%String(MAXLEN=255),FAMDZIP:%String(MAXLEN=255),TreatingDoctor:%String(MAXLEN=255),TreatingDocTitle:%String(MAXLEN=255),OEORDADMDR:%Integer,OEORILabEpisodeNo:%String(MAXLEN=255),ARCIMCode:%String(MAXLEN=255),ARCIMDesc:%String(MAXLEN=255),OEORIDepProcNotes:%String(MAXLEN=255),SSUSRRegistrationNumber:%String(MAXLEN=255),SSUSRTTLCode:%String(MAXLEN=255),CTPCPDesc:%String(MAXLEN=255),SPECCode:%String(MAXLEN=255),SPECDate:%Date,SPECTime:%String(MAXLEN=255),OEORISttDat:%Date,OEORISttTim:%String(MAXLEN=255),OEORIDate:%Date,OEORITimeOrd:%String(MAXLEN=255),OSTATCode:%String(MAXLEN=255),OEORIRemarks:%String(MAXLEN=255),CTLOCDesc:%String(MAXLEN=255),OEORIRowId:%String(MAXLEN=255)"/>
+<Parameter name="SELECTMODE" value="ODBC"/>
+</Query>
+
+<Method name="SWARHOrderQuestionsClose">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>QHandle:%Library.Binary</FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Clean up by purging the temporary node in ^CacheTemp global
+ New repid
+ Set repid=$LIST(QHandle,2)
+ 
+ //Start Monitor (if configured to capture stats)
+ i mon Do ..MonitorEnd(mon)
+
+ Kill ^CacheTemp(..#CACHETEMPSUBSCRIPT,repid)
+ 
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="SWARHOrderQuestionsExecute">
+<Description>
+This is the Execute section for the %Library.Query. 
+All of the logic will be performed here.
+A new node for the ^CacheTemp global will be created and each subscript of this global will contain
+a row for the report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,LabEpisodeNo:%String,OrderItemCode:%String]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+	
+ // Get reportid i.e. use $INCREMENT to add another node to ^CacheTemp global. 
+ // We use ^CacheTemp global because it will always use memory before disk
+ New repid,ind
+
+ // Use $Increment to get the next node
+ Set repid=$Increment(^CacheTemp(..#CACHETEMPSUBSCRIPT))
+ 
+ s ind=1, END=0
+ //Start Monitor (if configured to capture stats)
+ s mon=..MonitorBegin()
+
+ // Build data into ^CacheTemp(ReportID)
+ // e.g. Set ^CacheTemp(ReportID,Index)=$LB(f1,f2,f3)
+ New Number,String,Date,Time,c,n,str
+ n PAADMRowId,PAADMADMNo,PAADMAdmDate,PAADMVisitStatus,WARDCode,HOSPDesc,HOSPRowId,PAPMIMedicare,PAPMIMedicareCode,PAPMIDVANumber,HOSPPhone,PAPMIRowId,PAPMIDOB,INSTCode,EmpName,EmpStName,EmpCity,EmpZip,EmpPh,MRADMPresentComplaint,PAPMIName,PAPMIName2,PAPMIName3,PAPMINo,PAADMType,PAPERStName,PAPERForeignAddress,TriageNurse,CTZIPCode,CTCITDesc,TTLCode,CTSEXCode,TRANSCTPCPDesc,REFDDesc,REFDForename,FAMDTTLCode,REFDAddress,FAMDCITY,FAMDZIP,TreatingDoctor,TreatingDocTitle,PAPERRemark,ProviderNo,OEORDADMDR,OEORIRowId,OEORILabEpisodeNo,ARCIMCode,ARCIMDesc,OEORIDepProcNotes,OEORIsttDat,OEORIsttTim,OEORIDate,OEORITimeOrd,SSUSRRegistrationNumber,SSUSRTTLCode,CTPCPDesc,OSTATCode,OEORIRemarks,CTLOCDesc,OEORIRowId,QuesCode
+ s (PAADMRowId,PAPMIRowId,OEORIRowId,OEORDADMDR,QuesCode,HOSPRowId)=0
+ s (PAADMADMNo,PAADMAdmDate,PAADMVisitStatus,WARDCode,HOSPDesc,PAPMIMedicare,PAPMIMedicareCode,PAPMIDVANumber,HOSPPhone,PAPMIDOB,INSTCode,EmpName,EmpStName,EmpCity,EmpZip,EmpPh,MRADMPresentComplaint,PAPMIName,PAPMIName2,PAPMIName3,PAPMINo,PAADMType,PAPERStName,PAPERForeignAddress,TriageNurse,CTZIPCode,CTCITDesc,TTLCode,CTSEXCode,REFDDesc,REFDForename,FAMDTTLCode,REFDAddress,FAMDCITY,FAMDZIP,TreatingDoctor,TreatingDocTitle,PAPERRemark,ProviderNo,OEORILabEpisodeNo,ARCIMCode,ARCIMDesc,OEORIDepProcNotes,OEORIsttDat,OEORIsttTim,SSUSRRegistrationNumber,CTPCPDesc,OEORISttDat,OEORISttTim,OEORIDate,OEORITimeOrd,OSTATCode,OEORIRemarks,CTLOCDesc,OEORIRowId)=""
+ s ind=1
+
+ // new select to declare cursor
+ // all questions to show under the list of items ordered (we do not repeat questions for each order item)
+ // vendor will know which question applies to which test ordered
+ &sql(declare SWARHOrderQuestions cursor for 
+ select
+ OEORI_RowId,
+ OEORI_LabEpisodeNo,
+ ARCIM_Code,
+ ARCIM_Desc,
+ QA_Question_DR->Ques_Desc,
+ QA_Answer,
+ QA_Question_DR->Ques_Code
+ FROM   sqluser.OE_OrdItem inner join sqluser.ARC_ItmMast on OEORI_ItmMast_DR=ARCIM_RowId
+ inner join sqluser.OE_OrdQuestion on OEORI_RowId=QA_ParRef
+ where 
+ OEORI_LabEpisodeNo=:LabEpisodeNo and ARCIM_Code=:OrderItemCode and QA_Question_DR->QUES_Code not like 'BBK%' 
+ --and QA_Question_DR->QUES_Code not like 'HI%' 
+ group by QA_Question_DR,QA_Answer order by QA_Childsub)
+ 
+ &sql(open  SWARHOrderQuestions)
+
+ //fetch first order record
+ &sql(fetch SWARHOrderQuestions into :OEORIRowId,:OEORILabEpisodeNo,:ARCIMCode,:ARCIMDesc,:QUESDesc,:QAAnswer,:QuesCode)
+
+ while 'SQLCODE{
+
+ 
+
+ set str=$LB(OEORIRowId,OEORILabEpisodeNo,ARCIMCode,ARCIMDesc,QUESDesc,QAAnswer,QuesCode)
+
+ s ^CacheTemp(..#CACHETEMPSUBSCRIPT,repid,ind)=str
+ s ind=ind+1
+ //fetch next order records
+ &sql(fetch SWARHOrderQuestions into :OEORIRowId,:OEORILabEpisodeNo,:ARCIMCode,:ARCIMDesc,:QUESDesc,:QAAnswer,:QuesCode)
+}
+
+ &sql(close SWARHOrderQuestions)
+
+ // Build QHandle (AtEnd,ReportID,Index)
+ Set QHandle=$lb(0,repid,0)
+
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="SWARHOrderQuestionsFetch">
+<Description>
+This is the Fetch component of the %Library.Query. 
+This should never have to change. It is designed to fetch the row for each subscript of the ^CacheTemp
+global and return this row to the Crystal Report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,&Row:%Library.List,&AtEnd:%Library.Integer=0]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // This fetch method should never have to change. 
+
+ // repid - Report ID
+ // ind   - sequence index which represents each row
+
+ New repid,ind
+
+ // Restore QHandle
+ Set AtEnd=$li(QHandle,1)
+ Set repid=$li(QHandle,2)
+ Set ind=$li(QHandle,3)
+
+ Set ind=$o(^CacheTemp(..#CACHETEMPSUBSCRIPT,repid,ind))
+ If ind="" {  // if there are no more rows, finish fetching
+ Set AtEnd=1
+ Set Row=""
+ }
+ Else      {  // fetch row
+ Set Row=^CacheTemp(..#CACHETEMPSUBSCRIPT,repid,ind)
+ }
+
+ // Save QHandle
+ s QHandle=$lb(AtEnd,repid,ind)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Query name="SWARHOrderQuestions">
+<Type>%Library.Query</Type>
+<FormalSpec>LabEpisodeNo:%String,OrderItemCode:%String</FormalSpec>
+<SqlProc>1</SqlProc>
+<Parameter name="CONTAINID" value="0"/>
+<Parameter name="ROWSPEC" value="OEORIRowId:%String(MAXLEN=255),OEORILabEpisodeNo:%String(MAXLEN=255),ARCIMCode:%String(MAXLEN=255),ARCIMDesc:%String(MAXLEN=255),QUESDesc:%String(MAXLEN=255),QAAnswer:%String(MAXLEN=255),QuesCode:%String(MAXLEN=255)"/>
+<Parameter name="SELECTMODE" value="ODBC"/>
+</Query>
+
+<Method name="SWARHBBKQuestionsClose">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>QHandle:%Library.Binary</FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Clean up by purging the temporary node in ^CacheTemp global
+ New repid
+ Set repid=$LIST(QHandle,2)
+ 
+ //Start Monitor (if configured to capture stats)
+ i mon Do ..MonitorEnd(mon)
+
+ Kill ^CacheTemp(..#CACHETEMPSUBSCRIPT,repid)
+ 
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="SWARHBBKQuestionsExecute">
+<Description>
+This is the Execute section for the %Library.Query. 
+All of the logic will be performed here.
+A new node for the ^CacheTemp global will be created and each subscript of this global will contain
+a row for the report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,LabEpisodeNo:%String]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+	
+ // Get reportid i.e. use $INCREMENT to add another node to ^CacheTemp global. 
+ // We use ^CacheTemp global because it will always use memory before disk
+ New repid,ind
+
+ // Use $Increment to get the next node
+ Set repid=$Increment(^CacheTemp(..#CACHETEMPSUBSCRIPT))
+ 
+ s ind=1, END=0
+ //Start Monitor (if configured to capture stats)
+ s mon=..MonitorBegin()
+
+ // Build data into ^CacheTemp(ReportID)
+ // e.g. Set ^CacheTemp(ReportID,Index)=$LB(f1,f2,f3)
+ New Number,String,Date,Time,c,n,str
+ n PAADMRowId,PAADMADMNo,PAADMAdmDate,PAADMVisitStatus,WARDCode,HOSPDesc,HOSPRowId,PAPMIMedicare,PAPMIMedicareCode,PAPMIDVANumber,HOSPPhone,PAPMIRowId,PAPMIDOB,INSTCode,EmpName,EmpStName,EmpCity,EmpZip,EmpPh,MRADMPresentComplaint,PAPMIName,PAPMIName2,PAPMIName3,PAPMINo,PAADMType,PAPERStName,PAPERForeignAddress,TriageNurse,CTZIPCode,CTCITDesc,TTLCode,CTSEXCode,TRANSCTPCPDesc,REFDDesc,REFDForename,FAMDTTLCode,REFDAddress,FAMDCITY,FAMDZIP,TreatingDoctor,TreatingDocTitle,PAPERRemark,ProviderNo,OEORDADMDR,OEORIRowId,OEORILabEpisodeNo,ARCIMCode,ARCIMDesc,OEORIDepProcNotes,OEORIsttDat,OEORIsttTim,OEORIDate,OEORITimeOrd,SSUSRRegistrationNumber,SSUSRTTLCode,CTPCPDesc,OSTATCode,OEORIRemarks,CTLOCDesc,OEORIRowId,QuesCode
+ s (PAADMRowId,PAPMIRowId,OEORIRowId,OEORDADMDR,QuesCode,HOSPRowId)=0
+ s (PAADMADMNo,PAADMAdmDate,PAADMVisitStatus,WARDCode,HOSPDesc,PAPMIMedicare,PAPMIMedicareCode,PAPMIDVANumber,HOSPPhone,PAPMIDOB,INSTCode,EmpName,EmpStName,EmpCity,EmpZip,EmpPh,MRADMPresentComplaint,PAPMIName,PAPMIName2,PAPMIName3,PAPMINo,PAADMType,PAPERStName,PAPERForeignAddress,TriageNurse,CTZIPCode,CTCITDesc,TTLCode,CTSEXCode,REFDDesc,REFDForename,FAMDTTLCode,REFDAddress,FAMDCITY,FAMDZIP,TreatingDoctor,TreatingDocTitle,PAPERRemark,ProviderNo,OEORILabEpisodeNo,ARCIMCode,ARCIMDesc,OEORIDepProcNotes,OEORIsttDat,OEORIsttTim,SSUSRRegistrationNumber,CTPCPDesc,OEORISttDat,OEORISttTim,OEORIDate,OEORITimeOrd,OSTATCode,OEORIRemarks,CTLOCDesc,OEORIRowId)=""
+ s ind=1
+
+ // new select to declare cursor
+ // all questions to show under the list of items ordered (we do not repeat questions for each order item)
+ // vendor will know which question applies to which test ordered
+ &sql(declare SWARHBBKQuestions cursor for 
+ select
+ --OEORI_RowId,
+ --OEORI_LabEpisodeNo,
+ --ARCIM_Code,
+ --ARCIM_Desc,
+ QA_Question_DR->Ques_Desc,
+ QA_Answer,
+ QA_Question_DR->Ques_Code
+ FROM   sqluser.OE_OrdItem inner join sqluser.ARC_ItmMast on OEORI_ItmMast_DR=ARCIM_RowId
+ inner join sqluser.OE_OrdQuestion on OEORI_RowId=QA_ParRef
+ where 
+ OEORI_LabEpisodeNo=:LabEpisodeNo and QA_Question_DR->Ques_Code like 'BBK%' group by QA_Question_DR,QA_Answer order by QA_Childsub)
+ 
+ &sql(open  SWARHBBKQuestions)
+
+ //fetch first order record
+ &sql(fetch SWARHBBKQuestions into :QUESDesc,:QAAnswer,:QuesCode)
+
+ while 'SQLCODE{
+
+ 
+
+ set str=$LB(QUESDesc,QAAnswer,QuesCode)
+
+ s ^CacheTemp(..#CACHETEMPSUBSCRIPT,repid,ind)=str
+ s ind=ind+1
+ //fetch next order records
+ &sql(fetch SWARHBBKQuestions into :QUESDesc,:QAAnswer,:QuesCode)
+}
+
+ &sql(close SWARHBBKQuestions)
+
+ // Build QHandle (AtEnd,ReportID,Index)
+ Set QHandle=$lb(0,repid,0)
+
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="SWARHBBKQuestionsFetch">
+<Description>
+This is the Fetch component of the %Library.Query. 
+This should never have to change. It is designed to fetch the row for each subscript of the ^CacheTemp
+global and return this row to the Crystal Report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,&Row:%Library.List,&AtEnd:%Library.Integer=0]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // This fetch method should never have to change. 
+
+ // repid - Report ID
+ // ind   - sequence index which represents each row
+
+ New repid,ind
+
+ // Restore QHandle
+ Set AtEnd=$li(QHandle,1)
+ Set repid=$li(QHandle,2)
+ Set ind=$li(QHandle,3)
+
+ Set ind=$o(^CacheTemp(..#CACHETEMPSUBSCRIPT,repid,ind))
+ If ind="" {  // if there are no more rows, finish fetching
+ Set AtEnd=1
+ Set Row=""
+ }
+ Else      {  // fetch row
+ Set Row=^CacheTemp(..#CACHETEMPSUBSCRIPT,repid,ind)
+ }
+
+ // Save QHandle
+ s QHandle=$lb(AtEnd,repid,ind)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Query name="SWARHBBKQuestions">
+<Type>%Library.Query</Type>
+<FormalSpec>LabEpisodeNo:%String</FormalSpec>
+<SqlProc>1</SqlProc>
+<Parameter name="CONTAINID" value="0"/>
+<Parameter name="ROWSPEC" value="QUESDesc:%String(MAXLEN=255),QAAnswer:%String(MAXLEN=255),QuesCode:%String(MAXLEN=255)"/>
+<Parameter name="SELECTMODE" value="ODBC"/>
+</Query>
+</Class>
+</Export>

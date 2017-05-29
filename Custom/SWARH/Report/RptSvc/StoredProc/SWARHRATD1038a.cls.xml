@@ -1,0 +1,164 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.SWARH.Report.RptSvc.StoredProc.SWARHRATD1038a">
+<Description>
+Class for SWARHRATD1038a</Description>
+<ProcedureBlock>0</ProcedureBlock>
+<Super>Custom.SWARH.Report.RptSvc.StoredProc.Abstract</Super>
+<TimeCreated>60905,54849</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/SWARH/Report/RptSvc/StoredProc/SWARHRATD1038a.xml#1 $</Default>
+</Parameter>
+
+<Method name="SWARHRATD1038aClose">
+<Description>
+This is the Close component of the %Library.Query.
+This is standard code and should never have to change.
+This is where all the cleanup is performed, i.e. the purging of the temporary storage global ^CacheTemp.
+***************************************************************************************************************************************
+* SWARH ATD Period Activity Report by Ward - subreport A
+* Initial release: 24/04/2013
+* Developer: Michael Welsh
+* Subreport counts admissions for the report period. 
+* Subreport called by SWARHRATD1038a
+***************************************************************************************************************************************</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>QHandle:%Library.Binary</FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Clean up by purging the temporary node in ^CacheTemp global
+ New repid
+ Set repid=$li(QHandle,2)
+ Kill ^CacheTemp(repid)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="SWARHRATD1038aExecute">
+<Description>
+This is the Execute section for the %Library.Query. 
+All of the logic will be performed here.
+A new node for the ^CacheTemp global will be created and each subscript of this global will contain
+a row for the report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,Hospital:%Integer,DateFrom:%Date,DateTo:%Date]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+	
+ k ^zbernard	
+ // Get reportid i.e. use $INCREMENT to add another node to ^CacheTemp global. 
+ // We use ^CacheTemp global because it will always use memory before disk
+ New repid,ind
+
+ // Use $Increment to get the next node
+ Set repid=$I(^CacheTemp)
+ s ^zBernard("1")=(1)
+
+ // Build data into ^CacheTemp(ReportID)
+ // e.g. Set ^CacheTemp(ReportID,Index)=$LB(f1,f2,f3)
+ New Number,String,Date,Time,c,n
+ New AdmissionsCount,PAADMRowID,PAADMADMNo,AdmWard
+ s (PAADMADMNo,AdmWard) = ""
+ s (AdmissionsCount,PAADMRowID) = 0
+  
+ s ind=1
+ 
+ //Convert ODBC dates to cache format
+ s DateFrom=$$intdate^SSUTIL4(DateFrom)
+ s DateTo=$$intdate^SSUTIL4(DateTo)
+   
+ &sql(DECLARE SWARHRATD1038a CURSOR FOR
+ 	SELECT Count(DISTINCT adm.PAADM_RowID), adm.PAADM_RowID, adm.PAADM_ADMNo
+ 		FROM SQLUser.PA_Adm adm 
+ 		WHERE adm.PAADM_Hospital_DR = :Hospital
+		AND adm.PAADM_Type = 'I' 
+		AND adm.PAADM_VisitStatus in ('A','D') 
+		AND adm.PAADM_ADMNo NOT LIKE 'ED%'
+		AND adm.PAADM_AdmDate BETWEEN :DateFrom AND :DateTo 
+		
+		)
+ &sql(open SWARHRATD1038a)
+ 
+ //fetch first row
+ &sql(fetch SWARHRATD1038a into :AdmissionsCount,:PAADMRowID,:PAADMADMNo)
+  
+ while 'SQLCODE{
+ 
+ If PAADMRowID s AdmWard =..GetAdmWardForEpisode(PAADMRowID)
+	 
+  // build the row
+ Set ^CacheTemp(repid,ind)=$LB(AdmissionsCount,PAADMADMNo,AdmWard)
+ 
+ Set ind=ind+1
+ 
+ //fetch rows
+ &sql(fetch SWARHRATD1038a into :AdmissionsCount,:PAADMRowID,:PAADMADMNo)
+ 
+ }
+
+ &sql(close SWARHRATD1038a)
+
+ // Build QHandle (AtEnd,ReportID,Index)
+ Set QHandle=$lb(0,repid,0)
+ 
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="SWARHRATD1038aFetch">
+<Description>
+This is the Fetch component of the %Library.Query. 
+This should never have to change. It is designed to fetch the row for each subscript of the ^CacheTemp
+global and return this row to the Crystal Report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,&Row:%Library.List,&AtEnd:%Library.Integer=0]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // This fetch method should never have to change. 
+
+ // repid - Report ID
+ // ind   - sequence index which represents each row
+
+ New repid,ind
+
+ // Restore QHandle
+ Set AtEnd=$li(QHandle,1)
+ Set repid=$li(QHandle,2)
+ Set ind=$li(QHandle,3)
+ 
+ Set ind=$o(^CacheTemp(repid,ind))
+  
+ If ind="" {	// if there are no more rows, finish fetching
+ Set AtEnd=1
+ Set Row=""
+ }
+ Else      {	// fetch row
+ Set Row=^CacheTemp(repid,ind)
+ }
+ 
+ // Save QHandle
+ s QHandle=$lb(AtEnd,repid,ind)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Query name="SWARHRATD1038a">
+<Description>
+GHA List reports Stored Procedure
+It expects 2 parameter of type date and will return a list of records:
+Field1 - Integer
+Field2 - String(MAXLEN=255)
+Field3 - Date
+Field4 - Time 																										</Description>
+<Type>%Library.Query</Type>
+<FormalSpec>Hospital:%Integer,DateFrom:%Date,DateTo:%Date</FormalSpec>
+<SqlProc>1</SqlProc>
+<Parameter name="CONTAINID" value="0"/>
+<Parameter name="ROWSPEC" value="AdmissionsCount:%Integer,PAADMADMNo:%String,AdmWard:%String"/>
+<Parameter name="SELECTMODE" value="ODBC"/>
+</Query>
+</Class>
+</Export>

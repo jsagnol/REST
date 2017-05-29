@@ -1,0 +1,77 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.SWARH.JS.RBResSched.Details.Edit">
+<Description>
+Component JavaScript for: RBResSched.Details.Edit</Description>
+<Modified>0</Modified>
+<Super>websys.AbstractJavaScript</Super>
+<TimeCreated>63537,10520.356923</TimeCreated>
+
+<Method name="JSContent">
+<Description>
+ </Description>
+<Internal>0</Internal>
+<Language>javascript</Language>
+<ClientMethod>1</ClientMethod>
+<Implementation><![CDATA[
+///Update 24072014
+SWARH.loadSNAP();
+
+websys_removeListener("load","onload",DocumentLoadHandler);
+websys_addListener("load","onload",CustomDocumentLoadHandler);
+
+
+
+function GetHospitalId() {
+	var parentFrame = window.parent.frames["RBResEffDateTop"];
+	if (parentFrame) {
+		var objHOSPId=parentFrame.document.getElementById('HOSPId');
+		if (objHOSPId)
+			return objHOSPId.value;
+	}
+	
+	return;
+}
+
+function CustomDocumentLoadHandler() {
+	DocumentLoadHandler();
+
+	var callback = function() {
+		if (SNAP.isSNAPHospital(GetHospitalId())) {
+			var btn = document.getElementById('Update');
+			var handler = btn.onclick;
+
+			btn.onclick = function(e) {
+				e = e || window.event;
+				var target = e.srcElement || e.target;
+				
+				var oSessId = document.getElementById('ID');
+				var sSessId = oSessId.value;
+
+				// Call the old handler
+				if (typeof(handler) === 'function')
+					handler(e);
+
+				sSessId = encodeURIComponent(sSessId);
+
+				var logonUserId=session['LOGON.USERID'];
+				var logonLocId=session['LOGON.CTLOCID'];
+
+				SNAP.openSWARHSNAP('BookableAvailability.aspx?LogonUserId='+logonUserId+'&LogonLocId='+logonLocId+'&SessionID='+sSessId+'&Updated=1');
+				return true;
+			};
+		}
+	};
+	SWARH.loadSNAP(callback);
+}
+]]></Implementation>
+</Method>
+
+<Parameter name="SrcVer">
+<Description>
+This Parameter is updated by Perforce</Description>
+<Internal>0</Internal>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/SWARH/JS/RBResSched/Details/Edit.xml#1 $</Default>
+</Parameter>
+</Class>
+</Export>

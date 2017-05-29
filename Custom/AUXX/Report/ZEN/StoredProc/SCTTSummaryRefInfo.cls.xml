@@ -1,0 +1,450 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.AUXX.Report.ZEN.StoredProc.SCTTSummaryRefInfo">
+<Description>
+Report Name: Confidential Referral Coversheet
+Report Code: AUXX.SCTT0001
+TRC Number: 152012</Description>
+<ProcedureBlock>0</ProcedureBlock>
+<Super>Report.Abstract</Super>
+<TimeCreated>62970,48071.923811</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/AUXX/Report/ZEN/StoredProc/SCTTSummaryRefInfo.xml#1 $</Default>
+</Parameter>
+
+<Method name="GetQuesAnswerDesc">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>questionnaire:%String,QuesName:%String,QuesAns:%String</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	n QuesAnsDesc
+    s QuesAnsDesc=""
+	s query="SELECT RESP_Desc FROM SQLUser.SS_UserDefWinContResp WHERE RESP_ParRef->CON_ParRef->WIN_Code='"_questionnaire_"' AND %ALPHAUP(RESP_ParRef->CON_Code)='"_QuesName_"' AND RESP_Code='"_QuesAns_"'"
+    s rset = ##class(%ResultSet).%New()
+    d rset.Prepare(query)
+    d rset.Execute()
+    while rset.Next() {
+	    s QuesAnsDesc=rset.Data("RESP_Desc")
+    }
+    d rset.Close()
+    q QuesAnsDesc
+]]></Implementation>
+</Method>
+
+<Method name="RefInfoClose">
+<Description>
+This is the Close component of the %Library.Query.
+This is standard code and should never have to change.
+This is where all the cleanup is performed, i.e. the purging of the temporary storage global ^CacheTemp.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>QHandle:%Library.Binary</FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+	// Clean up by purging the temporary node in ^CacheTemp global
+	New repid
+	Set repid=$LIST(QHandle,2)
+
+	//Start Monitor (if configured to capture stats)
+	i mon Do ..MonitorEnd(mon)
+
+	Kill ^CacheTemp("TRAK",repid)
+
+	Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="RefInfoExecute">
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,EpisodeID:%Library.String,ReferralID:%Library.String,ReferralToID:%Library.String,Service:%Library.String]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+	// Get reportid i.e. use $INCREMENT to add another node to ^CacheTemp("TRAK") global. 
+	// We use ^CacheTemp global because CACHETEMP is a memory resident database
+	New repid,ind
+
+	// Use $Increment to get the next node and clean up
+	Set repid=$Increment(^CacheTemp("TRAK"))
+	
+	//Start Monitor (if configured to capture stats)
+	s mon=..MonitorBegin()
+	
+	s adm=EpisodeID
+
+	s (ClientName,DOB,Sex,UR,PresIssue,ReasonRef,Other,Risks,RisksCode,AddComments,Purpose,Consent,Feedback,PresIllness,Medications,History,Allergen,Alerts,Agency,ServiceType,Contact,RefMethod,refdocid,qid)=""
+	s x=0
+	s PageTitle="Summary and Referral Information"
+	s PageDesc="To record and share a summary of the consumer's problems/issues, provide information to indicate eligibility,and an initial plan when making a referral."_$c(13,10)_$c(13,10)
+	s PageSideText="Summary and Referral Information"
+	s admobj=##class(User.PAAdm).%OpenId(adm)
+	i admobj,ReferralID {
+		s ind=1
+		s pat=$p($g(^PAADM(adm)),"^")
+		
+		s patobj=##class(User.PAPatMas).%OpenId(pat)
+		i patobj {
+			s ClientName=patobj.PAPMIName_", "_patobj.PAPMIName2
+			s DOB=patobj.PAPMIDOB
+			i DOB s DOB=$zd(DOB,4,,4)
+			s Sex=patobj.PAPMISexDR.CTSEXDesc
+			s UR=patobj.PAPMINo
+			k patobj
+		}
+
+		s ngo=0
+		i $p($g(ReferralToID),":",2)'="" {
+			s ReferralToIDx=$p(ReferralToID,":",2)
+			i ReferralToIDx'="" {
+				s ngid=##class(web.PACNonGovOrg).GetIdFromCodeOrDescription($p(ReferralToIDx," ("))
+				i ngid'="" {
+					s ngo=1
+				} else {
+					s refdocid=##class(web.PACRefDoctor).GetIdFromCodeOrDescription($p(ReferralToIDx," ("))
+					s ngo=0
+				}
+			}
+		}
+		
+		s RefToType=$p($g(^PA("DISSUM",ReferralID)),"^",22)
+		f x=1:1:$l(RefToType,"&") {
+			s reflist=$p(RefToType,"&",x)
+			
+			i $p(reflist,"|")="REF",ngo=0,refdocid=$p(reflist,"|",2) s qid=$p(reflist,"|",3)
+			i $p(reflist,"|")="NG",ngo=1,ngid=$p(reflist,"|",2) s qid=$p(reflist,"|",3)
+		}
+		
+		s qobj=##class(questionnaire.QAUXXSCTTR).%OpenId(qid)
+		i qobj {
+			s Risks=..GetQuesAnswerDesc("AUXXSCTTR","10",qobj.Q10)
+			s RisksCode=qobj.Q10
+
+			s PresIssue=""
+			f x=1:1:qobj.Q18.Count() {
+				i PresIssue'="" s PresIssue=PresIssue_$c(13,10)_qobj.Q18.GetAt(x)
+				i PresIssue="" s PresIssue=qobj.Q18.GetAt(x)
+			}
+			i qobj.Q18.Count()<3 {
+				f x=qobj.Q18.Count():1:3 {
+					s PresIssue=PresIssue_$c(13,10)
+				}
+			}
+			s ReasonRef=""
+			f x=1:1:qobj.Q19.Count() {
+				i ReasonRef'="" s ReasonRef=ReasonRef_$c(13,10)_qobj.Q19.GetAt(x)
+				i ReasonRef="" s ReasonRef=qobj.Q19.GetAt(x)
+			}
+			i qobj.Q19.Count()<3 {
+				f x=qobj.Q19.Count():1:3 {
+					s ReasonRef=ReasonRef_$c(13,10)
+				}
+			}
+			s Other=""
+			f x=1:1:qobj.Q34.Count() {
+				i Other'="" s Other=Other_$c(13,10)_qobj.Q34.GetAt(x)
+				i Other="" s Other=qobj.Q34.GetAt(x)
+			}
+			i qobj.Q34.Count()<4 {
+				f x=qobj.Q34.Count():1:4 {
+					s Other=Other_$c(13,10)
+				}
+			}
+			s AddComments=""
+			f x=1:1:qobj.Q11.Count() {
+				i AddComments'="" s AddComments=AddComments_$c(13,10)_qobj.Q11.GetAt(x)
+				i AddComments="" s AddComments=qobj.Q11.GetAt(x)
+			}
+			k qobj
+		}
+		s dsobj=##class(User.PADischargeSummary).%OpenId(ReferralID)
+		i dsobj {
+			i dsobj.DISCareProvDR {
+				s Feedback=dsobj.DISCareProvDR.CTPCPDesc
+			}
+			s grp=dsobj.DISUpdateUserDR.SSUSRGroup.%Id()
+			s ProfileID=dsobj.DISUpdateUserDR.SSUSRProfile.%Id()
+			k dsobj
+		}
+		
+		s mr=$p($g(^PAADM(adm)),"^",61)
+
+		s (PastHistory,CurrentHistory,MedHistory,SurgicalHistory,SocialHistory,FamilyHistory)=""
+		i '$g(%request) s %request=##class(%CSP.Request).%New()
+		i '$g(%session) s %session=##class(%CSP.Session).%New($j)
+		s %session.Data("LOGON.PROFILEID")=$g(ProfileID)
+		s %request.Data("EpisodeID",1)=adm
+		s %session.Data("LOGON.GROUPID")=$g(grp)
+		s %request.Data("DischID",1)=ReferralID
+		;s %request.Data("OnlyMarkedForDSReport",1)="Y"
+		
+		s %request.Data("ShowCSOnly",1)="N"
+		
+		s Alerts=""
+		s rs=##class(%ResultSet).%New("web.PACPatientAlert:GetAlerts")
+		i rs {
+			d rs.Execute(pat)
+			while rs.Next() {
+				i Alerts'="" s Alerts=Alerts_$c(13,10)_rs.GetDataByName("ALERTDesc")
+				i Alerts="" s Alerts=rs.GetDataByName("ALERTDesc")
+			}
+			d rs.Close()
+		}
+		s Allergen=""
+		s rs=##class(%ResultSet).%New("web.PAAllergy:Allergies")
+		i rs {
+			d rs.Execute(pat)
+			while rs.Next() {
+				i rs.GetDataByName("InActive")'="Y" {
+					i Allergen'="" s Allergen=Allergen_$c(13,10)_rs.GetDataByName("Allergen")
+					i Allergen="" s Allergen=rs.GetDataByName("Allergen")
+				}
+			}
+			d rs.Close()
+		}
+		s %request.Data("ShowCSOnly",1)="Y"
+		
+		s type=0
+		f {
+			s type=$o(^PAPERdr(pat,"ADM",type))
+			q:type=""
+			s adms=0
+			f {
+				s adms=$o(^PAPERdr(pat,"ADM",type,adms))
+				q:adms=""
+				i $g(%request.Data("EpisodeIDs",1))'="" s %request.Data("EpisodeIDs",1)=%request.Data("EpisodeIDs",1)_"^"_adms
+				i $g(%request.Data("EpisodeIDs",1))="" s %request.Data("EpisodeIDs",1)=adms
+				
+				s mrid=$p($g(^PAADM(adms)),"^",61)
+				i mrid {
+					s mrobj=##class(User.MRAdm).%OpenId(mrid)
+					i mrobj {
+						f x=1:1:mrobj.ChildMRPresentIllness.Count() {
+							i mrobj.ChildMRPresentIllness.GetAt(x).PRESIDSReportFlag="Y"
+							i $s(mrobj.ChildMRPresentIllness.GetAt(x).PRESIEndDate="":(+$h+1),1:mrobj.ChildMRPresentIllness.GetAt(x).PRESIEndDate)<=+$h {
+								i PastHistory'="" s PastHistory=PastHistory_$c(13,10)_mrobj.ChildMRPresentIllness.GetAt(x).PRESIBodyPartsSympDR.SYMDesc_" "_mrobj.ChildMRPresentIllness.GetAt(x).PRESIBodyPartsDR.BODPDesc_" "_mrobj.ChildMRPresentIllness.GetAt(x).PRESIICDCodeDR.MRCIDDesc_" "_mrobj.ChildMRPresentIllness.GetAt(x).PRESIDiagnosStatusDR.DSTATDesc
+								i PastHistory="" s PastHistory=mrobj.ChildMRPresentIllness.GetAt(x).PRESIBodyPartsSympDR.SYMDesc_" "_mrobj.ChildMRPresentIllness.GetAt(x).PRESIBodyPartsDR.BODPDesc_" "_mrobj.ChildMRPresentIllness.GetAt(x).PRESIICDCodeDR.MRCIDDesc_" "_mrobj.ChildMRPresentIllness.GetAt(x).PRESIDiagnosStatusDR.DSTATDesc
+							} else {
+								i CurrentHistory'="" s CurrentHistory=CurrentHistory_$c(13,10)_mrobj.ChildMRPresentIllness.GetAt(x).PRESIBodyPartsSympDR.SYMDesc_" "_mrobj.ChildMRPresentIllness.GetAt(x).PRESIBodyPartsDR.BODPDesc_" "_mrobj.ChildMRPresentIllness.GetAt(x).PRESIICDCodeDR.MRCIDDesc_" "_mrobj.ChildMRPresentIllness.GetAt(x).PRESIDiagnosStatusDR.DSTATDesc
+								i CurrentHistory="" s CurrentHistory=mrobj.ChildMRPresentIllness.GetAt(x).PRESIBodyPartsSympDR.SYMDesc_" "_mrobj.ChildMRPresentIllness.GetAt(x).PRESIBodyPartsDR.BODPDesc_" "_mrobj.ChildMRPresentIllness.GetAt(x).PRESIICDCodeDR.MRCIDDesc_" "_mrobj.ChildMRPresentIllness.GetAt(x).PRESIDiagnosStatusDR.DSTATDesc
+							}
+						}
+						k mrobj
+					}
+				}
+
+			}
+		}
+		s cnt=0
+		s rs=##class(%ResultSet).%New("web.MRMedication:GetMeds")
+		i rs {
+			d rs.Execute()
+			while rs.Next() {
+				i rs.GetDataByName("PHCDrgMast")'="" {
+					i MedHistory'="" s MedHistory=MedHistory_$c(13,10)_rs.GetDataByName("PHCDrgMast")_" "_$s(rs.GetDataByName("MEDCeased")="Y":"Ceased",1:"Not Ceased")
+					i MedHistory="" s MedHistory=rs.GetDataByName("PHCDrgMast")_" "_$s(rs.GetDataByName("MEDCeased")="Y":"Ceased",1:"Not Ceased")
+					s cnt=$i(cnt)
+				}
+			}
+			d rs.Close()
+		}
+		i cnt<2 {
+			f x=cnt:1:2 {
+				s MedHistory=MedHistory_$c(13,10)
+			}
+		}
+		i cnt<2 {
+			f x=cnt:1:2 {
+				s CurrentHistory=CurrentHistory_$c(13,10)
+			}
+		}
+		
+		s patobj=##class(User.PAPatMas).%OpenId(pat)
+		i patobj {
+			s desc=""
+			f x=1:1:patobj.ChildPAOperation.Count() {
+				i patobj.ChildPAOperation.GetAt(x).OPERInActive="N" {
+					i SurgicalHistory'="" s SurgicalHistory=SurgicalHistory_$c(13,10)_patobj.ChildPAOperation.GetAt(x).OPERORCOperDR.OPERDesc
+					i SurgicalHistory="" s SurgicalHistory=patobj.ChildPAOperation.GetAt(x).OPERORCOperDR.OPERDesc
+				}
+			}
+			f x=1:1:patobj.ChildPASocHist.Count() {
+				i patobj.ChildPASocHist.GetAt(x).SCHInActive="N" {
+					i SocialHistory'="" s SocialHistory=SocialHistory_$c(13,10)_patobj.ChildPASocHist.GetAt(x).SCHHabitsDR.HABDesc_" "_patobj.ChildPASocHist.GetAt(x).SCHHabitsQtyDR.QTYDesc_" "_patobj.ChildPASocHist.GetAt(x).SCHDuration_" "_##Class(websys.StandardTypeItem).GetDescription("Duration",patobj.ChildPASocHist.GetAt(x).SCHDurationDesc)
+					i SocialHistory="" s SocialHistory=patobj.ChildPASocHist.GetAt(x).SCHHabitsDR.HABDesc_" "_patobj.ChildPASocHist.GetAt(x).SCHHabitsQtyDR.QTYDesc_" "_patobj.ChildPASocHist.GetAt(x).SCHDuration_" "_##Class(websys.StandardTypeItem).GetDescription("Duration",patobj.ChildPASocHist.GetAt(x).SCHDurationDesc)
+				}
+			}
+			f x=1:1:patobj.ChildPAFamily.Count() {
+				i patobj.ChildPAFamily.GetAt(x).FAMInActive="N" {
+					
+					i FamilyHistory'="" s FamilyHistory=FamilyHistory_$c(13,10)_patobj.ChildPAFamily.GetAt(x).FAMRelationDR.CTRLTDesc_" "_patobj.ChildPAFamily.GetAt(x).FAMMRCBodySysProbDR.SYMDesc
+					i FamilyHistory="" s FamilyHistory=patobj.ChildPAFamily.GetAt(x).FAMRelationDR.CTRLTDesc_" "_patobj.ChildPAFamily.GetAt(x).FAMMRCBodySysProbDR.SYMDesc
+				}
+			}
+			k patobj
+		}
+				
+		i Service="Current" {
+			/*
+			s admid=0,current=0
+			f {
+				s admid=$o(^PAPERdr(pat,"ADM","O",admid))
+				q:admid=""
+				s admidobj=##class(User.PAAdm).%OpenId(admid)
+				i admidobj {
+					s Agency=admidobj.PAADMHospitalDR.HOSPDesc
+					s ServiceType=admidobj.PAADMDepCodeDR.CTLOCDesc
+					s Contact=admidobj.PAADMDepCodeDR.CTLOCTelephone
+					
+					s ind=$i(ind)
+					s ^CacheTemp("TRAK",repid,ind)=$lb("SRI",PageTitle,PageDesc,PageSideText,ClientName,DOB,Sex,UR,PresIssue,ReasonRef,Other,Risks,RisksCode,AddComments,Purpose,Consent,Feedback,CurrentHistory,MedHistory,PastHistory,SurgicalHistory,SocialHistory,FamilyHistory,Allergen,ind,Agency,ServiceType,Contact,RefMethod,current)
+				}
+			}
+			*/
+			
+			s adm2=0
+			f {
+				s adm2=$o(^PAADMi("DISSUM",ReferralID,adm2)) q:adm2=""
+				i $p($g(^PAADM(adm2)),"^",20)'="A" Continue
+				s pass=0
+				s oe=0
+				f {
+					s oe=$o(^OEORD(0,"Adm",adm2,oe))
+					q:oe=""
+					s oei=0
+					f {
+						s oei=$o(^OEORD(oe,"I",oei))
+						q:oei=""
+						i $d(^PAENQi("OEORI",oe_"||"_oei)) {
+							s enqobj=##class(User.PAEnquiryContact).%OpenId($o(^PAENQi("OEORI",oe_"||"_oei,"")))
+							i enqobj {
+								i enqobj.ENQContactType'="I" Continue
+								i enqobj.ENQLocationDR,enqobj.ENQPAPERDR,enqobj.ENQDate>=+$h-365,enqobj.ENQDate<=+$h,'$d(ServiceType(enqobj.ENQLocationDR.%Id())) {
+									s pass=1
+								}
+								k enqobj
+							}
+						}
+					}
+					
+					i pass {
+						s adm2obj=##class(User.PAAdm).%OpenId(adm2)
+						i adm2obj {
+							s Agency=adm2obj.PAADMHospitalDR.HOSPDesc
+							s ServiceType=##class(Region.AUXX.Utility.Utilities).GetMappedCode("CT_Loc","CTLOC_Code","SCTTREF",adm2obj.PAADMDepCodeDR.CTLOCDesc)
+							s ServiceType(adm2obj.PAADMDepCodeDR.%Id())=""
+							s Contact="" ;enqobj.ENQLocationDR.CTLOCTelephone
+							
+							k adm2obj
+							s ind=$i(ind)
+							s ^CacheTemp("TRAK",repid,ind)=$lb("SRI",PageTitle,PageDesc,PageSideText,ClientName,DOB,Sex,UR,PresIssue,ReasonRef,Other,Risks,RisksCode,AddComments,Purpose,Consent,Feedback,CurrentHistory,MedHistory,PastHistory,SurgicalHistory,SocialHistory,FamilyHistory,Allergen,ind,Agency,ServiceType,Contact,RefMethod,current,Alerts)
+						}
+					}
+				}
+			}
+		} else {
+			f x=1:1:$l(RefToType,"&") {
+				s type=$p($p(RefToType,"&",x),"|")
+				s typeid=$p($p(RefToType,"&",x),"|",2)
+				s quesid=$p($p(RefToType,"&",x),"|",3)
+				
+				i type="REF" {
+					s refdoc=##class(User.PACRefDoctor).%OpenId(typeid)
+					i refdoc {
+						s Agency=refdoc.REFDForename_" "_refdoc.REFDDesc
+						f j=1:1:refdoc.ChildPACRefDoctorClinic.Count() {
+							s Contact=refdoc.ChildPACRefDoctorClinic.GetAt(j).CLNClinicDR.CLNPhone
+						}
+						k refdoc
+					}
+				}
+				i type="NG" {
+					s ngo=##class(User.PACNonGovOrg).%OpenId(typeid)
+					i ngo {
+						s Agency=ngo.NGODesc
+						s Contact=ngo.NGOPhone
+						k ngo
+					}
+				}
+				s qobj2=##class(questionnaire.QAUXXSCTTR).%OpenId(quesid)
+				i qobj2 {
+					s Purpose=""
+					f j=1:1:qobj2.Q19.Count() {
+						i Purpose'="" s Purpose=Purpose_$c(13,10)_qobj2.Q19.GetAt(j)
+						i Purpose="" s Purpose=qobj2.Q19.GetAt(j)
+					}
+
+					s Consent=qobj2.Q37
+					s RefMethod=qobj2.Q27
+					
+					s ServiceType=##class(websys.CustomTypeItem).GetDescriptionFromCode("ServiceType",qobj2.Q33)
+					k qobj2
+				}
+				s ind=$i(ind)
+				s ^CacheTemp("TRAK",repid,ind)=$lb("SRI",PageTitle,PageDesc,PageSideText,ClientName,DOB,Sex,UR,PresIssue,ReasonRef,Other,Risks,RisksCode,AddComments,Purpose,Consent,Feedback,CurrentHistory,MedHistory,PastHistory,SurgicalHistory,SocialHistory,FamilyHistory,Allergen,ind,Agency,ServiceType,Contact,RefMethod,current,Alerts)
+			}
+		}		
+		f x=1:1:8 {
+			i ind<8 {
+				s ind=$i(ind)
+				s ^CacheTemp("TRAK",repid,ind)=$lb("SRI",PageTitle,PageDesc,PageSideText,ClientName,DOB,Sex,UR,PresIssue,ReasonRef,Other,Risks,RisksCode,AddComments,"","","",CurrentHistory,MedHistory,PastHistory,SurgicalHistory,SocialHistory,FamilyHistory,Allergen,ind,$c(13,10),"","","",current,Alerts)
+			}
+		}
+		k admobj
+	}
+
+	// Build QHandle (AtEnd,ReportID,Index)
+	Set QHandle=$LISTBUILD(0,repid,0)
+	Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="RefInfoFetch">
+<Description>
+This is the Fetch component of the %Library.Query. 
+This should never have to change. It is designed to fetch the row for each subscript of the 
+^CacheTemp("TRAK" global and return this row to the Report writer</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,&Row:%Library.List,&AtEnd:%Library.Integer=0]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+	// This fetch method should never have to change. 
+	// repid - Report ID
+	// ind   - sequence index which represents each row
+	New repid,ind
+
+	// Restore QHandle
+	Set AtEnd=$LI(QHandle,1)
+	Set repid=$LI(QHandle,2)
+	Set ind=$LI(QHandle,3)
+
+	Set ind=$order(^CacheTemp("TRAK",repid,ind))
+	If ind="" {	// if there are no more rows, finish fetching
+		Set AtEnd=1
+		Set Row=""
+	} else {	// fetch row
+		Set Row=^CacheTemp("TRAK",repid,ind)
+	}
+
+	// Save QHandle
+	Set QHandle=$lb(AtEnd,repid,ind)
+	Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Query name="RefInfo">
+<Description>
+This is the Stored Procedure Template. For Sample use only.
+It expects one parameter of type integer and will return 4 fields:
+Field1 - Integer
+Field2 - String
+Field3 - Date
+Field4 - Time</Description>
+<Type>%Library.Query</Type>
+<FormalSpec>EpisodeID:%Library.String,ReferralID:%Library.String,ReferralToID:%Library.String,Service:%Library.String</FormalSpec>
+<SqlProc>1</SqlProc>
+<Parameter name="CONTAINID" value="0"/>
+<Parameter name="ROWSPEC" value="FormCode:%String,PageTitle:%String,PageDesc:%String,PageSideText:%String,ClientName:%String,DOB:%String,Sex:%String,UR:%String,PresIssue:%String,ReasonRef:%String,Other:%String,Risks:%String,RisksCode:%String,AddComments:%String,Purpose:%String,Consent:%String,Feedback:%String,CurrentHistory:%String,MedHistory:%String,PastHistory:%String,SurgicalHistory:%String,SocialHistory:%String,FamilyHistory:%String,Allergen:%String,ind:%String,Agency:%String,ServiceType:%String,Contact:%String,RefMethod:%String,current:%String,Alerts:%String"/>
+</Query>
+</Class>
+</Export>

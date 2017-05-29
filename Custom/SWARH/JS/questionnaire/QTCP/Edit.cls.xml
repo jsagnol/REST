@@ -1,0 +1,119 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.SWARH.JS.questionnaire.QTCP.Edit">
+<Description>
+Component JavaScript for: questionnaire.QTCP.Edit</Description>
+<Modified>0</Modified>
+<Super>websys.AbstractJavaScript</Super>
+<TimeCreated>63537,10519.271559</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/SWARH/JS/questionnaire/QTCP/Edit.xml#1 $</Default>
+</Parameter>
+
+<Method name="JSContent">
+<Description>
+ </Description>
+<Language>javascript</Language>
+<ClientMethod>1</ClientMethod>
+<Implementation><![CDATA[
+	var service = function(tickboxId,statusId,statusLabelId) {
+		this.tickbox = document.getElementById(tickboxId);
+		this.status = document.getElementById(statusId);
+		this.statusLabel = document.getElementById(statusLabelId);
+		var myservice = this;
+		this.displaySerStatus = function() {
+			if (myservice.tickbox) {
+				if (myservice.tickbox.checked) {
+					if (myservice.status && myservice.status.parentNode) myservice.status.parentNode.style.display="block";
+					if (myservice.statusLabel) {
+						myservice.statusLabel.style.display="block";
+						myservice.statusLabel.className="clsRequired";
+						myservice.status.required=true;
+					}
+				}
+				else {
+					myservice.status.value="";
+					if (myservice.status && myservice.status.parentNode) {
+						myservice.status.parentNode.style.display="none";
+					}
+					if (myservice.statusLabel) {
+						myservice.statusLabel.style.display="none";
+						myservice.statusLabel.className="clsNormal";
+						myservice.status.required=false;
+					}
+				}
+			}
+		};
+		this.setonclick = function() {
+			if (this.tickbox) {
+				this.tickbox.onclick=this.displaySerStatus;
+			}
+		};
+	};
+	var QTCP = {
+		newButton: document.getElementById("testme"),
+		updateButton: document.getElementById("update1"),
+		services: {
+		},
+		// mappings: show per service the checkbox id, the status id, and the status label id
+		mappings: {
+			"phy":	["QTCPPHY","QTCPPHYStatus","cQTCPPHYStatus","Physiotherapy"],
+			"ot":	["QTCPOT","QTCPOTStatus","cQTCPOTStatus","Occupational Therapy"],
+			"diet": ["QTCPDIET","QTCPDIETStatus","cQTCPDIETStatus","Dietetics"],
+			"cass": ["QTCPCASS","QTCPCASSStatus","cQTCPCASSStatus","Counselling and Support"],
+			"nur": ["QTCPNUR","QTCPNURStatus","cQTCPNURStatus","Nursing"]
+		},
+		init: function() {
+			websys_removeListener("load","onload",QTCP_LUScriptLoadHandler);
+			websys_addListener("load","onload",function(){QTCP.customLoad.call(QTCP)});
+		},
+		hideNew: function() {
+			if (this.newButton) this.newButton.style.display="none";
+		},
+		appendMessage: function(message, addition) {
+			if ("" != addition) {
+				if ("" == message)
+					return addition;
+				else
+					return message + "\n" + addition;
+			}
+		},
+		customUpdate: function() {
+			//check fields
+			var message = "";
+			for (var key in QTCP.mappings) {
+				if (QTCP.services[key].statusLabel && QTCP.services[key].status && ("clsRequired" == QTCP.services[key].statusLabel.className)
+				&& ("" == QTCP.services[key].status.value))
+				message = QTCP.appendMessage(message, "'" + QTCP.mappings[key][3] + "' service status is a required field but has not been entered");
+			}
+			if ("" != message)
+				alert(message);
+			else {
+				QTCP.updateButton.tkonclick();
+				if (window.top&&window.top.opener&&window.top.opener.fPAAdm_ListDocCurrent) {;
+					window.top.opener.treload('websys.csp');
+					window.close();
+				}
+			}
+		},
+		customLoad: function() {
+			QTCP_LUScriptLoadHandler();
+			this.hideNew();
+			websys_removeListener("click","onclick",QTCP.updateButton.tkonclick);
+			websys_addListener("click","onclick",QTCP.customUpdate,QTCP.updateButton);
+			for (var key in this.mappings) {
+				this.services[key] = new service(this.mappings[key][0],this.mappings[key][1],this.mappings[key][2]);
+				this.services[key].displaySerStatus();
+				this.services[key].setonclick();
+			}
+		}
+	}
+	
+	QTCP.init();
+]]></Implementation>
+</Method>
+</Class>
+</Export>

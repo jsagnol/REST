@@ -1,0 +1,86 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.websysMonitorPurge">
+<IncludeGenerator>%occInclude</IncludeGenerator>
+<Super>%SYS.Task.Definition</Super>
+<TimeCreated>63608,61327.211006</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/websysMonitorPurge.xml#1 $</Default>
+</Parameter>
+
+<Parameter name="TaskName">
+<Default>Trakcare - Purge Application Performance Data (websys.Monitor)</Default>
+</Parameter>
+
+<Property name="daysToKeep">
+<Type>%Integer</Type>
+<InitialExpression>183</InitialExpression>
+<Parameter name="MAXVAL" value="1000"/>
+<Parameter name="MINVAL" value="0"/>
+</Property>
+
+<Property name="ErrorNotificationEmail">
+<Type>%String</Type>
+</Property>
+
+<Property name="DoNotJournal">
+<Type>%Boolean</Type>
+<InitialExpression>1</InitialExpression>
+</Property>
+
+<Method name="OnTask">
+<ReturnType>%Status</ReturnType>
+<Implementation><![CDATA[
+	Set tTime = $ZH
+	Set tDeletedCount = ""
+	Set tSC = ##class(Custom.websysMonitorPurge).Purge(.tDeletedCount,..daysToKeep,..DoNotJournal) 
+	Set tTime = $ZH - tTime
+	If $$$ISOK(tSC),$D(^ZTRC($ZN)) {
+		s ^ZTRC($ZN,$H)="Success, purged "_tDeletedCount
+	}ElseIf $$$ISERR(tSC),..ErrorNotificationEmail {
+		set error=##class(%Exception.StatusException).CreateFromStatus(tSC)
+		set report = ##class(%FileCharacterStream).%New()
+		do report.WriteLine("<p>A scheduled task attempted to purge websys.Monitor entries older than "_..daysToKeep_" days")
+		do report.WriteLine("<br />The following error occured:<br />")
+		do report.WriteLine("<span style='color:red'>"_error.DisplayString()_"</span></p>")
+		do report.%Save()
+		do ##class(websys.Mail).AddItem("<do-not-reply>"_$zcvt(##class(%SYS.System).GetNodeName(),"L"),..ErrorNotificationEmail,"websys.Monitor purge failed",report.%Oid())
+	}
+	Quit tSC
+]]></Implementation>
+</Method>
+
+<Method name="Purge">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>*pDeletedCount:%Integer,pDaysToKeep:%Integer=60,DoNotJournal:%Boolean=1</FormalSpec>
+<ReturnType>%Status</ReturnType>
+<Implementation><![CDATA[
+	Set tID="", tDoNotDeleteDate = ((+$H)-pDaysToKeep+1)
+	Set tSC=$$$OK, SQLCODE=0, pDeletedCount=0
+	if DoNotJournal {
+		DO DISABLE^%SYS.NOJRN
+	}
+	&sql(DECLARE C2 CURSOR FOR
+	Select ID Into :tID From websys.Monitor
+	Where (MonitorDate < :tDoNotDeleteDate))
+	&sql(OPEN C2)
+	For { &sql(FETCH C2)  Quit:SQLCODE
+		&sql(DELETE From websys.Monitor Where ID = :tID)
+		Set pDeletedCount=pDeletedCount+%ROWCOUNT
+		If SQLCODE {
+			Set tSC = "Failed to purge websys.Monitor.ID "_tID_": SQLCODE="_SQLCODE
+		}
+	}
+	Set tCode=SQLCODE &sql(CLOSE C2) Set:'SQLCODE SQLCODE=tCode
+	Set:SQLCODE&&(SQLCODE'=100) tSC=$$$ADDSC(tSC,$$$ERROR("Purge error at ID "_$G(tID)_"; SQLCODE = "_SQLCODE))
+	if DoNotJournal {
+		DO ENABLE^%SYS.NOJRN
+	}
+ 	Quit tSC
+]]></Implementation>
+</Method>
+</Class>
+</Export>

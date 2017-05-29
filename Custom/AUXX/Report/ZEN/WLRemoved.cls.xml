@@ -1,0 +1,179 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.AUXX.Report.ZEN.WLRemoved">
+<Super>Custom.AUXX.Report.ZEN.Abstract</Super>
+<TimeCreated>61753,80896.836703</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/AUXX/Report/ZEN/WLRemoved.xml#1 $</Default>
+</Parameter>
+
+<UDLText name="T">
+<Content><![CDATA[
+// Report Name: Trak Waiting List Removed <br>
+
+]]></Content>
+</UDLText>
+
+<UDLText name="T">
+<Content><![CDATA[
+// Report Code: Trak.WLT0006 <br>
+
+]]></Content>
+</UDLText>
+
+<UDLText name="T">
+<Content><![CDATA[
+// LOGTRAK Number: 72460 <br>
+
+]]></Content>
+</UDLText>
+
+<Property name="DateFrom">
+<Type>%String</Type>
+<Parameter name="ZENURL" value="P1"/>
+</Property>
+
+<Property name="DateTo">
+<Type>%String</Type>
+<Parameter name="ZENURL" value="P2"/>
+</Property>
+
+<Property name="Facility">
+<Type>%String</Type>
+<Parameter name="ZENURL" value="P3"/>
+</Property>
+
+<Property name="WaitingList">
+<Type>%String</Type>
+<Parameter name="ZENURL" value="P4"/>
+</Property>
+
+<Property name="Specialty">
+<Type>%String</Type>
+<Parameter name="ZENURL" value="P5"/>
+</Property>
+
+<Property name="Reason">
+<Type>%String</Type>
+<Parameter name="ZENURL" value="P6"/>
+</Property>
+
+<XData name="ReportDefinition">
+<XMLNamespace>http://www.intersystems.com/zen/report/definition</XMLNamespace>
+<Data><![CDATA[
+<report xmlns='http://www.intersystems.com/zen/report/definition'
+   queryClass='Custom.AUXX.Report.ZEN.StoredProc.WLRemoved' queryName='WaitingList' name='WLRemoved'>
+  <parameter expression='..DateFrom'/>
+  <parameter expression='..DateTo'/>
+  <parameter expression='..Facility'/>
+  <parameter expression='..WaitingList'/>
+  <parameter expression='..Specialty'/>    
+  <parameter expression='..Reason'/>
+  <attribute name='ReportTitle' expression='$$$Text("@WaitingListRemoved@Waiting List Removed")'/>
+  <attribute name='timestamp' expression='$ZDATETIME($H, 2, 2)'/>
+  <attribute name='username' expression='..Username'/>
+  <attribute name="datefrom" expression="..DisplayDate(..DateFrom)"/>
+  <attribute name="dateto" expression="..DisplayDate(..DateTo)"/>
+  <attribute name='facility' expression="..GetHospListDesc(..Facility)"/>
+  <attribute name='waitinglist' expression='..GetWLWaitingListDesc(..WaitingList)'/>
+  <attribute name="specialty" expression="..GetSpecialtyListDesc(..Specialty)"/>
+  <attribute name="reason" expression="..GetWLCancReasonListDesc(..Reason)"/>
+  
+    
+  <group name="facility" breakOnField="HOSPDesc">
+  <attribute name="description" field="HOSPDesc" />
+    <aggregate name='HospTotal' type='CUSTOM' field='WLRowId' class='%ZEN.Report.Aggregate.CountDistinct'/>
+  <group name="reason" breakOnField="READesc">
+  <attribute name="description" field="READesc" />
+     <aggregate name='ReasTotal' type='CUSTOM' field='WLRowId' class='%ZEN.Report.Aggregate.CountDistinct'/>
+      <group name='Detail'>           
+      <attribute field='WLPCode' name='WLPCode'/>
+      <attribute field='WLPDesc' name='WLPDesc'/>
+      <attribute field='WLDate' name='WLDate' expression='..DisplayDate(%val)' />
+      <attribute field='WLDateOfList' name='WLRemovedDate' expression='..DisplayDate(%val)'/>
+      <attribute field='WLDaysOnList' name='WLDaysOnList'/>	 
+      <attribute field='CTLOCCode' name='CTLOCCode'/>
+      <attribute field='WLTCode' name='WLTCode'/>
+      <attribute field='WLTDesc' name='WLTDesc'/>
+	  <attribute field='PAPMINo' name='PAPMINo'/>
+  	  <attribute fields='PAPMIName,PAPMIName2,PAPMIName3' name='PatientName' expression='..DisplayName(%val("PAPMIName"),%val("PAPMIName2"),%val("PAPMIName3"))'/>
+      <attribute field='CTSEXCode' name='SEXCode'/>
+      <attribute field='PAPERAge' name='PAPERAgeYr'/>
+      <attribute field='WLOPERDesc' name='WLOPERDesc'/>
+      <attribute field='SPPP' name='SPPP'/>
+      </group>
+   </group>
+  </group>
+ </report>
+]]></Data>
+</XData>
+
+<XData name="ReportDisplay">
+<XMLNamespace>http://www.intersystems.com/zen/report/display</XMLNamespace>
+<Data><![CDATA[
+<report xmlns='http://www.intersystems.com/zen/report/display'
+xmlns:auxxstyle='http://www.intersystems.com/zen/report/display/auxx/style'
+xmlns:auxx='http://www.intersystems.com/zen/report/display/auxx'
+  name='WLRemoved'>
+  <document width= "#(..ReportWidth)#" height="#(..ReportHeight)#" marginLeft="#(..DocMarginLeft)#" marginRight="#(..DocMarginRight)#" 
+marginTop="#(..DocMarginTop)#" marginBottom="#(..DocMarginBottom)#" footerHeight="#(..DocFooterHeight)#" headerHeight="#(..DocHeaderHeight)#" 
+regionBeforeExtent="#(..DocHeaderHeight)#" regionAfterExtent="#(..DocFooterHeight)#">
+<auxxstyle:auxxgroupheader/>
+<auxxstyle:auxxgroupsummary/>
+<auxxstyle:auxxhospitalheader/>
+<auxxstyle:auxxpagefooter/>
+<auxxstyle:auxxpageheader/>
+<auxxstyle:auxxparameterheader/>
+<auxxstyle:auxxreporttitle/>
+<auxxstyle:auxxtablecolumn/>
+</document>
+<auxx:PageHeader pagetitle='@ReportTitle'/>
+<auxx:ReportFooter username='@username' timestamp='@timestamp'/>
+
+<body>
+<!-- REPORT HEADER -->
+<auxx:ReportHeader reporttitle='@ReportTitle'/>
+<auxx:ReportParameterHeader label='@Facility:@Facility:' field='@facility'  xcondition="string-length(@facility)>0"/>
+<auxx:ReportParameterHeader label='@WaitingListType:@Waiting List Type:' field='@waitinglist' xcondition="string-length(@waitinglist)>0"/>
+<auxx:ReportParameterHeader label='@Specialty:@Specialty:' field='@specialty' xcondition="string-length(@specialty)>0"/>
+<auxx:ReportParameterHeader label='@RemovalReason:@Removal Reason:' field='@reason' xcondition="string-length(@reason)>0"/>
+<auxx:ReportDateHeader datefrom="@datefrom" dateto="@dateto" />
+<line pattern="solid" width="100%"/>
+<line pattern="empty" width="100%"></line> 
+<auxx:NoResults xcondition="not(facility)" />
+<group name='facility' pagebreak="true">
+<auxx:GroupHospitalHeader label="@Facility:@Facility:" field="@description" />
+<line pattern="empty" lineHeight="1mm" />
+<group name='reason'>
+<auxx:GroupHeader label="@RemovalReason:@Removal Reason:" field="@description" />
+<line pattern="empty" lineHeight="2mm" />
+     <table class='auxxtablecolumn' group='Detail' width="100%">
+        <item field='@WLPDesc' width="10%" caption='@Priority@Priority' too-long-text="wrap"/>
+        <item field='@WLDate' width="8%" caption='@DateListed@Date Listed'/>
+        <item field='@WLRemovedDate' width="8%" caption='@DateRemoved@Date Removed'/>        
+        <item field='@WLDaysOnList' width="4%" caption='@DaysWait@Days Wait' style='text-align:right'/> 
+        <item field='' width="1%" />
+        <item field='@CTLOCCode' width="6%" caption='@Specialty@Specialty'/>
+        <item field='@WLTDesc' width="13%" caption='@WaitingListType@Waiting List Type' too-long-text="wrap"/>
+        <item field='@PAPMINo' width="11%" caption='@URN@URN'/>
+        <item field='@PatientName' width="15%" caption="@Name@Name" wrap-option="wrap"/>
+        <item field='@SEXCode' width="3%" caption='@Sex@Sex' style='text-align:center'/> 
+        <item field='@PAPERAgeYr' width="6%" caption="@Age@Age" style='text-align:center'/>             
+        <item field='@SPPP' width="15%" caption='@Operation/Procedure@Operation/Procedure' wrap-option="wrap" />
+     </table>
+	<line pattern="empty" lineHeight="2mm" /> 
+	<auxx:GroupSummary label="@Totalnumberfor@Total number for " group="@description" summaryvalue="ReasTotal" />
+	<line pattern="empty" lineHeight="4mm" /> 
+   </group>    
+      <line pattern="empty" width="100%"></line>
+	<auxx:GroupSummary label="@Totalnumberfor@Total number for " group="@description" summaryvalue="HospTotal"  />
+   </group>
+</body>
+</report>
+]]></Data>
+</XData>
+</Class>
+</Export>

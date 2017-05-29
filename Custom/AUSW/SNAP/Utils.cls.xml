@@ -1,0 +1,1611 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.AUSW.SNAP.Utils">
+<Description>
+Developed for SNAP Room integration
+TRC159209</Description>
+<ClassType/>
+<IncludeCode>%systemInclude</IncludeCode>
+<ProcedureBlock>0</ProcedureBlock>
+<Super>%RegisteredObject</Super>
+<TimeCreated>63173,28078.665462</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/AUSW/SNAP/Utils.xml#1 $</Default>
+</Parameter>
+
+<Method name="ListAppointmentRooms">
+<Description>
+1.       ListAppointmentRooms, which will take parameters 
+
+appointment date -"Date"
+start time - "StartTime"
+end time - "EndTime"
+hospital - "Hospital"
+specialty - "Location"
+resource - "Resource"
+service - "Service"
+
+and return an ordered list of rooms which are available
+Either for all log on Security groups with Description containing "SNAP" or if required to be saved against layout for Workflow SWARH.SNAP.ComAppt (W50251)
+  2014-03-13	TK (SWARH)	Limit number of rooms returned to 10, and display 
+  2014-04-11	TK (SWARH)	Add maxRooms parameter to allow client to specify; negative values do not limit number of rooms.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>schedID:%String="",serID:%String="",secGrp:%String="",maxRooms:%Integer=-1</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	q:$g(schedID)="" ""
+	q:secGrp'["SNAP" ""
+	
+	s RoomList=""
+	
+	s apptdate=$p($g(^RBAS(+schedID,$p(schedID,"||",2))),"^")
+	s starttime=$p($g(^RBAS(+schedID,$p(schedID,"||",2))),"^",4)
+	;s endtime=$p($g(^RBAS(+schedID,$p(schedID,"||",2))),"^",5)
+	s endtime=starttime+($$duration^CRBAppointment4(schedID,serID)*60)
+	s sessID=$p($g(^RBAS(+schedID,$p(schedID,"||",2))),"^",12)
+	
+	s locID=$p($g(^RB("RES",+schedID)),"^")
+	i locID'="" s hospID=$p($g(^CTLOC(locID)),"^",22)
+
+	s StartDateTime=$zd(apptdate,3)_" "_$zt(starttime,1)
+	s EndDateTime=$zd(apptdate,3)_" "_$zt(endtime,1)
+	
+	s params=StartDateTime_":"_EndDateTime_":"_hospID_":"_locID_":"_(+schedID)_":"_sessID_":"_serID
+	
+	s error=""
+	s Avail="Available rooms are: "
+	s NotAvail="No rooms available"
+	s MoreAvail=""
+	
+	s qry=##class(Custom.AUSW.ws.BookableService.BookableServiceSoap).%New()
+	i qry {
+		s $ZERROR=""
+		Try {
+	        s result=qry.BookablesListAvailable(StartDateTime,EndDateTime,hospID,locID,+schedID,sessID,serID)
+			f x=1:1:result.Count() {
+				Set ba = result.GetAt(x)
+				i (maxRooms < 0) || (x <= maxRooms) {
+					Set RoomDesc = ba.BookableDesc
+					Set RoomOptions = ""
+					Set:(ba.Preferred) RoomOptions=RoomOptions_", Preferred"
+					Set:(ba.Exclusive && ('ba.Shared)) RoomOptions=RoomOptions_", Exclusive"
+					If $L(RoomOptions) > 0 {
+						Set RoomOptions = $E(RoomOptions, 3, $L(RoomOptions))
+						Set RoomDesc = RoomDesc_" ("_RoomOptions_")"
+					}
+					
+					Set RoomList=RoomList_$c(13,10)_RoomDesc
+				} else {
+					Set MoreAvail=$c(13,10)_"("_(result.Count()-maxRooms)_" more rooms available)"
+					Quit
+				}
+			}
+        } Catch {
+	        i $ZERROR["<ZSOAP>" {
+		        s error=$System.Status.DisplayError(%objlasterror)
+            } else {
+	            s error=$System.Status.DisplayError($$$ERROR($$$CacheError,$ZERROR))
+            }
+        }
+        k qry
+	}
+	i RoomList'="" {
+		s RoomList=Avail_RoomList_MoreAvail
+	} else {
+		s RoomList=NotAvail
+	}
+	q RoomList_"^"_error
+]]></Implementation>
+</Method>
+
+<Method name="CreateRoomLookUp">
+<Description>
+DEPRECATED / OBSOLETE METHOD [RENAMED]
+Return an ordered list of rooms which are available
+Changes:
+  2014-04-11	TK (SWARH)	Modified to call BookablesListAvailableForTCAppointment with ApptId to get currently booked room
+								Mark default option with 'selected="selected"' attribute to make browser select it.
+  2014-06-02	TK (SWARH)	Make this a proxy method to call the real, renamed CreateRoomLookUpForAppt method</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>apptID:%String=""</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[	q ..CreateRoomLookUpForAppt(apptID)
+]]></Implementation>
+</Method>
+
+<Method name="CreateRoomLookUpForAppt">
+<Description><![CDATA[
+CreateRoomLookUpForAppt
+
+Writes a formatted HTML &lt;select&gt; lookup to the current output device, listing rooms available
+for appointment specified by <var>apptID</var> parameter.
+The currently booked room will be marked as selected, or the default room in cases where a room is not booked.
+
+Used on Component 'RBAppointment.Edit' provide a lookup field (SNAP Room)(which is mandatory) which when lookup is selected
+makes call to web service which takes parameters
+
+Parameters: 
+apptID - APPT_RowId of the appointment to list room availability for
+
+Changes:
+  2014-04-11	TK (SWARH)	Modified to call BookablesListAvailableForTCAppointment with ApptId to get currently booked room
+								Mark default option with 'selected="selected"' attribute to make browser select it.
+  2014-05-15	TK (SWARH)	Split CreateRoomLookUp into CreateRoomLookUpHTML and various CreateRoomLookUpFor... methods which take differing arguments.]]></Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>apptID:%String="",selectDefault:%Boolean=0</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	new output, html, result, event
+	
+	set output=""
+	quit:apptID="" output
+	set html = ""
+	
+	set event=$p($g(^RBAS(+apptID,$p(apptID,"||",2),"APPT",$p(apptID,"||",3))), "^", 53)
+	
+	set qry=##class(Custom.AUSW.ws.BookableService.BookableServiceSoap).%New()
+	if qry {
+		set $ZERROR=""
+		try {
+			new result
+	        set result=qry.BookablesListAvailableForTrakAppt(apptID)
+	        set html = ..CreateRoomLookUpHTML(result, 'event, selectDefault)
+        } catch {
+	        new error
+	        if $zerror["<ZSOAP>" {
+		        set error=$System.Status.DisplayError(%objlasterror)
+            } else {
+	            set error=$System.Status.DisplayError($$$ERROR($$$CacheError,$ZERROR))
+            } 
+            set output=error
+        }
+        kill qry
+	}
+	
+	write html
+
+	quit output
+]]></Implementation>
+</Method>
+
+<Method name="CreateRoomLookUpForTimes">
+<Description><![CDATA[
+CreateRoomLookUpForTimes
+
+Writes a formatted HTML &lt;select&gt; lookup to the current output device, listing rooms available
+during the period from the supplied <var>startdate</var> and <var>starttime</var> (in horolog), for a period of
+<var>duration</var> minutes, for resource <var>resID</var> (specialty <var>locID</var> at hospital <var>hospID</var>),
+where the appointment falls within resource schedule session <var>sessID</var> (optional) and is for service <var>serID</var>
+(optional).
+The default room returned from SNAP will be marked as selected.
+
+Used on Component 'RBEventTimes.Edit' provide a lookup field (SNAP Room)(which is mandatory) which when lookup is selected
+makes call to web service which  takes parameters
+
+Changes:
+  2014-04-11	TK (SWARH)	Modified to call BookablesListAvailableForTCAppointment with ApptId to get currently booked room
+								Mark default option with 'selected="selected"' attribute to make browser select it.
+  2014-05-15	TK (SWARH)	Split CreateRoomLookUp into CreateRoomLookUpHTML and various CreateRoomLookUpFor... methods which take differing arguments.]]></Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>startdate:%Date,starttime:%Time,duration:%Integer,hospID:%Integer,locID:%Integer,resID:%Integer,sessID:%String,serID:%Integer</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	new html, output, qry, startdt, enddt
+	set output=""
+	quit:apptID="" output
+
+	set startdt=$zdatetime(startdate_","_starttime, 3, 1)
+	set enddt= $zdatetime(..GetEndFromStartDuration(startdate, starttime, duration), 3, 1)
+
+	set html = ""
+	
+	set qry=##class(Custom.AUSW.ws.BookableService.BookableServiceSoap).%New()
+	if qry {
+		set $ZERROR=""
+		try {
+			new result
+			set result=qry.BookablesListAvailable(startdt,enddt,hospID,locID,resID,sessID,serID)
+	        set html = ..CreateRoomLookUpHTML(result)
+        } catch {
+	        new error
+	        if $ZERROR["<ZSOAP>" {
+		        set error=$System.Status.DisplayError(%objlasterror)
+            } else {
+	            set error=$System.Status.DisplayError($$$ERROR($$$CacheError,$ZERROR))
+            }
+            set output=error
+        }
+        kill qry
+	}
+	write html
+
+	quit output
+]]></Implementation>
+</Method>
+
+<Method name="GetEndFromStartDuration">
+<Description><![CDATA[
+GetEndFromStartDuration
+
+Utility function to return an end time horolog (ie. "date,time" format) for a supplied <var>startdate</var>,
+<var>starttime</var> and <var>duration</var>.
+
+Author:  	Timshel Knoll-Miller (SWARH) <tknoll-miller@swarh.vic.gov.au>
+Created:	2014-06-02
+Changes:
+  2014-06-02	TK (SWARH)	Initial version]]></Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>startdate:%Date,starttime:%Time,duration:%Float</FormalSpec>
+<ReturnType>%TimeStamp</ReturnType>
+<Implementation><![CDATA[
+	set secsperday = 24*60*60
+	set endtime = starttime + duration
+	set enddate = startdate + $normalize(endtime / secsperday, -1)
+	set endtime = endtime # secsperday
+	quit enddate_","_endtime
+]]></Implementation>
+</Method>
+
+<Method name="CreateRoomLookUpForEventTime">
+<Description><![CDATA[
+CreateRoomLookUpForEventTime
+
+Writes a formatted HTML &lt;select&gt; lookup to the current output device, listing  available rooms
+for the supplied <var>eventTimeID</var>, with the currently booked room (if any) or the default room selected.
+
+Changes:
+  2014-04-11	TK (SWARH)	Modified to call BookablesListAvailableForTCAppointment with ApptId to get currently booked room
+								Mark default option with 'selected="selected"' attribute to make browser select it.
+  2014-05-15	TK (SWARH)	Split CreateRoomLookUp into CreateRoomLookUpHTML and various CreateRoomLookUpFor... methods which take differing arguments.]]></Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>eventTimeID:%String</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	new html, output, qry
+	set output=""
+	quit:eventTimeID="" output
+
+	set html = ""
+	
+	set qry=##class(Custom.AUSW.ws.BookableService.BookableServiceSoap).%New()
+	if qry {
+		set $ZERROR=""
+		try {
+			new result
+			set result=qry.BookablesListAvailableForTrakEventTime(eventTimeID)
+	        set html = ..CreateRoomLookUpHTML(result)
+        } catch {
+	        new error
+	        if $ZERROR["<ZSOAP>" {
+		        set error=$System.Status.DisplayError(%objlasterror)
+            } else {
+	            set error=$System.Status.DisplayError($$$ERROR($$$CacheError,$ZERROR))
+            }
+            set output=error
+        }
+        kill qry
+	}
+	write html
+
+	quit output
+]]></Implementation>
+</Method>
+
+<Method name="CreateRoomLookUpHTML">
+<Description><![CDATA[
+CreateRoomLookUpHTML:
+
+Takes a %ListOfObjects containing BookableAvailability record objects, as returned from the relevant
+Custom.AUSW.ws.BookableService.BookableServiceSoap methods, and builds a HTML &lt;select&gt; drop-down list for
+inclusion in a layout as a layout expression.
+
+Changes:
+  2014-04-11	TK (SWARH)	Modified to call BookablesListAvailableForTCAppointment with ApptId to get currently booked room
+								Mark default option with 'selected="selected"' attribute to make browser correctly select it.
+  2014-05-15	TK (SWARH)	Split CreateRoomLookUp to create this method]]></Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>list:%ListOfObjects,isEnabled:%Boolean=1,selectDefault:%Boolean=1</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	new rooms, roomgrps
+	new room, roomgrp, ind, selected
+	
+	set rooms = ""
+	set roomgrps = ""
+	set roomgrps(1) = "Preferred Rooms"
+	set roomgrps(2) = "Other Rooms"
+	
+	set selected = ""
+
+	// Build room group index & find the selected room (if any)
+	for ind=1:1:list.Count() {
+		new roomdesc, roomflags, ba
+		set ba = list.GetAt(ind)
+
+		set roomdesc = ba.BookableDesc
+		
+		set roomflags = ""
+		set:(ba.Exclusive) roomflags = roomflags_"E"
+		set:(ba.Shared) roomflags = roomflags_"S"
+		set:roomflags roomdesc = roomdesc_" ("_roomflags_")"
+		
+		set room=$I(rooms)
+		set rooms(room, "value") = $zcvt(ba.BookableCode, "O", "HTML")
+		set rooms(room, "text") = $zcvt(roomdesc, "O", "HTML")
+		
+		// Add room to group index
+		set roomgrp=(('ba.Preferred)+1) // 1 if preferred, 2 if other
+		//set roomgrps(roomgrp, ba.OrderSequence, rooms) = ""
+		// Just trust that rooms are in the right order in the SOAP response; don't worry about OrderSequence
+		set roomgrps(roomgrp, room) = ""
+		
+		set:(ba.Booked) selected = room // Booked rooms are always selected by default
+		set:(ba.Default&&selectDefault&&'selected) selected = room // Select the room marked Default no other room has been selected
+	}
+
+	new html, selAttr, disAttr
+	new Q, NL
+	
+	set Q = """"
+	set NL = $C(13,10)
+
+	set disAttr = $s(isEnabled:"", 1:" class=""disabledField"" disabled=""disabled""")
+	set selAttr = $s(selected:" value="_Q_rooms(selected, "value")_Q, 1:"")
+
+	set html = "<select name=""SNAPRoom"""_disAttr_selAttr_""">"_NL
+
+	set html = html_"<option selected=""selected"" disabled=""disabled"" hidden=""hidden"" value="""">Please select a room...</option>"
+	
+	set roomgrp = ""
+	for  {
+		set roomgrp = $O(roomgrps(roomgrp))  quit:roomgrp=""
+		if $D(roomgrps(roomgrp)) >= 10 { // Subscripts (Rooms) exist in this group, add optgroup
+			set html = html_"<optgroup label="_Q_$ZCVT(roomgrps(roomgrp), "O", "HTML")_Q_">"_NL
+			// Just trust that rooms are in the right order in the SOAP response; don't worry about OrderSequence
+			//set ind=""
+			//for  {
+			//	set ind=$O(roomgrps(roomgrp, ind))  quit:ind=""
+			set room = ""
+			for  {
+				//set room=$O(roomgrps(roomgrp, ind, room))  quit:room=""
+				set room = $O(roomgrps(roomgrp, room))  quit:room=""
+				set selAttr = $SELECT(room=selected:" selected=""selected""",1:"")
+				set html = html_"<option value="_Q_rooms(room, "value")_Q_selAttr_">"_rooms(room, "text")_"</option>"_NL
+			}
+			//}
+			set html = html_"</optgroup>"_NL
+		}
+	}
+	set html = html_"</select>"_NL
+
+	set html = html_"<input name=""SNAPRoomDesc"" id=""SNAPRoomDesc"" value="""" type=""HIDDEN"">"_NL
+	
+	set:'isEnabled html = html_"<br /><span style=""font-weight:bold; color: #FF9500;"">This is an Event appointment. You must use the Event screen to change the room.</span>"_NL
+	
+	quit html
+]]></Implementation>
+</Method>
+
+<Method name="CreateRoomLabel">
+<Description><![CDATA[
+CreateSNAPRoomLabel
+
+Returns label HTML for SNAP Room dropdown, for inclusion into a layout editor expression.
+Used for AJAX room drop-down lists in various places. 
+
+Parameters:
+ <var>required</var>: when true, mark the label with clsRequired to make Trak's event validation check that associated SNAPRoom field has a value
+ <var>enabled</var>: whether the label is enabled or not.
+
+Author:		Timshel Knoll-Miller (SWARH) <tknoll-miller@swarh.vic.gov.au>
+Created:	2014-06-03
+Usage:		w ##class(Custom.AUSW.SNAP.Utils)CreateSNAPRoomLabel(), !
+			or:	i ##class(Custom.SWARH.SNAP.Utils).IsSNAPUser() w ##class(Custom.AUSW.SNAP.Utils)CreateSNAPRoomLabel(), !
+Changes:
+		2014-06-03		TK (SWARH)	Initial version]]></Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>required:%Boolean=1,enabled:%Boolean=1</FormalSpec>
+<Implementation><![CDATA[	quit ..CreateSNAPRoomLabel("SNAPRoom", required, enabled)
+]]></Implementation>
+</Method>
+
+<Method name="CreateSNAPRoomLabel">
+<Description><![CDATA[
+CreateSNAPRoomLabel
+
+Returns the initial HTML portion for the SNAP Room AJAX dropdown, for inclusion into a layout editor expression.
+Used for AJAX room drop-down lists in various places.
+
+Parameters:
+ <var>id</var>: the HTML ID of the &lt;select&gt; element of the SNAP Room dropdown. The label will be created with an ID of this value prefixed by the character 'c', to match the Trak convention.
+ <var>required</var>: when true, mark the label with clsRequired to make Trak's event validation check that associated SNAPRoom field has a value.
+ <var>enabled</var>: whether the label is enabled or not.
+
+Author:		Timshel Knoll-Miller (SWARH) <tknoll-miller@swarh.vic.gov.au>
+Created:	2014-06-10
+Usage:		w ##class(Custom.AUSW.SNAP.Utils)CreateSNAPRoomLabel(), !
+			or:	i ##class(Custom.SWARH.SNAP.Utils).IsSNAPUser() w ##class(Custom.AUSW.SNAP.Utils)CreateSNAPRoomLabel(), !
+Changes:
+		2014-06-10		TK (SWARH)	Initial version to replace hard-coded HTML in 'write' expression in layouts]]></Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>id:%String="SNAPRoom",required:%Boolean=1,enabled:%Boolean=1</FormalSpec>
+<Implementation><![CDATA[
+	new reqAttr, disAttr
+	set reqAttr = $CASE(required, 0:"", :" class=""clsRequired""")
+	set disAttr = $CASE(enabled, 0:" disabled=""disabled""", :"")
+	quit "<label id=""c"_id_""" for="""_id_""""_reqAttr_disAttr_">SNAP Room</label>"
+]]></Implementation>
+</Method>
+
+<Method name="CreateSNAPRoomAJAXLookUpHTML">
+<Description><![CDATA[
+CreateSNAPRoomAJAXLookUpHTML
+
+Returns the initial HTML portion for the SNAP Room AJAX dropdown, for inclusion into a layout editor expression.
+Used for AJAX room drop-down lists in various places.
+
+Author:		Timshel Knoll-Miller (SWARH) <tknoll-miller@swarh.vic.gov.au>
+Created:	2014-06-03
+Usage:		w ##class(Custom.AUSW.SNAP.Utils).CreateSNAPRoomAJAXLookUpHTML(), !
+			or:	i ##class(Custom.SWARH.SNAP.Utils).IsSNAPUser() w ##class(Custom.AUSW.SNAP.Utils).CreateSNAPRoomAJAXLookUpHTML(), !
+Changes:
+		2014-06-03		TK (SWARH)	Initial version to replace hard-coded HTML in 'write' expression in layouts]]></Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>id:%String="SNAPRoom"</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	set html =
+			"<select id="""_id_""" name="""_id_"""></select>" _ $c(13,10)
+		_	"<input type=""hidden"" id="""_id_"Desc"" />"
+	quit html
+]]></Implementation>
+</Method>
+
+<Method name="FindRSSessionForTime">
+<Description><![CDATA[
+Returns matching session ID of any session which contains the provided date/time,
+or empty string if no matching session found.
+
+Author:  	Timshel Knoll-Miller (SWARH) <tknoll-miller@swarh.vic.gov.au>
+Created:	2014-06-02
+Changes:
+  2014-06-02	TK (SWARH)	Initial version]]></Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>resID:%Integer,startdate:%Date,starttime:%Time</FormalSpec>
+<Implementation><![CDATA[
+	set sessID = ##class(web.RBResEffDateSession).NextPrevSessNew(resID, startdate-1, "", 1)
+	while 1=1 {
+		set sessdate = $p(sessID, "^", 2)
+		if sessdate > startdate {
+			set sessID = ""
+			quit
+		}
+		set sessID = $p(sessID, "^")
+		
+		set sessdet = ##class(web.RBResEffDateSession).GetSessDetails(sessID, startdate)
+		if (starttime >= $LI(sessdet, 8)) && (starttime < $LI(sessdet, 9)) {
+			quit // Break from loop and return current sessid
+		}
+		set sessID = ##class(web.RBResEffDateSession).NextPrevSessNew(resID, startdate, sessID, 1)
+	}
+	quit sessID
+]]></Implementation>
+</Method>
+
+<Method name="BuildRoomsJSON">
+<Description><![CDATA[
+BuildRoomsJSON
+
+Takes a %ListOfObjects containing SNAP BookableAvailability record objects, as returned from the relevant
+Custom.AUSW.ws.BookableService.BookableServiceSoap methods, and returns a string representation of
+a JSON object containing an array of rooms. Used for AJAX room drop-down lists in various places.
+
+Author:		Bradly Sharpe (SWARH) <bsharpe@swarh.vic.gov.au>
+Changes:
+		2014-05-16?		TK (SWARH)	Added ObjectScript to JSON property name mapping array and loop to map properties.
+									Replaces manual code mapping.
+		2014-05-16?		BS (SWARH)	Split out from GetRoomOptionsJSON into separate RoomListToJSON.
+		2014-06-16		TK (SWARH)	Renamed to BuildRoomsJSON and merged in JSONError error generation code.]]></Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>rooms:%ListOfObjects,errortext:%String="",errorid:%String=""</FormalSpec>
+<Implementation><![CDATA[
+	new Q
+	new jsonRooms, jsonError, q, count, sep, error, x
+    set (jsonRooms, sep) = ""
+    set count = 0
+
+	set Q = """"
+
+	if ($isobject(rooms)) {
+		new PROPS
+		; List of SOAP Properties to project into the JSON object:
+		; Format: <SOAPObjectPropertyName>[:<JSONPropertyName>[:<QuotePropertyValue>]]
+		; where:
+		;	<SOAPObjectPropertyName>: the property name in the SOAP object
+		;	<JSONObjectPropertyName>: the property name in the JSON object -
+		;			- defaults to the lowercased <SOAPObjectPropertyName> if not specified
+		;	<QuotePropertyValue>: bool value specifying whether to JSON quote & escape the property value
+		set PROPS = $lb(
+				"OrderSequence:order"
+			,	"BookableCode:code"
+			,	"BookableDesc:desc"
+			,	"Exclusive"
+			,	"Shared"
+			,	"Preferred"
+			,	"Default"
+			,	"Booked"
+		)
+
+
+	    set count = rooms.Count()
+
+	    for x=1:1:count {
+		    new ba, jsonRoom, rsep, i
+			set ba = result.GetAt(x)
+
+			set jsonRoom="{"
+			set rsep = ""
+
+			for i=1:1:$ll(PROPS) {
+				new prop, propName, jsPropName, quoteval, val
+				
+				set prop = $lg(PROPS,i)
+				set propName = $p(prop,":",1)
+
+				set jsonPropName = $p(prop,":",2)
+				set:(jsonPropName="") jsonPropName = $zconvert(propName,"L") // If no JSON property name specified, use lowercased object property name
+				set jsonPropName = Q_..EscapeJSONString(jsonPropName)_Q
+				
+				set val = $property(ba, $p(prop,":"))
+
+				set propObj = ##class(%Dictionary.CompiledProperty).%OpenId(ba.%ClassName(1)_"||"_propName)
+				if (propObj) {
+					set val=$case(propObj.Type
+						,	"%Library.Boolean":$case(val,1:"true",0:"false",:"")
+						,	"%Library.String":Q_..EscapeJSONString(val)_Q
+						,	"%Library.Date":Q_$zdate(val,3)_Q
+						,	"%Library.Time":Q_$ztime(val,1)_Q
+						,	"%Library.TimeStamp":Q_$zdatetime($zdatetime(val, 3, 1), 3, 7)_Q
+						,	"%Library.String":Q_..EscapeJSONString(val)_Q
+						,	:val
+						)
+				}
+				
+				// Build the array of room properties
+				set jsonRoom = jsonRoom_rsep_jsonPropName_":"_val
+
+				set rsep=","
+			}
+			set jsonRoom = jsonRoom_"}"
+		
+			set jsonRooms = jsonRooms_sep_jsonRoom
+			set sep=","
+		}
+	}
+	
+	if (count>0) {
+		set jsonRooms = "["_jsonRooms_"]"
+	} else {
+		set jsonRooms = "null"
+	}
+	
+	// Need to replace escaped single-quotes with just single quotes as these don't need to be
+	// escaped and JSON2.parseJSON doesn't work with them.
+	set error = "false"
+	set jsonError=""
+	if ((errortext'="")||(errorid'="")) {
+		set error="true"
+		set:errortext'="" jsonError = jsonError_",""errortext"":"_Q_..EscapeJSONString(errortext)_Q
+		set:errorid'="" jsonError = jsonError_",""errorid"":"_Q_..EscapeJSONString(errorid)_Q
+	}
+	quit "{""error"":"_error_",""count"":"_count_",""rooms"":"_jsonRooms_jsonError_"}"
+]]></Implementation>
+</Method>
+
+<Method name="EscapeJSONString">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>str:%String</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	new i, repchars, char, ucode, code
+	Set repchars = $lb("\", """", "`", $c(13, 10))
+	for i=1:1:$ll(repchars) {
+		set char = $li(repchars, i)
+		set ucode = "\u0000"
+		set code = $zcvt($zhex($ascii(char)),"L")
+		set $extract(ucode, $l(ucode)-$l(code)+1, $l(ucode)) = code
+		set str = $replace(str, char, ucode)
+	}
+	quit str
+]]></Implementation>
+</Method>
+
+<Method name="GetRoomOptionsJSONForEventTime">
+<Description><![CDATA[
+GetRoomOptionsJSONForEventTime
+
+Returns a JSON-serialised object containing an array of available rooms returned from the
+Custom.AUSW.ws.BookableService.BookableServiceSoap methods, and returns a string representation of
+a JSON object containing an array of rooms. Used for AJAX room drop-down lists in various places.
+
+Author:		Bradly Sharpe (SWARH) <bsharpe@swarh.vic.gov.au>
+Created:	2014-05 (mid May?)
+Usage:		direct:		var jsonRooms = tkMakeServerCall('Custom.AUSW.SNAP.Utils', 'GetRoomOptionsJSONForEventSession', eventId, sessDate, sessTime);
+		using SNAP.js: 		SNAP.createSNAPRoomList('SNAPRoom', 'Internal Error', RBET.getValidParams, RBET.roomSelected, RBET.roomStateChanged, "Custom.AUSW.SNAP.Utils", "GetRoomOptionsJSONForEventTime");
+Changes:
+		2014-05-16?		BS (SWARH)	Split out from GetRoomOptionsJSON into separate RoomListToJSON.
+		2014-06-16		TK (SWARH)	Change to using BuildRoomsJSON for all JSON room list and error generation.]]></Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>eventTimeID:%String=""</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	new output, json, qry
+	
+	quit:(eventTimeID="") ..BuildRoomsJSON($$$NULLOREF, "Invalid parameters", "INVALPARAM")
+
+	set output="" 
+	set json = ""
+
+	set qry=##class(Custom.AUSW.ws.BookableService.BookableServiceSoap).%New()
+	if qry {
+		new result, errortext, errorid
+		
+        set result=$$$NULLOREF
+	    set (errortext, errorid) = ""
+
+		set $ZERROR=""
+
+		try {
+	        set result=qry.BookablesListAvailableForTrakEventTime(eventTimeID)
+        } catch {
+	        if $ZERROR["<ZSOAP>" {
+		        set errorid = "SOAPERROR"
+		        set errortext = $System.Status.GetErrorText(%objlasterror)
+            } else {
+		        set errorid = "SYSERROR"
+		        set errortext = $System.Status.GetErrorText($$$ERROR($$$CacheError,$ZERROR))
+            }
+        }
+		set json = ..BuildRoomsJSON(result, errortext, errorid)
+        kill qry
+	}
+
+	quit json
+]]></Implementation>
+</Method>
+
+<Method name="GetRoomOptionsJSONForEventSession">
+<Description><![CDATA[
+GetRoomOptionsJSONForEventSession
+
+Returns a JSON-serialised object containing an array of available rooms returned from the
+Custom.AUSW.ws.BookableService.BookableServiceSoap methods, and returns a string representation of
+a JSON object containing an array of rooms. Used for AJAX room drop-down lists in various places.
+
+Author:		Bradly Sharpe (SWARH) <bsharpe@swarh.vic.gov.au>
+Created:	2014-05 (mid May?)
+Usage:		direct:		var jsonRooms = tkMakeServerCall('Custom.AUSW.SNAP.Utils', 'GetRoomOptionsJSONForEventSession', eventId, sessDate, sessTime);
+		using SNAP.js: 		SNAP.createSNAPRoomList('SNAPRoom', 'Internal Error', RBET.getValidParams, RBET.roomSelected, RBET.roomStateChanged, "Custom.AUSW.SNAP.Utils", "GetRoomOptionsJSONForEventTime");
+Changes:
+		2014-05-16?		BS (SWARH)	Split out JSON generation code to separate RoomListToJSON method.
+		2014-06-02		TK (SWARH)	Use GetEndFromStartDuration to calculate end date/time
+									Renamed from GetRoomOptionsJSON to GetRoomOptionsJSONForApptSlot, proxy method created
+									for backward compatability.
+									Use RoomListToJSON to generate JSON.
+		2014-06-16		TK (SWARH)	Change to using BuildRoomsJSON for all JSON room list and error generation]]></Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>eventID:%String="",sessdate:%Date="",sesstime:%Time</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	new output, startdt, json, qry
+
+	quit:(eventID="")||(sessdate="")||(sesstime="") ..BuildRoomsJSON($$$NULLOREF, "Invalid parameters", "INVALPARAM")
+	
+	set output=""
+	set json = ""
+	
+	set startdt=$zdatetime($zdh(sessdate, 3)_","_$zth(sesstime, 1), 3, 1)
+
+	set qry=##class(Custom.AUSW.ws.BookableService.BookableServiceSoap).%New()
+	if qry {
+		new result, errortext, errorid
+		
+        set result=$$$NULLOREF
+	    set (errortext, errorid) = ""
+
+		set $ZERROR=""
+
+		try {
+			set (hasPreferred, preferredDone) = 0
+			//s result=qry.BookablesListAvailableForEventSession(StartDateTime,EndDateTime,hospID,locID,resID,sessID)
+			set result=qry.BookablesListAvailableForTrakEventSession(eventID, startdt)
+        } catch {
+	        if $ZERROR["<ZSOAP>" {
+		        set errorid = "SOAPERROR"
+		        set errortext = $System.Status.GetErrorText(%objlasterror)
+            } else {
+		        set errorid = "SYSERROR"
+		        set errortext = $System.Status.GetErrorText($$$ERROR($$$CacheError,$ZERROR))
+            }
+        }
+		set json = ..BuildRoomsJSON(result, errortext, errorid)
+        kill qry
+	}
+	
+	quit json
+]]></Implementation>
+</Method>
+
+<Method name="GetRoomOptionsJSON">
+<Description>
+DEPRECATED / OBSOLETE METHOD [RENAMED]
+Use GetRoomOptionsJSONForApptSlot instead.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>schedID:%String="",serID:%String=""</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[	quit ..GetRoomOptionsJSONForApptSlot(schedID, serID)
+]]></Implementation>
+</Method>
+
+<Method name="GetRoomOptionsJSONForApptSlot">
+<Description><![CDATA[
+GetRoomOptionsJSONForApptSlot
+
+Returns a JSON-serialised object containing an array of available rooms returned from the
+	Custom.AUSW.ws.BookableService.BookableServiceSoap methods, and returns a string representation of
+a JSON object containing an array of rooms. Used for AJAX room drop-down lists in various places.
+
+Author:		Bradly Sharpe (SWARH) <bsharpe@swarh.vic.gov.au>
+Created:	2014-05 (mid May?)
+Usage:		direct:			var jsonRooms = tkMakeServerCall('Custom.AUSW.SNAP.Utils', 'GetRoomOptionsJSONForApptSlot', schedId, serId);
+		using SNAP.js: 		SNAP.createSNAPRoomList('SNAPRoom', 'Internal Error', RBET.getValidParams, RBET.roomSelected, RBET.roomStateChanged, "Custom.AUSW.SNAP.Utils", "GetRoomOptionsJSONForApptSlot");
+Changes:
+		2014-05-16?		BS (SWARH)	Split out JSON generation code to separate RoomListToJSON method.
+		2014-06-02		TK (SWARH)	Use GetEndFromStartDuration to calculate end date/time
+									Renamed from GetRoomOptionsJSON to GetRoomOptionsJSONForApptSlot, proxy method created
+									for backward compatability.
+									Use RoomListToJSON to generate JSON.
+		2014-06-16		TK (SWARH)	Change to using BuildRoomsJSON for all JSON room list and error generation
+		2014-06-27		TK (SWARH)	Bug fix: don't 'new' serID as it's a parameter]]></Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>schedID:%String="",serID:%String=""</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	new output, apptdate, appttime, duration, sessID, locID, locDesc, hospID, startdt, enddt
+
+	quit:(schedID="")||(serID="") ..BuildRoomsJSON($$$NULLOREF, "Invalid parameters", "INVALPARAM")
+	
+	set output=""
+	
+	set apptdate=$p($g(^RBAS(+schedID,$p(schedID,"||",2))),"^")
+	set appttime=$p($g(^RBAS(+schedID,$p(schedID,"||",2))),"^",4)
+	set duration=($$duration^CRBAppointment4(schedID,serID)*60)
+	
+	set sessID=$p($g(^RBAS(+schedID,$p(schedID,"||",2))),"^",12)
+	set locID=$p($g(^RB("RES",+schedID)),"^")
+	set:locID'="" hospID=$p($g(^CTLOC(locID)),"^",22)
+	
+	set startdt=$zdatetime(apptdate_","_appttime, 3, 1)
+	set enddt=$zdatetime(..GetEndFromStartDuration(apptdate, appttime, duration), 3, 1)
+
+	set qry=##class(Custom.AUSW.ws.BookableService.BookableServiceSoap).%New()
+	if qry {
+		new result, errortext, errorid
+
+		set result = $$$NULLOREF
+	    set (errortext, errorid) = ""
+
+		set $ZERROR=""
+
+		try {
+	        set result=qry.BookablesListAvailable(startdt,enddt,hospID,locID,+schedID,sessID,serID)
+        } catch {
+	        if $ZERROR["<ZSOAP>" {
+		        new txt, re
+		        //<url>(?:(?!<\/url>).)*C=D;O=A.*?<\/url>
+		        //<Reason( [^>]*)?><Text(  (.*)>(.*)</Text></Reason>")
+		        set errorid = "SOAPERROR"
+		        set errortext = $System.Status.GetErrorText(%objlasterror)
+
+				// TODO: parse the content out of the <Reason><Text>[content]</Text></Reason> structure
+#;		        set re = ##class(%Regex.Matcher).%New("<(Reason)\b[^>]*>(?:(?!<\/\1>).)*<\/\1>")
+#;		        set match = re.Match(errortext)
+#;		        set re.Pattern = "<(Text)\b[^>]*>(?:(?!<\/\1>).)*<\/\1>"
+#;		        set:match match = re.Match(match)
+#;		        set txt = $p($p(errortext, "<Reason>", 2), "</Reason>", 1)
+#;		        set:txt'="" errortext = txt
+#;		        set errortext = $p(errortext, ">", 2)
+            } else {
+		        set errorid = "SYSERROR"
+		        set errortext = $System.Status.GetErrorText($$$ERROR($$$CacheError,$ZERROR))
+            }
+        }
+		set json = ..BuildRoomsJSON(result, errortext, errorid)
+        kill qry
+	}
+
+	quit json
+]]></Implementation>
+</Method>
+
+<Method name="GetTravelTime">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>apptID:%String=""</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	quit:apptID="" "0^0"
+	
+	set (oe,PriorTime,AfterTime)=0
+	for  {
+		set oe=$o(^OEORDi(0,"Appt",apptID,oe)) quit:oe=""
+		set oei=0
+		for  {
+			set oei=$o(^OEORDi(0,"Appt",apptID,oe,oei)) q:oei=""
+			set OEobj=##class(User.OEOrdItem).%OpenId(oe_"||"_oei)
+			if OEobj {
+				if OEobj.OEORIItmMastDR.ARCIMItemCatDR.ARCICCode="TRP",OEobj.OEORIItemStatDR.OSTATCode="V" set PriorTime=PriorTime+(OEobj.OEORIItmMastDR.ARCIMMinutes*60)
+				if OEobj.OEORIItmMastDR.ARCIMItemCatDR.ARCICCode="TRA",OEobj.OEORIItemStatDR.OSTATCode="V" set AfterTime=AfterTime+(OEobj.OEORIItmMastDR.ARCIMMinutes*60)
+				kill OEobj
+			}
+		}
+	}
+	quit PriorTime_"^"_AfterTime
+]]></Implementation>
+</Method>
+
+<Method name="StoreSNAPRoomForAppt">
+<Description>
+User will select a returned value which will populate field
+On Update of 'RBAppoinment.Edit' 
+
+call Web Service with parameters
+
+Appointment ID - "ApptID"
+RoomId - 'SNAP Room'
+
+Return will be Room Code (OPD_Code)(will match entry in SQLUser.PAC_OPDRooms)
+Then 
+Update SQLUser.RB_Appointment set APPT_OPDRoom_DR = (select OPD_RowId from PAC_OPDRooms where OPD_Code=:OPD_Code)
+
+NB Return will be No Room if room booking has not been able to be completed in SNAP if so we Save No Room (will be a value in SQLUser.PAC_OPDRooms)</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>apptID:%String="",roomCode:%String="",roomDesc:%String=""</FormalSpec>
+<Implementation><![CDATA[
+	new save, opdroom
+	
+	quit:apptID="" ""
+
+	set save=1
+	
+	set:roomCode'="" opdroom=..GetOPDRoomObjectForSNAPRoom(roomCode, roomDesc)
+	
+	if opdroom {
+		set save = ..StoreOPDRoomForAppt(apptID, opdroom)
+	}
+	
+	kill opdroom
+	quit save
+]]></Implementation>
+</Method>
+
+<Method name="StoreSNAPRoomForEventSession">
+<Description><![CDATA[
+StoreSNAPRoomForEventSession
+
+Author:			Timshel Knoll-Miller (SWARH) <tknoll-miller@swarh.vic.gov.au>
+Created:		2014-05-29
+Description:
+
+Populates event session specified by <var>eventTimeId</var> with OPDRoom ID for room code <var>roomCode</var>,
+and updates any existing appointments which have been created against the event session, adding the room to
+PAC_OPDRooms if it doesn't and updating the description to <var>roomDesc</var> (if it is passed).
+
+User.RBEventTimes TIMEEventSessionData3 property has been allocated to SWARH to store the PAC_OPDRoom OPD_RowId.
+
+The room will propogate from the event sesion record into any appointments created against the event session in
+the OnAfterSave^USWARHRBAppointment UDF.
+
+Returns 1 (true) if successful, 0 (false) on failure.
+
+Changes:
+		2014-05-29		TK (SWARH)	Initial version created based on StoreSNAPRoomForAppt
+		2014-06-03		TK (SWARH)	Added logic to find any current appointments for the event session and update the
+										APPTOPDRoomDR on these.]]></Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>eventTimeId:%String="",roomCode:%String="",roomDesc:%String=""</FormalSpec>
+<Implementation><![CDATA[
+	new save, opdroom, evtm
+	quit:eventTimeId="" ""
+	quit:roomCode="" 1
+	
+	set save=1
+	
+	set opdroom=..GetOPDRoomObjectForSNAPRoom(roomCode, roomDesc) 
+
+	set evtm=##class(User.RBEventTimes).%OpenId(eventTimeId)
+	if $ISOBJECT(evtm),$ISOBJECT(opdroom) {
+		new evID, evtmChild, resID, evtmDate, evtmTime, evDuration, slotTime, ind
+		
+		// Find any existing appointments and update room
+		set evID=evtm.TIMEParRef.%Id()
+		set evtmChild = evtm.TIMEChildsub
+		set resID=evtm.TIMEParRef.EVRBResourceDR.%Id()
+		set evtmDate=evtm.TIMEDate
+		set evtmTime=evtm.TIMEStartTime
+		set evDuration=evtm.TIMEParRef.EVDuration
+		set slotTime=evtmTime
+
+#;		ERROR: The %Save locks up the form when used from an OnSQLTrigger on RBEventTimes.Edit1 component. Use globals instead
+#;		s tSC = evtm.TIMEEventSessionData3.SetAt(opdroom.%Id(), 1)  s:$$$ISERR(tSC) save=0
+#;		s tSC = evtm.%Save() s:$$$ISERR(tSC) save=0
+		; Room gets stored in TIME_EventSessionData3 list item 1
+		set ind = 1
+		set:'$d(^RBEV(evID,"TIME",evtmChild,"SD3",0))||($g(^(0))<1) ^(0)=1
+		set ^(ind) = opdroom.%Id() // SD3 subscript <ind> holds the ID
+
+		set save = ..StoreOPDRoomForEventTimeAppts(eventTimeId, opdroom)
+	}
+
+	kill opdroom
+	quit save
+]]></Implementation>
+</Method>
+
+<Method name="StoreOPDRoomForEventTimeAppts">
+<Description><![CDATA[
+StoreApptRoomsFromEventTime
+
+Author:			Timshel Knoll-Miller (SWARH) <tknoll-miller@swarh.vic.gov.au>
+Created:		2014-06-23
+Description:
+
+Returns the AS_RowId of the RB_ApptSchedule record which is associated with the provided RB_EventTime TIME_RowId
+
+Changes:
+		2014-06-23		TK (SWARH)	Initial version split from StoreSNAPRoomForEventSession.]]></Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>evtmID:%String,opdroom:User.PACOPDRooms</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	new save, evID, evtmChld, resID, evdt, evtm, duration, astm, ind
+	
+	set save = 1
+	
+	// Find any existing appointments and update room
+	set evID=+evtmID
+	set evtmChld = $P(evtmID, "||", 2)
+	set resID = $p($g(^RBEV(evID)), "^", 15)
+	set evdt = $p($g(^RBEV(evID, "TIME", evtmChld)), "^", 1)
+	set evtm = $p($g(^RBEV(evID, "TIME", evtmChld)), "^", 2)
+	set duration = $p($g(^RBEV(evID)), "^", 8)
+
+	set astm=evtm
+
+	if ('$ISOBJECT(opdroom)) {
+		new roomID
+		set roomID = $g(^RBEV(evID, "TIME", evtmChld, "SD3", 1))
+		set:roomID'="" opdroom = ##class(User.PACOPDRooms).%OpenId(roomID)
+	}
+	
+	if ($ISOBJECT(opdroom)) {
+		// Find RBApptSchedule (appointment slot) time for event
+		if '$d(^RBAS(resID,0,"DateSTime",evdt,astm)) {
+			// If there isn't a slot that starts at the same time as the event session,
+			// get the next slot. Where there isn't a current appointment slot, Trak creates apthis will return the next slot
+			set astm=$o(^RBAS(resID,0,"DateSTime",evdt,evtm))
+			if astm<(evtm+(duration*60)) {
+				// Next slot starts after event has finished; Trak will not allow appt to be created so skip this step
+				// TODO: this logic may be inadequate further testing needs to be done. What about eg:
+				//  - 1x 30m slot with 60m event?
+				//  - 1x 60m slot between 14:00-15:00 when event session starts at 13:30?
+				//  - Think of other scenarios
+				s astm=""
+			}
+		}
+		if (astm'="") {
+			new aschld
+			// Look for any event appointments for any of the slots at the discovered slot start time.
+			set aschld=""
+			for  {
+				new asID, apptchld
+			
+				set aschld=$o(^RBAS(resID,0,"DateSTime",evdt,astm,aschld))
+				quit:aschld=""
+				set asID=resID_"||"_aschld
+
+				// Iterate Event Appointments for the slot and save the new room
+				set apptchld=""
+				for  {
+					new apptID
+					set apptchld=$o(^RBAS("RBEvent",evID,resID,aschld,apptchld))
+					quit:apptchld=""
+
+					set apptID=asID_"||"_apptchld
+
+					if '..StoreOPDRoomForAppt(apptID, opdroom) set save=0
+				}
+			}
+		}
+	} else {
+        do:msg msg.AddItem("N","SNAP","Internal Error: Unknown room for event time "_evtmID,"","")
+        set save = 0
+	}
+	
+	quit save
+]]></Implementation>
+</Method>
+
+<Method name="GetOPDRoomObjectForSNAPRoom">
+<Description><![CDATA[
+Author:			Timshel Knoll-Miller (SWARH) <tknoll-miller@swarh.vic.gov.au>
+Created:		2014-05-29
+Description:	Returns the PACOPDRoom object for the supplied <var>roomCode</var>, creating it if it doesn't already exist.
+				Also updates the description of the PACOPDRoom to the specified <var>roomDesc</var> if supplied.
+Changes:
+		2014-05-29		TK (SWARH)	Initial version split out from StoreSNAPRoomForAppt]]></Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>roomCode:%String="",roomDesc:%String=""</FormalSpec>
+<ReturnType>User.PACOPDRooms</ReturnType>
+<Implementation><![CDATA[
+	new roomID, roomObj
+	set roomID=##class(web.PACOPDRooms).GetIdFromCodeOrDescription(roomCode)
+	if roomID="" {
+		set roomObj=##class(User.PACOPDRooms).%New()
+		if roomObj {
+			set roomObj.OPDCode=roomCode
+			set roomObj.OPDDesc=$S(roomDesc'="":roomDesc,1:roomCode)
+			set roomObj.OPDDateFrom=+$h
+			set:'roomObj.%Save() roomObj = $$$NULLOREF
+		}
+	} else {
+		set roomObj=##class(User.PACOPDRooms).%OpenId(roomID)
+		set:roomDesc'="" roomObj.OPDDesc = roomDesc
+		do roomObj.%Save()
+	}
+	quit roomObj
+]]></Implementation>
+</Method>
+
+<Method name="StoreOPDRoomForAppt">
+<Description><![CDATA[
+Author:			Timshel Knoll-Miller (SWARH) <tknoll-miller@swarh.vic.gov.au>
+Created:		2014-06-03
+Description:	Populates APPT_OPDRoom_DR field on appointment specified by <var>apptID</var> with the OPDRoom object <var>opdroom</var>.
+				Returns 1 (true) if successful, 0 (false) on failure.
+Changes:
+		2014-06-03		TK (SWARH)	Initial version split out from StoreSNAPRoomForAppt]]></Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>apptID:%String,opdroom:User.PACOPDRooms</FormalSpec>
+<ReturnType>%Boolean</ReturnType>
+<Implementation><![CDATA[
+	new save, appt, resID, asChld, apptChld
+	
+	set save = 1
+	// Doing this triggers another OnSQLTrigger event, which we want to avoid.
+#;	set appt=##class(User.RBAppointment).%OpenId(apptID)
+#;	if (appt && (appt.APPTOPDRoomDR '= opdroom)) {
+#;		set appt.APPTOPDRoomDR = opdroom
+#;		set save = appt.%Save()
+#;		kill appt
+#;	}
+	
+	set resID = +apptID
+	set asChld = $p(apptID,"||",2)
+	set apptChld = $p(apptID,"||",3)
+
+	if ($d(^RBAS(resID,asChld,"APPT",apptChld)) && ($p($g(^RBAS(resID,asChld,"APPT",apptChld)),"^",84) '= opdroom.%Id())) {
+		set $p(^RBAS(resID,asChld,"APPT",apptChld),"^",84) = opdroom.%Id()
+	}
+	quit save
+]]></Implementation>
+</Method>
+
+<Method name="RecordNA">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>apptID:%String=""</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	q:apptID="" ""
+	s save=1
+	
+	s APPTobj=##class(User.RBAppointment).%OpenId(apptID)
+	i APPTobj {
+		s apptdate=APPTobj.APPTASParRef.ASDate
+		s appttime=APPTobj.APPTASParRef.ASSessStartTime
+		
+		// 2014-06-06 TK (SWARH): Don't call $$duration^CRBAppointment4 for Event appointments as they have no service
+		// the call to APPTobj.APPTRBCServDR.%Id() will fail with <INVALID OREF>
+		i APPTobj.APPTRBEventDR {
+			s duration=APPTobj.APPTRBEventDR.EVDuration
+		} else {
+			s duration=$$duration^CRBAppointment4(APPTobj.APPTASParRef.%Id(),APPTobj.APPTRBCServDR.%Id())
+		}
+		s endtime=appttime+(duration*60)
+		s UR=APPTobj.APPTPAPMIDR.PAPMINo
+		k APPTobj
+	}
+	s TravelTime=..GetTravelTime(apptID)
+	
+	q:TravelTime="0^0" 1
+	
+	s ^ziain($zn,$i(^ziain))=apptdate_":"_appttime_":"_endtime_":"_duration
+	
+	//If both of these return 0 then slot/resource is available
+	;i '##class(web.RBAppointment).CheckSlotsAvail(apptID),'##class(web.RBAppointment).CheckResourceForNA(apptID) {
+	i '##class(web.RBAppointment).CheckResourceForNA(apptID) {
+		
+		// Create NA entry for before appointment
+		s NAobj=##class(User.RBNotAvail).%New()
+		i NAobj {
+			d NAobj.NARESDRSetObjectId(+apptID)
+			s NAobj.NAFrDate=apptdate
+			s NAobj.NAFrTime=appttime-$p(TravelTime,"^")
+			s NAobj.NAToDate=apptdate
+			s NAobj.NAToTime=appttime
+			s reason=##class(web.RBCReasonNotAvail).GetIdFromCodeOrDescription("TravP")
+			i reason d NAobj.NAReasonDRSetObjectId(reason)
+			d NAobj.NARemarks.SetAt(UR_" "_$zt(appttime,2),1)
+			s NAobj.NAUpdateDate=+$h,NAobj.NAUpdateTime=$p($h,",",2)
+			i $g(%session.Data("LOGON.HOSPID",1)) d NAobj.NAUpdateHospitalDRSetObjectId($g(%session.Data("LOGON.HOSPID",1)))
+			s save=NAobj.%Save()
+			s NAId=NAobj.%Id()
+			i save {
+				s (oe,PriorTime,AfterTime)=0
+				f {
+					s oe=$o(^OEORDi(0,"Appt",apptID,oe)) q:oe=""
+					s oei=0
+					f {
+						s oei=$o(^OEORDi(0,"Appt",apptID,oe,oei)) q:oei=""
+						s OEobj=##class(User.OEOrdItem).%OpenId(oe_"||"_oei)
+						i OEobj {
+							i OEobj.OEORIItmMastDR.ARCIMItemCatDR.ARCICCode="TRP",OEobj.OEORIItemStatDR.OSTATCode="V" {
+								s OEobj.OEORISttDat=apptdate
+								s OEobj.OEORISttTim=appttime-$p(TravelTime,"^")
+								s OEobj.OEORIEndDate=apptdate
+								s OEobj.OEORIEndTime=appttime
+								s OEobj.OEORIText1=NAId
+								s save=OEobj.%Save()
+							}
+							k OEobj
+						}
+					}
+				}
+				k NAobj
+			}
+		}
+
+		// Create NA entry for after appointment
+		s NAobj=##class(User.RBNotAvail).%New()
+		i NAobj {
+			d NAobj.NARESDRSetObjectId(+apptID)
+			s NAobj.NAFrDate=apptdate
+			s NAobj.NAFrTime=endtime
+			s NAobj.NAToDate=apptdate
+			s NAobj.NAToTime=endtime+$p(TravelTime,"^",2)
+			s reason=##class(web.RBCReasonNotAvail).GetIdFromCodeOrDescription("TravA")
+			i reason d NAobj.NAReasonDRSetObjectId(reason)
+			d NAobj.NARemarks.SetAt(UR_" "_$zt(appttime,2),1)
+			s NAobj.NAUpdateDate=+$h,NAobj.NAUpdateTime=$p($h,",",2)
+			i $g(%session.Data("LOGON.HOSPID",1)) d NAobj.NAUpdateHospitalDRSetObjectId($g(%session.Data("LOGON.HOSPID",1)))
+			s save=NAobj.%Save()
+			s NAId=NAobj.%Id()
+			i save {
+				s (oe,PriorTime,AfterTime)=0
+				f {
+					s oe=$o(^OEORDi(0,"Appt",apptID,oe)) q:oe=""
+					s oei=0
+					f {
+						s oei=$o(^OEORDi(0,"Appt",apptID,oe,oei)) q:oei=""
+						s OEobj=##class(User.OEOrdItem).%OpenId(oe_"||"_oei)
+						i OEobj {
+							i OEobj.OEORIItmMastDR.ARCIMItemCatDR.ARCICCode="TRA",OEobj.OEORIItemStatDR.OSTATCode="V" {
+								s OEobj.OEORISttDat=apptdate
+								s OEobj.OEORISttTim=endtime
+								s OEobj.OEORIEndDate=apptdate
+								s OEobj.OEORIEndTime=endtime+$p(TravelTime,"^",2)
+								s OEobj.OEORIText1=NAId
+								s save=OEobj.%Save()
+							}
+							k OEobj
+						}
+					}
+				}
+				k NAobj
+			}
+		}
+	} else {
+		//Conflicts exist so set order times to same as appointment
+		s (oe,PriorTime,AfterTime)=0
+		f {
+			s oe=$o(^OEORDi(0,"Appt",apptID,oe)) q:oe=""
+			s oei=0
+			f {
+				s oei=$o(^OEORDi(0,"Appt",apptID,oe,oei)) q:oei=""
+				s OEobj=##class(User.OEOrdItem).%OpenId(oe_"||"_oei)
+				i OEobj {
+					i OEobj.OEORIItmMastDR.ARCIMItemCatDR.ARCICCode="TRP",OEobj.OEORIItemStatDR.OSTATCode="V" {
+						s OEobj.OEORISttDat=apptdate
+						s OEobj.OEORISttTim=appttime
+						s OEobj.OEORIEndDate=apptdate
+						s OEobj.OEORIEndTime=appttime
+						s OEobj.OEORIText1="Not Booked"
+						s save=OEobj.%Save()
+					}
+					i OEobj.OEORIItmMastDR.ARCIMItemCatDR.ARCICCode="TRA",OEobj.OEORIItemStatDR.OSTATCode="V" {
+						s OEobj.OEORISttDat=apptdate
+						s OEobj.OEORISttTim=endtime
+						s OEobj.OEORIEndDate=apptdate
+						s OEobj.OEORIEndTime=endtime
+						s OEobj.OEORIText1="Not Booked"
+						s save=OEobj.%Save()
+					}
+					k OEobj
+				}
+			}
+		}
+	}
+	q save
+]]></Implementation>
+</Method>
+
+<Method name="DisplayTravelIcon">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>apptID:%String=""</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	s ret=0
+	i "PANS"[$p($g(^RBAS(+apptID,$p(apptID,"||",2),"APPT",$p(apptID,"||",3))),"^",3) {
+		s oe=0
+		f {
+			s oe=$o(^OEORDi(0,"Appt",apptID,oe)) q:oe=""
+			s oei=0
+			f {
+				s oei=$o(^OEORDi(0,"Appt",apptID,oe,oei)) q:oei=""
+				s OEobj=##class(User.OEOrdItem).%OpenId(oe_"||"_oei)
+				i OEobj {
+					i OEobj.OEORIItmMastDR.ARCIMItemCatDR.ARCICCode="TRP",OEobj.OEORIItemStatDR.OSTATCode="V",OEobj.OEORIText1="Not Booked" s ret=1
+					i OEobj.OEORIItmMastDR.ARCIMItemCatDR.ARCICCode="TRA",OEobj.OEORIItemStatDR.OSTATCode="V",OEobj.OEORIText1="Not Booked" s ret=1
+					k OEobj
+				}
+			}
+		}
+	}
+	q ret
+]]></Implementation>
+</Method>
+
+<Method name="BookSNAPRoomForAppt">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>apptID:%String="",roomCode:%String=""</FormalSpec>
+<ReturnType>%Boolean</ReturnType>
+<Implementation><![CDATA[
+	new result, qry
+	quit:apptID="" ""
+	quit:roomCode="" ""
+	
+	set result = 0
+	
+	set qry=##class(Custom.AUSW.ws.BookableService.BookableServiceSoap).%New()
+	if qry {
+		set $ZERROR=""
+		try {
+	        set result=qry.BookableBookForTrakAppt(apptID,roomCode)
+            do:'result&&msg msg.AddItem("N","SNAP", "The requested room is no longer available", "", "")
+        } catch {
+	        new error
+	        if $ZERROR["<ZSOAP>" {
+		        new fault
+		        set error=$System.Status.GetErrorText(%objlasterror)
+		        set fault = qry.SoapFault
+		        set error = fault.Reason.GetAt(1).Text // qry.SoapFault.faultstring
+            } else {
+	            set error=$System.Status.GetErrorText($$$ERROR($$$CacheError,$ZERROR))
+            }
+            do:msg msg.AddItem("N","SNAP", error, "", "")
+        }
+        kill qry
+	}
+	quit result
+]]></Implementation>
+</Method>
+
+<Method name="BookAndStoreSNAPRoomForEventSession">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>eventTimeID:%String="",roomCode:%String="",roomDesc:%String=""</FormalSpec>
+<ReturnType>%Boolean</ReturnType>
+<Implementation><![CDATA[
+	new save
+	set save = 0
+	if ..BookSNAPRoomForEventSession(eventTimeID, roomCode) {
+		set save = ..StoreSNAPRoomForEventSession(eventTimeID, roomCode, roomDesc)	
+	}
+	quit save
+]]></Implementation>
+</Method>
+
+<Method name="BookSNAPRoomForEventSession">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>eventTimeID:%String="",roomCode:%String=""</FormalSpec>
+<Implementation><![CDATA[
+	new result, qry
+	
+	quit:eventTimeID="" ""
+	quit:roomCode="" ""
+	
+	set result = 0
+	
+	set qry=##class(Custom.AUSW.ws.BookableService.BookableServiceSoap).%New()
+	if qry {
+		set $ZERROR=""
+		try {
+	        set result=qry.BookableBookForTrakEventTime(eventTimeID,roomCode)
+            do:'result&&msg msg.AddItem("N","SNAP", "The requested room is no longer available", "", "")
+		} catch {
+			new error
+	        if $ZERROR["<ZSOAP>" {
+		        new fault
+		        set error = $System.Status.GetErrorText(%objlasterror)
+		        set fault = qry.SoapFault
+		        set error = fault.Reason.GetAt(1).Text // qry.SoapFault.faultstring
+            } else {
+	            set error = $System.Status.GetErrorText($$$ERROR($$$CacheError,$ZERROR))
+            }
+            do:msg msg.AddItem("N","SNAP", error, "", "")
+        }
+        kill qry
+	}
+	quit result
+]]></Implementation>
+</Method>
+
+<Method name="FindEventTimeForAppt">
+<Description><![CDATA[
+Returns matching RBEventTime ID of the appropriate EventTime for the appointment, which contains the provided date/time,
+or empty string if no matching EventTime found.
+
+Author:  	Timshel Knoll-Miller (SWARH) <tknoll-miller@swarh.vic.gov.au>
+Created:	2014-06-17
+Changes:
+  2014-06-17	TK (SWARH)	Initial version]]></Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>apptID:%String</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	quit:apptID="" ""
+
+	new resID, asChld, apptChld, evID, slotDate, slotTime, evtmChld, evtmID
+	
+	set evtmID = ""
+	
+	set resID=+apptID
+	set asChld=$p(apptID,"||",2)
+	set apptChld=$p(apptID,"||",3)
+	
+	set evID = $p($g(^RBAS(resID,asChld,"APPT",apptChld)), "^", 53) // APPT_RBEvent_DR
+	quit:'evID evtmID
+	set slotDate = $p($g(^RBAS(resID,asChld)), "^", 1) // AS_Date
+	set slotTime = $p($g(^RBAS(resID,asChld)), "^", 4) // AS_SessStartTime
+
+	// Lookup event time
+	set evtmChld = ""
+	for  {
+		set evtmChld = $o(^RBEV(evID,"TIME",0,"Date",slotDate,evtmChld))
+		quit:evtmChld=""
+		quit:($p($g(^RBEV(evID,"TIME",evtmChld)), "^", 2) = slotTime)
+	}
+	set:(evtmChld'="") evtmID = evID_"||"_evtmChld
+	 
+	quit evtmID
+]]></Implementation>
+</Method>
+
+<Method name="AppointmentSyncWithSNAP">
+<Description><![CDATA[
+Syncs an appointment with SNAP
+
+Author:  	Timshel Knoll-Miller (SWARH) <tknoll-miller@swarh.vic.gov.au>
+Created:	2014-06-27
+Changes:
+  2014-06-27	TK (SWARH)	Initial version]]></Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>apptID:%String=""</FormalSpec>
+<Implementation><![CDATA[
+	new result, qry
+	
+	quit:apptID="" ""
+	
+	set result = 0
+	
+	set qry=##class(Custom.AUSW.ws.BookingService.BookingServiceSoap).%New()
+	if qry {
+		set $ZERROR=""
+		try {
+	        set result=qry.AppointmentSyncFromTrak(apptID)
+		} catch {
+			new error
+	        if $ZERROR["<ZSOAP>" {
+		        new fault
+		        set error = $System.Status.GetErrorText(%objlasterror)
+		        set fault = qry.SoapFault
+		        set error = fault.Reason.GetAt(1).Text // qry.SoapFault.faultstring
+            } else {
+	            set error = $System.Status.GetErrorText($$$ERROR($$$CacheError,$ZERROR))
+            }
+            do:msg msg.AddItem("N","SNAP", error, "", "")
+        }
+        kill qry
+	}
+	quit result
+]]></Implementation>
+</Method>
+
+<Method name="EventTimeSyncWithSNAP">
+<Description><![CDATA[
+Syncs an EventTime with SNAP
+
+Author:  	Timshel Knoll-Miller (SWARH) <tknoll-miller@swarh.vic.gov.au>
+Created:	2014-06-27
+Changes:
+  2014-06-27	TK (SWARH)	Initial version]]></Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>eventTimeID:%String=""</FormalSpec>
+<Implementation><![CDATA[
+	new result, qry
+	
+	quit:eventTimeID="" ""
+	
+	set result = 0
+	
+	set qry=##class(Custom.AUSW.ws.BookingService.BookingServiceSoap).%New()
+	if qry {
+		set $ZERROR=""
+		try {
+	        set result=qry.BookingSyncFromTrakEventTime(eventTimeID)
+            #;do:'result&&msg msg.AddItem("N","SNAP", "The requested room is no longer available", "", "")
+		} catch {
+			new error
+	        if $ZERROR["<ZSOAP>" {
+		        new fault
+		        set error = $System.Status.GetErrorText(%objlasterror)
+		        set fault = qry.SoapFault
+		        set error = fault.Reason.GetAt(1).Text // qry.SoapFault.faultstring
+            } else {
+	            set error = $System.Status.GetErrorText($$$ERROR($$$CacheError,$ZERROR))
+            }
+            do:msg msg.AddItem("N","SNAP", error, "", "")
+            w error
+        }
+        kill qry
+	}
+	quit result
+]]></Implementation>
+</Method>
+
+<Method name="SNAPRBAppointmentListFilter">
+<Description>
+Filter applied to RBAppointment.List component for SNAP room to display
+##class(Custom.AUSW.SNAP.Utils).SNAPRBAppointmentListFilter(.rs)</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>rowH:%ResultSet</FormalSpec>
+<ReturnType>%Boolean</ReturnType>
+<Implementation><![CDATA[
+	s id=rowH.GetDataByName("apptId")
+	q ..SNAPApptFilterPopulateOPDRoom(rowH, id, "ContactVenue")
+]]></Implementation>
+</Method>
+
+<Method name="SNAPRBAppointmentListFilterByEpisode">
+<Description>
+Filter applied to RBAppointment.List component for SNAP room to display and
+and only appointments for current episode to be displayed.
+##class(Custom.AUSW.SNAP.Utils).SNAPRBAppointmentListFilterByEpisode(.rs)</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>rowH:%ResultSet</FormalSpec>
+<ReturnType>%Boolean</ReturnType>
+<Implementation><![CDATA[
+	s id=rowH.GetDataByName("apptId")
+	i '..SNAPApptFilterPopulateOPDRoom(rowH, id, "ContactVenue") q 0
+	q ..RBAppointmentFilterByEpisode(rowH)
+]]></Implementation>
+</Method>
+
+<Method name="SNAPRBApptEpisodeListFilter">
+<Description>
+Filter applied to RBApptEpisode.List component for SNAP room to display
+##class(Custom.AUSW.SNAP.Utils).SNAPRBApptEpisodeListFilter(.rs)</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>rowH:%ResultSet</FormalSpec>
+<ReturnType>%Boolean</ReturnType>
+<Implementation><![CDATA[
+	s id=$g(rowH.Data("apptid"))
+	q ..SNAPApptFilterPopulateOPDRoom(rowH, id, "roomdesc")
+]]></Implementation>
+</Method>
+
+<Method name="SNAPApptFilterPopulateOPDRoom">
+<Description>
+Generic filter function to populate OPD room field into a specific resultset field
+Call from filter function with appt id and field to store the OPD room desc into.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>rowH:%ResultSet,apptId:%String,roomField:%String</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	i +apptId {
+		s OPDRoom=$p($g(^RBAS(+apptId,$p(apptId,"||",2),"APPT",$p(apptId,"||",3))),"^",84)
+		i $g(OPDRoom)'="" {
+			s rowH.Data(roomField)=$s(rowH.Data(roomField)'="":rowH.Data(roomField)_$c(13,10),1:"")_$p(^PAC("OPD",OPDRoom),"^",2)
+		}
+	}
+	q 1
+]]></Implementation>
+</Method>
+
+<Method name="RBAppointmentFilterByEpisode">
+<Description><![CDATA[
+For security group levels <= 500:
+ - Return only entries for log on Hospital 
+ - If EpisodeID or BANNEREpisodeID are set, show only appointments for the same episode
+##class(Custom.AUSW.SNAP.Utils).RBAppointmentFilterByEpisode(.rs)]]></Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>rowH:%ResultSet</FormalSpec>
+<ReturnType>%Boolean</ReturnType>
+<Implementation><![CDATA[
+	s (PAADMHospDr)=""
+	s logonhospid=%session.Get("LOGON.HOSPID")
+	s logongroupid=%session.Get("LOGON.GROUPID")
+	s logonsecurity=$p($g(^SSU("SSGRP",logongroupid)),"^",64)
+	s:logonsecurity="" logonsecurity=1
+	
+	s APPTId=$g(rowH.Data("apptId"))
+	s RBOPId=$p(^RBAS(+APPTId,$p(APPTId,"||",2),"APPT",$p(APPTId,"||",3)),"^",32) 
+	i RBOPId'="" q 0 // Filter out episodes with an OP Id set
+
+	s curadmid=%request.Get("EpisodeID")
+	s:'curadmid curadmid=%request.Get("BANNEREpisodeID")
+	
+	i logonsecurity'>500 {
+		s PAADMID=$g(rowH.Data("apptAdmId"))
+		i PAADMID'="" s PAADMHospDr=$p($g(^PAADM(PAADMID,2)),"^",85)
+		i PAADMHospDr'="" {
+			i logonhospid'=PAADMHospDr q 0		
+		}
+		i (PAADMID'="") && (curadmid'="") {
+			i (PAADMID'=curadmid) q 0
+		}
+	}
+	q 1
+]]></Implementation>
+</Method>
+
+<Method name="ListAppointmentsUnitTest">
+<ClassMethod>1</ClassMethod>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	s (error,RoomList)=""
+	s qry=##class(Custom.AUSW.ws.BookableService.BookableServiceSoap).%New()
+	i qry {
+		s $ZERROR=""
+		Try {
+	        s result=qry.BookablesListAvailable("2014-01-01 14:15:00","2014-01-01 14:30:00","696","203","6232","6232||7||21","65")
+			;f x=1:1:result.Count() {
+			;	
+			;}
+        } Catch {
+	        i $ZERROR["<ZSOAP>" {
+		        s error=$System.Status.DisplayError(%objlasterror)
+            } else {
+	            s error=$System.Status.DisplayError($$$ERROR($$$CacheError,$ZERROR))
+            }
+        }
+        k qry
+	}
+	i error'="" s RoomList=error
+
+	q RoomList
+]]></Implementation>
+</Method>
+</Class>
+</Export>

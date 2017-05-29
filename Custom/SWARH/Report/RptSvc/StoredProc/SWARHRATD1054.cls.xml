@@ -1,0 +1,282 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.SWARH.Report.RptSvc.StoredProc.SWARHRATD1054">
+<Description><![CDATA[
+<pre>
+***************************************************************************************************************************************
+* Report Code: SWARHRATD1054
+* Report Description: PowerBudget - Patient Snapshot any given day
+* Menu Caption: 
+* Initial release: 
+* Developer: Zac Newman
+* Modified: 2015-05-19 (mwelsh)    - Include same day patients with union, modified query to exclude discharges on run date that were 
+*                                      admitted prior to run date.
+* Modified: 2015-11-17 (rpgladman) - Added Bed Day Discharge Time field to output.
+* 
+* Information:
+* This is called by sasqlh01 every day at 00:30 (Along with SWARHRATD1020) to create views for use with PowerBudget (Magiq)
+*  - SASQLH01/Databases/Trak_Data/Programmability/Stored Procedures/dbo.SWARHRATD1054 (& 1020) [Retrieves data from the stored procedure {Includes parameters}]
+*  - SASQLH01/SQL Server Agent/Jobs/PowerBudget - Stored Procedure Execute/Steps/Create View SWARHRATD1054_V [Creates the view from the data]
+*  - SASQLH01/Databases/Trak_Data/Views/dbo.SWARHRATD1054 (& 1020) [Where PowerBudget reads from]
+* Changing the number of columns in the output here also requires changing the logic on SASQLH01 that parses the output to handle it.
+***************************************************************************************************************************************
+</pre>]]></Description>
+<ProcedureBlock>0</ProcedureBlock>
+<Super>Custom.SWARH.Report.RptSvc.StoredProc.Abstract</Super>
+<TimeCreated>60905,54849</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/SWARH/Report/RptSvc/StoredProc/SWARHRATD1054.xml#1 $</Default>
+</Parameter>
+
+<Method name="SWARHRATD1054QueryClose">
+<Description>
+This is the Close component of the %Library.Query.
+This is standard code and should never have to change.
+This is where all the cleanup is performed, i.e. the purging of the temporary storage global ^CacheTemp.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>QHandle:%Library.Binary</FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Clean up by purging the temporary node in ^CacheTemp global
+ New repid,ind
+ Set repid=$li(QHandle,2)
+
+ //Start Monitor (if configured to capture stats)
+ i mon Do ..MonitorEnd(mon)
+
+ Kill ^CacheTemp("TRAK",repid)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="SWARHRATD1054QueryExecute">
+<Description>
+This is the Execute section for the %Library.Query. 
+All of the logic will be performed here.
+A new node for the ^CacheTemp global will be created and each subscript of this global will contain
+a row for the report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,Hospital:%Library.Integer,RunDate:%Date]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ New repid,ind
+
+  // Use $Increment to get the next node
+ Set repid=$I(^CacheTemp("TRAK"))
+ 
+ New PAADMRowId,PAADMAdmNo,PAPMINo,TransWardCode,TRANSStartDate,TRANSStartTime,TRANSEndDate,TRANSEndTime
+ New ROOMDesc,PAADMAdmDate,PAADMAdmTime,PAADMDischgDate,PAADMVisitStatus,WARDCode,PAPERDeceasedDate
+ New LOS,CARETYPCode,CARETYPDesc,INSTCode,AUXITDesc,AdmType,AdmCri,DRGCode,DRGDesc,MRADMTotalWIESScore,ADMCATDesc
+ New PAADMDischgTime
+
+ Set (PAADMAdmNo,PAPMINo,TransWardCode,TRANSStartDate,TRANSStartTime,TRANSEndDate,TRANSEndTime) =""
+ Set (ROOMDesc,PAADMAdmDate,PAADMAdmTime,PAADMDischgDate,PAADMVisitStatus,WARDCode,PAPERDeceasedDate) =""
+ Set (LOS,CARETYPCode,CARETYPDesc,INSTCode,AUXITDesc,AdmType,AdmCri,DRGCode,DRGDesc,MRADMTotalWIESScore,ADMCATDesc) =""
+ Set (PAADMDischTime) = ""
+ Set (PAADMRowId) = 0
+
+ s ind=1, END=0
+
+ s mon=..MonitorBegin()
+ s Hospital=$zstrip(Hospital,"*CW")
+ s RunDate=..ConvertDateToCache(RunDate)
+
+ &SQL(DECLARE SWARHRATD1054Cursor CURSOR FOR
+ 	SELECT
+ 		ADM.PAADM_RowId,
+        ADM.PAADM_AdmNo,
+        ADM.PAADM_PAPMI_DR->PAPMI_No,
+        (TRANS.TRANS_Ward_DR->Ward_code) AS Trans_Ward_Code,
+        TRANS.TRANS_StartDate,
+        TRANS.TRANS_StartTime,
+        TRANS.TRANS_EndDate,
+        TRANS.TRANS_EndTime,
+        TRANS.TRANS_Room_DR->ROOM_Desc,
+        ADM.PAADM_AdmDate,
+        ADM.PAADM_AdmTime,
+        ADM.PAADM_DischgDate,
+        ADM.PAADM_VisitStatus,
+        ADM.PAADM_CurrentWard_DR->WARD_Code,
+        ADM.PAADM_PAPMI_DR->PAPMI_PAPER_DR->PAPER_Deceased_Date,
+        CASE WHEN DATEDIFF(d,ADM.PAADM_AdmDate,:RunDate) = 0 
+        	THEN DATEDIFF(d,ADM.PAADM_AdmDate,:RunDate) + 1
+        	ELSE DATEDIFF(d,ADM.PAADM_AdmDate,:RunDate)
+        	END AS LOS,
+        ADM.PAADM_MainMRADM_DR->MRADM_CareType_DR->CARETYP_Code,
+        ADM.PAADM_MainMRADM_DR->MRADM_CareType_DR->CARETYP_Desc,
+        I.INS_InsType_DR->INST_Code,
+        I.INS_AuxInsType_DR->AUXIT_Desc,
+        ADM.PAADM_InPatAdmType_DR->IPat_Code as AdmType,
+        ADM.PAADM_AdmReason_dr->REA_Code as AdmCri,
+        ADM.PAADM_MainMRADM_DR->MRADM_DRG_DR->DRG_Code,
+        ADM.PAADM_MainMRADM_DR->MRADM_DRG_DR->DRG_Desc,
+        ADM.PAADM_MainMRADM_DR->MRADM_TotalWIESScore,
+        ADM.PAADM_AdmCateg_DR->ADMCAT_Desc,
+        ADM.PAADM_DischgTime
+	FROM
+    	SQLUser.PA_Adm ADM
+        	LEFT JOIN SQLUser.PA_AdmTransaction TRANS ON ADM.PAAdm_rowID = TRANS.Trans_ParRef
+            	AND TRANS.TRANS_StartDate <= :RunDate
+                AND (TRANS.TRANS_EndDate <= :RunDate OR TRANS.TRANS_EndDate is Null)
+                AND TRANS.TRANS_Ward_DR <> ADM.PAADM_CurrentWard_DR
+                AND TRANS.TRANS_Room_DR is not null
+            LEFT JOIN SQLUser.PA_AdmInsurance I ON ADM.PAADM_RowID = I.INS_ParRef
+	WHERE
+        (ADM.PAADM_DischgDate > :RunDate OR ADM.PAADM_DischgDate IS NULL)
+	AND
+        ADM.PAADM_AdmDate <= :RunDate
+	AND
+        ADM.PAADM_VisitStatus in ('A','D')
+	AND
+        ADM.PAADM_Hospital_DR = :Hospital
+	AND
+        ADM.PAADM_Type = 'I'
+	UNION
+	SELECT
+		ADM.PAADM_RowId,
+        ADM.PAADM_AdmNo,
+        ADM.PAADM_PAPMI_DR->PAPMI_No,
+        (TRANS.TRANS_Ward_DR->Ward_code) AS Trans_Ward_Code,
+        TRANS.TRANS_StartDate,
+        TRANS.TRANS_StartTime,
+        TRANS.TRANS_EndDate,
+        TRANS.TRANS_EndTime,
+        TRANS.TRANS_Room_DR->ROOM_Desc,
+        ADM.PAADM_AdmDate,
+        ADM.PAADM_AdmTime,
+        ADM.PAADM_DischgDate,
+        ADM.PAADM_VisitStatus,
+        ADM.PAADM_CurrentWard_DR->WARD_Code,
+        ADM.PAADM_PAPMI_DR->PAPMI_PAPER_DR->PAPER_Deceased_Date,
+        CASE WHEN DATEDIFF(d,ADM.PAADM_AdmDate,:RunDate) = 0 
+        	THEN DATEDIFF(d,ADM.PAADM_AdmDate,:RunDate) + 1
+        	ELSE DATEDIFF(d,ADM.PAADM_AdmDate,:RunDate)
+        	END AS LOS,
+        ADM.PAADM_MainMRADM_DR->MRADM_CareType_DR->CARETYP_Code,
+        ADM.PAADM_MainMRADM_DR->MRADM_CareType_DR->CARETYP_Desc,
+        I.INS_InsType_DR->INST_Code,
+        I.INS_AuxInsType_DR->AUXIT_Desc,
+        ADM.PAADM_InPatAdmType_DR->IPat_Code as AdmType,
+        ADM.PAADM_AdmReason_dr->REA_Code as AdmCri,
+        ADM.PAADM_MainMRADM_DR->MRADM_DRG_DR->DRG_Code,
+        ADM.PAADM_MainMRADM_DR->MRADM_DRG_DR->DRG_Desc,
+        ADM.PAADM_MainMRADM_DR->MRADM_TotalWIESScore,
+        ADM.PAADM_AdmCateg_DR->ADMCAT_Desc,
+        ADM.PAADM_DischgTime
+	FROM
+        SQLUser.PA_Adm ADM
+            LEFT JOIN SQLUser.PA_AdmTransaction TRANS ON ADM.PAAdm_rowID = TRANS.Trans_ParRef
+            	AND TRANS.TRANS_StartDate <= :RunDate
+                AND (TRANS.TRANS_EndDate <= :RunDate OR TRANS.TRANS_EndDate is Null)
+                AND TRANS.TRANS_Ward_DR <> ADM.PAADM_CurrentWard_DR
+                AND TRANS.TRANS_Room_DR is not null
+            LEFT JOIN SQLUser.PA_AdmInsurance I ON ADM.PAADM_RowID = I.INS_ParRef
+	WHERE
+        ADM.PAADM_DischgDate = :RunDate
+	AND
+        ADM.PAADM_AdmDate = :RunDate
+	AND
+        ADM.PAADM_VisitStatus = 'D'
+	AND
+        ADM.PAADM_Hospital_DR = :Hospital
+	AND
+        ADM.PAADM_Type = 'I'
+    ORDER BY 1,5,6
+ )
+ &SQL(OPEN SWARHRATD1054Cursor)
+ 
+ //FETCH FIRST ROW
+ d FetchRow
+
+ s prevEpisode=""
+ s prevWard=""
+ s prevTransStartDate=""
+   
+ while END=0 {
+  
+	 d FormatDates
+  	 d FormatTimes
+	 
+	 i (prevEpisode '= PAADMAdmNo) || (prevWard '= TransWardCode) {
+	 	s sort = ind
+	 	s ^CacheTemp("TRAK",repid,sort)=$LB(PAADMAdmNo,PAPMINo,TransWardCode,TRANSStartDate,TRANSStartTime,TRANSEndDate,TRANSEndTime,ROOMDesc,PAADMAdmDate,PAADMAdmTime,PAADMDischgDate,PAADMVisitStatus,WARDCode,PAPERDeceasedDate,LOS,CARETYPCode,CARETYPDesc,INSTCode,AUXITDesc,AdmType,AdmCri,DRGCode,DRGDesc,MRADMTotalWIESScore,ADMCATDesc,PAADMDischgTime)
+	 	s ind=ind+1
+	 }
+
+	 s prevEpisode = PAADMAdmNo
+	 s prevWard = TransWardCode
+	 
+	 //fetch rows
+	 d FetchRow
+ }
+
+ &SQL(CLOSE SWARHRATD1054Cursor)
+ 
+ Set QHandle=$lb(0,repid,0)
+
+ Quit $$$OK
+
+FetchRow
+ &sql(FETCH SWARHRATD1054Cursor INTO :PAADMRowId,:PAADMAdmNo,:PAPMINo,:TransWardCode,:TRANSStartDate,:TRANSStartTime,:TRANSEndDate,:TRANSEndTime,:ROOMDesc,:PAADMAdmDate,:PAADMAdmTime,:PAADMDischgDate,:PAADMVisitStatus,:WARDCode,:PAPERDeceasedDate,:LOS,:CARETYPCode,:CARETYPDesc,:INSTCode,:AUXITDesc,:AdmType,:AdmCri,:DRGCode,:DRGDesc,:MRADMTotalWIESScore,:ADMCATDesc,:PAADMDischgTime)
+ if SQLCODE '= 0 set END = 1
+ q
+ 
+FormatDates
+  s TRANSStartDate=..ConvertDateToODBC(TRANSStartDate)
+  s TRANSEndDate=..ConvertDateToODBC(TRANSEndDate)
+  s PAADMAdmDate=..ConvertDateToODBC(PAADMAdmDate)
+  s PAADMDischgDate=..ConvertDateToODBC(PAADMDischgDate)
+  s PAPERDeceasedDate=..ConvertDateToODBC(PAPERDeceasedDate)
+ q
+ 
+FormatTimes
+  s TRANSStartTime=..ConvertTimeToODBC(TRANSStartTime)
+  s PAADMAdmTime=..ConvertTimeToODBC(PAADMAdmTime)
+  s TRANSEndTime=..ConvertTimeToODBC(TRANSEndTime)
+  s PAADMDischgTime=..ConvertTimeToODBC(PAADMDischgTime)
+ q
+]]></Implementation>
+</Method>
+
+<Method name="SWARHRATD1054QueryFetch">
+<Description>
+This is the Fetch component of the %Library.Query. 
+This should never have to change. It is designed to fetch the row for each subscript of the ^CacheTemp
+global and return this row to the Crystal Report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,&Row:%Library.List,&AtEnd:%Library.Integer=0]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ New repid,ind
+
+ Set AtEnd=$li(QHandle,1)
+ Set repid=$li(QHandle,2)
+ Set ind=$li(QHandle,3)
+
+ Set ind=$o(^CacheTemp("TRAK",repid,ind))
+ If ind="" {	
+	 Set AtEnd=1
+	 Set Row=""
+ }
+ Else      {	
+ 	Set Row=^CacheTemp("TRAK",repid,ind)
+ }
+
+ s QHandle=$lb(AtEnd,repid,ind)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Query name="SWARHRATD1054Query">
+<Type>%Library.Query</Type>
+<FormalSpec>Hospital:%Library.Integer,RunDate:%Date</FormalSpec>
+<SqlProc>1</SqlProc>
+<Parameter name="CONTAINID" value="0"/>
+<Parameter name="ROWSPEC" value="PAADMAdmNo:%Library.String(MAXLEN=255), PAPMINo:%Library.String(MAXLEN=255), TransWardCode:%Library.String(MAXLEN=255), TRANSStartDate:%Library.Date, TRANSStartTime:%Library.Time, TRANSEndDate:%Library.Date, TRANSEndTime:%Library.Time, ROOMDesc:%Library.String(MAXLEN=255), PAADMAdmDate:%Library.Date, PAADMAdmTime:%Library.Time, PAADMDischgDate:%Library.Date, PAADMVisitStatus:%Library.String(MAXLEN=255), WARDCode:%Library.String(MAXLEN=255), PAPERDeceasedDate:%Library.Date, LOS:%Library.Integer, CARETYPCode:%Library.String(MAXLEN=255), CARETYPDesc:%Library.String(MAXLEN=255), INSTCode:%Library.String(MAXLEN=255), AUXITDesc:%Library.String(MAXLEN=255), AdmType:%Library.String(MAXLEN=255), AdmCri:%Library.String(MAXLEN=255), DRGCode:%Library.String(MAXLEN=255), DRGDesc:%Library.String(MAXLEN=255), MRADMTotalWIESScore:%Library.String(MAXLEN=255), ADMCATDesc:%Library.String(MAXLEN=255), PAADMDischgTime:%Library.String(MAXLEN=255)"/>
+<Parameter name="SELECTMODE" value="ODBC"/>
+</Query>
+</Class>
+</Export>

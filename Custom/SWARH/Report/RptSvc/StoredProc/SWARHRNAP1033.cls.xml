@@ -1,0 +1,1430 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.SWARH.Report.RptSvc.StoredProc.SWARHRNAP1033">
+<Description><![CDATA[
+<pre>
+**************************************************************************************************************************************
+* Report Code: SWARHRNAP1033
+* Report Description: Demographic Data for NAP Contacts
+* Menu Caption: Demographic Data
+* Initial release:14/10/2016 Developer: Michael Welsh
+* Modified: 
+* 
+**************************************************************************************************************************************
+</pre>]]></Description>
+<ProcedureBlock>0</ProcedureBlock>
+<Super>Custom.SWARH.Report.ZEN.StoredProc.Abstract</Super>
+<TimeCreated>60905,54849</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)</Description>
+<Default>$Id$</Default>
+</Parameter>
+
+<Method name="SWARHRNAP1033AgeExecute">
+<Description>
+This is the Execute section for the %Library.Query. 
+All of the logic will be performed here.
+A new node for the ^CacheTemp global will be created and each subscript of this global will contain
+a row for the report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,Hospital:%Integer,DateFrom:%Date,DateTo:%Date,Specialty:%String,Program:%String,Clinician:%Integer]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Get reportid i.e. use $INCREMENT to add another node to ^CacheTemp global. 
+ // We use ^CacheTemp global because it will always use memory before disk
+ New repid,ind
+
+ // Use $Increment to get the next node
+ Set repid=$INCREMENT(^CacheTemp(..#CACHETEMPSUBSCRIPT))
+ 
+ New AgeAtContact,UR,URCount,ContactCount,Duration,IndirectTime,TravelTime,TotalTime,AgeRangeSort,AgeRange
+ 
+ Set (AgeAtContact,URCount,ContactCount,Duration,IndirectTime,TravelTime,TotalTime,AgeRangeSort,AgeRange)=""
+ 
+ Set ind=1, END=0
+
+ //Start Monitor (if configured to capture stats)
+ s mon=..MonitorBegin()
+ 
+ //Convert ODBC dates to cache format
+ Set DateFrom=..ConvertDateToCache(DateFrom)
+ Set DateTo=..ConvertDateToCache(DateTo)
+
+ &SQL(DECLARE SWARHRNAP1033Age CURSOR FOR
+ 	SELECT
+ 		DATEDIFF(yy,con.ENQ_PAPER_DR->PAPER_Dob,con.ENQ_Date) AS AgeAtContact
+ 		,con.ENQ_PAPER_DR AS UR
+        ,COUNT(DISTINCT con.ENQ_PAPER_DR) AS URCount
+        ,con.ENQ_RowID AS ContactCount
+        ,con.ENQ_Duration AS Duration
+        ,con.ENQ_IndirectTime AS IndirectTime
+        ,con.ENQ_TravelTime AS TravelTime
+        ,(coalesce(con.ENQ_Duration,0) + coalesce(con.ENQ_IndirectTime,0) + coalesce(con.ENQ_TravelTime,0)) AS TotalTime
+        ,"" AS AgeRangeSort
+        ,"" AS AgeRange
+        	
+    FROM
+        SQLUser.PA_EnquiryContact con
+    WHERE
+    	(con.ENQ_Hospital_DR = :Hospital)
+    AND
+    	(con.ENQ_Date BETWEEN :DateFrom AND :DateTo)
+   	AND
+   		(({fn CONCAT( ',', {fn CONCAT((:Specialty),',')})} [ {fn CONCAT( ',', {fn CONCAT((con.ENQ_Location_DR->CTLOC_RowId),',')})}) OR (:Specialty IS NULL)) -- Multiple Specialties
+	AND
+		(({fn CONCAT( ',', {fn CONCAT((:Program  ),',')})} [ {fn CONCAT( ',', {fn CONCAT((con.ENQ_GovernDepart_DR->DEP_RowID),',')})}) OR (:Program IS NULL)) -- Multiple Programs
+   	AND
+   		(con.ENQ_CTCP_DR->CTPCP_RowId = :Clinician OR (:Clinician IS NULL))
+   	AND
+   		(con.ENQ_PAPER_DR IS NOT NULL)
+   	)
+                
+ &SQL(OPEN SWARHRNAP1033Age)
+ 
+ //FETCH FIRST ROW
+ Do FetchAgeRow
+  
+ While END=0 {  
+ 	 Do AgeRange
+	 Set sort = ind
+	 Set ^CacheTemp(..#CACHETEMPSUBSCRIPT,repid,sort)=$LISTBUILD(AgeAtContact,UR,URCount,ContactCount,Duration,IndirectTime,TravelTime,TotalTime,AgeRangeSort,AgeRange)
+	 Set ind=ind+1
+ 	 Do FetchAgeRow //Fetch next row
+ }
+
+ &SQL(CLOSE SWARHRNAP1033Age)
+ 
+ // Build QHandle (AtEnd,ReportID,Index)
+ Set QHandle=$LISTBUILD(0,repid,0)
+
+ Quit $$$OK
+
+FetchAgeRow
+ &sql(FETCH SWARHRNAP1033Age INTO :AgeAtContact,:UR,:URCount,:ContactCount,:Duration,:IndirectTime,:TravelTime,:TotalTime,:AgeRangeSort,:AgeRange)
+ If SQLCODE '= 0 set END = 1
+ Quit
+ 
+AgeRange
+ Set (AgeRangeSort,AgeRange) = "" 
+ If (AgeAtContact <= 5){Set AgeRangeSort = "a", AgeRange = "0-5"}
+ Elseif ((AgeAtContact > 5) & (AgeAtContact <= 10)){Set AgeRangeSort = "b", AgeRange = "5-10"}
+ Elseif ((AgeAtContact > 10) & (AgeAtContact <= 15)){Set AgeRangeSort = "c", AgeRange = "10-15"}
+ Elseif ((AgeAtContact > 15) & (AgeAtContact <= 20)){Set AgeRangeSort = "d", AgeRange = "15-20"}
+ Elseif ((AgeAtContact > 20) & (AgeAtContact <= 25)){Set AgeRangeSort = "e", AgeRange = "20-25"}
+ Elseif ((AgeAtContact > 25) & (AgeAtContact <= 30)){Set AgeRangeSort = "f", AgeRange = "25-30"}
+ Elseif ((AgeAtContact > 30) & (AgeAtContact <= 35)){Set AgeRangeSort = "g", AgeRange = "30-35"}
+ Elseif ((AgeAtContact > 35) & (AgeAtContact <= 40)){Set AgeRangeSort = "h", AgeRange = "35-40"}
+ Elseif ((AgeAtContact > 40) & (AgeAtContact <= 45)){Set AgeRangeSort = "i", AgeRange = "40-45"}
+ Elseif ((AgeAtContact > 45) & (AgeAtContact <= 50)){Set AgeRangeSort = "j", AgeRange = "45-50"}
+ Elseif ((AgeAtContact > 50) & (AgeAtContact <= 55)){Set AgeRangeSort = "k", AgeRange = "50-55"}
+ Elseif ((AgeAtContact > 55) & (AgeAtContact <= 60)){Set AgeRangeSort = "l", AgeRange = "55-60"}
+ Elseif ((AgeAtContact > 60) & (AgeAtContact <= 65)){Set AgeRangeSort = "m", AgeRange = "60-65"}
+ Elseif ((AgeAtContact > 65) & (AgeAtContact <= 70)){Set AgeRangeSort = "n", AgeRange = "65-70"}
+ Elseif ((AgeAtContact > 70) & (AgeAtContact <= 75)){Set AgeRangeSort = "o", AgeRange = "70-75"}
+ Elseif ((AgeAtContact > 75) & (AgeAtContact <= 80)){Set AgeRangeSort = "p", AgeRange = "75-80"}
+ Elseif ((AgeAtContact > 80) & (AgeAtContact <= 85)){Set AgeRangeSort = "q", AgeRange = "80-85"}
+ Elseif ((AgeAtContact > 85) & (AgeAtContact <= 90)){Set AgeRangeSort = "r", AgeRange = "85-90"}
+ Elseif ((AgeAtContact > 90) & (AgeAtContact <= 95)){Set AgeRangeSort = "s", AgeRange = "90-95"}
+ Elseif ((AgeAtContact > 95) & (AgeAtContact <= 100)){Set AgeRangeSort = "t", AgeRange = "95-100"}
+ Elseif (AgeAtContact > 100){Set AgeRangeSort = "u", AgeRange = "100+"}
+ Quit
+]]></Implementation>
+</Method>
+
+<Method name="SWARHRNAP1033AgeFetch">
+<Description>
+This is the Fetch component of the %Library.Query. 
+This should never have to change. It is designed to fetch the row for each subscript of the ^CacheTemp
+global and return this row to the Crystal Report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,&Row:%Library.List,&AtEnd:%Library.Integer=0]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // This fetch method should never have to change. 
+ // repid - Report ID
+ // ind   - sequence index which represents each row
+
+ New repid,ind
+
+ // Restore QHandle
+ Set AtEnd=$LIST(QHandle,1)
+ Set repid=$LIST(QHandle,2)
+ Set ind=$LIST(QHandle,3)
+
+ Set ind=$ORDER(^CacheTemp(..#CACHETEMPSUBSCRIPT,repid,ind))
+ If ind="" {	// if there are no more rows, finish fetching
+	 Set AtEnd=1
+	 Set Row=""
+ }
+ Else      {	// fetch row
+ 	Set Row=^CacheTemp(..#CACHETEMPSUBSCRIPT,repid,ind)
+ }
+
+ // Save QHandle
+ Set QHandle=$LISTBUILD(AtEnd,repid,ind)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="SWARHRNAP1033AgeClose">
+<Description>
+This is the Close component of the %Library.Query.
+This is standard code and should never have to change.
+This is where all the cleanup is performed, i.e. the purging of the temporary storage global ^CacheTemp.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>QHandle:%Library.Binary</FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Clean up by purging the temporary node in ^CacheTemp global
+ New repid,ind
+ Set repid=$LIST(QHandle,2)
+
+ Kill ^CacheTemp(..#CACHETEMPSUBSCRIPT,repid)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Query name="SWARHRNAP1033Age">
+<Type>%Library.Query</Type>
+<FormalSpec>Hospital:%Integer,DateFrom:%Date,DateTo:%Date,Specialty:%String,Program:%String,Clinician:%Integer</FormalSpec>
+<SqlProc>1</SqlProc>
+<Parameter name="CONTAINID" value="0"/>
+<Parameter name="ROWSPEC" value="AgeAtContact:%Integer,UR:%Integer,URCount:%Integer,ContactCount:%Integer,Duration:%Integer,IndirectTime:%Integer,TravelTime:%Integer,TotalTime:%Integer,AgeRangeSort:%String,AgeRange:%String"/>
+<Parameter name="SELECTMODE" value="ODBC"/>
+</Query>
+
+<UDLText name="T">
+<Content><![CDATA[
+// *********************************************************************************************************
+
+]]></Content>
+</UDLText>
+
+<Method name="SWARHRNAP1033SexExecute">
+<Description>
+This is the Execute section for the %Library.Query. 
+All of the logic will be performed here.
+A new node for the ^CacheTemp global will be created and each subscript of this global will contain
+a row for the report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,Hospital:%Integer,DateFrom:%Date,DateTo:%Date,Specialty:%String,Program:%String,Clinician:%Integer]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Get reportid i.e. use $INCREMENT to add another node to ^CacheTemp global. 
+ // We use ^CacheTemp global because it will always use memory before disk
+ New repid,ind
+
+ // Use $Increment to get the next node
+ Set repid=$INCREMENT(^CacheTemp(..#CACHETEMPSUBSCRIPT))
+ 
+ New Sex,SexDesc,UR,URCount,ContactCount,Duration,IndirectTime,TravelTime,TotalTime
+ 
+ Set (Sex,SexDesc,UR,URCount,ContactCount,Duration,IndirectTime,TravelTime,TotalTime)=""
+ 
+ Set ind=1, END=0
+
+ //Start Monitor (if configured to capture stats)
+ s mon=..MonitorBegin()
+ 
+ //Convert ODBC dates to cache format
+ Set DateFrom=..ConvertDateToCache(DateFrom)
+ Set DateTo=..ConvertDateToCache(DateTo)
+
+ &SQL(DECLARE SWARHRNAP1033Sex CURSOR FOR
+ 	SELECT
+ 		con.ENQ_PAPER_DR->PAPER_Sex_DR->CTSEX_Code AS Sex
+        ,con.ENQ_PAPER_DR->PAPER_Sex_DR->CTSEX_Desc AS SexDesc
+        ,con.ENQ_PAPER_DR AS UR
+        ,COUNT(DISTINCT con.ENQ_PAPER_DR) AS URCount
+        ,COUNT(con.ENQ_RowID) AS ContactCount
+		,SUM(coalesce(con.ENQ_Duration,0)) AS Duration
+        ,SUM(CAST(con.ENQ_IndirectTime AS INT)) AS IndirectTime
+        ,SUM(CAST(con.ENQ_TravelTime AS INT)) AS TravelTime
+        ,SUM((coalesce(CAST(con.ENQ_Duration AS INT),0) + coalesce(CAST(con.ENQ_IndirectTime AS INT),0) + coalesce(CAST(con.ENQ_TravelTime AS INT),0))) AS TotalTime
+    FROM
+        SQLUser.PA_EnquiryContact con
+    WHERE
+    	(con.ENQ_Hospital_DR = :Hospital)
+    AND
+    	(con.ENQ_Date BETWEEN :DateFrom AND :DateTo)
+   	AND
+   		(({fn CONCAT( ',', {fn CONCAT((:Specialty),',')})} [ {fn CONCAT( ',', {fn CONCAT((con.ENQ_Location_DR->CTLOC_RowId),',')})}) OR (:Specialty IS NULL)) -- Multiple Specialties
+	AND
+		(({fn CONCAT( ',', {fn CONCAT((:Program  ),',')})} [ {fn CONCAT( ',', {fn CONCAT((con.ENQ_GovernDepart_DR->DEP_RowID),',')})}) OR (:Program IS NULL)) -- Multiple Programs
+   	AND
+   		(con.ENQ_CTCP_DR->CTPCP_RowId = :Clinician OR (:Clinician IS NULL))
+   	AND
+   		(con.ENQ_PAPER_DR IS NOT NULL)
+   	GROUP BY
+   		(con.ENQ_PAPER_DR->PAPER_Sex_DR->CTSEX_Code)
+ 	)
+                
+ &SQL(OPEN SWARHRNAP1033Sex)
+ 
+ //FETCH FIRST ROW
+ Do FetchSexRow
+  
+ While END=0 {  
+	 Set sort = ind
+	 Set ^CacheTemp(..#CACHETEMPSUBSCRIPT,repid,sort)=$LISTBUILD(Sex,SexDesc,UR,URCount,ContactCount,Duration,IndirectTime,TravelTime,TotalTime)
+	 Set ind=ind+1
+ 	 Do FetchSexRow //Fetch next row
+ }
+
+ &SQL(CLOSE SWARHRNAP1033Sex)
+ 
+ // Build QHandle (AtEnd,ReportID,Index)
+ Set QHandle=$LISTBUILD(0,repid,0)
+
+ Quit $$$OK
+
+FetchSexRow
+ &sql(FETCH SWARHRNAP1033Sex INTO :Sex,:SexDesc,:UR,:URCount,:ContactCount,:Duration,:IndirectTime,:TravelTime,:TotalTime)
+ If SQLCODE '= 0 set END = 1
+ Quit
+]]></Implementation>
+</Method>
+
+<Method name="SWARHRNAP1033SexFetch">
+<Description>
+This is the Fetch component of the %Library.Query. 
+This should never have to change. It is designed to fetch the row for each subscript of the ^CacheTemp
+global and return this row to the Crystal Report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,&Row:%Library.List,&AtEnd:%Library.Integer=0]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // This fetch method should never have to change. 
+ // repid - Report ID
+ // ind   - sequence index which represents each row
+
+ New repid,ind
+
+ // Restore QHandle
+ Set AtEnd=$LIST(QHandle,1)
+ Set repid=$LIST(QHandle,2)
+ Set ind=$LIST(QHandle,3)
+
+ Set ind=$ORDER(^CacheTemp(..#CACHETEMPSUBSCRIPT,repid,ind))
+ If ind="" {	// if there are no more rows, finish fetching
+	 Set AtEnd=1
+	 Set Row=""
+ }
+ Else      {	// fetch row
+ 	Set Row=^CacheTemp(..#CACHETEMPSUBSCRIPT,repid,ind)
+ }
+
+ // Save QHandle
+ Set QHandle=$LISTBUILD(AtEnd,repid,ind)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="SWARHRNAP1033SexClose">
+<Description>
+This is the Close component of the %Library.Query.
+This is standard code and should never have to change.
+This is where all the cleanup is performed, i.e. the purging of the temporary storage global ^CacheTemp.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>QHandle:%Library.Binary</FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Clean up by purging the temporary node in ^CacheTemp global
+ New repid,ind
+ Set repid=$LIST(QHandle,2)
+
+ Kill ^CacheTemp(..#CACHETEMPSUBSCRIPT,repid)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Query name="SWARHRNAP1033Sex">
+<Type>%Library.Query</Type>
+<FormalSpec>Hospital:%Integer,DateFrom:%Date,DateTo:%Date,Specialty:%String,Program:%String,Clinician:%Integer</FormalSpec>
+<SqlProc>1</SqlProc>
+<Parameter name="CONTAINID" value="0"/>
+<Parameter name="ROWSPEC" value="Sex:%String,SexDesc:%String,UR:%Integer,URCount:%Integer,ContactCount:%Integer,Duration:%Integer,IndirectTime:%Integer,TravelTime:%Integer,TotalTime:%Integer"/>
+<Parameter name="SELECTMODE" value="ODBC"/>
+</Query>
+
+<UDLText name="T">
+<Content><![CDATA[
+// ************************************************************************************************************************************************
+
+]]></Content>
+</UDLText>
+
+<Method name="SWARHRNAP1033ISExecute">
+<Description>
+This is the Execute section for the %Library.Query. 
+All of the logic will be performed here.
+A new node for the ^CacheTemp global will be created and each subscript of this global will contain
+a row for the report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,Hospital:%Integer,DateFrom:%Date,DateTo:%Date,Specialty:%String,Program:%String,Clinician:%Integer]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Get reportid i.e. use $INCREMENT to add another node to ^CacheTemp global. 
+ // We use ^CacheTemp global because it will always use memory before disk
+ New repid,ind
+
+ // Use $Increment to get the next node
+ Set repid=$INCREMENT(^CacheTemp(..#CACHETEMPSUBSCRIPT))
+ 
+ New IndigStatCode,IndigStatDesc,UR,URCount,ContactCount,Duration,IndirectTime,TravelTime,TotalTime
+ 
+ Set (IndigStatCode,IndigStatDesc,UR,URCount,ContactCount,Duration,IndirectTime,TravelTime,TotalTime)=""
+ 
+ Set ind=1, END=0
+
+ //Start Monitor (if configured to capture stats)
+ s mon=..MonitorBegin()
+ 
+ //Convert ODBC dates to cache format
+ Set DateFrom=..ConvertDateToCache(DateFrom)
+ Set DateTo=..ConvertDateToCache(DateTo)
+
+ &SQL(DECLARE SWARHRNAP1033IS CURSOR FOR
+ 	SELECT
+ 		con.ENQ_PAPER_DR->PAPER_IndigStat_DR->INDST_Code AS IndigStatCode
+        ,con.ENQ_PAPER_DR->PAPER_IndigStat_DR->INDST_Desc AS IndigStatDesc
+        ,con.ENQ_PAPER_DR AS UR
+        ,COUNT(DISTINCT con.ENQ_PAPER_DR) AS URCount
+        ,COUNT(con.ENQ_RowID) AS ContactCount
+		,SUM(coalesce(con.ENQ_Duration,0)) AS Duration
+        ,SUM(CAST(con.ENQ_IndirectTime AS INT)) AS IndirectTime
+        ,SUM(CAST(con.ENQ_TravelTime AS INT)) AS TravelTime
+        ,SUM((coalesce(CAST(con.ENQ_Duration AS INT),0) + coalesce(CAST(con.ENQ_IndirectTime AS INT),0) + coalesce(CAST(con.ENQ_TravelTime AS INT),0))) AS TotalTime
+    FROM
+        SQLUser.PA_EnquiryContact con
+    WHERE
+    	(con.ENQ_Hospital_DR = :Hospital)
+    AND
+    	(con.ENQ_Date BETWEEN :DateFrom AND :DateTo)
+   	AND
+   		(({fn CONCAT( ',', {fn CONCAT((:Specialty),',')})} [ {fn CONCAT( ',', {fn CONCAT((con.ENQ_Location_DR->CTLOC_RowId),',')})}) OR (:Specialty IS NULL)) -- Multiple Specialties
+	AND
+		(({fn CONCAT( ',', {fn CONCAT((:Program  ),',')})} [ {fn CONCAT( ',', {fn CONCAT((con.ENQ_GovernDepart_DR->DEP_RowID),',')})}) OR (:Program IS NULL)) -- Multiple Programs
+   	AND
+   		(con.ENQ_CTCP_DR->CTPCP_RowId = :Clinician OR (:Clinician IS NULL))
+   	AND
+   		(con.ENQ_PAPER_DR IS NOT NULL)
+   	GROUP BY
+   		(con.ENQ_PAPER_DR->PAPER_IndigStat_DR->INDST_Code)
+ 	)
+                
+ &SQL(OPEN SWARHRNAP1033IS)
+ 
+ //FETCH FIRST ROW
+ Do FetchLSRow
+  
+ While END=0 {  
+	 Set sort = ind
+	 Set ^CacheTemp(..#CACHETEMPSUBSCRIPT,repid,sort)=$LISTBUILD(IndigStatCode,IndigStatDesc,UR,URCount,ContactCount,Duration,IndirectTime,TravelTime,TotalTime)
+	 Set ind=ind+1
+ 	 Do FetchLSRow //Fetch next row
+ }
+
+ &SQL(CLOSE SWARHRNAP1033IS)
+ 
+ // Build QHandle (AtEnd,ReportID,Index)
+ Set QHandle=$LISTBUILD(0,repid,0)
+
+ Quit $$$OK
+
+FetchLSRow
+ &sql(FETCH SWARHRNAP1033IS INTO :IndigStatCode,:IndigStatDesc,:UR,:URCount,:ContactCount,:Duration,:IndirectTime,:TravelTime,:TotalTime)
+ If SQLCODE '= 0 set END = 1
+ Quit
+]]></Implementation>
+</Method>
+
+<Method name="SWARHRNAP1033ISFetch">
+<Description>
+This is the Fetch component of the %Library.Query. 
+This should never have to change. It is designed to fetch the row for each subscript of the ^CacheTemp
+global and return this row to the Crystal Report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,&Row:%Library.List,&AtEnd:%Library.Integer=0]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // This fetch method should never have to change. 
+ // repid - Report ID
+ // ind   - sequence index which represents each row
+
+ New repid,ind
+
+ // Restore QHandle
+ Set AtEnd=$LIST(QHandle,1)
+ Set repid=$LIST(QHandle,2)
+ Set ind=$LIST(QHandle,3)
+
+ Set ind=$ORDER(^CacheTemp(..#CACHETEMPSUBSCRIPT,repid,ind))
+ If ind="" {	// if there are no more rows, finish fetching
+	 Set AtEnd=1
+	 Set Row=""
+ }
+ Else      {	// fetch row
+ 	Set Row=^CacheTemp(..#CACHETEMPSUBSCRIPT,repid,ind)
+ }
+
+ // Save QHandle
+ Set QHandle=$LISTBUILD(AtEnd,repid,ind)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="SWARHRNAP1033ISClose">
+<Description>
+This is the Close component of the %Library.Query.
+This is standard code and should never have to change.
+This is where all the cleanup is performed, i.e. the purging of the temporary storage global ^CacheTemp.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>QHandle:%Library.Binary</FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Clean up by purging the temporary node in ^CacheTemp global
+ New repid,ind
+ Set repid=$LIST(QHandle,2)
+
+ Kill ^CacheTemp(..#CACHETEMPSUBSCRIPT,repid)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Query name="SWARHRNAP1033IS">
+<Type>%Library.Query</Type>
+<FormalSpec>Hospital:%Integer,DateFrom:%Date,DateTo:%Date,Specialty:%String,Program:%String,Clinician:%Integer</FormalSpec>
+<SqlProc>1</SqlProc>
+<Parameter name="CONTAINID" value="0"/>
+<Parameter name="ROWSPEC" value="IndigStatCode:%String,IndigStatDesc:%String,UR:%Integer,URCount:%Integer,ContactCount:%Integer,Duration:%Integer,IndirectTime:%Integer,TravelTime:%Integer,TotalTime:%Integer"/>
+<Parameter name="SELECTMODE" value="ODBC"/>
+</Query>
+
+<UDLText name="T">
+<Content><![CDATA[
+// ************************************************************************************************************************************************
+
+]]></Content>
+</UDLText>
+
+<Method name="SWARHRNAP1033CoBExecute">
+<Description>
+This is the Execute section for the %Library.Query. 
+All of the logic will be performed here.
+A new node for the ^CacheTemp global will be created and each subscript of this global will contain
+a row for the report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,Hospital:%Integer,DateFrom:%Date,DateTo:%Date,Specialty:%String,Program:%String,Clinician:%Integer]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Get reportid i.e. use $INCREMENT to add another node to ^CacheTemp global. 
+ // We use ^CacheTemp global because it will always use memory before disk
+ New repid,ind
+
+ // Use $Increment to get the next node
+ Set repid=$INCREMENT(^CacheTemp(..#CACHETEMPSUBSCRIPT))
+ 
+ New BirthCOCode,BirthCountry,UR,URCount,ContactCount,Duration,IndirectTime,TravelTime,TotalTime
+ 
+ Set (BirthCOCode,BirthCountry,UR,URCount,ContactCount,Duration,IndirectTime,TravelTime,TotalTime)=""
+ 
+ Set ind=1, END=0
+
+ //Start Monitor (if configured to capture stats)
+ s mon=..MonitorBegin()
+ 
+ //Convert ODBC dates to cache format
+ Set DateFrom=..ConvertDateToCache(DateFrom)
+ Set DateTo=..ConvertDateToCache(DateTo)
+
+ &SQL(DECLARE SWARHRNAP1033CoB CURSOR FOR
+ 	SELECT
+ 		con.ENQ_PAPER_DR->PAPER_Country_Birth_DR->CTCOU_Code AS BirthCOCode
+        ,con.ENQ_PAPER_DR->PAPER_Country_Birth_DR->CTCOU_Desc AS BirthCountry
+        ,con.ENQ_PAPER_DR AS UR
+        ,COUNT(DISTINCT con.ENQ_PAPER_DR) AS URCount
+        ,COUNT(con.ENQ_RowID) AS ContactCount
+		,SUM(coalesce(con.ENQ_Duration,0)) AS Duration
+        ,SUM(CAST(con.ENQ_IndirectTime AS INT)) AS IndirectTime
+        ,SUM(CAST(con.ENQ_TravelTime AS INT)) AS TravelTime
+        ,SUM((coalesce(CAST(con.ENQ_Duration AS INT),0) + coalesce(CAST(con.ENQ_IndirectTime AS INT),0) + coalesce(CAST(con.ENQ_TravelTime AS INT),0))) AS TotalTime
+    FROM
+        SQLUser.PA_EnquiryContact con
+    WHERE
+    	(con.ENQ_Hospital_DR = :Hospital)
+    AND
+    	(con.ENQ_Date BETWEEN :DateFrom AND :DateTo)
+   	AND
+   		(({fn CONCAT( ',', {fn CONCAT((:Specialty),',')})} [ {fn CONCAT( ',', {fn CONCAT((con.ENQ_Location_DR->CTLOC_RowId),',')})}) OR (:Specialty IS NULL)) -- Multiple Specialties
+	AND
+		(({fn CONCAT( ',', {fn CONCAT((:Program  ),',')})} [ {fn CONCAT( ',', {fn CONCAT((con.ENQ_GovernDepart_DR->DEP_RowID),',')})}) OR (:Program IS NULL)) -- Multiple Programs
+   	AND
+   		(con.ENQ_CTCP_DR->CTPCP_RowId = :Clinician OR (:Clinician IS NULL))
+   	AND
+   		(con.ENQ_PAPER_DR IS NOT NULL)
+   	GROUP BY
+   		(con.ENQ_PAPER_DR->PAPER_Country_Birth_DR->CTCOU_Code)
+ 	)
+                
+ &SQL(OPEN SWARHRNAP1033CoB)
+ 
+ //FETCH FIRST ROW
+ Do FetchCoBRow
+  
+ While END=0 {  
+	 Set sort = ind
+	 Set ^CacheTemp(..#CACHETEMPSUBSCRIPT,repid,sort)=$LISTBUILD(BirthCOCode,BirthCountry,UR,URCount,ContactCount,Duration,IndirectTime,TravelTime,TotalTime)
+	 Set ind=ind+1
+ 	 Do FetchCoBRow //Fetch next row
+ }
+
+ &SQL(CLOSE SWARHRNAP1033CoB)
+ 
+ // Build QHandle (AtEnd,ReportID,Index)
+ Set QHandle=$LISTBUILD(0,repid,0)
+
+ Quit $$$OK
+
+FetchCoBRow
+ &sql(FETCH SWARHRNAP1033CoB INTO :BirthCOCode,:BirthCountry,:UR,:URCount,:ContactCount,:Duration,:IndirectTime,:TravelTime,:TotalTime)
+ If SQLCODE '= 0 set END = 1
+ Quit
+]]></Implementation>
+</Method>
+
+<Method name="SWARHRNAP1033CoBFetch">
+<Description>
+This is the Fetch component of the %Library.Query. 
+This should never have to change. It is designed to fetch the row for each subscript of the ^CacheTemp
+global and return this row to the Crystal Report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,&Row:%Library.List,&AtEnd:%Library.Integer=0]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // This fetch method should never have to change. 
+ // repid - Report ID
+ // ind   - sequence index which represents each row
+
+ New repid,ind
+
+ // Restore QHandle
+ Set AtEnd=$LIST(QHandle,1)
+ Set repid=$LIST(QHandle,2)
+ Set ind=$LIST(QHandle,3)
+
+ Set ind=$ORDER(^CacheTemp(..#CACHETEMPSUBSCRIPT,repid,ind))
+ If ind="" {	// if there are no more rows, finish fetching
+	 Set AtEnd=1
+	 Set Row=""
+ }
+ Else      {	// fetch row
+ 	Set Row=^CacheTemp(..#CACHETEMPSUBSCRIPT,repid,ind)
+ }
+
+ // Save QHandle
+ Set QHandle=$LISTBUILD(AtEnd,repid,ind)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="SWARHRNAP1033CoBClose">
+<Description>
+This is the Close component of the %Library.Query.
+This is standard code and should never have to change.
+This is where all the cleanup is performed, i.e. the purging of the temporary storage global ^CacheTemp.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>QHandle:%Library.Binary</FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Clean up by purging the temporary node in ^CacheTemp global
+ New repid,ind
+ Set repid=$LIST(QHandle,2)
+
+ Kill ^CacheTemp(..#CACHETEMPSUBSCRIPT,repid)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Query name="SWARHRNAP1033CoB">
+<Type>%Library.Query</Type>
+<FormalSpec>Hospital:%Integer,DateFrom:%Date,DateTo:%Date,Specialty:%String,Program:%String,Clinician:%Integer</FormalSpec>
+<SqlProc>1</SqlProc>
+<Parameter name="CONTAINID" value="0"/>
+<Parameter name="ROWSPEC" value="BirthCOCode:%String,BirthCountry:%String,UR:%String,URCount:%Integer,ContactCount:%Integer,Duration:%Integer,IndirectTime:%Integer,TravelTime:%Integer,TotalTime:%Integer"/>
+<Parameter name="SELECTMODE" value="ODBC"/>
+</Query>
+
+<UDLText name="T">
+<Content><![CDATA[
+// ************************************************************************************************************************************************
+
+]]></Content>
+</UDLText>
+
+<Method name="SWARHRNAP1033PLExecute">
+<Description>
+This is the Execute section for the %Library.Query. 
+All of the logic will be performed here.
+A new node for the ^CacheTemp global will be created and each subscript of this global will contain
+a row for the report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,Hospital:%Integer,DateFrom:%Date,DateTo:%Date,Specialty:%String,Program:%String,Clinician:%Integer]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Get reportid i.e. use $INCREMENT to add another node to ^CacheTemp global. 
+ // We use ^CacheTemp global because it will always use memory before disk
+ New repid,ind
+
+ // Use $Increment to get the next node
+ Set repid=$INCREMENT(^CacheTemp(..#CACHETEMPSUBSCRIPT))
+ 
+ New PrefLangCode,PrefLanguage,UR,URCount,ContactCount,Duration,IndirectTime,TravelTime,TotalTime
+ 
+ Set (PrefLangCode,PrefLanguage,UR,URCount,ContactCount,Duration,IndirectTime,TravelTime,TotalTime)=""
+ 
+ Set ind=1, END=0
+
+ //Start Monitor (if configured to capture stats)
+ s mon=..MonitorBegin()
+ 
+ //Convert ODBC dates to cache format
+ Set DateFrom=..ConvertDateToCache(DateFrom)
+ Set DateTo=..ConvertDateToCache(DateTo)
+
+ &SQL(DECLARE SWARHRNAP1033PL CURSOR FOR
+ 	SELECT
+		con.ENQ_PAPER_DR->PAPER_PrefLanguage_DR->PREFL_Code AS PrefLangCode
+        ,con.ENQ_PAPER_DR->PAPER_PrefLanguage_DR->PREFL_Desc AS PrefLanguage
+        ,con.ENQ_PAPER_DR AS UR
+        ,COUNT(DISTINCT con.ENQ_PAPER_DR) AS URCount
+        ,COUNT(con.ENQ_RowID) AS ContactCount
+		,SUM(coalesce(con.ENQ_Duration,0)) AS Duration
+        ,SUM(CAST(con.ENQ_IndirectTime AS INT)) AS IndirectTime
+        ,SUM(CAST(con.ENQ_TravelTime AS INT)) AS TravelTime
+        ,SUM((coalesce(CAST(con.ENQ_Duration AS INT),0) + coalesce(CAST(con.ENQ_IndirectTime AS INT),0) + coalesce(CAST(con.ENQ_TravelTime AS INT),0))) AS TotalTime
+    FROM
+        SQLUser.PA_EnquiryContact con
+    WHERE
+    	(con.ENQ_Hospital_DR = :Hospital)
+    AND
+    	(con.ENQ_Date BETWEEN :DateFrom AND :DateTo)
+   	AND
+   		(({fn CONCAT( ',', {fn CONCAT((:Specialty),',')})} [ {fn CONCAT( ',', {fn CONCAT((con.ENQ_Location_DR->CTLOC_RowId),',')})}) OR (:Specialty IS NULL)) -- Multiple Specialties
+	AND
+		(({fn CONCAT( ',', {fn CONCAT((:Program  ),',')})} [ {fn CONCAT( ',', {fn CONCAT((con.ENQ_GovernDepart_DR->DEP_RowID),',')})}) OR (:Program IS NULL)) -- Multiple Programs
+   	AND
+   		(con.ENQ_CTCP_DR->CTPCP_RowId = :Clinician OR (:Clinician IS NULL))
+   	AND
+   		(con.ENQ_PAPER_DR IS NOT NULL)
+   	GROUP BY
+   		(con.ENQ_PAPER_DR->PAPER_PrefLanguage_DR->PREFL_Code)
+ 	)
+                
+ &SQL(OPEN SWARHRNAP1033PL)
+ 
+ //FETCH FIRST ROW
+ Do FetchPLRow
+  
+ While END=0 {  
+	 Set sort = ind
+	 Set ^CacheTemp(..#CACHETEMPSUBSCRIPT,repid,sort)=$LISTBUILD(PrefLangCode,PrefLanguage,UR,URCount,ContactCount,Duration,IndirectTime,TravelTime,TotalTime)
+	 Set ind=ind+1
+ 	 Do FetchPLRow //Fetch next row
+ }
+
+ &SQL(CLOSE SWARHRNAP1033PL)
+ 
+ // Build QHandle (AtEnd,ReportID,Index)
+ Set QHandle=$LISTBUILD(0,repid,0)
+
+ Quit $$$OK
+
+FetchPLRow
+ &sql(FETCH SWARHRNAP1033PL INTO :PrefLangCode,:PrefLanguage,:UR,:URCount,:ContactCount,:Duration,:IndirectTime,:TravelTime,:TotalTime)
+ If SQLCODE '= 0 set END = 1
+ Quit
+]]></Implementation>
+</Method>
+
+<Method name="SWARHRNAP1033PLFetch">
+<Description>
+This is the Fetch component of the %Library.Query. 
+This should never have to change. It is designed to fetch the row for each subscript of the ^CacheTemp
+global and return this row to the Crystal Report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,&Row:%Library.List,&AtEnd:%Library.Integer=0]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // This fetch method should never have to change. 
+ // repid - Report ID
+ // ind   - sequence index which represents each row
+
+ New repid,ind
+
+ // Restore QHandle
+ Set AtEnd=$LIST(QHandle,1)
+ Set repid=$LIST(QHandle,2)
+ Set ind=$LIST(QHandle,3)
+
+ Set ind=$ORDER(^CacheTemp(..#CACHETEMPSUBSCRIPT,repid,ind))
+ If ind="" {	// if there are no more rows, finish fetching
+	 Set AtEnd=1
+	 Set Row=""
+ }
+ Else      {	// fetch row
+ 	Set Row=^CacheTemp(..#CACHETEMPSUBSCRIPT,repid,ind)
+ }
+
+ // Save QHandle
+ Set QHandle=$LISTBUILD(AtEnd,repid,ind)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="SWARHRNAP1033PLClose">
+<Description>
+This is the Close component of the %Library.Query.
+This is standard code and should never have to change.
+This is where all the cleanup is performed, i.e. the purging of the temporary storage global ^CacheTemp.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>QHandle:%Library.Binary</FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Clean up by purging the temporary node in ^CacheTemp global
+ New repid,ind
+ Set repid=$LIST(QHandle,2)
+
+ Kill ^CacheTemp(..#CACHETEMPSUBSCRIPT,repid)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Query name="SWARHRNAP1033PL">
+<Type>%Library.Query</Type>
+<FormalSpec>Hospital:%Integer,DateFrom:%Date,DateTo:%Date,Specialty:%String,Program:%String,Clinician:%Integer</FormalSpec>
+<SqlProc>1</SqlProc>
+<Parameter name="CONTAINID" value="0"/>
+<Parameter name="ROWSPEC" value="PrefLangCode:%String,PrefLanguage:%String,UR:%Integer,URCount:%Integer,ContactCount:%Integer,Duration:%Integer,IndirectTime:%Integer,TravelTime:%Integer,TotalTime:%Integer"/>
+<Parameter name="SELECTMODE" value="ODBC"/>
+</Query>
+
+<UDLText name="T">
+<Content><![CDATA[
+// ************************************************************************************************************************************************
+
+]]></Content>
+</UDLText>
+
+<Method name="SWARHRNAP1033PTExecute">
+<Description>
+This is the Execute section for the %Library.Query. 
+All of the logic will be performed here.
+A new node for the ^CacheTemp global will be created and each subscript of this global will contain
+a row for the report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,Hospital:%Integer,DateFrom:%Date,DateTo:%Date,Specialty:%String,Program:%String,Clinician:%Integer]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Get reportid i.e. use $INCREMENT to add another node to ^CacheTemp global. 
+ // We use ^CacheTemp global because it will always use memory before disk
+ New repid,ind
+
+ // Use $Increment to get the next node
+ Set repid=$INCREMENT(^CacheTemp(..#CACHETEMPSUBSCRIPT))
+ 
+ New PensTypeCode,PensTypeDesc,UR,URCount,ContactCount,Duration,IndirectTime,TravelTime,TotalTime
+ 
+ Set (PensTypeCode,PensTypeDesc,UR,URCount,ContactCount,Duration,IndirectTime,TravelTime,TotalTime)=""
+ 
+ Set ind=1, END=0
+
+ //Start Monitor (if configured to capture stats)
+ s mon=..MonitorBegin()
+ 
+ //Convert ODBC dates to cache format
+ Set DateFrom=..ConvertDateToCache(DateFrom)
+ Set DateTo=..ConvertDateToCache(DateTo)
+
+ &SQL(DECLARE SWARHRNAP1033PT CURSOR FOR
+ 	SELECT
+		con.ENQ_PAPER_DR->PAPER_PAPMI_DR->PAPMI_PensionType_DR->PENSTYPE_Code AS PensTypeCode
+        ,con.ENQ_PAPER_DR->PAPER_PAPMI_DR->PAPMI_PensionType_DR->PENSTYPE_Desc AS PensTypeDesc
+        ,con.ENQ_PAPER_DR AS UR
+        ,COUNT(DISTINCT con.ENQ_PAPER_DR) AS URCount
+        ,COUNT(con.ENQ_RowID) AS ContactCount
+		,SUM(coalesce(con.ENQ_Duration,0)) AS Duration
+        ,SUM(CAST(con.ENQ_IndirectTime AS INT)) AS IndirectTime
+        ,SUM(CAST(con.ENQ_TravelTime AS INT)) AS TravelTime
+        ,SUM((coalesce(CAST(con.ENQ_Duration AS INT),0) + coalesce(CAST(con.ENQ_IndirectTime AS INT),0) + coalesce(CAST(con.ENQ_TravelTime AS INT),0))) AS TotalTime
+    FROM
+        SQLUser.PA_EnquiryContact con
+    WHERE
+    	(con.ENQ_Hospital_DR = :Hospital)
+    AND
+    	(con.ENQ_Date BETWEEN :DateFrom AND :DateTo)
+   	AND
+   		(({fn CONCAT( ',', {fn CONCAT((:Specialty),',')})} [ {fn CONCAT( ',', {fn CONCAT((con.ENQ_Location_DR->CTLOC_RowId),',')})}) OR (:Specialty IS NULL)) -- Multiple Specialties
+	AND
+		(({fn CONCAT( ',', {fn CONCAT((:Program  ),',')})} [ {fn CONCAT( ',', {fn CONCAT((con.ENQ_GovernDepart_DR->DEP_RowID),',')})}) OR (:Program IS NULL)) -- Multiple Programs
+   	AND
+   		(con.ENQ_CTCP_DR->CTPCP_RowId = :Clinician OR (:Clinician IS NULL))
+   	AND
+   		(con.ENQ_PAPER_DR IS NOT NULL)
+   	GROUP BY
+   		(con.ENQ_PAPER_DR->PAPER_PAPMI_DR->PAPMI_PensionType_DR->PENSTYPE_Code)
+ 	)
+                
+ &SQL(OPEN SWARHRNAP1033PT)
+ 
+ //FETCH FIRST ROW
+ Do FetchPTRow
+  
+ While END=0 {  
+	 Set sort = ind
+	 Set ^CacheTemp(..#CACHETEMPSUBSCRIPT,repid,sort)=$LISTBUILD(PensTypeCode,PensTypeDesc,UR,URCount,ContactCount,Duration,IndirectTime,TravelTime,TotalTime)
+	 Set ind=ind+1
+ 	 Do FetchPTRow //Fetch next row
+ }
+
+ &SQL(CLOSE SWARHRNAP1033PT)
+ 
+ // Build QHandle (AtEnd,ReportID,Index)
+ Set QHandle=$LISTBUILD(0,repid,0)
+
+ Quit $$$OK
+
+FetchPTRow
+ &sql(FETCH SWARHRNAP1033PT INTO :PensTypeCode,:PensTypeDesc,:UR,:URCount,:ContactCount,:Duration,:IndirectTime,:TravelTime,:TotalTime)
+ If SQLCODE '= 0 set END = 1
+ Quit
+]]></Implementation>
+</Method>
+
+<Method name="SWARHRNAP1033PTFetch">
+<Description>
+This is the Fetch component of the %Library.Query. 
+This should never have to change. It is designed to fetch the row for each subscript of the ^CacheTemp
+global and return this row to the Crystal Report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,&Row:%Library.List,&AtEnd:%Library.Integer=0]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // This fetch method should never have to change. 
+ // repid - Report ID
+ // ind   - sequence index which represents each row
+
+ New repid,ind
+
+ // Restore QHandle
+ Set AtEnd=$LIST(QHandle,1)
+ Set repid=$LIST(QHandle,2)
+ Set ind=$LIST(QHandle,3)
+
+ Set ind=$ORDER(^CacheTemp(..#CACHETEMPSUBSCRIPT,repid,ind))
+ If ind="" {	// if there are no more rows, finish fetching
+	 Set AtEnd=1
+	 Set Row=""
+ }
+ Else      {	// fetch row
+ 	Set Row=^CacheTemp(..#CACHETEMPSUBSCRIPT,repid,ind)
+ }
+
+ // Save QHandle
+ Set QHandle=$LISTBUILD(AtEnd,repid,ind)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="SWARHRNAP1033PTClose">
+<Description>
+This is the Close component of the %Library.Query.
+This is standard code and should never have to change.
+This is where all the cleanup is performed, i.e. the purging of the temporary storage global ^CacheTemp.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>QHandle:%Library.Binary</FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Clean up by purging the temporary node in ^CacheTemp global
+ New repid,ind
+ Set repid=$LIST(QHandle,2)
+
+ Kill ^CacheTemp(..#CACHETEMPSUBSCRIPT,repid)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Query name="SWARHRNAP1033PT">
+<Type>%Library.Query</Type>
+<FormalSpec>Hospital:%Integer,DateFrom:%Date,DateTo:%Date,Specialty:%String,Program:%String,Clinician:%Integer</FormalSpec>
+<SqlProc>1</SqlProc>
+<Parameter name="CONTAINID" value="0"/>
+<Parameter name="ROWSPEC" value="PensTypeCode:%String,PensTypeDesc:%String,UR:%Integer,URCount:%Integer,ContactCount:%Integer,Duration:%Integer,IndirectTime:%Integer,TravelTime:%Integer,TotalTime:%Integer"/>
+<Parameter name="SELECTMODE" value="ODBC"/>
+</Query>
+
+<UDLText name="T">
+<Content><![CDATA[
+// ************************************************************************************************************************************************
+
+]]></Content>
+</UDLText>
+
+<Method name="SWARHRNAP1033LAExecute">
+<Description>
+This is the Execute section for the %Library.Query. 
+All of the logic will be performed here.
+A new node for the ^CacheTemp global will be created and each subscript of this global will contain
+a row for the report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,Hospital:%Integer,DateFrom:%Date,DateTo:%Date,Specialty:%String,Program:%String,Clinician:%Integer]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Get reportid i.e. use $INCREMENT to add another node to ^CacheTemp global. 
+ // We use ^CacheTemp global because it will always use memory before disk
+ New repid,ind
+
+ // Use $Increment to get the next node
+ Set repid=$INCREMENT(^CacheTemp(..#CACHETEMPSUBSCRIPT))
+ 
+ New LivingArrCode,LivingArrangment,UR,URCount,ContactCount,Duration,IndirectTime,TravelTime,TotalTime
+ 
+ Set (LivingArrCode,LivingArrangment,UR,URCount,ContactCount,Duration,IndirectTime,TravelTime,TotalTime)=""
+ 
+ Set ind=1, END=0
+
+ //Start Monitor (if configured to capture stats)
+ s mon=..MonitorBegin()
+ 
+ //Convert ODBC dates to cache format
+ Set DateFrom=..ConvertDateToCache(DateFrom)
+ Set DateTo=..ConvertDateToCache(DateTo)
+
+ &SQL(DECLARE SWARHRNAP1033LA CURSOR FOR
+ 	SELECT
+		con.ENQ_PAPER_DR->PAPER_LivingArrangement_DR->LIVARR_Code AS LivingArrCode
+        ,con.ENQ_PAPER_DR->PAPER_LivingArrangement_DR->LIVARR_Desc AS LivingArrangment
+        ,con.ENQ_PAPER_DR AS UR
+        ,COUNT(DISTINCT con.ENQ_PAPER_DR) AS URCount
+        ,COUNT(con.ENQ_RowID) AS ContactCount
+		,SUM(coalesce(con.ENQ_Duration,0)) AS Duration
+        ,SUM(CAST(con.ENQ_IndirectTime AS INT)) AS IndirectTime
+        ,SUM(CAST(con.ENQ_TravelTime AS INT)) AS TravelTime
+        ,SUM((coalesce(CAST(con.ENQ_Duration AS INT),0) + coalesce(CAST(con.ENQ_IndirectTime AS INT),0) + coalesce(CAST(con.ENQ_TravelTime AS INT),0))) AS TotalTime
+    FROM
+        SQLUser.PA_EnquiryContact con
+    WHERE
+    	(con.ENQ_Hospital_DR = :Hospital)
+    AND
+    	(con.ENQ_Date BETWEEN :DateFrom AND :DateTo)
+   	AND
+   		(({fn CONCAT( ',', {fn CONCAT((:Specialty),',')})} [ {fn CONCAT( ',', {fn CONCAT((con.ENQ_Location_DR->CTLOC_RowId),',')})}) OR (:Specialty IS NULL)) -- Multiple Specialties
+	AND
+		(({fn CONCAT( ',', {fn CONCAT((:Program  ),',')})} [ {fn CONCAT( ',', {fn CONCAT((con.ENQ_GovernDepart_DR->DEP_RowID),',')})}) OR (:Program IS NULL)) -- Multiple Programs
+   	AND
+   		(con.ENQ_CTCP_DR->CTPCP_RowId = :Clinician OR (:Clinician IS NULL))
+   	AND
+   		(con.ENQ_PAPER_DR IS NOT NULL)
+   	GROUP BY
+   		(con.ENQ_PAPER_DR->PAPER_LivingArrangement_DR->LIVARR_Code)
+ 	)
+                
+ &SQL(OPEN SWARHRNAP1033LA)
+ 
+ //FETCH FIRST ROW
+ Do FetchLARow
+  
+ While END=0 {  
+	 Set sort = ind
+	 Set ^CacheTemp(..#CACHETEMPSUBSCRIPT,repid,sort)=$LISTBUILD(LivingArrCode,LivingArrangment,UR,URCount,ContactCount,Duration,IndirectTime,TravelTime,TotalTime)
+	 Set ind=ind+1
+ 	 Do FetchLARow //Fetch next row
+ }
+
+ &SQL(CLOSE SWARHRNAP1033LA)
+ 
+ // Build QHandle (AtEnd,ReportID,Index)
+ Set QHandle=$LISTBUILD(0,repid,0)
+
+ Quit $$$OK
+
+FetchLARow
+ &sql(FETCH SWARHRNAP1033LA INTO :LivingArrCode,:LivingArrangment,:UR,:URCount,:ContactCount,:Duration,:IndirectTime,:TravelTime,:TotalTime)
+ If SQLCODE '= 0 set END = 1
+ Quit
+]]></Implementation>
+</Method>
+
+<Method name="SWARHRNAP1033LAFetch">
+<Description>
+This is the Fetch component of the %Library.Query. 
+This should never have to change. It is designed to fetch the row for each subscript of the ^CacheTemp
+global and return this row to the Crystal Report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,&Row:%Library.List,&AtEnd:%Library.Integer=0]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // This fetch method should never have to change. 
+ // repid - Report ID
+ // ind   - sequence index which represents each row
+
+ New repid,ind
+
+ // Restore QHandle
+ Set AtEnd=$LIST(QHandle,1)
+ Set repid=$LIST(QHandle,2)
+ Set ind=$LIST(QHandle,3)
+
+ Set ind=$ORDER(^CacheTemp(..#CACHETEMPSUBSCRIPT,repid,ind))
+ If ind="" {	// if there are no more rows, finish fetching
+	 Set AtEnd=1
+	 Set Row=""
+ }
+ Else      {	// fetch row
+ 	Set Row=^CacheTemp(..#CACHETEMPSUBSCRIPT,repid,ind)
+ }
+
+ // Save QHandle
+ Set QHandle=$LISTBUILD(AtEnd,repid,ind)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="SWARHRNAP1033LAClose">
+<Description>
+This is the Close component of the %Library.Query.
+This is standard code and should never have to change.
+This is where all the cleanup is performed, i.e. the purging of the temporary storage global ^CacheTemp.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>QHandle:%Library.Binary</FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Clean up by purging the temporary node in ^CacheTemp global
+ New repid,ind
+ Set repid=$LIST(QHandle,2)
+
+ Kill ^CacheTemp(..#CACHETEMPSUBSCRIPT,repid)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Query name="SWARHRNAP1033LA">
+<Type>%Library.Query</Type>
+<FormalSpec>Hospital:%Integer,DateFrom:%Date,DateTo:%Date,Specialty:%String,Program:%String,Clinician:%Integer</FormalSpec>
+<SqlProc>1</SqlProc>
+<Parameter name="CONTAINID" value="0"/>
+<Parameter name="ROWSPEC" value="LivingArrCode:%String,LivingArrangment:%String,UR:%Integer,URCount:%Integer,ContactCount:%Integer,Duration:%Integer,IndirectTime:%Integer,TravelTime:%Integer,TotalTime:%Integer"/>
+<Parameter name="SELECTMODE" value="ODBC"/>
+</Query>
+
+<UDLText name="T">
+<Content><![CDATA[
+// ************************************************************************************************************************************************
+
+]]></Content>
+</UDLText>
+
+<Method name="SWARHRNAP1033AccExecute">
+<Description>
+This is the Execute section for the %Library.Query. 
+All of the logic will be performed here.
+A new node for the ^CacheTemp global will be created and each subscript of this global will contain
+a row for the report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,Hospital:%Integer,DateFrom:%Date,DateTo:%Date,Specialty:%String,Program:%String,Clinician:%Integer]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Get reportid i.e. use $INCREMENT to add another node to ^CacheTemp global. 
+ // We use ^CacheTemp global because it will always use memory before disk
+ New repid,ind
+
+ // Use $Increment to get the next node
+ Set repid=$INCREMENT(^CacheTemp(..#CACHETEMPSUBSCRIPT))
+ 
+ New AccomSettCode,AccomSetting,UR,URCount,ContactCount,Duration,IndirectTime,TravelTime,TotalTime
+ 
+ Set (AccomSettCode,AccomSetting,UR,URCount,ContactCount,Duration,IndirectTime,TravelTime,TotalTime)=""
+ 
+ Set ind=1, END=0
+
+ //Start Monitor (if configured to capture stats)
+ s mon=..MonitorBegin()
+ 
+ //Convert ODBC dates to cache format
+ Set DateFrom=..ConvertDateToCache(DateFrom)
+ Set DateTo=..ConvertDateToCache(DateTo)
+
+ &SQL(DECLARE SWARHRNAP1033Acc CURSOR FOR
+ 	SELECT
+		con.ENQ_PAPER_DR->PAPER_AccomSetting_DR->ACCOMS_Code AS AccomSettCode
+        ,con.ENQ_PAPER_DR->PAPER_AccomSetting_DR->ACCOMS_Desc AS AccomSetting
+        ,con.ENQ_PAPER_DR AS UR
+        ,COUNT(DISTINCT con.ENQ_PAPER_DR) AS URCount
+        ,COUNT(con.ENQ_RowID) AS ContactCount
+		,SUM(coalesce(con.ENQ_Duration,0)) AS Duration
+        ,SUM(CAST(con.ENQ_IndirectTime AS INT)) AS IndirectTime
+        ,SUM(CAST(con.ENQ_TravelTime AS INT)) AS TravelTime
+        ,SUM((coalesce(CAST(con.ENQ_Duration AS INT),0) + coalesce(CAST(con.ENQ_IndirectTime AS INT),0) + coalesce(CAST(con.ENQ_TravelTime AS INT),0))) AS TotalTime
+    FROM
+        SQLUser.PA_EnquiryContact con
+    WHERE
+    	(con.ENQ_Hospital_DR = :Hospital)
+    AND
+    	(con.ENQ_Date BETWEEN :DateFrom AND :DateTo)
+   	AND
+   		(({fn CONCAT( ',', {fn CONCAT((:Specialty),',')})} [ {fn CONCAT( ',', {fn CONCAT((con.ENQ_Location_DR->CTLOC_RowId),',')})}) OR (:Specialty IS NULL)) -- Multiple Specialties
+	AND
+		(({fn CONCAT( ',', {fn CONCAT((:Program  ),',')})} [ {fn CONCAT( ',', {fn CONCAT((con.ENQ_GovernDepart_DR->DEP_RowID),',')})}) OR (:Program IS NULL)) -- Multiple Programs
+   	AND
+   		(con.ENQ_CTCP_DR->CTPCP_RowId = :Clinician OR (:Clinician IS NULL))
+   	AND
+   		(con.ENQ_PAPER_DR IS NOT NULL)
+   	GROUP BY
+   		(con.ENQ_PAPER_DR->PAPER_AccomSetting_DR->ACCOMS_Code)
+ 	)
+                
+ &SQL(OPEN SWARHRNAP1033Acc)
+ 
+ //FETCH FIRST ROW
+ Do FetchAccRow
+  
+ While END=0 {  
+	 Set sort = ind
+	 Set ^CacheTemp(..#CACHETEMPSUBSCRIPT,repid,sort)=$LISTBUILD(AccomSettCode,AccomSetting,UR,URCount,ContactCount,Duration,IndirectTime,TravelTime,TotalTime)
+	 Set ind=ind+1
+ 	 Do FetchAccRow //Fetch next row
+ }
+
+ &SQL(CLOSE SWARHRNAP1033Acc)
+ 
+ // Build QHandle (AtEnd,ReportID,Index)
+ Set QHandle=$LISTBUILD(0,repid,0)
+
+ Quit $$$OK
+
+FetchAccRow
+ &sql(FETCH SWARHRNAP1033Acc INTO :AccomSettCode,:AccomSetting,:UR,:URCount,:ContactCount,:Duration,:IndirectTime,:TravelTime,:TotalTime)
+ If SQLCODE '= 0 set END = 1
+ Quit
+]]></Implementation>
+</Method>
+
+<Method name="SWARHRNAP1033AccFetch">
+<Description>
+This is the Fetch component of the %Library.Query. 
+This should never have to change. It is designed to fetch the row for each subscript of the ^CacheTemp
+global and return this row to the Crystal Report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,&Row:%Library.List,&AtEnd:%Library.Integer=0]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // This fetch method should never have to change. 
+ // repid - Report ID
+ // ind   - sequence index which represents each row
+
+ New repid,ind
+
+ // Restore QHandle
+ Set AtEnd=$LIST(QHandle,1)
+ Set repid=$LIST(QHandle,2)
+ Set ind=$LIST(QHandle,3)
+
+ Set ind=$ORDER(^CacheTemp(..#CACHETEMPSUBSCRIPT,repid,ind))
+ If ind="" {	// if there are no more rows, finish fetching
+	 Set AtEnd=1
+	 Set Row=""
+ }
+ Else      {	// fetch row
+ 	Set Row=^CacheTemp(..#CACHETEMPSUBSCRIPT,repid,ind)
+ }
+
+ // Save QHandle
+ Set QHandle=$LISTBUILD(AtEnd,repid,ind)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="SWARHRNAP1033AccClose">
+<Description>
+This is the Close component of the %Library.Query.
+This is standard code and should never have to change.
+This is where all the cleanup is performed, i.e. the purging of the temporary storage global ^CacheTemp.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>QHandle:%Library.Binary</FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Clean up by purging the temporary node in ^CacheTemp global
+ New repid,ind
+ Set repid=$LIST(QHandle,2)
+
+ Kill ^CacheTemp(..#CACHETEMPSUBSCRIPT,repid)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Query name="SWARHRNAP1033Acc">
+<Type>%Library.Query</Type>
+<FormalSpec>Hospital:%Integer,DateFrom:%Date,DateTo:%Date,Specialty:%String,Program:%String,Clinician:%Integer</FormalSpec>
+<SqlProc>1</SqlProc>
+<Parameter name="CONTAINID" value="0"/>
+<Parameter name="ROWSPEC" value="AccomSettCode:%String,AccomSetting:%String,UR:%Integer,URCount:%Integer,ContactCount:%Integer,Duration:%Integer,IndirectTime:%Integer,TravelTime:%Integer,TotalTime:%Integer"/>
+<Parameter name="SELECTMODE" value="ODBC"/>
+</Query>
+
+<UDLText name="T">
+<Content><![CDATA[
+// ************************************************************************************************************************************************
+
+]]></Content>
+</UDLText>
+
+<Method name="SWARHRNAP1033CAExecute">
+<Description>
+This is the Execute section for the %Library.Query. 
+All of the logic will be performed here.
+A new node for the ^CacheTemp global will be created and each subscript of this global will contain
+a row for the report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,Hospital:%Integer,DateFrom:%Date,DateTo:%Date,Specialty:%String,Program:%String,Clinician:%Integer]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Get reportid i.e. use $INCREMENT to add another node to ^CacheTemp global. 
+ // We use ^CacheTemp global because it will always use memory before disk
+ New repid,ind
+
+ // Use $Increment to get the next node
+ Set repid=$INCREMENT(^CacheTemp(..#CACHETEMPSUBSCRIPT))
+ 
+ New CarerAvailCode,CarerAvailDesc,UR,URCount,ContactCount,Duration,IndirectTime,TravelTime,TotalTime
+ 
+ Set (CarerAvailCode,CarerAvailDesc,UR,URCount,ContactCount,Duration,IndirectTime,TravelTime,TotalTime)=""
+ 
+ Set ind=1, END=0
+
+ //Start Monitor (if configured to capture stats)
+ s mon=..MonitorBegin()
+ 
+ //Convert ODBC dates to cache format
+ Set DateFrom=..ConvertDateToCache(DateFrom)
+ Set DateTo=..ConvertDateToCache(DateTo)
+
+ &SQL(DECLARE SWARHRNAP1033CA CURSOR FOR
+ 	SELECT
+		con.ENQ_PAPER_DR->PAPER_CarerAvailability_DR->CARAVL_Code AS CarerAvailCode
+        ,con.ENQ_PAPER_DR->PAPER_CarerAvailability_DR->CARAVL_Desc AS CarerAvailDesc
+        ,con.ENQ_PAPER_DR AS UR
+        ,COUNT(DISTINCT con.ENQ_PAPER_DR) AS URCount
+        ,COUNT(con.ENQ_RowID) AS ContactCount
+		,SUM(coalesce(con.ENQ_Duration,0)) AS Duration
+        ,SUM(CAST(con.ENQ_IndirectTime AS INT)) AS IndirectTime
+        ,SUM(CAST(con.ENQ_TravelTime AS INT)) AS TravelTime
+        ,SUM((coalesce(CAST(con.ENQ_Duration AS INT),0) + coalesce(CAST(con.ENQ_IndirectTime AS INT),0) + coalesce(CAST(con.ENQ_TravelTime AS INT),0))) AS TotalTime
+    FROM
+        SQLUser.PA_EnquiryContact con
+    WHERE
+    	(con.ENQ_Hospital_DR = :Hospital)
+    AND
+    	(con.ENQ_Date BETWEEN :DateFrom AND :DateTo)
+   	AND
+   		(({fn CONCAT( ',', {fn CONCAT((:Specialty),',')})} [ {fn CONCAT( ',', {fn CONCAT((con.ENQ_Location_DR->CTLOC_RowId),',')})}) OR (:Specialty IS NULL)) -- Multiple Specialties
+	AND
+		(({fn CONCAT( ',', {fn CONCAT((:Program  ),',')})} [ {fn CONCAT( ',', {fn CONCAT((con.ENQ_GovernDepart_DR->DEP_RowID),',')})}) OR (:Program IS NULL)) -- Multiple Programs
+   	AND
+   		(con.ENQ_CTCP_DR->CTPCP_RowId = :Clinician OR (:Clinician IS NULL))
+   	AND
+   		(con.ENQ_PAPER_DR IS NOT NULL)
+   	GROUP BY
+   		(con.ENQ_PAPER_DR->PAPER_CarerAvailability_DR->CARAVL_Code)
+ 	)
+                
+ &SQL(OPEN SWARHRNAP1033CA)
+ 
+ //FETCH FIRST ROW
+ Do FetchCARow
+  
+ While END=0 {  
+	 Set sort = ind
+	 Set ^CacheTemp(..#CACHETEMPSUBSCRIPT,repid,sort)=$LISTBUILD(CarerAvailCode,CarerAvailDesc,UR,URCount,ContactCount,Duration,IndirectTime,TravelTime,TotalTime)
+	 Set ind=ind+1
+ 	 Do FetchCARow //Fetch next row
+ }
+
+ &SQL(CLOSE SWARHRNAP1033CA)
+ 
+ // Build QHandle (AtEnd,ReportID,Index)
+ Set QHandle=$LISTBUILD(0,repid,0)
+
+ Quit $$$OK
+
+FetchCARow
+ &sql(FETCH SWARHRNAP1033CA INTO :CarerAvailCode,:CarerAvailDesc,:UR,:URCount,:ContactCount,:Duration,:IndirectTime,:TravelTime,:TotalTime)
+ If SQLCODE '= 0 set END = 1
+ Quit
+]]></Implementation>
+</Method>
+
+<Method name="SWARHRNAP1033CAFetch">
+<Description>
+This is the Fetch component of the %Library.Query. 
+This should never have to change. It is designed to fetch the row for each subscript of the ^CacheTemp
+global and return this row to the Crystal Report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,&Row:%Library.List,&AtEnd:%Library.Integer=0]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // This fetch method should never have to change. 
+ // repid - Report ID
+ // ind   - sequence index which represents each row
+
+ New repid,ind
+
+ // Restore QHandle
+ Set AtEnd=$LIST(QHandle,1)
+ Set repid=$LIST(QHandle,2)
+ Set ind=$LIST(QHandle,3)
+
+ Set ind=$ORDER(^CacheTemp(..#CACHETEMPSUBSCRIPT,repid,ind))
+ If ind="" {	// if there are no more rows, finish fetching
+	 Set AtEnd=1
+	 Set Row=""
+ }
+ Else      {	// fetch row
+ 	Set Row=^CacheTemp(..#CACHETEMPSUBSCRIPT,repid,ind)
+ }
+
+ // Save QHandle
+ Set QHandle=$LISTBUILD(AtEnd,repid,ind)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="SWARHRNAP1033CAClose">
+<Description>
+This is the Close component of the %Library.Query.
+This is standard code and should never have to change.
+This is where all the cleanup is performed, i.e. the purging of the temporary storage global ^CacheTemp.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>QHandle:%Library.Binary</FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Clean up by purging the temporary node in ^CacheTemp global
+ New repid,ind
+ Set repid=$LIST(QHandle,2)
+
+ Kill ^CacheTemp(..#CACHETEMPSUBSCRIPT,repid)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Query name="SWARHRNAP1033CA">
+<Type>%Library.Query</Type>
+<FormalSpec>Hospital:%Integer,DateFrom:%Date,DateTo:%Date,Specialty:%String,Program:%String,Clinician:%Integer</FormalSpec>
+<SqlProc>1</SqlProc>
+<Parameter name="CONTAINID" value="0"/>
+<Parameter name="ROWSPEC" value="CarerAvailCode:%String,CarerAvailDesc:%String,UR:%Integer,URCount:%Integer,ContactCount:%Integer,Duration:%Integer,IndirectTime:%Integer,TravelTime:%Integer,TotalTime:%Integer"/>
+<Parameter name="SELECTMODE" value="ODBC"/>
+</Query>
+</Class>
+</Export>

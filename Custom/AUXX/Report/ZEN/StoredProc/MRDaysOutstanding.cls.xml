@@ -1,0 +1,172 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.AUXX.Report.ZEN.StoredProc.MRDaysOutstanding">
+<ProcedureBlock>0</ProcedureBlock>
+<Super>Report.Abstract</Super>
+<TimeCreated>61019,53190.396254</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/AUXX/Report/ZEN/StoredProc/MRDaysOutstanding.xml#1 $</Default>
+</Parameter>
+
+<UDLText name="T">
+<Content><![CDATA[
+// Report Name: AUXX Medical Records by Days Outstanding <br>
+
+]]></Content>
+</UDLText>
+
+<UDLText name="T">
+<Content><![CDATA[
+// Report Code: AUXX.MED0004 <br>
+
+]]></Content>
+</UDLText>
+
+<Method name="MRDaysOutstandingClose">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>QHandle:%Library.Binary</FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Clean up by purging the temporary node in ^CacheTemp global
+ New repid
+ Set repid=$li(QHandle,2)
+ 
+ //Close Monitor (if configured to capture stats)
+ i mon Do ..MonitorEnd(mon)
+
+ 
+ Kill ^CacheTemp("TRAK",repid)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="MRDaysOutstandingExecute">
+<Description>
+This is the Execute section for the %Library.Query. 
+All of the logic will be performed here.
+A new node for the ^CacheTemp global will be created and each subscript of this global will contain
+a row for the report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,Hospital:%String,Location:%String,DaysOS:%Integer]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+	
+ // Get reportid i.e. use $INCREMENT to add another node to ^CacheTemp global. 
+ // We use ^CacheTemp global because it will always use memory before disk
+ New repid,ind
+
+ // Use $Increment to get the next node
+ Set repid=$I(^CacheTemp("TRAK"))
+
+ //Start Monitor (if configured to capture stats)
+ s mon=..MonitorBegin()
+  
+ // Build data into ^CacheTemp(ReportID)
+ // e.g. Set ^CacheTemp(ReportID,Index)=$LB(f1,f2,f3)
+ New Number,String,Date,Time,c,n
+ n PAPMINo,TerminalDigit,PAPMIName2,PAPMIName3,PAPMIName,CTLOCDesc,CTLOCCode,RTMAVDateArrived,HOSPDesc,HOSPRowId,CTLOCRowID,RTMAVVolDesc,RTMAVRowId,DaysOutstanding
+ s (HOSPRowId,CTLOCRowID)=0
+ s (PAPMINo,TerminalDigit,PAPMIName2,PAPMIName3,PAPMIName,CTLOCDesc,CTLOCCode,RTMAVDateArrived,HOSPDesc,RTMAVVolDesc,RTMAVRowId,DaysOutstanding)=""
+ s ind=1
+ 
+ // Strip white space/control chars from blank variables
+ i $g(Hospital)'="" s Hospital=$ZSTRIP(Hospital,"*WC")
+ i $g(Location)'="" s Location=$ZSTRIP(Location,"*WC")
+
+ &sql(declare MRDaysOutstanding cursor for
+ SELECT 
+	PAPMI_No, 
+	{fn RIGHT(PAPMI_No,2)},
+	PAPMI_Name, 
+	PAPMI_Name2,  
+	PAPMI_Name3,
+	RTMAV_CurrentLoc_DR->CTLOC_Desc, 
+	RTMAV_CurrentLoc_DR->CTLOC_Code, 
+	RTMAV_DateArrived, 
+	RTMAV_CurrentLoc_DR->CTLOC_Hospital_DR->HOSP_Desc, 
+	RTMAV_CurrentLoc_DR->CTLOC_Hospital_DR, 
+	RTMAV_CurrentLoc_DR->CTLOC_RowID, 
+	RTMAV_VolDesc, 
+	RTMAV_RowId,
+	Current_date - RTMAV_DateArrived
+	 FROM SQLUser.RT_Master, SQLUser.PA_PatMas, SQLUser.RT_MasVol
+ WHERE RTMAS_PatNo_DR = PAPMI_RowId 
+ AND RTMAS_RowId = RTMAV_RTMAS_ParRef 
+ AND Current_date - RTMAV_DateArrived > :DaysOS 
+ AND RTMAV_ActiveFlag='Y' 
+ AND RTMAV_CurrentLoc_DR->CTLOC_Code NOT IN ('Archive','F','FILE','HIS') 
+ AND (({fn CONCAT( ',', {fn CONCAT((:Hospital),',')})} [ {fn CONCAT( ',', {fn CONCAT((RTMAV_CurrentLoc_DR->CTLOC_Hospital_DR->HOSP_RowId),',')})}) OR (:Hospital IS NULL))
+ AND (({fn CONCAT( ',', {fn CONCAT((:Location),',')})} [ {fn CONCAT( ',', {fn CONCAT((RTMAV_CurrentLoc_DR->CTLOC_RowId),',')})}) OR (:Location IS NULL)))
+
+ &sql(open MRDaysOutstanding)
+
+ //fetch first row
+ &sql(fetch MRDaysOutstanding into :PAPMINo,:TerminalDigit,:PAPMIName,:PAPMIName2,:PAPMIName3,:CTLOCDesc,:CTLOCCode,:RTMAVDateArrived,:HOSPDesc,:HOSPRowId,:CTLOCRowID,:RTMAVVolDesc,:RTMAVRowId,:DaysOutstanding)
+
+ while 'SQLCODE{
+ d FormatDates
+ //s TerminalDigit={fn RIGHT(PAPMINo,2)}
+ // build the row
+ Set ^CacheTemp("TRAK",repid,$ZCVT(HOSPDesc,"U")_" "_$ZCVT(CTLOCDesc,"U")_" "_$ZCVT(TerminalDigit,"U")_" "_$ZCVT(PAPMINo,"U")_" "_$ZCVT(RTMAVVolDesc,"U")_" "_ind)=$LB(PAPMINo,TerminalDigit,PAPMIName,PAPMIName2,PAPMIName3,CTLOCDesc,CTLOCCode,RTMAVDateArrived,HOSPDesc,HOSPRowId,CTLOCRowID,RTMAVVolDesc,RTMAVRowId,DaysOutstanding)
+ s ind=ind+1
+ //fetch rows
+ &sql(fetch MRDaysOutstanding into :PAPMINo,:TerminalDigit,:PAPMIName,:PAPMIName2,:PAPMIName3,:CTLOCDesc,:CTLOCCode,:RTMAVDateArrived,:HOSPDesc,:HOSPRowId,:CTLOCRowID,:RTMAVVolDesc,:RTMAVRowId,:DaysOutstanding)
+ }
+
+ &sql(close MRDaysOutstanding)
+
+ // Build QHandle (AtEnd,ReportID,Index)
+ Set QHandle=$lb(0,repid,0)
+
+ Quit $$$OK
+
+
+FormatDates
+ // Convert the dates to ODBC date format
+ If RTMAVDateArrived Set RTMAVDateArrived=..ConvertDateToODBC(RTMAVDateArrived)
+
+ Quit
+]]></Implementation>
+</Method>
+
+<Method name="MRDaysOutstandingFetch">
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,&Row:%Library.List,&AtEnd:%Library.Integer=0]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // This fetch method should never have to change. 
+
+ New repid,ind
+
+ // Restore QHandle
+ Set AtEnd=$li(QHandle,1)
+ Set repid=$li(QHandle,2)
+ Set ind=$li(QHandle,3)
+
+ Set ind=$o(^CacheTemp("TRAK",repid,ind))
+ If ind="" {	// if there are no more rows, finish fetching
+ Set AtEnd=1
+ Set Row=""
+ }
+ Else      {	// fetch row
+ Set Row=^CacheTemp("TRAK",repid,ind)
+ }
+
+ // Save QHandle
+ s QHandle=$lb(AtEnd,repid,ind)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Query name="MRDaysOutstanding">
+<Type>%Library.Query</Type>
+<FormalSpec>Hospital:%String,Location:%String,DaysOS:%Integer</FormalSpec>
+<SqlProc>1</SqlProc>
+<Parameter name="CONTAINID" value="0"/>
+<Parameter name="ROWSPEC" value="PAPMINo:%String(MAXLEN=255),TerminalDigit:%String(MAXLEN=255),PAPMIName:%String(MAXLEN=255),PAPMIName2:%String(MAXLEN=255),PAPMIName3:%String(MAXLEN=255),CTLOCDesc:%String(MAXLEN=255),CTLOCCode:%String(MAXLEN=255),RTMAVDateArrived:%Date,HOSPDesc:%String(MAXLEN=255),HOSPRowId:%Integer,CTLOCRowID:%Integer,RTMAVVolDesc:%String(MAXLEN=255),RTMAVRowId:%String(MAXLEN=255),DaysOutstanding:%Integer"/>
+</Query>
+</Class>
+</Export>

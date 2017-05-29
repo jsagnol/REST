@@ -1,0 +1,191 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.SWARH.Report.RptSvc.StoredProc.SWARHRATD1057">
+<Description><![CDATA[
+<pre>
+***************************************************************************************************************************************
+* Report Code: SWARHRATD1057
+* Report Description: Medical Records Allocation
+* Menu Caption: Medical Records Allocation
+* Initial release: 
+* Developer: David Cottrill
+* Report shows:Allocation of UR numbers for hostpital
+* Fields:UR, Audit Time,  Audit Date.
+* Modified:
+***************************************************************************************************************************************
+</pre>]]></Description>
+<ProcedureBlock>0</ProcedureBlock>
+<Super>Custom.SWARH.Report.RptSvc.StoredProc.Abstract</Super>
+<TimeCreated>60905,54849</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/SWARH/Report/RptSvc/StoredProc/SWARHRATD1057.xml#1 $</Default>
+</Parameter>
+
+<Method name="SWARHRATD1057Close">
+<Description>
+This is the Close component of the %Library.Query.
+This is standard code and should never have to change.
+This is where all the cleanup is performed, i.e. the purging of the temporary storage global ^CacheTemp.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>QHandle:%Library.Binary</FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Clean up by purging the temporary node in ^CacheTemp global
+ New repid,ind
+ Set repid=$li(QHandle,2)
+
+ //Start Monitor (if configured to capture stats)
+ //i mon Do ..MonitorEnd(mon)
+
+ Kill ^CacheTemp("TRAK",repid)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="SWARHRATD1057Execute">
+<Description>
+This is the Execute section for the %Library.Query. 
+All of the logic will be performed here.
+A new node for the ^CacheTemp global will be created and each subscript of this global will contain
+a row for the report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,Hospital:%Integer,DateFrom:%Date,DateTo:%Date]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Get reportid i.e. use $INCREMENT to add another node to ^CacheTemp global. 
+ // We use ^CacheTemp global because it will always use memory before disk
+ New repid,ind,END
+
+  // Use $Increment to get the next node
+ Set repid=$I(^CacheTemp("TRAK"))
+ 
+ /* TEMPLATE MODIFY: Define and initialise appropriate column variables to describe output rowset columns */
+ New CTLOCHospitalDR, PAPMINo, AUDDate, AUDTime
+ Set (PAPMINo, AUDDate, AUDTime) = ""
+ set CTLOCHospitalDR = 0
+ 
+ s ind=1, END=0
+
+ //Start Monitor (if configured to capture stats)
+ s mon=..MonitorBegin()
+ 
+
+ //Convert ODBC dates to cache format
+ s DateFrom=..ConvertDateToCache(DateFrom)
+ s DateTo=..ConvertDateToCache(DateTo)
+ 
+
+ &SQL(DECLARE SWARHRATD1057Cursor CURSOR FOR 
+	 SELECT Distinct	
+		aud.AUD_PAPMI_DR->PAPMI_No,
+		aud.AUD_LogonLocation_DR->CTLOC_Hospital_DR,
+		aud.AUD_Date,
+		aud.AUD_Time
+	FROM
+        SQLUser.SS_AuditTrail aud
+        INNER JOIN SQLUser.SS_AuditTrailFields audf ON audf.FLD_ParRef = aud.AUD_RowID
+        INNER JOIN SQLUser.PA_PatMas pm ON pm.PAPMI_RowID = aud.AUD_TableRowID
+        LEFT OUTER JOIN SQLUser.PA_Adm pa ON pa.PAADM_PAPMI_DR = aud.AUD_TableRowID
+    WHERE
+    	aud.AUD_LogonLocation_DR->CTLOC_Hospital_DR->HOSP_RowId = :Hospital
+        AND aud.AUD_Date BETWEEN :DateFrom AND :DateTo
+        AND aud.AUD_Table = 'PA_PatMas'
+        AND aud.AUD_Action = 'U'
+        AND audf.FLD_FieldNo = 'PAPMI_No'
+        AND aud.AUD_PAPMI_DR->PAPMI_No is not NULL
+        
+ORDER BY
+        aud.AUD_LogonLocation_DR->CTLOC_Hospital_DR,aud.AUD_PAPMI_DR->PAPMI_No,aud.AUD_Date,aud.AUD_Time
+)
+ &SQL(OPEN SWARHRATD1057Cursor)
+ 
+ //FETCH FIRST ROW
+ d FetchRow
+  
+ while END=0 {
+  
+	 d FormatDates
+  	 d FormatTimes
+  	
+	 /* TEMPLATE MODIFY: Build the sort string here from column variables. Convert strings to uppercase ($ZCVT(<field>,"U") and separate with spaces */
+	 s sort = ind		// don't sort - uncomment this line if you've sorted in the query
+	//s sort = $ZCVT(HospCode,"U")_" "_$ZCVT(URNo,"U")_" "_$ZCVT(AudDate,"U")_" "_$ZCVT(AudTime,"U")_ind
+ 
+	 s ^CacheTemp("TRAK",repid,sort)=$LB(PAPMINo, CTLOCHospitalDR, AUDDate, AUDTime)
+	 s ind=ind+1
+ 
+	 //fetch rows
+	 d FetchRow
+ }
+
+ &SQL(CLOSE SWARHRATD1057Cursor)
+ 
+ // Build QHandle (AtEnd,ReportID,Index)
+ Set QHandle=$lb(0,repid,0)
+
+ Quit $$$OK
+
+FetchRow
+ &sql(FETCH SWARHRATD1057Cursor INTO :PAPMINo, :CTLOCHospitalDR, :AUDDate, :AUDTime)
+ if SQLCODE '= 0 set END = 1
+ q
+ 
+FormatDates
+ s AUDDate=..ConvertDateToODBC(AUDDate)
+ q
+ 
+FormatTimes
+ s AUDTime=..ConvertTimeToHHMM(AUDTime)
+ q
+]]></Implementation>
+</Method>
+
+<Method name="SWARHRATD1057Fetch">
+<Description>
+This is the Fetch component of the %Library.Query. 
+This should never have to change. It is designed to fetch the row for each subscript of the ^CacheTemp
+global and return this row to the Crystal Report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,&Row:%Library.List,&AtEnd:%Library.Integer=0]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // This fetch method should never have to change. 
+
+ // repid - Report ID
+ // ind   - sequence index which represents each row
+
+ New repid,ind
+
+ // Restore QHandle
+ Set AtEnd=$li(QHandle,1)
+ Set repid=$li(QHandle,2)
+ Set ind=$li(QHandle,3)
+
+ Set ind=$o(^CacheTemp("TRAK",repid,ind))
+ If ind="" {	// if there are no more rows, finish fetching
+	 Set AtEnd=1
+	 Set Row=""
+ }
+ Else      {	// fetch row
+ 	Set Row=^CacheTemp("TRAK",repid,ind)
+ }
+
+ // Save QHandle
+ s QHandle=$lb(AtEnd,repid,ind)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Query name="SWARHRATD1057">
+<Type>%Library.Query</Type>
+<FormalSpec>Hospital:%Integer,DateFrom:%Date,DateTo:%Date</FormalSpec>
+<SqlProc>1</SqlProc>
+<Parameter name="CONTAINID" value="0"/>
+<Parameter name="ROWSPEC" value="PAPMINo:%Library.String,CTLOCHospitalDR:%Library.String,AUDDate:%Library.String,AUDTime:%Library.String"/>
+<Parameter name="SELECTMODE" value="ODBC"/>
+</Query>
+</Class>
+</Export>

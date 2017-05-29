@@ -1,0 +1,221 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.AUXX.Report.ZEN.StoredProc.EpisodeDetailsDRGSUB">
+<ProcedureBlock>0</ProcedureBlock>
+<Super>Report.Abstract</Super>
+<TimeCreated>59973,46812.494388</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/AUXX/Report/ZEN/StoredProc/EpisodeDetailsDRGSUB.xml#1 $</Default>
+</Parameter>
+
+<UDLText name="T">
+<Content><![CDATA[
+// Report Name: Trak Episode Details SUB <br>
+
+]]></Content>
+</UDLText>
+
+<UDLText name="T">
+<Content><![CDATA[
+// Report Code: Trak.CDG0002A <br>
+
+]]></Content>
+</UDLText>
+
+<UDLText name="T">
+<Content><![CDATA[
+// LOGTRAK Number: 72411 <br>
+
+]]></Content>
+</UDLText>
+
+<Method name="GetDetailsClose">
+<ClassMethod>1</ClassMethod>
+<CodeMode>code</CodeMode>
+<FormalSpec>QHandle:%Library.Binary</FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Clean up by purging the temporary node in ^CacheTemp global
+ New repid
+ Set repid=$li(QHandle,2)
+
+ //Start Monitor (if configured to capture stats)
+ i mon Do ..MonitorEnd(mon)
+
+ Kill ^CacheTemp("TRAK",repid)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="GetDetailsExecute">
+<ClassMethod>1</ClassMethod>
+<CodeMode>code</CodeMode>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,dfrom:%Library.Date,dto:%Library.Date,Hospital:%String,DRG:%String]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ New repid,ind
+
+ // Use $Increment to get the next node
+ Set repid=$I(^CacheTemp("TRAK"))
+ k ^CacheTemp("TRAK",repid)
+ 
+ s mon=..MonitorBegin()
+  
+ n z,END1,END2,x,HOSPRowId
+ n Episodes,HOSPDesc,DRGRowId,DRGCode,DRGDesc,MRADMWeight,LOS,DRGCodeDesc,PAADMAdmDate,PAADMDischgDate,Days,LeaveDays,ALOS,DayCases
+ s (Episodes,HOSPDesc,DRGRowId,DRGCode,DRGDesc,MRADMWeight,DRGCodeDesc,PAADMAdmDate,PAADMDischgDate,HOSPRowId)=""
+ s (Days,LOS,LeaveDays,ALOS,DayCases)=0
+ s ind=0
+
+ s dfrom=..ConvertDateToCache(dfrom)
+ s dto=..ConvertDateToCache(dto)
+
+ // Strip white space/control chars from blank variables
+ i $g(Hospital)'="" s Hospital=$ZSTRIP(Hospital,"*WC")
+ i $g(DRG)'="" s DRG=$ZSTRIP(DRG,"*WC")
+	 
+ &sql(DECLARE EpisodeDRG CURSOR FOR
+SELECT 
+  count(PAADM_RowId),
+  PAADM_AdmDate,
+  PAADM_DischgDate,
+  %exact(PAADM_Hospital_DR->HOSP_Desc),  
+  PAADM_MainMRADM_DR->MRADM_DRG_DR->DRG_RowId,
+  PAADM_MainMRADM_DR->MRADM_DRG_DR->DRG_Code,
+  PAADM_MainMRADM_DR->MRADM_DRG_DR->DRG_Desc,   
+  PAADM_MainMRADM_DR->MRADM_Weight,
+  case when PAADM_DischgDate=PAADM_AdmDate then count(PAADM_AdmNo) else 0 end,
+  sum(PAADM_DischgDate-PAADM_AdmDate),
+  PAADM_Hospital_DR->HOSP_RowId
+ FROM SQLUSER.PA_Adm 
+ WHERE 
+ PAADM_DischgDate BETWEEN :dfrom AND :dto 
+ AND PAADM_TYPE='I' AND PAADM_VisitStatus='D'
+ AND PAADM_MainMRADM_DR->MRADM_DRG_DR->DRG_Code is NOT NULL 
+ AND (({fn CONCAT( ',', {fn CONCAT((:Hospital),',')})} [ {fn CONCAT( ',', {fn CONCAT((PAADM_Hospital_DR->HOSP_RowId),',')})}) OR (:Hospital IS NULL))
+ AND (({fn CONCAT( ',', {fn CONCAT((:DRG),',')})} [ {fn CONCAT( ',', {fn CONCAT((PAADM_MainMRADM_DR->MRADM_DRG_DR->DRG_RowId),',')})}) OR (:DRG IS NULL))
+group by PAADM_Hospital_DR->HOSP_Desc,PAADM_MainMRADM_DR->MRADM_DRG_DR->DRG_Code
+)
+	
+ &sql( OPEN EpisodeDRG )
+ &sql(FETCH EpisodeDRG INTO :Episodes,:PAADMAdmDate,:PAADMDischgDate,:HOSPDesc,:DRGRowId,:DRGCode,:DRGDesc,:MRADMWeight,:DayCases,:Days,:HOSPRowId)
+
+ while 'SQLCODE{
+
+ ; Retrieve the current status
+ d GetLeaveDays
+ i HOSPDesc="" {s HOSPDesc="No hospital defined"}  
+ s DRGCodeDesc=DRGCode_": "_DRGDesc
+ s LOS=Days+DayCases-LeaveDays
+ s ALOS=LOS/Episodes 
+ 
+ // build the row
+ s ^CacheTemp("TRAK",repid,$ZCVT(HOSPDesc,"U")_" "_$ZCVT(DRGCode,"U")_ind)=$lb(Episodes,PAADMAdmDate,PAADMDischgDate,HOSPDesc,DRGRowId,DRGCode,DRGDesc,MRADMWeight,DayCases,Days,DRGCodeDesc,LeaveDays,LOS,ALOS,HOSPRowId) 
+ s ind=ind+1
+    
+ //fetch rows
+ &sql(FETCH EpisodeDRG INTO :Episodes,:PAADMAdmDate,:PAADMDischgDate,:HOSPDesc,:DRGRowId,:DRGCode,:DRGDesc,:MRADMWeight,:DayCases,:Days,:HOSPRowId) 
+ }
+ 
+ &sql( CLOSE EpisodeDRG )
+ 
+ // Build QHandle (AtEnd,ReportID,Index)
+ Set QHandle=$lb(0,repid,0)
+ Quit $$$OK
+
+GetLeaveDays
+ Set (LeaveDays) = 0
+
+ &sql(SELECT
+sum(adml_actualdatereturn-adml_goingoutdate)
+INTO :LeaveDays
+from SQLUSER.pa_admleave
+where adml_parref->paadm_dischgdate between :dfrom and :dto and
+adml_goingoutdate is not null and
+adml_parref->paadm_mainmradm_Dr->mradm_drg_Dr->drg_code=:DRGCode and
+adml_parref->paadm_hospital_Dr->HOSP_Desc=:HOSPDesc
+group by adml_parref->paadm_hospital_Dr->HOSP_Desc,adml_parref->paadm_mainmradm_Dr->mradm_drg_Dr->drg_code	 	  	      			
+)
+ Quit
+]]></Implementation>
+</Method>
+
+<Method name="GetDetailsFetch">
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,&Row:%Library.List,&AtEnd:%Library.Integer=0]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // This fetch method should never have to change. 
+
+ // repid - Report ID
+ // ind   - sequence index which represents each row
+
+ New repid,ind
+
+
+ // Restore QHandle
+ Set AtEnd=$li(QHandle,1)
+ Set repid=$li(QHandle,2)
+ Set ind=$li(QHandle,3)
+
+ Set ind=$o(^CacheTemp("TRAK",repid,ind))
+ If ind="" {	// if there are no more rows, finish fetching
+ Set AtEnd=1
+ Set Row=""
+ }
+ Else      {	// fetch row
+ Set Row=^CacheTemp("TRAK",repid,ind)
+ }
+
+ // Save QHandle
+ s QHandle=$lb(AtEnd,repid,ind)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Query name="GetDetails">
+<Type>%Library.Query</Type>
+<FormalSpec>dfrom:%Date,dto:%Date,Hospital:%String,DRG:%String</FormalSpec>
+<SqlProc>1</SqlProc>
+<Parameter name="CONTAINID" value="0"/>
+<Parameter name="ROWSPEC" value="Episodes:%String,PAADMAdmDate:%String,PAADMDischgDate:%String,HOSPDesc:%String,DRGRowId:%String,DRGCode:%String,DRGDesc:%String,MRADMWeight:%String,DayCases:%Integer,Days:%Integer,DRGCodeDesc:%String(MAXLEN=999),LeaveDays:%Integer,LOS:%Integer,ALOS:%Integer,HOSPRowId:%String"/>
+</Query>
+
+<Query name="LookUpDRG">
+<Type>%Library.SQLQuery</Type>
+<FormalSpec>var:%String,activedate:%Library.Date</FormalSpec>
+<SqlQuery><![CDATA[SELECT DRG_Desc,DRG_RowId,DRG_Code
+FROM SQLUser.MRC_DRGCodes
+WHERE ((%UPPER DRG_Desc %STARTSWITH %UPPER :val) OR (%UPPER DRG_Code %STARTSWITH %UPPER :val))
+AND ((DRG_DateFrom <= :activedate) OR (DRG_DateFrom IS NULL) OR (:activedate IS NULL))
+AND ((DRG_DateTo >= :activedate) OR (DRG_DateTo IS NULL) OR (:activedate IS NULL))]]></SqlQuery>
+<Parameter name="CONTAINID" value="2"/>
+<Parameter name="ROWSPEC" value="Description:%String,HIDDEN:%String,Code:%String"/>
+</Query>
+
+<Method name="LookUpDRGBroker">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>itmjs:%Library.String="",itmjsex:%Library.String="",var:%Library.String="",activedate:%Library.Date=""</FormalSpec>
+<Implementation><![CDATA[
+ n id,code,desc
+ s (id,code,desc)=""
+ &SQL(SELECT DISTINCT
+ DRG_Desc,DRG_RowId,DRG_Code
+ INTO :desc,:id,:code
+ FROM  SQLUser.MRC_DRGCodes
+ WHERE ((%ALPHAUP DRG_Desc = %ALPHAUP :var) OR (%ALPHAUP DRG_Code = %ALPHAUP :var))
+ AND ((DRG_DateFrom <= :activedate) OR (DRG_DateFrom IS NULL) OR (:activedate IS NULL))
+ AND ((DRG_DateTo >= :activedate) OR (DRG_DateTo IS NULL) OR (:activedate IS NULL)))
+ ;
+ i SQLCODE s desc=var q 0
+ s retval=itmjs_"('"_$ZCVT(desc,"O","JS")_"');"
+ i itmjsex'="""" s retval=retval_itmjsex_"('"_$ZCVT(desc,"O","JS")_"^"_id_"^"_$ZCVT(code,"O","JS")_"');"
+ &javascript<#(retval)#>
+ q 1
+]]></Implementation>
+</Method>
+</Class>
+</Export>

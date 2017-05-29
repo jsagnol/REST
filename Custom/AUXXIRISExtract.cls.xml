@@ -1,0 +1,2941 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.AUXXIRISExtract">
+<Description><![CDATA[
+Version 10.15
+TRC23657 08/07/2008
+TRC23657 11/07/2008
+TRC23657 20/08/2008
+TRC25315 22/08/2008
+TRC26414 24/09/2008
+TRC26711 10/10/2008
+TRC28843 05/02/2009
+TRC28843 25/02/2009
+TRC28843 23/04/2009
+TRC28843 18/06/2009
+TRC47336 18/05/2010
+TRC46707 21/05/2010
+TRC46713 21/05/2010
+TRC47333 19/05/2010
+TRC48230 28/05/2010
+TRC48242 28/05/2010
+Consolidate versions 9.6&9.7
+TRC48230 23/06/2010
+TRC46713 28/06/2010
+TRC46712 28/06/2010
+TRC46712 05/07/2010
+TRC48230 08/07/2010
+TRC50597 08/07/2010 
+Updated for 2010 WRC 742393 5/01/2011
+TRC75229 24/06/2011 Updated queries
+TRC112150		IF		05/07/2012	- Created from Custom.VICIRISExtrac ver 9.14 and update for AUXX foundation ver 10.2
+Incident 312			24/08/2012 - only 3 extract files and summary created 
+Incident 607 	FD		21/09/2012 - extract files have incorrect oid's
+Incident 780 	IF		04/10/2012 - Issues with AgencyCase section
+Incident 782 	IF		04/10/2012 - Set default values to null instead of 0 unless stated in spec.
+Incident 607    IF      05/10/2012 - Allocate LabEpisodeNumber to order if null
+				MH		18/10/2012 - Align with IRIS extract Specification ver 10.1
+							20/12/2012	- Confirm as Version released for DHS R2 add version and history version 10.2, linked extract specification version 10.2 
+TRC 134138		FD		13/02/2013 -  Error in Cases method - no report generated
+I4029			IF		04/04/2013 - Resolve extract not generating
+I4031					7/05/2013 - Resolve Issues with NSCase
+I4031					8/5/2013 - correct "Set all values to null if 0"
+I4031			IF		14/05/2013 - Updated to get code instead of rowid returned from questionnaire
+I4031			IF		30/05/2013 - Resolve error with agency Field in NSCase, apply trust filter to NSCase 
+I4031			IF		05/06/2013 - Translate sequence numbers with "." to "0"
+I4031					14/06/2013 - resolve issue with 'ISREFERRAL' and 'REFERRALTRACKPROGRESS'
+I4031					20/06/2013 - resolve issue with VOCATOutcomeCode (I151)
+I6708			IF		26/07/2013 - Report the actual code into the summary so that it can be displayed correctly
+TRC160810		FD		09/10/2013 - Edition changes
+TRC161505		IF		11/11/2013 - Allow for event.EVPreparationTime to be null]]></Description>
+<ClassType/>
+<ProcedureBlock>0</ProcedureBlock>
+<Super>%Library.RegisteredObject,Report.Abstract</Super>
+<TimeCreated>60830,55301.465725</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/AUXXIRISExtract.xml#1 $</Default>
+</Parameter>
+
+<Method name="Print">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>Quarter:%String,Year:%String,Agency:%String,VerMajor:%Library.String,VerMinor:%Library.String,VerRelease:%Library.String,VerBuild:%Library.String,Site:%Library.String</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	s $ZTRAP="ProcessError"
+	n qhnd
+	d ..IRISExtractExecute(.qhnd,Quarter,Year,Agency,VerMajor,VerMinor,VerRelease,VerBuild,Site)
+	n avgrow,AtEnd
+	s avgrow=$lb("")
+	s AtEnd=0
+	d ..IRISExtractFetch(.qhnd,.argrow,.AtEnd)
+	d ..IRISExtractClose(qhnd)
+	q 1
+
+ProcessError
+ s error=$ZERROR
+ s reportdr=##class(websys.Report).GetIdFromCodeOrDescription("AUXX.IRISExtract")
+ s rhid=$o(^websys.PrintHistoryI("ReportDRP1Index",reportdr," "_Quarter,""),-1)
+ i $g(rhid)'="" d
+ . s obj=##class(websys.PrintHistory).%OpenId(rhid)
+ . i obj d
+ . . ; If parameters match then update print history with error
+ . . i obj.P1=Quarter,obj.P2=Year,obj.P3=Agency,obj.P4=VerMajor,obj.P5=VerMinor,obj.P6=VerRelease,obj.P7=VerBuild,obj.P8=Site d
+ . . . s obj.ErrorDescription=$g(error)
+ . . . s obj.Status="E"
+ . . . d obj.%Save(0)
+ . . k obj
+ q
+]]></Implementation>
+</Method>
+
+<Method name="GetMappedCode">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>TableName:%Library.String,FieldName:%Library.String,ReportType:%Library.String,ActualValue:%Library.String</FormalSpec>
+<ReturnType>%Library.String</ReturnType>
+<Implementation><![CDATA[
+	n MappedValue
+	s MappedValue=""
+	s ReportType=$o(^PAC("REPTYPE",0,"Code",##class(%Collation).AlphaUp(ReportType),""))
+	
+	q:TableName="" ActualValue
+	q:FieldName="" ActualValue
+	s TableName=##class(%Collation).AlphaUp(TableName)
+	s FieldName=##class(%Collation).AlphaUp(FieldName)
+	
+	i $g(ReportType)'="" d
+	. s nat=0 f  s nat=$o(^PAC("NATC",0,"Table",TableName,FieldName,ReportType,nat)) q:nat=""  d
+	. . q:$p($g(^PAC("NATC",nat)),"^",2)'=""
+	. . i $p($g(^PAC("NATC",nat)),"^",8)=$g(ActualValue) s MappedValue=$p($g(^PAC("NATC",nat)),"^",9)
+	i $g(MappedValue)="" d
+	. s ReportType=$o(^PAC("REPTYPE",0,"Code",##class(%Collation).AlphaUp("CCDS"),""))
+	. i $g(ReportType)'="" d
+	. . s nat=0 f  s nat=$o(^PAC("NATC",0,"Table",TableName,FieldName,ReportType,nat)) q:nat=""  d
+	. . . q:$p($g(^PAC("NATC",nat)),"^",2)'=""
+	. . . i $p($g(^PAC("NATC",nat)),"^",8)=$g(ActualValue) s MappedValue=$p($g(^PAC("NATC",nat)),"^",9)
+	
+	i $g(MappedValue)="" s MappedValue=ActualValue
+	q MappedValue
+]]></Implementation>
+</Method>
+
+<Method name="IRISExtractClose">
+<Description>
+This is the Close component of the %Library.Query.
+This is standard code and should never have to change.
+This is where all the cleanup is performed, i.e. the purging of the temporary storage global ^CacheTemp.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>QHandle:%Library.Binary</FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Clean up by purging the temporary node in ^CacheTemp global
+ New repid
+ Set repid=$li(QHandle,2)
+ 
+ //Start Monitor (if configured to capture stats)
+ i mon Do ..MonitorEnd(mon)
+
+ Kill ^CacheTemp(repid)
+ 
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="IRISExtractExecute">
+<Description>
+This is the Execute section for the %Library.Query. 
+All of the logic will be performed here.
+A new node for the ^CacheTemp global will be created and each subscript of this global will contain
+a row for the report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,Quarter:%Library.String,Year:%Library.String,Agency:%Library.String,VerMajor:%Library.String,VerMinor:%Library.String,VerRelease:%Library.String,VerBuild:%Library.String,Site:%Library.String]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Get reportid i.e. use $INCREMENT to add another node to ^CacheTemp global. 
+ // We use ^CacheTemp global because it will always use memory before disk
+ New repid,ind,END,ENDPAYOR,END1,END2,END3,END4,END5
+ s (ind,END,ENDPAYOR,END1,END2,END3,END4,END5)=0
+ // Use $Increment to get the next node
+ Set repid=$I(^CacheTemp)
+
+ //Start Monitor (if configured to capture stats)
+ s mon=..MonitorBegin()
+ 
+ n EVRowId,TIMEDate,TIMEChildsub,CPFChildsub,CPFCareProvDR,EVRBResourceDR,TIMEStartTime,NARowId,NAArrived,EVNumber,EVEventSubTypeDR,SUBCode,EVAttendeeFemaleNo,EVAttendeeMaleNo,EVDuration,EVPredictedTravelTime,EVCharge,FacCount,RESRowId,RESCTLOCDR
+ s (EVRowId,TIMEDate,TIMEChildsub,CPFChildsub,CPFCareProvDR,EVRBResourceDR,TIMEStartTime,NARowId,NAArrived,EVNumber,EVEventSubTypeDR,SUBCode,EVAttendeeFemaleNo,EVAttendeeMaleNo,EVDuration,EVPredictedTravelTime,EVCharge,FacCount,RESRowId,RESCTLOCDR)=""
+ 
+ n I1,I2,I3,I4,I5,I6,I7,I8,I9,I10,I326,I11,I12,I13,I14,I15,I16,I17,I18,I19,I20,I21,I22,I23,I24,I25,I26,I27,I28,I29,I30,I31,I32,I33,I34,I35,I36,I37,I38,I39,I40,I41,I42,I43,I44,I45,I46,I47,I48,I49,I50
+ n I51,I52,I53,I54,I55,I56,I57,I58,I59,I60,I61,I62,I63,I64,I65,I66,I67,I68,I69,I70,I71,I72,I73,I74,I75,I76,I77,I78,I79,I80,I81,I82,I83,I84,I85,I86,I87,I88,I89,I90,I91,I92,I93,I94,I95,I96,I97,I98,I99,I100
+ n I101,I102,I103,I104,I105,I106,I107,I108,I109,I110,I111,I112,I113,I114,I115,I116,I117,I118,I119,I120,I121,I122,I123,I124,I125,I126,I127,I128,I129,I130,I131,I132,I133,I134,I135,I136,I137,I138,I139,I140,I141,I142,I143,I144,I145,I146,I147,I148,I149,I150
+ n I151,I152,I153,I154,I155,I156,I157,I158,I159,I160,I161,I162,I163,I164,I165,I166,I167,I168,I169,I170,I171,I172,I173,I174,I175,I176,I177,I178,I179,I180,I181,I182,I183,I184,I185,I186,I187,I188,I189,I190,I191,I192,I193,I193CL,I194,I195,I196,I197,I198,I199,I200
+ n I201,I202,I203,I204,I205,I206,I207,I208,I209,I210,I211,I212,I213,I214,I215,I216,I217,I218,I219,I220,I221,I222,I223,I224,I225,I226,I227,I228,I229,I230,I231,I232,I233,I234,I235,I236,I237,I238,I239,I240,I241,I242,I243,I244,I245,I246,I247,I248,I249,I250
+ n I251,I252,I253,I254,I255,I256,I257,I258,I259,I260,I261,I262,I263,I264,I265,I266,I267,I268,I269,I270,I271,I272,I273,I274,I275,I276,I277,I278,I279,I280,I281,I282,I283,I284,I285,I286,I287,I288,I289,I290,I291,I292,I293,I294,I295,I296,I297,I298,I299,I300
+ n I301,I302,I303,I304,I305,I306,I307,I308,I309,I310,I311,I312,I313,I314,I315,I316,I317,I318,I319,I320,I321,I322,I323,I324,I325
+
+ s (I1,I2,I3,I4,I5,I6,I7,I8,I9,I10,I326,I11,I12,I13,I14,I15,I16,I17,I18,I19,I20,I21,I22,I23,I24,I25,I26,I27,I28,I29,I30,I31,I32,I33,I34,I35,I36,I37,I38,I39,I40,I41,I42,I43,I44,I45,I46,I47,I48,I49,I50)=""
+ s (I51,I52,I53,I54,I55,I56,I57,I58,I59,I60,I61,I62,I63,I64,I65,I66,I67,I68,I69,I70,I71,I72,I73,I74,I75,I76,I77,I78,I79,I80,I81,I82,I83,I84,I85,I86,I87,I88,I89,I90,I91,I92,I93,I94,I95,I96,I97,I98,I99,I100)=""
+ s (I101,I102,I103,I104,I105,I106,I107,I108,I109,I110,I111,I112,I113,I114,I115,I116,I117,I118,I119,I120,I121,I122,I123,I124,I125,I126,I127,I128,I129,I130,I131,I132,I133,I134,I135,I136,I137,I138,I139,I140,I141,I142,I143,I144,I145,I146,I147,I148,I149,I150)=""
+ s (I151,I152,I153,I154,I155,I156,I157,I158,I159,I160,I161,I162,I163,I164,I165,I166,I167,I168,I169,I170,I171,I172,I173,I174,I175,I176,I177,I178,I179,I180,I181,I182,I183,I184,I185,I186,I187,I188,I189,I190,I191,I192,I193,I193CL,I194,I195,I196,I197,I198,I199,I200)=""
+ s (I201,I202,I203,I204,I205,I206,I207,I208,I209,I210,I211,I212,I213,I214,I215,I216,I217,I218,I219,I220,I221,I222,I223,I224,I225,I226,I227,I228,I229,I230,I231,I232,I233,I234,I235,I236,I237,I238,I239,I240,I241,I242,I243,I244,I245,I246,I247,I248,I249,I250)=""
+ s (I251,I252,I253,I254,I255,I256,I257,I258,I259,I260,I261,I262,I263,I264,I265,I266,I267,I268,I269,I270,I271,I272,I273,I274,I275,I276,I277,I278,I279,I280,I281,I282,I283,I284,I285,I286,I287,I288,I289,I290,I291,I292,I293,I294,I295,I296,I297,I298,I299,I300)=""
+ s (I301,I302,I303,I304,I305,I306,I307,I308,I309,I310,I311,I312,I313,I314,I315,I316,I317,I318,I319,I320,I321,I322,I323,I324,I325)=""
+
+ 
+ n INSTCode4,Update,id,id1,id2,id3,RTMASRowId,TYPRowId,alias,AUXITRowId,INSChildsub,INSTRowId,AUXITRowId,INSDateTypeFrom,INSDateTypeTo,PAPERRowId
+ s (INSTCode4,Update,id,id1,id2,id3,RTMASRowId,TYPRowId,alias,AUXITRowId,INSChildsub,INSTRowId,AUXITRowId,INSDateTypeFrom,INSDateTypeTo,PAPERRowId)=""
+ n HOSPRowId,TRUSTRowId,TRUSTCode,I295,I296,I297,I298,I299,I300,I301,I302,NOKPAPERDOB,NOKCTSEXCode,NOKINDSTCode,NOKCTCOUCode,NOKCTZIPCode,NOKPAPERAgeYr
+ s (HOSPRowId,TRUSTRowId,TRUSTCode,I295,I296,I297,I298,I299,I300,I301,I302,NOKPAPERDOB,NOKCTSEXCode,NOKINDSTCode,NOKCTCOUCode,NOKCTZIPCode,NOKPAPERAgeYr)=""
+ n ALIASRowId,INSTRowId,ALIASDateFrom,ALIASDateTo,I320,I321,I303,I304,I305,I306,I307,I308,INSTCode4,AUXITCode,AUXITRowId,OEORIRowId
+ s (INSTRowId,ALIASDateFrom,ALIASDateTo,I320,I321,I303,I304,I305,I306,I307,I308,INSTCode4,AUXITCode,AUXITRowId,OEORIRowId)=""
+ 
+ k ^zCacheTemp("IRISExtract_Main",repid)
+ k ^zCacheTemp("IRISExtract","Agency",repid)
+ k ^zCacheTemp("IRISExtract","NSCaseCheck",repid)
+ k ^zCacheTemp("IRISExtract","GroupClient",repid)
+ k ^zCacheTemp("IRISExtract","Project",repid)
+ k ^zCacheTemp("IRISExtract","Client",repid)
+ k ^zCacheTemp("IRISExtract","Case",repid)
+ k ^zCacheTemp("IRISExtract","NSCase",repid)
+ k ^zCacheTemp("IRISExtract","Child",repid)
+ k ^zCacheTemp("IRISExtract","RelatedPerson",repid)
+ k ^zCacheTemp("IRISExtract","Activity",repid)
+ k ^zCacheTemp("IRISExtract","CaseFamily",repid)
+ k ^zCacheTemp("IRISExtract","CaseFinancial",repid)
+ k ^zCacheTemp("IRISExtract","CaseFVS",repid)
+ k ^zCacheTemp("IRISExtract","CaseGambling",repid)
+ k ^zCacheTemp("IRISExtract","CaseLN",repid)
+ k ^zCacheTemp("IRISExtract","CaseMCH",repid)
+ k ^zCacheTemp("IRISExtract","CasePSFO",repid)
+ k ^zCacheTemp("IRISExtract","CaseSASS",repid)
+ k ^zCacheTemp("IRISExtract","CaseSCS",repid)
+ k ^zCacheTemp("IRISExtract","Service",repid)
+ k ^zCacheTemp("IRISExtract","ServiceFamily",repid)
+ k ^zCacheTemp("IRISExtract","ServiceMCH",repid)
+ k ^zCacheTemp("IRISExtract","ServiceSASS",repid)
+ k ^zCacheTemp("IRISExtract","ServiceSCS",repid)
+ k ^zCacheTemp("IRISExtract","Issue",repid)
+ k ^zCacheTemp("IRISExtract_Contact",repid)
+ 
+ i Quarter'="" s Quarter=$zstrip(Quarter,"*C")
+ i Year'="" s Year=$zstrip(Year,"*CW")
+ i Agency'="" s Agency=$zstrip(Agency,"*CW")
+ i VerMajor'="" s VerMajor=$zstrip(VerMajor,"*CW")
+ i VerMinor'="" s VerMinor=$zstrip(VerMinor,"*CW")
+ i VerRelease'="" s VerRelease=$zstrip(VerRelease,"*CW")
+ i VerBuild'="" s VerBuild=$zstrip(VerBuild,"*CW")
+ 
+ i Quarter="July - September" s DateFrom=Year_"/07/01",DateTo=Year_"/09/30"
+ i Quarter="October - December" s DateFrom=Year_"/10/01",DateTo=Year_"/12/31"
+ i Quarter="January - March" s DateFrom=Year_"/01/01",DateTo=Year_"/03/31"
+ i Quarter="April - June" s DateFrom=Year_"/04/01",DateTo=Year_"/06/30"
+ 
+ s DateFrom=$$intdate^SSUTIL4(DateFrom)
+ s DateTo=$$intdate^SSUTIL4(DateTo)
+ s DatePast=DateTo-365
+
+ n EXTDate,EXTTime
+ s EXTDate=+$h
+ s EXTTime=$p($h,",",2)
+ 
+ s ^||SITE=""
+ i $zstrip($g(Site),"*WC")'="" {
+	 s ^||SITE=$zstrip($g(Site),"*WC")
+ } else {
+	 s conf=##class(websys.Configuration).%OpenId(1)
+	 i conf {
+		 s ^||SITE=conf.SiteCode
+		 k conf
+	 }
+ }
+
+ s ^zCacheTemp("IRISExtract","Agency",repid)=$c(34)_"oid"_$c(34)_","_$c(34)_"owner_oid"_$c(34)_","_$c(34)_"Outlet"_$c(34)_","_$c(34)_"Description"_$c(34)_","_$c(34)_"VerMajor"_$c(34)_","_$c(34)_"VerMinor"_$c(34)_","_$c(34)_"VerRelease"_$c(34)_","_$c(34)_"VerBuild"_$c(34)
+ s ^zCacheTemp("IRISExtract","AgencyCase",repid)=$c(34)_"oid"_$c(34)_","_$c(34)_"owner_oid"_$c(34)_","_$c(34)_"CaseCode"_$c(34)_","_$c(34)_"SourceOfFundingCode"_$c(34)_","_$c(34)_"Description"_$c(34)_","_$c(34)_"LastExportDate"_$c(34)_","_$c(34)_"LastExportFromDate"_$c(34)_","_$c(34)_"LastExportToDate"_$c(34)
+ s ^zCacheTemp("IRISExtract","Project",repid)=$c(34)_"oid"_$c(34)_","_$c(34)_"AgencyCode"_$c(34)_","_$c(34)_"IsActive"_$c(34)_","_$c(34)_"Name"_$c(34)_","_$c(34)_"ProjectTypeCode"_$c(34)_","_$c(34)_"StartDate"_$c(34)_","_$c(34)_"EndDate"_$c(34)_","_$c(34)_"CaseTypeCode"_$c(34)_","_$c(34)_"SourceOfFundingCode"_$c(34)
+ s ^zCacheTemp("IRISExtract","Activity",repid)=$c(34)_"oid"_$c(34)_","_$c(34)_"owner_oid"_$c(34)_","_$c(34)_"ActivityDate"_$c(34)_","_$c(34)_"ActivityTypeCode"_$c(34)_","_$c(34)_"StaffCount"_$c(34)_","_$c(34)_"MaleCount"_$c(34)_","_$c(34)_"FemaleCount"_$c(34)_","_$c(34)_"Duration"_$c(34)_","_$c(34)_"TravelTime"_$c(34)_","_$c(34)_"Expenditure"_$c(34)_","_$c(34)_"SourceAgencyCode"_$c(34)_","_$c(34)_"Suburb_oid"_$c(34)
+ s ^zCacheTemp("IRISExtract","Client",repid)=$c(34)_"oid"_$c(34)_","_$c(34)_"owner_oid"_$c(34)_","_$c(34)_"AgencyCode"_$c(34)_","_$c(34)_"IsActive"_$c(34)_","_$c(34)_"Suburb_oid"_$c(34)_","_$c(34)_"DateOfBirth"_$c(34)_","_$c(34)_"DoBDeclined"_$c(34)_","_$c(34)_"SexCode"_$c(34)_","_$c(34)_"IndigenousStatusCode"_$c(34)_","_$c(34)_"CountryOfBirthCode"_$c(34)_","_$c(34)_"FirstYearArrival"_$c(34)_","_$c(34)_"MigrationCode"_$c(34)_","_$c(34)_"HouseholdTypeCode"_$c(34)_","_$c(34)_"EnglishCode"_$c(34)_","_$c(34)_"SpokenLanguageCode"_$c(34)_","_$c(34)_"PartnerLanguageCode"_$c(34)_","_$c(34)_"BilingualWorkerCode"_$c(34)_","_$c(34)_"Ancestry1Code"_$c(34)_","_$c(34)_"Ancestry2Code"_$c(34)_","_$c(34)_"Ancestry3Code"_$c(34)_","_$c(34)_"Ancestry4Code"_$c(34)_","_$c(34)_"StatsLinkage"_$c(34)_","_$c(34)_"ClientRef"_$c(34)
+ s ^zCacheTemp("IRISExtract","Child",repid)=$c(34)_"oid"_$c(34)_","_$c(34)_"owner_oid"_$c(34)_","_$c(34)_"DateOfBirth"_$c(34)_","_$c(34)_"SexCode"_$c(34)_","_$c(34)_"IndigenousStatusCode"_$c(34)_","_$c(34)_"CountryOfBirthCode"_$c(34)_","_$c(34)_"StatsLinkage"_$c(34)_","_$c(34)_"BreastFeedingCode"_$c(34)_","_$c(34)_"AgeStageCode"_$c(34)_","_$c(34)_"ImmunizationCode"_$c(34)
+ s ^zCacheTemp("IRISExtract","Case",repid)=$c(34)_"oid"_$c(34)_","_$c(34)_"owner_oid"_$c(34)_","_$c(34)_"ClassCode"_$c(34)_","_$c(34)_"SourceOfFundingCode"_$c(34)_","_$c(34)_"ReferralSourceCode"_$c(34)_","_$c(34)_"ReferralDate"_$c(34)_","_$c(34)_"EndDate"_$c(34)_","_$c(34)_"CaseOutcomeCode"_$c(34)_","_$c(34)_"EndReasonCode"_$c(34)_","_$c(34)_"PointOfClosureCode"_$c(34)_","_$c(34)_"AgencyCode"_$c(34)_","_$c(34)_"Suburb_oid"_$c(34)_","_$c(34)_"REFERENCECODE"_$c(34)_","_$c(34)_"SOURCEAGENCYCODE"_$c(34)_","_$c(34)_"ISREFERRAL"_$c(34)_","_$c(34)_"REFERRALTRACKPROGRESS"_$c(34)
+ s ^zCacheTemp("IRISExtract","NSCase",repid)=$c(34)_"oid"_$c(34)_","_$c(34)_"owner_oid"_$c(34)_","_$c(34)_"AgencyCode"_$c(34)_","_$c(34)_"Suburb_oid"_$c(34)_","_$c(34)_"SexCode"_$c(34)_","_$c(34)_"CaseTypeCode"_$c(34)_","_$c(34)_"StartDate"_$c(34)_","_$c(34)_"Duration"_$c(34)_","_$c(34)_"TravelTime"_$c(34)_","_$c(34)_"CaseOutcomeCode"_$c(34)_","_$c(34)_"InterpreterCode"_$c(34)_","_$c(34)_"SourceOfFundingCode"_$c(34)
+ s ^zCacheTemp("IRISExtract","RelatedPerson",repid)=$c(34)_"oid"_$c(34)_","_$c(34)_"owner_oid"_$c(34)_","_$c(34)_"Suburb_oid"_$c(34)_","_$c(34)_"SexCode"_$c(34)_","_$c(34)_"Age"_$c(34)_","_$c(34)_"IndigenousStatusCode"_$c(34)_","_$c(34)_"CountryOfBirthCode"_$c(34)_","_$c(34)_"StatsLinkage"_$c(34)_","_$c(34)_"RelationshipCode"_$c(34)_","_$c(34)_"WithClientCode"_$c(34)_","_$c(34)_"ProblemGamblerCode"_$c(34)
+ s ^zCacheTemp("IRISExtract","CaseFamily",repid)=$c(34)_"oid"_$c(34)_","_$c(34)_"HousingTypeCode"_$c(34)_","_$c(34)_"HousingTenureCode"_$c(34)_","_$c(34)_"SourceOfIncome1Code"_$c(34)_","_$c(34)_"SourceOfIncome2Code"_$c(34)_","_$c(34)_"SourceOfIncome3Code"_$c(34)_","_$c(34)_"SourceOfIncome4Code"_$c(34)_","_$c(34)_"FamilyStatusCode"_$c(34)_","_$c(34)_"REFERRERIDENTITYCODE"_$c(34)_","_$c(34)_"INTAKEOUTCOMECODE"_$c(34)_","_$c(34)_"CASECATEGORYCODE"_$c(34)_","_$c(34)_"CASECATEGORYDATE"_$c(34)_","_$c(34)_"CHILDRENRECORDEDCODE"_$c(34)_","_$c(34)_"PREVCFCOUNT"_$c(34)_","_$c(34)_"PREVNONCFCOUNT"_$c(34)
+ s ^zCacheTemp("IRISExtract","CaseFinancial",repid)=$c(34)_"oid"_$c(34)_","_$c(34)_"HousingTypeCode"_$c(34)_","_$c(34)_"HousingTenureCode"_$c(34)_","_$c(34)_"SourceOfIncome1Code"_$c(34)_","_$c(34)_"SourceOfIncome2Code"_$c(34)_","_$c(34)_"SourceOfIncome3Code"_$c(34)_","_$c(34)_"SourceOfIncome4Code"_$c(34)_","_$c(34)_"ClientIncomeRangeCode"_$c(34)_","_$c(34)_"CauseFinancialDifficulty1Code"_$c(34)_","_$c(34)_"CauseFinancialDifficulty2Code"_$c(34)_","_$c(34)_"CauseFinancialDifficulty3Code"_$c(34)_","_$c(34)_"CauseFinancialDifficulty4Code"_$c(34)_","_$c(34)_"ReferralReason1Code"_$c(34)_","_$c(34)_"ReferralReason2Code"_$c(34)_","_$c(34)_"ReferralReason3Code"_$c(34)_","_$c(34)_"ReferralReason4Code"_$c(34)
+ s ^zCacheTemp("IRISExtract","CaseFVS",repid)=$c(34)_"oid"_$c(34)_","_$c(34)_"HousingTypeCode"_$c(34)_","_$c(34)_"LabourForceStatusCode"_$c(34)_","_$c(34)_"EducationLevelCode"_$c(34)_","_$c(34)_"SourceOfIncome1Code"_$c(34)_","_$c(34)_"SourceOfIncome2Code"_$c(34)_","_$c(34)_"SourceOfIncome3Code"_$c(34)_","_$c(34)_"SourceOfIncome4Code"_$c(34)_","_$c(34)_"PoliceNotifiedCode"_$c(34)_","_$c(34)_"CourtInvolvementCode"_$c(34)_","_$c(34)_"InterventionOrderCode"_$c(34)_","_$c(34)_"VOCATOutcomeCode"_$c(34)_","_$c(34)_"RiskAssessmentCode"_$c(34)_","_$c(34)_"SafetyPlanCode"_$c(34)_","_$c(34)_"MandatedAttendanceCode"_$c(34)
+ s ^zCacheTemp("IRISExtract","CaseGambling",repid)=$c(34)_"oid"_$c(34)_","_$c(34)_"HousingTypeCode"_$c(34)_","_$c(34)_"HousingTenureCode"_$c(34)_","_$c(34)_"ClientIncomeRangeCode"_$c(34)_","_$c(34)_"HouseholdIncomeRangeCode"_$c(34)_","_$c(34)_"EmploymentStatusCode"_$c(34)_","_$c(34)_"EmploymentDesc1Code"_$c(34)_","_$c(34)_"EmploymentDesc2Code"_$c(34)_","_$c(34)_"EmploymentDesc3Code"_$c(34)_","_$c(34)_"EmploymentDesc4Code"_$c(34)_","_$c(34)_"OccupationCode"_$c(34)_","_$c(34)_"GovPensionCode"_$c(34)_","_$c(34)_"GamblingBehaviourCode"_$c(34)_","_$c(34)_"TimesLastMonth"_$c(34)_","_$c(34)_"GamblingLocationCode"_$c(34)_","_$c(34)_"RecentMoneySpent"_$c(34)_","_$c(34)_"RecentTimeSpent"_$c(34)_","_$c(34)_"TypicalBehaviourCode"_$c(34)_","_$c(34)_"ProblemDuration"_$c(34)_","_$c(34)_"GamblingHelpCode"_$c(34)_","_$c(34)_"GamblingIntroCode"_$c(34)
+ s ^zCacheTemp("IRISExtract","CaseLN",repid)=$c(34)_"oid"_$c(34)_","_$c(34)_"ServiceInvolvement1Code"_$c(34)_","_$c(34)_"ServiceInvolvement2Code"_$c(34)_","_$c(34)_"ServiceInvolvement3Code"_$c(34)_","_$c(34)_"ServiceInvolvement4Code"_$c(34)_","_$c(34)_"KinderCode"_$c(34)_","_$c(34)_"KinderYear2Code"_$c(34)_","_$c(34)_"Disability1Code"_$c(34)_","_$c(34)_"Disability2Code"_$c(34)_","_$c(34)_"Disability3Code"_$c(34)_","_$c(34)_"Disability4Code"_$c(34)_","_$c(34)_"Eligibility1Code"_$c(34)_","_$c(34)_"Eligibility2Code"_$c(34)_","_$c(34)_"Eligibility3Code"_$c(34)_","_$c(34)_"AppEligibleCode"_$c(34)_","_$c(34)_"CarerAllowanceCode"_$c(34)_","_$c(34)_"ApprovalDate"_$c(34)_","_$c(34)_"AppealLodgedCode"_$c(34)_","_$c(34)_"AppealUpheldCode"_$c(34)_","_$c(34)_"FinalisedDate"_$c(34)_","_$c(34)_"RecService1Code"_$c(34)_","_$c(34)_"RecService2Code"_$c(34)_","_$c(34)_"RecService3Code"_$c(34)_","_$c(34)_"RecService4Code"_$c(34)_","_$c(34)_"RecommendationReviewedCode"_$c(34)_","_$c(34)_"ReviewDate"_$c(34)_","_$c(34)_"RecServiceAfter1Code"_$c(34)_","_$c(34)_"RecServiceAfter2Code"_$c(34)_","_$c(34)_"RecServiceAfter3Code"_$c(34)_","_$c(34)_"RecServiceAfter4Code"_$c(34)_","_$c(34)_"SupportGroupStartDate"_$c(34)_","_$c(34)_"SupportStartDate"_$c(34)_","_$c(34)_"SupportReviewDate"_$c(34)
+ s ^zCacheTemp("IRISExtract","CaseMCH",repid)=$c(34)_"oid"_$c(34)_","_$c(34)_"HealthCareCardCode"_$c(34)_","_$c(34)_"FirstTimeMotherCode"_$c(34)_","_$c(34)_"AttendsMCHCode"_$c(34)_","_$c(34)_"AnteNatalServiceCode"_$c(34)
+ s ^zCacheTemp("IRISExtract","CasePSFO",repid)=$c(34)_"oid"_$c(34)_","_$c(34)_"ServiceInvolvement1Code"_$c(34)_","_$c(34)_"ServiceInvolvement2Code"_$c(34)_","_$c(34)_"ServiceInvolvement3Code"_$c(34)_","_$c(34)_"ServiceInvolvement4Code"_$c(34)_","_$c(34)_"Concern1Code"_$c(34)_","_$c(34)_"Concern2Code"_$c(34)_","_$c(34)_"Concern3Code"_$c(34)_","_$c(34)_"Concern4Code"_$c(34)_","_$c(34)_"Disability1Code"_$c(34)_","_$c(34)_"Disability2Code"_$c(34)_","_$c(34)_"Disability3Code"_$c(34)_","_$c(34)_"Disability4Code"_$c(34)_","_$c(34)_"KinderCode"_$c(34)_","_$c(34)_"KinderYear2Code"_$c(34)_","_$c(34)_"ReferralTo1Code"_$c(34)_","_$c(34)_"ReferralTo2Code"_$c(34)_","_$c(34)_"ReferralTo3Code"_$c(34)_","_$c(34)_"ReferralTo4Code"_$c(34)
+ s ^zCacheTemp("IRISExtract","CaseSASS",repid)=$c(34)_"oid"_$c(34)_","_$c(34)_"ReferralReasonCode"_$c(34)_","_$c(34)_"LegalStatusCode"_$c(34)_","_$c(34)_"OutofHomeCareCode"_$c(34)_","_$c(34)_"PoliceOutcomeCode"_$c(34)_","_$c(34)_"ChildProtectionOutcomeCode"_$c(34)_","_$c(34)_"VOCATOutcomeCode"_$c(34)_","_$c(34)_"LegalStatusClosureCode"_$c(34)_","_$c(34)_"FirstAssaultDate"_$c(34)_","_$c(34)_"LastAssaultDate"_$c(34)_","_$c(34)_"PerpetratorsCode"_$c(34)_","_$c(34)_"AssaultCode"_$c(34)_","_$c(34)_"InjuryCode"_$c(34)_","_$c(34)_"PoliceNotifiedCode"_$c(34)_","_$c(34)_"ChildProtectionNotifiedCode"_$c(34)_","_$c(34)_"VOCATReportWrittenCode"_$c(34)
+ s ^zCacheTemp("IRISExtract","CaseSCS",repid)=$c(34)_"oid"_$c(34)_","_$c(34)_"HousingTypeCode"_$c(34)_","_$c(34)_"HealthCareCardCode"_$c(34)_","_$c(34)_"CarerAllowanceCode"_$c(34)_","_$c(34)_"CSTDAFundingCode"_$c(34)_","_$c(34)_"CarerRegularCode"_$c(34)_","_$c(34)_"CarerAssistanceCode"_$c(34)_","_$c(34)_"CarerSameHouseholdCode"_$c(34)_","_$c(34)_"CarerRelationshipCode"_$c(34)_","_$c(34)_"CarerAgeGroupCode"_$c(34)_","_$c(34)_"Concern1Code"_$c(34)_","_$c(34)_"Concern2Code"_$c(34)_","_$c(34)_"Concern3Code"_$c(34)_","_$c(34)_"Concern4Code"_$c(34)_","_$c(34)_"Disability1Code"_$c(34)_","_$c(34)_"Disability2Code"_$c(34)_","_$c(34)_"Disability3Code"_$c(34)_","_$c(34)_"Disability4Code"_$c(34)_","_$c(34)_"PersHelpSelfCareCode"_$c(34)_","_$c(34)_"PersHelpMobilityCode"_$c(34)_","_$c(34)_"PersHelpCommunicationCode"_$c(34)_","_$c(34)_"PersHelpActivitiesCode"_$c(34)
+ s ^zCacheTemp("IRISExtract","Service",repid)=$c(34)_"oid"_$c(34)_","_$c(34)_"owner_oid"_$c(34)_","_$c(34)_"Group_oid"_$c(34)_","_$c(34)_"ServiceTypeCode"_$c(34)_","_$c(34)_"ServiceDate"_$c(34)_","_$c(34)_"LocationCode"_$c(34)_","_$c(34)_"InterpreterCode"_$c(34)_","_$c(34)_"Duration"_$c(34)_","_$c(34)_"TravelTime"_$c(34)_","_$c(34)_"Suburb_oid"_$c(34)_","_$c(34)_"ClientCount"_$c(34)
+ s ^zCacheTemp("IRISExtract","ServiceFamily",repid)=$c(34)_"oid"_$c(34)_","_$c(34)_"PartFemaleParent"_$c(34)_","_$c(34)_"PartMaleParent"_$c(34)_","_$c(34)_"PartChildren"_$c(34)_","_$c(34)_"PartAdolescent"_$c(34)_","_$c(34)_"PartOtherPersons"_$c(34)
+ s ^zCacheTemp("IRISExtract","ServiceMCH",repid)=$c(34)_"oid"_$c(34)_","_$c(34)_"AgeStageCode"_$c(34)_","_$c(34)_"ImmunizationCode"_$c(34)
+ s ^zCacheTemp("IRISExtract","ServiceSASS",repid)=$c(34)_"oid"_$c(34)_","_$c(34)_"OtherAttendanceCode"_$c(34)_","_$c(34)_"AfterHourDeliveryCode"_$c(34)
+ s ^zCacheTemp("IRISExtract","ServiceSCS",repid)=$c(34)_"oid"_$c(34)_","_$c(34)_"DisciplineProvidedCode"_$c(34)_","_$c(34)_"DisciplineReferredToCode"_$c(34)
+ s ^zCacheTemp("IRISExtract","Issue",repid)=$c(34)_"oid"_$c(34)_","_$c(34)_"owner_oid"_$c(34)_","_$c(34)_"IssueTypeCode"_$c(34)_","_$c(34)_"IssueIdentifiedCode"_$c(34)_","_$c(34)_"IssueResolvedCode"_$c(34)_","_$c(34)_"IssueGoalCode"_$c(34)_","_$c(34)_"ReferredToAgencyCode"_$c(34)_","_$c(34)_"PresentAtClosureCode"_$c(34)
+ 
+ 
+ s PAADMRowId=0
+ while PAADMRowId'="" {
+	 s PAADMRowId=$o(^PAADMi("PAADM_VisitStatus","A",PAADMRowId))
+	 i PAADMRowId'="" {
+		 s pplist=..GetPayorPlan(PAADMRowId)
+		 s INSTCode4=$p($g(pplist),"^",7)
+		 i $e(INSTCode4,1,4)="IRIS" {
+			 i $p($g(^PAADM(PAADMRowId)),"^",6)<=DateTo {
+				 s ^zCacheTemp("IRISExtract_Main",repid,PAADMRowId)=PAADMRowId
+				 i $p($g(pplist),"^",8)'="" s ^zCacheTemp("IRISExtract","AgencyCase",repid,$p($g(pplist),"^",8))=""
+			 }
+		 }
+	 }
+ }
+ 
+ f date=DateFrom:1:$o(^PAADMi("DischDate",""),-1) {
+	 s PAADMRowId=0
+	 while PAADMRowId'="" {
+		 s PAADMRowId=$o(^PAADMi("DischDate",date,PAADMRowId))
+		 i PAADMRowId'="",$p($g(^PAADM(PAADMRowId)),"^",6)<=DateTo {
+			 s pplist=..GetPayorPlan(PAADMRowId)
+			 s INSTCode4=$p($g(pplist),"^",7)
+			 i $e(INSTCode4,1,4)="IRIS" {
+				 s ^zCacheTemp("IRISExtract_Main",repid,PAADMRowId)=PAADMRowId
+				 i $p($g(pplist),"^",8)'="" s ^zCacheTemp("IRISExtract","AgencyCase",repid,$p($g(pplist),"^",8))=""
+			 }
+		 }
+	 }
+ }
+ 
+ for Date=(DateTo-365):1:DateTo {
+	 s PAADMRowId=0
+	 while PAADMRowId'="" {
+		 s PAADMRowId=$o(^PAADMi("DischDate",Date,PAADMRowId))
+		 i PAADMRowId'="" {
+			 i $p($g(^PAADM(PAADMRowId,1)),"^",42)>=DateFrom,$p($g(^PAADM(PAADMRowId,1)),"^",42)<=DateTo {
+				 s pplist=..GetPayorPlan(PAADMRowId)
+				 s INSTCode4=$p($g(pplist),"^",7)
+				 i $e(INSTCode4,1,4)="IRIS" {
+					 s ^zCacheTemp("IRISExtract_Main",repid,PAADMRowId)=PAADMRowId
+					 i $p($g(pplist),"^",8)'="" s ^zCacheTemp("IRISExtract","AgencyCase",repid,$p($g(pplist),"^",8))=""
+				 }
+			 }
+		 }
+	 }
+ }
+ 
+ f date=DateFrom:1:DateTo {
+	 s con=0
+	 f {
+		 s con=$o(^PAENQi("Date",date,con))
+		 q:con=""
+		 s contact=##class(User.PAEnquiryContact).%OpenId(con)
+		 i contact {
+		 	 i $g(^||SITE)="AUXX" {
+			 	 s INSTCode4=..GetMappedCode("NFMI_GovSubCateg","SUB_Code","ADIS",contact.ENQGovernDepartDR.DEPParRef.NFMIGovSubCategDR.SUBCode)
+		 	 } else {
+			 	 s INSTCode4=$e(contact.ENQInsTypeDR.INSTCode4,1,4)
+		 	 }
+			 i INSTCode4="IRIS",contact.ENQRequestStatusDR.REQSTCode="CO" {
+				 i contact.ENQOEOrdItemDR.OEORIOEORDParRef.OEORDAdmDR.PAADMVisitStatus="A",contact.ENQOEOrdItemDR.OEORIOEORDParRef.OEORDAdmDR.PAADMAdmDate<=DateTo {
+					 s ^zCacheTemp("IRISExtract_Contact",repid,contact.ENQOEOrdItemDR.OEORIOEORDParRef.OEORDAdmDR.%Id(),contact.ENQOEOrdItemDR.%Id())=contact.ENQOEOrdItemDR.%Id()
+					 s ^zCacheTemp("IRISExtract_Main",repid,contact.ENQOEOrdItemDR.OEORIOEORDParRef.OEORDAdmDR.%Id())=contact.ENQOEOrdItemDR.OEORIOEORDParRef.OEORDAdmDR.%Id()
+				 }
+				 i contact.ENQOEOrdItemDR.OEORIOEORDParRef.OEORDAdmDR.PAADMDischgDate>=DateFrom,contact.ENQOEOrdItemDR.OEORIOEORDParRef.OEORDAdmDR.PAADMDischgDate<=DateTo {
+					 s ^zCacheTemp("IRISExtract_Contact",repid,contact.ENQOEOrdItemDR.OEORIOEORDParRef.OEORDAdmDR.%Id(),contact.ENQOEOrdItemDR.%Id())=contact.ENQOEOrdItemDR.%Id()
+					 s ^zCacheTemp("IRISExtract_Main",repid,contact.ENQOEOrdItemDR.OEORIOEORDParRef.OEORDAdmDR.%Id())=contact.ENQOEOrdItemDR.OEORIOEORDParRef.OEORDAdmDR.%Id()
+				 }
+			 }
+			 
+		 }
+	 }
+ }
+				 
+					 
+ s I295=..Agency(Agency,VerMajor,VerMinor,VerRelease,VerBuild)
+ d ..AgencyCase(DateFrom,DateTo,repid,I295)
+ d ..Projects(DateFrom,DateTo,repid)
+ d ..NSCase(DateFrom,DateTo,repid,I295)
+ 
+ s PAADMRowId=0
+ while PAADMRowId'="" {
+	 s PAADMRowId=$o(^zCacheTemp("IRISExtract_Main",repid,PAADMRowId))
+	 i PAADMRowId'="" {
+		 d ..Client(DateFrom,DateTo,repid,I295,PAADMRowId)
+		 d ..Cases(DateFrom,DateTo,repid,I295,PAADMRowId)
+		 d ..Issue(DateFrom,DateTo,repid,I295,PAADMRowId)
+		 d ..Service(DateFrom,DateTo,PAADMRowId,repid)
+	 }
+ }
+ d ..BuildRow(repid)
+ d ..GenerateFile(EXTDate,EXTTime,Quarter,Year,repid)
+ 
+ k ^zCacheTemp("IRISExtract_Main",repid)
+ k ^zCacheTemp("IRISExtract","Agency",repid)
+ k ^zCacheTemp("IRISExtract","AgencyCase",repid)
+ k ^zCacheTemp("IRISExtract","NSCaseCheck",repid)
+ k ^zCacheTemp("IRISExtract","GroupClient",repid)
+ k ^zCacheTemp("IRISExtract","Project",repid)
+ k ^zCacheTemp("IRISExtract","Client",repid)
+ k ^zCacheTemp("IRISExtract","Case",repid)
+ k ^zCacheTemp("IRISExtract","NSCase",repid)
+ k ^zCacheTemp("IRISExtract","Child",repid)
+ k ^zCacheTemp("IRISExtract","RelatedPerson",repid)
+ k ^zCacheTemp("IRISExtract","Activity",repid)
+ k ^zCacheTemp("IRISExtract","CaseFamily",repid)
+ k ^zCacheTemp("IRISExtract","CaseFinancial",repid)
+ k ^zCacheTemp("IRISExtract","CaseFVS",repid)
+ k ^zCacheTemp("IRISExtract","CaseGambling",repid)
+ k ^zCacheTemp("IRISExtract","CaseLN",repid)
+ k ^zCacheTemp("IRISExtract","CaseMCH",repid)
+ k ^zCacheTemp("IRISExtract","CasePSFO",repid)
+ k ^zCacheTemp("IRISExtract","CaseSASS",repid)
+ k ^zCacheTemp("IRISExtract","CaseSCS",repid)
+ k ^zCacheTemp("IRISExtract","Service",repid)
+ k ^zCacheTemp("IRISExtract","ServiceFamily",repid)
+ k ^zCacheTemp("IRISExtract","ServiceMCH",repid)
+ k ^zCacheTemp("IRISExtract","ServiceSASS",repid)
+ k ^zCacheTemp("IRISExtract","ServiceSCS",repid)
+ k ^zCacheTemp("IRISExtract","Issue",repid)
+ k ^zCacheTemp("IRISExtract_Contact",repid)
+ 
+ // Build QHandle (AtEnd,ReportID,Index)
+ Set QHandle=$lb(0,repid,0)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="BuildRow">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>repid:%String</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	s id1=0
+	while id1'="" {
+		s id1=$o(^zCacheTemp("IRISExtract",id1))
+		i id1'="" {
+			s ind=$i(ind)
+			s ^CacheTemp(repid,ind)=$LB(id1,$g(^zCacheTemp("IRISExtract",id1,repid)))
+			s id2=0
+			while id2'="" {
+				s id2=$o(^zCacheTemp("IRISExtract",id1,repid,id2))
+				i id2'="" {
+					i "RelatedPerson,Child"[id1 {
+						s id3=0
+						while id3'="" {
+							s id3=$o(^zCacheTemp("IRISExtract",id1,repid,id2,id3))
+							i id3'="" {
+								s ind=$i(ind)
+								s ^CacheTemp(repid,ind)=$LB(id1,$g(^zCacheTemp("IRISExtract",id1,repid,id2,id3)))
+							}
+						}
+					} else {
+						s ind=$i(ind)
+						s ^CacheTemp(repid,ind)=$LB(id1,$g(^zCacheTemp("IRISExtract",id1,repid,id2)))
+					}
+				}
+			}
+			s ind=$i(ind)
+			s ^CacheTemp(repid,ind)=$LB("","")
+		}
+	}
+	q 1
+]]></Implementation>
+</Method>
+
+<Method name="GenerateFile">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>EXTDate:%String,EXTTime:%String,Quarter:%String,Year:%String,repid:%String</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	n file,path,FILERowId,PATHChildsub,x,unixpath,winpath
+	s (file,unixpath,winpath,FILERowId,PATHChildsub,path)=""
+
+	s FILERowId=$o(^COUNT("FILE",0,"Desc","IRIS",0))
+	s PATHChildsub=0
+	while PATHChildsub'="" {
+		s PATHChildsub=$o(^COUNT("FILE",FILERowId,"PATH",PATHChildsub))
+		i PATHChildsub'="" {
+			s unixpath=$p($g(^COUNT("FILE",FILERowId,"PATH",PATHChildsub)),"^",2)
+			i unixpath="" s winpath=$p($g(^COUNT("FILE",FILERowId,"PATH",PATHChildsub)),"^",1)
+		}
+	}
+	
+	i unixpath'="" s path=unixpath_"IRIS _"_Quarter_" "_Year_"_"_$tr($zd(EXTDate,4),"/","_")_"_"_$zstrip($zt(EXTTime,2),"*P")_"/"
+	i winpath'="" s path=winpath_"IRIS _"_Quarter_" "_Year_"_"_$tr($zd(EXTDate,4),"/","_")_"_"_$zstrip($zt(EXTTime,2),"*P")_"\"
+	
+	d ##class(%File).CreateDirectoryChain(path)
+	
+	s x=0
+	s id1=0
+	while id1'="" {
+		s id1=$o(^zCacheTemp("IRISExtract",id1))
+		i id1'="" {
+			s x=$i(x)
+			i path'="" {
+				s file=##class(%File).%New(path_id1_".csv")
+			} else {
+				s file=##class(%File).%New(id1_".csv")
+			}
+			d file.Open("WSN",3)
+			
+			d file.WriteLine($g(^zCacheTemp("IRISExtract",id1,repid)))
+			i (",Agency,AgencyCase,Activity,CaseFamily,CaseFinancial,CaseFVS,CaseGambling,CaseLN,CaseMCH,CasePSFO,Cases,CaseSASS,CaseSCS,Client,Issue,NSCase,Project,Service,ServiceFamily,ServiceMCH,ServiceSASS,ServiceSCS,")[(","_id1_",") {
+				k PLIST
+				s PLIST(2)=EXTDate
+				s PLIST(3)=EXTTime
+				s PLIST(5)=file.GetFilename(file.Name)
+				s PLIST(4)="IRIS"
+				s PLIST(6)=id1
+				s PLIST(11)=$zstrip($p($g(^zCacheTemp("IRISExtract",id1,repid)),",",1),"*",$c(34))
+				s PLIST(12)=$zstrip($p($g(^zCacheTemp("IRISExtract",id1,repid)),",",2),"*",$c(34))
+				s PLIST(13)=$zstrip($p($g(^zCacheTemp("IRISExtract",id1,repid)),",",3),"*",$c(34))
+				s PLIST(14)=$zstrip($p($g(^zCacheTemp("IRISExtract",id1,repid)),",",4),"*",$c(34))
+				s PLIST(15)=$zstrip($p($g(^zCacheTemp("IRISExtract",id1,repid)),",",5),"*",$c(34))
+				s PLIST(16)=$zstrip($p($g(^zCacheTemp("IRISExtract",id1,repid)),",",6),"*",$c(34))
+				s PLIST(17)=$zstrip($p($g(^zCacheTemp("IRISExtract",id1,repid)),",",7),"*",$c(34))
+				s PLIST(18)=$zstrip($p($g(^zCacheTemp("IRISExtract",id1,repid)),",",8),"*",$c(34))
+				s PLIST(19)=$zstrip($p($g(^zCacheTemp("IRISExtract",id1,repid)),",",9),"*",$c(34))
+				s PLIST(20)=$zstrip($p($g(^zCacheTemp("IRISExtract",id1,repid)),",",10),"*",$c(34))
+				s PLIST(21)=$zstrip($p($g(^zCacheTemp("IRISExtract",id1,repid)),",",11),"*",$c(34))
+				s PLIST(22)=$zstrip($p($g(^zCacheTemp("IRISExtract",id1,repid)),",",12),"*",$c(34))
+				s PLIST(23)=$zstrip($p($g(^zCacheTemp("IRISExtract",id1,repid)),",",13),"*",$c(34))
+				s PLIST(24)=$zstrip($p($g(^zCacheTemp("IRISExtract",id1,repid)),",",14),"*",$c(34))
+				s PLIST(25)=$zstrip($p($g(^zCacheTemp("IRISExtract",id1,repid)),",",15),"*",$c(34))
+				s PLIST(26)=$zstrip($p($g(^zCacheTemp("IRISExtract",id1,repid)),",",16),"*",$c(34))
+				s PLIST(27)=$zstrip($p($g(^zCacheTemp("IRISExtract",id1,repid)),",",17),"*",$c(34))
+				s PLIST(28)=$zstrip($p($g(^zCacheTemp("IRISExtract",id1,repid)),",",18),"*",$c(34))
+				s PLIST(29)=$zstrip($p($g(^zCacheTemp("IRISExtract",id1,repid)),",",19),"*",$c(34))
+				s PLIST(30)=$zstrip($p($g(^zCacheTemp("IRISExtract",id1,repid)),",",20),"*",$c(34))
+				s PLIST(31)=$zstrip($p($g(^zCacheTemp("IRISExtract",id1,repid)),",",21),"*",$c(34))
+				s PLIST(32)=$zstrip($p($g(^zCacheTemp("IRISExtract",id1,repid)),",",22),"*",$c(34))
+				s PLIST(33)=$zstrip($p($g(^zCacheTemp("IRISExtract",id1,repid)),",",23),"*",$c(34))
+				s PLIST(34)=$zstrip($p($g(^zCacheTemp("IRISExtract",id1,repid)),",",24),"*",$c(34))
+				s PLIST(35)=$zstrip($p($g(^zCacheTemp("IRISExtract",id1,repid)),",",25),"*",$c(34))
+				s PLIST(36)=$zstrip($p($g(^zCacheTemp("IRISExtract",id1,repid)),",",26),"*",$c(34))
+				s PLIST(37)=$zstrip($p($g(^zCacheTemp("IRISExtract",id1,repid)),",",27),"*",$c(34))
+				s PLIST(38)=$zstrip($p($g(^zCacheTemp("IRISExtract",id1,repid)),",",28),"*",$c(34))
+				s PLIST(39)=$zstrip($p($g(^zCacheTemp("IRISExtract",id1,repid)),",",29),"*",$c(34))
+				s PLIST(40)=$zstrip($p($g(^zCacheTemp("IRISExtract",id1,repid)),",",30),"*",$c(34))
+				s PLIST(41)=$zstrip($p($g(^zCacheTemp("IRISExtract",id1,repid)),",",31),"*",$c(34))
+				s PLIST(42)=$zstrip($p($g(^zCacheTemp("IRISExtract",id1,repid)),",",32),"*",$c(34))
+				s PLIST(43)=$zstrip($p($g(^zCacheTemp("IRISExtract",id1,repid)),",",33),"*",$c(34))
+				&SQL(INSERT INTO Custom.ExtractSummaries VALUES PLIST())
+			}
+			s id2=0
+			while id2'="" {
+				s id2=$o(^zCacheTemp("IRISExtract",id1,repid,id2))
+				i id2'="" {
+					i "RelatedPerson,Child"[id1 {
+						s id3=0
+						while id3'="" {
+							s id3=$o(^zCacheTemp("IRISExtract",id1,repid,id2,id3))
+							i id3'="" {
+								i $d(^zCacheTemp("IRISExtract",id1,repid,id2,id3))=1 {
+									d file.WriteLine($g(^zCacheTemp("IRISExtract",id1,repid,id2,id3)))
+									k PLIST
+									s PLIST(2)=EXTDate
+									s PLIST(3)=EXTTime
+									s PLIST(5)=file.GetFilename(file.Name)
+									s PLIST(4)="IRIS"
+									s PLIST(6)=$g(id1)
+									s PLIST(11)=$zstrip($p($g(^zCacheTemp("IRISExtract",id1,repid,id2,id3)),",",1),"*",$c(34))
+									s PLIST(12)=$zstrip($p($g(^zCacheTemp("IRISExtract",id1,repid,id2,id3)),",",2),"*",$c(34))
+									s PLIST(13)=$zstrip($p($g(^zCacheTemp("IRISExtract",id1,repid,id2,id3)),",",3),"*",$c(34))
+									s PLIST(14)=$zstrip($p($g(^zCacheTemp("IRISExtract",id1,repid,id2,id3)),",",4),"*",$c(34))
+									s PLIST(15)=$zstrip($p($g(^zCacheTemp("IRISExtract",id1,repid,id2,id3)),",",5),"*",$c(34))
+									s PLIST(16)=$zstrip($p($g(^zCacheTemp("IRISExtract",id1,repid,id2,id3)),",",6),"*",$c(34))
+									s PLIST(17)=$zstrip($p($g(^zCacheTemp("IRISExtract",id1,repid,id2,id3)),",",7),"*",$c(34))
+									s PLIST(18)=$zstrip($p($g(^zCacheTemp("IRISExtract",id1,repid,id2,id3)),",",8),"*",$c(34))
+									s PLIST(19)=$zstrip($p($g(^zCacheTemp("IRISExtract",id1,repid,id2,id3)),",",9),"*",$c(34))
+									s PLIST(20)=$zstrip($p($g(^zCacheTemp("IRISExtract",id1,repid,id2,id3)),",",10),"*",$c(34))
+									s PLIST(21)=$zstrip($p($g(^zCacheTemp("IRISExtract",id1,repid,id2,id3)),",",11),"*",$c(34))
+									s PLIST(22)=$zstrip($p($g(^zCacheTemp("IRISExtract",id1,repid,id2,id3)),",",12),"*",$c(34))
+									&SQL(INSERT INTO Custom.ExtractSummaries VALUES PLIST())
+								}
+							}
+						}
+					} else {
+						i $d(^zCacheTemp("IRISExtract",id1,repid,id2))=1 {
+							k PLIST
+							// I6708 - Report the actual code into the summary so that it can be displayed correctly
+							i ",Case,AgencyCase,"[(","_id1_",") {
+								s PLIST(13)=$p($zstrip($p($g(^zCacheTemp("IRISExtract",id1,repid,id2)),",",3),"*",$c(34)),"|",2)
+								s $p(^zCacheTemp("IRISExtract",id1,repid,id2),",",3)=$p($p($g(^zCacheTemp("IRISExtract",id1,repid,id2)),",",3),"|",1)
+					
+								i id1="Case" {
+									s PLIST(14)=$p($zstrip($p($g(^zCacheTemp("IRISExtract",id1,repid,id2)),",",4),"*",$c(34)),"|",2)
+									s $p(^zCacheTemp("IRISExtract",id1,repid,id2),",",4)=$p($p($g(^zCacheTemp("IRISExtract",id1,repid,id2)),",",4),"|",1)
+								} else {
+									s PLIST(14)=$zstrip($p($g(^zCacheTemp("IRISExtract",id1,repid,id2)),",",4),"*",$c(34))
+								}
+							} else {
+								s PLIST(13)=$zstrip($p($g(^zCacheTemp("IRISExtract",id1,repid,id2)),",",3),"*",$c(34))
+								s PLIST(14)=$zstrip($p($g(^zCacheTemp("IRISExtract",id1,repid,id2)),",",4),"*",$c(34))
+							}
+
+							d file.WriteLine($g(^zCacheTemp("IRISExtract",id1,repid,id2)))
+							s PLIST(2)=EXTDate
+							s PLIST(3)=EXTTime
+							s PLIST(5)=file.GetFilename(file.Name)
+							s PLIST(4)="IRIS"
+							s PLIST(6)=$g(id1)
+							s PLIST(11)=$zstrip($p($g(^zCacheTemp("IRISExtract",id1,repid,id2)),",",1),"*",$c(34))
+							s PLIST(12)=$zstrip($p($g(^zCacheTemp("IRISExtract",id1,repid,id2)),",",2),"*",$c(34))
+							s PLIST(15)=$zstrip($p($g(^zCacheTemp("IRISExtract",id1,repid,id2)),",",5),"*",$c(34))
+							s PLIST(16)=$zstrip($p($g(^zCacheTemp("IRISExtract",id1,repid,id2)),",",6),"*",$c(34))
+							s PLIST(17)=$zstrip($p($g(^zCacheTemp("IRISExtract",id1,repid,id2)),",",7),"*",$c(34))
+							s PLIST(18)=$zstrip($p($g(^zCacheTemp("IRISExtract",id1,repid,id2)),",",8),"*",$c(34))
+							s PLIST(19)=$zstrip($p($g(^zCacheTemp("IRISExtract",id1,repid,id2)),",",9),"*",$c(34))
+							s PLIST(20)=$zstrip($p($g(^zCacheTemp("IRISExtract",id1,repid,id2)),",",10),"*",$c(34))
+							s PLIST(21)=$zstrip($p($g(^zCacheTemp("IRISExtract",id1,repid,id2)),",",11),"*",$c(34))
+							s PLIST(22)=$zstrip($p($g(^zCacheTemp("IRISExtract",id1,repid,id2)),",",12),"*",$c(34))
+							&SQL(INSERT INTO Custom.ExtractSummaries VALUES PLIST())
+						}
+					}
+				}
+			}
+			s ind=ind+1
+			s ^CacheTemp(repid,ind)=$LB("","")
+		}
+		d file.Close()
+
+	}
+	d ##class(Custom.VICExtractSummary).IRISSummary(path,EXTDate,EXTTime)
+	
+	q 1
+]]></Implementation>
+</Method>
+
+<Method name="SLK">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>surname:%String,given:%String,dob:%String,sex:%String</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	s flag=0
+	n slk
+	s slk=""
+
+	s surname=surname
+	s given=given
+	s sex=sex
+
+	i $g(surname)="" s surname="999"
+	s surname=$zstrip(surname,"*WCP")
+	while $length(surname)<5 {
+		s surname=surname_"2"
+	}
+
+	i $g(given)="" s given="99"
+	s given=$zstrip(given,"*WCP")
+	while $length(given)<3 {
+		s given=given_"2"
+	}
+
+	i "1,2"'[sex s sex="9"
+	i sex=1 s sex="M"
+	i sex=2 s sex="F"
+
+	s dob=$zd(dob,4,"",4)
+
+	i dob="" s dob="01/01/"_$p(dob,"/",3)
+
+	s slk=$$ALPHAUP^SSUTIL4($e(surname,2,3)_$e(surname,5)_$e(given,2,3)_$zstrip(dob,"*P")_sex)
+	q slk
+]]></Implementation>
+</Method>
+
+<Method name="ContactPayor">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>orderid:%String</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	s (INSTCode1,INSTCode2,INSTCode4,AUXITCode,ENQRowId,INSTCode)=""
+	s con=$o(^PAENQi("OEORI",orderid,""))
+	i con {
+		s contact=##class(User.PAEnquiryContact).%OpenId(con)
+		i contact {
+			if (($p($g(^PAENQ(con)),"^",62)'="")&&(^||SITE="AUXX"))
+			{
+				s Payor=..GetMappedCode("CT_NFMI_Category","NFMI_Code","ADIS",contact.ENQGovernDepartDR.DEPParRef.NFMICode)
+				s PayorDesc=..GetMappedCode("CT_NFMI_Category","NFMI_Desc","ADIS",contact.ENQGovernDepartDR.DEPParRef.NFMIDesc)
+				s Plan=..GetMappedCode("CT_NFMI_CategDepart","DEP_Code","ADIS",contact.ENQGovernDepartDR.DEPCode)
+				s PlanDesc=..GetMappedCode("CT_NFMI_CategDepart","DEP_Desc","ADIS",contact.ENQGovernDepartDR.DEPDesc)
+				s INSTCode1=..GetMappedCode("ARC_AuxilInsurType","AUXIT_PlanGroup1","ADIS",contact.ENQGovernDepartDR.DEPCode)
+				s PlanGroup6=..GetMappedCode("ARC_AuxilInsurType","AUXIT_PlanGroup6","ADIS",contact.ENQGovernDepartDR.DEPCode)
+				s INSTCode4=..GetMappedCode("NFMI_GovSubCateg","SUB_Code","ADIS",contact.ENQGovernDepartDR.DEPParRef.NFMIGovSubCategDR.SUBCode)
+				s AUXITCode=contact.ENQAuxInsTypeDR.AUXITCode
+			}
+			else
+			{
+				s INSTCode1=contact.ENQInsTypeDR.INSTCode1
+				s INSTCode2=contact.ENQInsTypeDR.INSTCode2
+				s INSTCode4=contact.ENQInsTypeDR.INSTCode4
+				s AUXITCode=contact.ENQAuxInsTypeDR.AUXITCode
+				s ENQRowId=con
+			}		}
+	}
+	q INSTCode1_"^"_INSTCode2_"^"_INSTCode4_"^"_AUXITCode_"^"_ENQRowId_"^"_INSTCode
+]]></Implementation>
+</Method>
+
+<Method name="Agency">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>agency:%String,VerMajor:%String,VerMinor:%String,VerRelease:%String,VerBuild:%String</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	s (TRUSTRowId,TRUSTCode,I295,I296,I297,I298,I299,I300,I301,I302)=""
+	i agency'="" {
+		s TRUSTCode=$p($g(^PAC("TRUST",agency)),"^",1)
+		s TRUSTDesc=$p($g(^PAC("TRUST",agency)),"^",2)
+	}
+
+	s I295=..GetMappedCode("PAC_Trust","TRUST_Code","IRIS",$g(TRUSTCode))
+	s I296=$e(I295,1,6)
+	s I297=$e(I295,$l(I295)-2,$l(I295))
+	s I298=$c(34)_..GetMappedCode("PAC_Trust","TRUST_Desc","IRIS",$g(TRUSTDesc))_$c(34)
+	s I299=VerMajor
+	s I300=VerMinor
+	s I301=VerRelease
+	s I302=VerBuild
+	i I296="" s I296=0
+	i I297="" s I297=0
+	i I299="" s I299=0
+	i I300="" s I300=0
+	i I301="" s I301=0
+	i I302="" s I302=0
+
+	s ^zCacheTemp("IRISExtract","Agency",repid,agency)=I295_","_I296_","_I297_","_I298_","_I299_","_I300_","_I301_","_I302
+
+	q I295
+]]></Implementation>
+</Method>
+
+<Method name="AgencyCase">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>DateFrom:%String,DateTo:%String,repid:%String,I295:%String</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	s (INSTRowId,ALIASDateFrom,ALIASDateTo,I320,I321,I303,I304,I305,I306,I307,I308,AUXITDateFrom,AUXITDateTo,alias,AUXITRowId,ALIASRowId)=""
+	s AUXITRowId=0
+	f {
+		s AUXITRowId=$o(^zCacheTemp("IRISExtract","AgencyCase",repid,AUXITRowId))
+		q:AUXITRowId=""
+		s arc=0
+		f {
+			s arc=$o(^ARC("ALIAS",0,"AuxInsType",AUXITRowId,arc))
+			q:arc=""
+			s alias=##class(User.ARCAlias).%OpenId(arc)
+			i alias 
+			{
+					
+				i $g(^||SITE)="AUXX"
+				{
+					s nfmicategdep=##class(User.CTNFMICategDepart).%OpenId(AUXITRowId)
+					i ((nfmicategdep)&&(nfmicategdep.DEPParRef.NFMIGovSubCategDR.SUBCode="IRIS")&&(nfmicategdep.DEPDateFrom<DateTo)&&(nfmicategdep.DEPDateTo>DateTo))
+					{
+						s I320=AUXITRowId
+						s I303=..GetMappedCode("CT_NFMI_Category","NFMI_Code","ADIS",nfmicategdep.DEPParRef.NFMICode)
+						s I304=..GetMappedCode("CT_NFMI_Category","DEP_Code","ADIS",nfmicategdep.DEPCode)
+						s I305=$c(34)_nfmicategdep.DEPParRef.NFMIDesc_$c(34)_nfmicategdep.DEPParRef.DEPDesc
+						&SQl(Select top 1 EXT_I6 into :I306 from Custom.ExtractSummaries where EXT_Type='IRIS'
+						and EXT_Section='AgencyCase'
+						and EXT_I4=:AUXITRowId
+						Order by EXT_I6 asc)
+						i I306="" s I306=DateTo
+						&SQl(Select top 1 EXT_I7 into :I307 from Custom.ExtractSummaries where EXT_Type='IRIS'
+						and EXT_Section='AgencyCase'
+						and EXT_I4=:AUXITRowId
+						Order by EXT_I7 asc)
+						i I307="" s I307=DateTo
+						&SQl(Select top 1 EXT_I8 into :I308 from Custom.ExtractSummaries where EXT_Type='IRIS'
+						and EXT_Section='AgencyCase'
+						and EXT_I4=:AUXITRowId
+						Order by EXT_I7 desc)
+						i I308="" s I308=DateTo
+					
+						k nfmicategdep
+						s ^zCacheTemp("IRISExtract","AgencyCase",repid,arc)=I320_","_I321_","_I303_","_I304_","_I305_","_I306_","_I307_","_I308
+						
+					}
+		 
+					
+				}
+				else
+				{
+					i $e(alias.ALIASInsTypeDR.INSTCode4,1,4)="IRIS" {
+						i alias.ALIASDateFrom<=DateFrom,$s(alias.ALIASDateTo="":+$h,1:alias.ALIASDateTo)>=DateTo {
+							i alias.ALIASAuxInsTypeDR.AUXITDateFrom<=DateTo,$s(alias.ALIASAuxInsTypeDR.AUXITDateTo="":+$h,1:alias.ALIASAuxInsTypeDR.AUXITDateTo)>=DateFrom {
+								s I321=I295
+								s I303=..GetMappedCode("ARC_InsuranceType","INST_Code","IRIS",alias.ALIASInsTypeDR.INSTCode)_"|"_alias.ALIASInsTypeDR.INSTCode
+								s I304=..GetMappedCode("ARC_AuxilInsurType","AUXIT_Code","IRIS",alias.ALIASAuxInsTypeDR.AUXITCode)
+								s id=0
+								f {
+									s id=$o(^ARC("ALIAS",0,"AuxInsType",alias.ALIASAuxInsTypeDR.%Id(),id))
+									q:id=""
+									s I305=$p($g(^ARC("ALIAS",id)),"^",6)
+								}
+								s I305=$c(34)_I305_$c(34)
+								s id=0
+								f {
+									s id=$o(^ARC("ALIAS",0,"AuxInsType",alias.ALIASAuxInsTypeDR.%Id(),id))
+									q:id=""
+									i $p($g(^ARC("ALIAS",id)),"^",13)'="" {
+										i I306="" s I306=$p($g(^ARC("ALIAS",id)),"^",13)
+										i I306>=$p($g(^ARC("ALIAS",id)),"^",13) s I306=$p($g(^ARC("ALIAS",id)),"^",13)
+									}
+								}
+								i I306'="" { s I306=$zd(I306,4,,4)_" 00:00:00:000" } else { s I306="30/12/1899 00:00:00:000" }
+								s id=0
+								f {
+									s id=$o(^ARC("ALIAS",0,"AuxInsType",alias.ALIASAuxInsTypeDR.%Id(),id))
+									q:id=""
+									i $p($g(^ARC("ALIAS",id)),"^",13)'="" {
+										i $p($g(^ARC("ALIAS",id)),"^",13)<=DateTo {
+											i I308="" s I308=$p($g(^ARC("ALIAS",id)),"^",13)
+											i I308<=$p($g(^ARC("ALIAS",id)),"^",13) s I308=$p($g(^ARC("ALIAS",id)),"^",13),I307=$p($g(^ARC("ALIAS",id)),"^",12)
+										}
+									}
+								}
+								s I320=$c(34)_I295_alias.ALIASAuxInsTypeDR.%Id()_$c(34)
+								i I307'="" { s I307=$zd(I307,4,,4)_" 00:00:00:000" } else { s I307="30/12/1899 00:00:00:000" }
+								i I308'="" { s I308=$zd(I308,4,,4)_" 00:00:00:000" } else { s I308="30/12/1899 00:00:00:000" }
+								
+								s ^zCacheTemp("IRISExtract","AgencyCase",repid,arc)=I320_","_I321_","_I303_","_I304_","_I305_","_I306_","_I307_","_I308
+
+								; Set all values to null if 0
+								f x=1:1:$l(^zCacheTemp("IRISExtract","AgencyCase",repid,arc),",") {
+									i $p($g(^zCacheTemp("IRISExtract","AgencyCase",repid,arc)),",",x)="",x'=3 s $p(^zCacheTemp("IRISExtract","AgencyCase",repid,arc),",",x)=0
+								}
+
+								s (I320,I321,I303,I304,I305,I306,I307,I308)=""
+							}
+						}
+					}
+				}
+			}
+		}
+		i $g(^zCacheTemp("IRISExtract","AgencyCase",repid,AUXITRowId))="" k ^zCacheTemp("IRISExtract","AgencyCase",repid,AUXITRowId)
+	}
+	
+	s ALIASRowId=0
+	f {
+		s ALIASRowId=$o(^zCacheTemp("IRISExtract","AgencyCase",repid,ALIASRowId))
+		q:ALIASRowId=""
+		i $g(^zCacheTemp("IRISExtract","AgencyCase",repid,ALIASRowId))'="" {
+			k PLIST
+			&SQL(SELECT * INTO :PLIST() FROM SQLUser.ARC_Alias WHERE ALIAS_RowId=:ALIASRowId)
+			s PLIST(14)=DateTo
+			&SQL(UPDATE %NOLOCK SQLUser.ARC_Alias SET ALIAS_DateTo=:PLIST(14) WHERE ALIAS_RowId=:ALIASRowId)
+			s PLIST(14)=DateTo+1
+			
+			n counter
+			s counter=0
+			&SQL(SELECT COUNT(ALIAS_RowId) INTO :counter FROM SQLUser.ARC_Alias WHERE ALIAS_AuxInsType_DR=:PLIST(12) AND ALIAS_DateTo IS NULL)
+			i counter<1,PLIST(12)'="" {
+				s alias=$i(^ARC("ALIAS",0))
+				s ^ARC("ALIAS",0)=alias
+				s ^ARC("ALIAS",alias)="^^"_PLIST(4)_"^^^"_PLIST(5)_"^^^^"_PLIST(12)_"^"_PLIST(13)_"^"_PLIST(14)_"^^"
+				s ^ARC("ALIAS",0,"InsType",PLIST(13),$zcvt($zstrip(PLIST(4),"*CW"),"U"),$zcvt($zstrip(PLIST(5),"*CW"),"U"),PLIST(12),alias)=""
+				s ^ARC("ALIAS",0,"AuxInsType",PLIST(12),alias)=""
+			}
+		}
+	}
+	q 1
+]]></Implementation>
+</Method>
+
+<Method name="Client">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>DateFrom:%String,DateTo:%String,repid:%String,I295:%String,admid:%String</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	s adm=##class(User.PAAdm).%OpenId(admid)
+	i adm {
+		s I193=adm.PAADMPAPMIDR.PAPMINo
+		s I197=adm.PAADMPAPMIDR.PAPMIPAPERDR.PAPERZipDR.CTZIPCode_adm.PAADMPAPMIDR.PAPMIPAPERDR.PAPERZipDR.CTZIPDesc
+		s I198=adm.PAADMPAPMIDR.PAPMIDOB
+		s I199=$s(adm.PAADMPAPMIDR.PAPMIPAPERDR.PAPEREstDOB="Y":1,1:0)
+		s I200=..GetMappedCode("CT_Sex","CTSEX_Code","IRIS",adm.PAADMPAPMIDR.PAPMISexDR.CTSEXCode)
+		s I201=$c(34)_##class(websys.Conversions).LongTextLogicalToHtml(adm.PAADMPAPMIDR.PAPMIPAPERDR.PAPERRemark," ")_$c(34)
+		s I202=..GetMappedCode("PAC_IndigStatus","INDST_Code","IRIS",adm.PAADMPAPMIDR.PAPMIPAPERDR.PAPERIndigStatDR.INDSTCode)
+		s I203=..GetMappedCode("CT_Country","CTCOU_Code","IRIS",adm.PAADMPAPMIDR.PAPMIPAPERDR.PAPERCountryBirthDR.CTCOUCode)
+		s I208=..GetMappedCode("PAC_PreferredLanguage","PREFL_Code","IRIS",adm.PAADMPAPMIDR.PAPMIPAPERDR.PAPERPrefLanguageDR.PREFLCode)
+		i adm.PAADMDischgDate>=DateFrom,adm.PAADMDischgDate<=DateTo {
+			s I196="Y"
+		} else {
+			s I196="N"
+		}
+		i adm.PAADMHospitalDR.ChildCTHospitalTrusts.GetAt(1) 
+		i adm.PAADMHospitalDR,adm.PAADMHospitalDR.ChildCTHospitalTrusts.GetAt(1),adm.PAADMHospitalDR.ChildCTHospitalTrusts.GetAt(1).TRUSTTrustDR s I194=$c(34)_..GetMappedCode("PAC_Trust","TRUST_Code","IRIS",adm.PAADMHospitalDR.ChildCTHospitalTrusts.GetAt(1).TRUSTTrustDR.TRUSTCode)_$c(34)
+		s I195=$e(I295,1,6)
+		i I195="" s I195=0
+		i I198'="" { s I198=$zd(I198,4,,4)_" 00:00:00:000" } else { s I198="30/12/1899 00:00:00:000" }
+		
+		i $g(^||SITE)'="AUXX" 
+		{ 
+			s id=$o(^questionnaire.QIRISI("IndexPAAdmID",admid,""),-1)
+			i $g(id)'="" s iris=##class(questionnaire.QIRIS).%OpenId(id)
+		}
+		else
+		{
+			s id=$o(^questionnaire.QAUXXIRISI("IndexPAAdmID",admid,""),-1)
+			i $g(id)'="" s iris=##class(questionnaire.QAUXXIRIS).%OpenId(id)	
+		}
+		i $g(iris)'="" {
+			s I197=iris.QIRIS197
+			i I197'="" s I197=$p($g(^CT("CITAREA",I197)),"^",1)
+			s I204=iris.QIRIS204
+			s I205=iris.QIRIS205
+			s I206=iris.QIRIS206
+			s I207=iris.QIRIS207
+			s I208=iris.QIRIS208
+			i I208'="" s I208=$p($g(^PAC("PREFL",I208)),"^",1)
+			s I209=iris.QIRIS209
+			i I209'="" s I209=$p($g(^PAC("PREFL",I209)),"^",1)
+			s I210=iris.QIRIS210
+			
+			s x=0
+			f x=1:1:$l(iris.QIRIS211,",") {
+				i x=1 {
+					s I211=$p(iris.QIRIS211,",",x)
+					i I211'="" s I211=$p($g(^CT("NAT",I211)),"^",1)
+				}
+				i x=2 {
+					s I212=$p(iris.QIRIS211,",",x)
+					i I212'="" s I212=$p($g(^CT("NAT",I212)),"^",1)
+				}
+				i x=3 {
+					s I213=$p(iris.QIRIS211,",",x)
+					i I213'="" s I213=$p($g(^CT("NAT",I213)),"^",1)
+				}
+				i x=4 {
+					s I214=$p(iris.QIRIS211,",",x)
+					i I214'="" s I214=$p($g(^CT("NAT",I214)),"^",1)
+				}
+			}
+			k iris
+		}
+		s rt=0
+		f {
+			s rt=$o(^RT(0,"PAT",adm.PAADMPAPMIDR.%Id(),rt))
+			q:rt=""
+			s record=##class(User.RTMaster).%OpenId(rt)
+			i record {
+				i record.RTMASMRTypeDR.TYPCode="SLK" {
+					s I215=$e(record.RTMASMRNo,$l(record.RTMASMRNo),$l(record.RTMASMRNo))
+					i I215=1 {
+						s I215=$e(record.RTMASMRNo,1,$l(record.RTMASMRNo)-1)_"M"
+					} elseif I215=2 {
+						s I215=$e(record.RTMASMRNo,1,$l(record.RTMASMRNo)-1)_"F"
+					}else {
+						s I215=record.RTMASMRNo
+					}
+				}
+				k record
+			}
+		}
+		
+		s I193CL=$c(34)_I295_I193_$c(34)
+		s I196=1
+
+		s I197=$c(34)_..GetMappedCode("CT_CityArea","CITAREA_Code","IRIS",$g(I197))_$c(34)
+		i $g(^||SITE)'="AUXX"  
+		{
+			s I204=..GetMappedCode("questionnaire.QIRIS","QIRIS204","IRIS",$g(I204))
+			s I205=..GetMappedCode("questionnaire.QIRIS","QIRIS205","IRIS",$g(I205))
+			s I206=..GetMappedCode("questionnaire.QIRIS","QIRIS206","IRIS",$g(I206))
+			s I207=..GetMappedCode("questionnaire.QIRIS","QIRIS207","IRIS",$g(I207))
+			s I210=..GetMappedCode("questionnaire.QIRIS","QIRIS210","IRIS",$g(I210))
+		}
+		else  
+		{
+			s I204=..GetMappedCode("questionnaire.QAUXXIRIS","QIRIS204","IRIS",$g(I204))
+			s I205=..GetMappedCode("questionnaire.QAUXXIRIS","QIRIS205","IRIS",$g(I205))
+			s I206=..GetMappedCode("questionnaire.QAUXXIRIS","QIRIS206","IRIS",$g(I206))
+			s I207=..GetMappedCode("questionnaire.QAUXXIRIS","QIRIS207","IRIS",$g(I207))
+			s I210=..GetMappedCode("questionnaire.QAUXXIRIS","QIRIS210","IRIS",$g(I210))
+		}
+		s I209=..GetMappedCode("PAC_PreferredLanguage","PREFL_Code","IRIS",$g(I209))			
+		s I211=..GetMappedCode("CT_Nation","CTNAT_Code","IRIS",$g(I211))
+		s I212=..GetMappedCode("CT_Nation","CTNAT_Code","IRIS",$g(I212))
+		s I213=..GetMappedCode("CT_Nation","CTNAT_Code","IRIS",$g(I213))
+		s I214=..GetMappedCode("CT_Nation","CTNAT_Code","IRIS",$g(I214))
+		s I215=$c(34)_I215_$c(34)
+		s I216=I193CL
+		
+		s ^zCacheTemp("IRISExtract","Client",repid,admid)=I193CL_","_I194_","_I195_","_I196_","_I197_","_I198_","_I199_","_I200_","_I202_","_I203_","_I204_","_I205_","_I206_","_I207_","_I208_","_I209_","_I210_","_I211_","_I212_","_I213_","_I214_","_I215_","_I216
+
+		; Set all values to null if 0
+		f x=1:1:$l(^zCacheTemp("IRISExtract","Client",repid,admid),",") {
+			i $p($g(^zCacheTemp("IRISExtract","Client",repid,admid)),",",x)="",x'=3 s $p(^zCacheTemp("IRISExtract","Client",repid,admid),",",x)=0
+		}
+
+		s (I194,I195,I196,I197,I198,I199,I200,I201,I202,I203,I204,I205,I206,I207,I208,I209,I210,I211,I212,I213,I214,I215,I216)=""
+	}
+	q 1
+]]></Implementation>
+</Method>
+
+<Method name="Cases">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>DateFrom:%String,DateTo:%String,repid:%String,I295:%String,admid:%String</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	q:admid="" 1
+	s iris=""
+	i $g(^||SITE)'="AUXX"  
+	{
+		s id=$o(^questionnaire.QIRISI("IndexPAAdmID",admid,""),-1)
+		i $g(id)'="" s iris=##class(questionnaire.QIRIS).%OpenId(id)
+		s questname="questionnaire.QIRIS"
+	}
+	else
+	{
+		s id=$o(^questionnaire.QAUXXIRISI("IndexPAAdmID",admid,""),-1)
+		i $g(id)'="" s iris=##class(questionnaire.QAUXXIRIS).%OpenId(id)
+		s questname="questionnaire.QAUXXIRIS"
+	}
+	s adm=##class(User.PAAdm).%OpenId(admid)
+	i adm {
+		s I13=adm.PAADMADMNo
+		s I14=..GetMappedCode("PAC_AccomSetting","ACCOMS_Code","IRIS",adm.PAADMPAPMIDR.PAPMIPAPERDR.PAPERAccomSettingDR.ACCOMSCode)
+		s I132=I13
+		s I133=adm.PAADMPAPMIDR.PAPMINo
+		s I137=..GetMappedCode("PAC_SourceOfAttendance","ATTEND_Code","IRIS",adm.PAADMSourceOfAttendDR.ATTENDCode)
+		s I138=adm.PAADMAdmDate
+		i I138'="" { s I138=$zd(I138,4,,4)_" 00:00:00:000" } else { s I138="30/12/1899 00:00:00:000" }
+		s I141=..GetMappedCode("PAC_DischClassification","DSCL_Code","IRIS",adm.PAADMMainMRADMDR.MRADMDischClassifDR.DSCLCode)
+		s I142=..GetMappedCode("CT_Disposit","CTDSP_Code","IRIS",adm.PAADMMainMRADMDR.MRADMDischTypeDR.CTDSPCode)
+		; I4031 - Updated to get code instead of rowid returned from questionnaire
+		i iris,iris.QIRIS197'="" s I144=$lg(##class(web.CTCityArea).GetCodeDescriptionFromId(iris.QIRIS197),3)
+		i I144="" s I144=adm.PAADMDepCodeDR.CTLOCPagerNo
+		s (INSTCode4,AUXITCode,OEORIRowId)=""
+		
+		s OEORIRowId=$o(^zCacheTemp("IRISExtract_Contact",repid,admid,""))
+		
+		i OEORIRowId'="" {
+			s pplist=..ContactPayor(OEORIRowId)
+			s INSTCode4=$p($g(pplist),"^",3)
+			s AUXITCode=$p($g(pplist),"^",4)
+			s INSTCode=$p($g(pplist),"^",6)
+		} else {
+			s pplist=..GetPayorPlan(admid)
+			s INSTCode4=$p($g(pplist),"^",7)
+			s AUXITCode=$p($g(pplist),"^",3)
+			s INSTCode=$p($g(pplist),"^")
+		}
+		i $e(INSTCode4,1,4)="IRIS" {
+			// I6708 - Also store actual code so we can use it in the summary
+			s I134=..GetMappedCode("ARC_InsuranceType","INST_Code4","IRIS",$zstrip(INSTCode4,"*","IRIS"))_"|"_INSTCode
+			
+			// I6708 - Also store actual code so we can use it in the summary
+			s I136=..GetMappedCode("ARC_AuxilInsurType","AUXIT_Code","IRIS",AUXITCode)_"|"_AUXITCode
+			i adm.PAADMHospitalDR,adm.PAADMHospitalDR.ChildCTHospitalTrusts.GetAt(1),adm.PAADMHospitalDR.ChildCTHospitalTrusts.GetAt(1).TRUSTTrustDR s I143=..GetMappedCode("PAC_Trust","TRUST_Code","IRIS",adm.PAADMHospitalDR.ChildCTHospitalTrusts.GetAt(1).TRUSTTrustDR.TRUSTCode)
+			
+			i $g(iris) {
+				s I139=..GetMappedCode(questname,"QIRIS139","IRIS",iris.QIRIS139)
+				s I309=$s(iris.QIRIS311="20":iris.QIRIS309,1:"")
+				s I310=$s(iris.QIRIS309'="":iris.QIRIS309,1:I143)
+				s I311=..GetMappedCode(questname,"QIRIS311","IRIS",iris.QIRIS311)
+				s I312=..GetMappedCode(questname,"QIRIS312","IRIS",iris.QIRIS312)
+			}
+			i adm.PAADMDischgDate'="",adm.PAADMDischgDate<DateTo {
+				s I140=$zd(adm.PAADMDischgDate,4,,4)_" "_$zt(adm.PAADMDischgTime,1)_":000"
+			} else {
+				s I140="30/12/1899 00:00:00:000"
+				s I139=""
+				s I141=""
+				s I142=""
+			}
+			
+			s I309A=I143_I297_I132
+			s I132=$c(34)_I295_I132_$c(34)
+			s I133=$c(34)_I295_I133_$c(34)
+			i I144="" s I144="0000"
+			i I309="" s I309=I309A
+			i I309'="" s I310=I143
+
+			s I13=$c(34)_I295_I13_$c(34)
+
+			;s (I311,I312)=0
+			s ^zCacheTemp("IRISExtract","Case",repid,admid)=I132_","_I133_","_I134_","_I136_","_I137_","_I138_","_I140_","_I139_","_I141_","_I142_","_I143_","_I144_","_I309_","_I310_","_I311_","_I312
+			
+			; Set all values to null if 0
+			f x=1:1:$l(^zCacheTemp("IRISExtract","Case",repid,admid),",") {
+				i $p($g(^zCacheTemp("IRISExtract","Case",repid,admid)),",",x)="" s $p(^zCacheTemp("IRISExtract","Case",repid,admid),",",x)=0
+			}
+			
+			; CaseSCS
+			i +I134="9" {
+				s I161=I13
+				s I162=I14
+				s I163=..GetMappedCode("PAC_SourceOfIncome","SRCINC_Code","IRIS",adm.PAADMPAPMIDR.PAPMIPAPERDR.PAPERSourceOfIncomeDR.SRCINCCode)
+				
+				i $g(iris) {
+					s I164=..GetMappedCode(questname,"QIRIS74","IRIS",iris.QIRIS74)
+					s I165=..GetMappedCode(questname,"QIRIS165","IRIS",iris.QIRIS165)
+					s I166=..GetMappedCode(questname,"QIRIS166","IRIS",iris.QIRIS166)
+					s I167=..GetMappedCode(questname,"QIRIS167","IRIS",iris.QIRIS167)
+					s I168=..GetMappedCode(questname,"QIRIS168","IRIS",iris.QIRIS168)
+					s I169=..GetMappedCode(questname,"QIRIS169","IRIS",iris.QIRIS169)
+					s I170=..GetMappedCode(questname,"QIRIS170","IRIS",iris.QIRIS170)
+					s x=0
+					for x=1:1:$l(iris.QIRIS118,",") {
+						i x=1 s I171=..GetMappedCode(questname,"QIRIS118","IRIS",$p(iris.QIRIS118,",",x))
+						i x=2 s I172=..GetMappedCode(questname,"QIRIS118","IRIS",$p(iris.QIRIS118,",",x))
+						i x=3 s I173=..GetMappedCode(questname,"QIRIS118","IRIS",$p(iris.QIRIS118,",",x))
+						i x=4 s I174=..GetMappedCode(questname,"QIRIS118","IRIS",$p(iris.QIRIS118,",",x))
+					}
+					s x=0
+					for x=1:1:$l(iris.QIRIS81,",") {
+						i x=1 s I175=..GetMappedCode(questname,"QIRIS81","IRIS",$p(iris.QIRIS81,",",x))
+						i x=2 s I176=..GetMappedCode(questname,"QIRIS81","IRIS",$p(iris.QIRIS81,",",x))
+						i x=3 s I177=..GetMappedCode(questname,"QIRIS81","IRIS",$p(iris.QIRIS81,",",x))
+						i x=4 s I178=..GetMappedCode(questname,"QIRIS81","IRIS",$p(iris.QIRIS81,",",x))
+					}
+					s I179=..GetMappedCode(questname,"QIRIS179","IRIS",iris.QIRIS179)
+					s I180=..GetMappedCode(questname,"QIRIS180","IRIS",iris.QIRIS180)
+					s I181=..GetMappedCode(questname,"QIRIS181","IRIS",iris.QIRIS181)
+					s I182=..GetMappedCode(questname,"QIRIS182","IRIS",iris.QIRIS182)
+				}
+				s ^zCacheTemp("IRISExtract","CaseSCS",repid,admid)=I161_","_I162_","_I163_","_I164_","_I165_","_I166_","_I167_","_I168_","_I169_","_I170_","_I171_","_I172_","_I173_","_I174_","_I175_","_I176_","_I177_","_I178_","_I179_","_I180_","_I181_","_I182
+
+				; Set all values to null if 0
+				f x=1:1:$l(^zCacheTemp("IRISExtract","CaseSCS",repid,admid),",") {
+					i $p($g(^zCacheTemp("IRISExtract","CaseSCS",repid,admid)),",",x)="" s $p(^zCacheTemp("IRISExtract","CaseSCS",repid,admid),",",x)=0
+				}
+
+
+				s (I161,I162,I163,I164,I165,I166,I167,I168,I169,I170,I171,I172,I173,I174,I175,I176,I177,I178,I179,I180,I181,I182)=""
+			}
+			; CaseFamily
+			i +I134="1" {
+				i $g(iris) {
+					s I15=..GetMappedCode(questname,"QIRIS15","IRIS",iris.QIRIS15)
+					s x=0
+					for x=1:1:$l(iris.QIRIS16,",") {
+						i x=1 s I16=..GetMappedCode(questname,"QIRIS16","IRIS",$p(iris.QIRIS16,",",x))
+						i x=2 s I17=..GetMappedCode(questname,"QIRIS16","IRIS",$p(iris.QIRIS16,",",x))
+						i x=3 s I18=..GetMappedCode(questname,"QIRIS16","IRIS",$p(iris.QIRIS16,",",x))
+						i x=4 s I19=..GetMappedCode(questname,"QIRIS16","IRIS",$p(iris.QIRIS16,",",x))
+					}
+					s I20=..GetMappedCode(questname,"QIRIS20","IRIS",iris.QIRIS20)
+					s I313=..GetMappedCode(questname,"QIRIS313","IRIS",iris.QIRIS313)
+					s I314=..GetMappedCode(questname,"QIRIS314","IRIS",iris.QIRIS314)
+					s I315=..GetMappedCode(questname,"QIRIS315","IRIS",iris.QIRIS315)
+					s I316=iris.QIRIS316
+					i I316'="" { s I316=$zd(I316,4,,4)_" 00:00:00:000" } else { s I316="30/12/1899 00:00:00:000" }
+					s I317=..GetMappedCode(questname,"QIRIS317","IRIS",iris.QIRIS317)
+					}
+
+					s I318=0																																	;To Be Confirmed
+					s I319=0																																	;To Be Confirmed
+
+					s ^zCacheTemp("IRISExtract","CaseFamily",repid,admid)=I13_","_I14_","_I15_","_I16_","_I17_","_I18_","_I19_","_I20_","_I313_","_I314_","_I315_","_I316_","_I317_","_I318_","_I319
+
+					; Set all values to null if 0
+					f x=1:1:$l(^zCacheTemp("IRISExtract","CaseFamily",repid,admid),",") {
+						i $p($g(^zCacheTemp("IRISExtract","CaseFamily",repid,admid)),",",x)="" s $p(^zCacheTemp("IRISExtract","CaseFamily",repid,admid),",",x)=0
+					}
+
+					s (I15,I16,I17,I18,I19,I20,I313,I314,I315,I316,I317,I318,I319)=""
+			}
+			; CaseFinancial
+			i +I134="2" {
+				s I21=I13
+				s I22=I14
+				i $g(iris) {
+					s I23=..GetMappedCode(questname,"QIRIS15","IRIS",iris.QIRIS15)
+					s x=0
+					for x=1:1:$l(iris.QIRIS16,",") {
+						i x=1 s I24=..GetMappedCode(questname,"QIRIS16","IRIS",$p(iris.QIRIS16,",",x))
+						i x=2 s I25=..GetMappedCode(questname,"QIRIS16","IRIS",$p(iris.QIRIS16,",",x))
+						i x=3 s I26=..GetMappedCode(questname,"QIRIS16","IRIS",$p(iris.QIRIS16,",",x))
+						i x=4 s I27=..GetMappedCode(questname,"QIRIS16","IRIS",$p(iris.QIRIS16,",",x))
+					}
+					s I28=..GetMappedCode(questname,"QIRIS28","IRIS",iris.QIRIS28)
+					s x=0
+					for x=1:1:$l(iris.QIRIS29,",") {
+						i x=1 s I29=..GetMappedCode(questname,"QIRIS29","IRIS",$p(iris.QIRIS29,",",x))
+						i x=2 s I30=..GetMappedCode(questname,"QIRIS29","IRIS",$p(iris.QIRIS29,",",x))
+						i x=3 s I31=..GetMappedCode(questname,"QIRIS29","IRIS",$p(iris.QIRIS29,",",x))
+						i x=4 s I32=..GetMappedCode(questname,"QIRIS29","IRIS",$p(iris.QIRIS29,",",x))
+					}
+					s x=0
+					for x=1:1:$l(iris.QIRIS33,",") {
+						i x=1 s I33=..GetMappedCode(questname,"QIRIS33","IRIS",$p(iris.QIRIS33,",",x))
+						i x=2 s I34=..GetMappedCode(questname,"QIRIS33","IRIS",$p(iris.QIRIS33,",",x))
+						i x=3 s I35=..GetMappedCode(questname,"QIRIS33","IRIS",$p(iris.QIRIS33,",",x))
+						i x=4 s I36=..GetMappedCode(questname,"QIRIS33","IRIS",$p(iris.QIRIS33,",",x))
+					}
+				}
+				s ^zCacheTemp("IRISExtract","CaseFinancial",repid,admid)=I21_","_I22_","_I23_","_I24_","_I25_","_I26_","_I27_","_I28_","_I29_","_I30_","_I31_","_I32_","_I33_","_I34_","_I35_","_I36
+
+				; Set all values to null if 0
+				f x=1:1:$l(^zCacheTemp("IRISExtract","CaseFinancial",repid,admid),",") {
+					i $p($g(^zCacheTemp("IRISExtract","CaseFinancial",repid,admid)),",",x)="" s $p(^zCacheTemp("IRISExtract","CaseFinancial",repid,admid),",",x)=0
+				}
+
+				s (I21,I22,I23,I24,I25,I26,I27,I28,I29,I30,I31,I32,I33,I34,I35,I36)=""
+			}
+			; CaseMCH
+			i +I134="4" {
+				s I107=I13
+				s I108=..GetMappedCode("PAC_SourceOfIncome","SRCINC_Code","IRIS",adm.PAADMPAPMIDR.PAPMIPAPERDR.PAPERSourceOfIncomeDR.SRCINCCode)
+				i $g(iris) {
+					s I109=..GetMappedCode(questname,"QIRIS109","IRIS",iris.QIRIS109)
+					s I110=..GetMappedCode(questname,"QIRIS110","IRIS",iris.QIRIS110)
+					s I111=..GetMappedCode(questname,"QIRIS111","IRIS",iris.QIRIS111)
+				}
+				s ^zCacheTemp("IRISExtract","CaseMCH",repid,admid)=I107_","_I108_","_I109_","_I110_","_I111
+
+				; Set all values to null if 0
+				f x=1:1:$l(^zCacheTemp("IRISExtract","CaseMCH",repid,admid),",") {
+					i $p($g(^zCacheTemp("IRISExtract","CaseMCH",repid,admid)),",",x)="" s $p(^zCacheTemp("IRISExtract","CaseMCH",repid,admid),",",x)=0
+				}
+
+				s (I107,I108,I109,I110,I111)=""
+			}
+			; CaseGambling
+			i +I134="5" {
+				s I52=I13
+				s I53=I14
+				s I57=..GetMappedCode("PAC_EmploymentStatus","EMPLST_Code","IRIS",adm.PAADMPAPMIDR.PAPMIPAPERDR.PAPEREmploymentStatDR.EMPLSTCode)
+				s I67=0
+				i $g(iris) {
+					s I54=..GetMappedCode(questname,"QIRIS15","IRIS",iris.QIRIS15)
+					s I55=..GetMappedCode(questname,"QIRIS28","IRIS",iris.QIRIS28)
+					s I56=..GetMappedCode(questname,"QIRIS56","IRIS",iris.QIRIS56)
+					s x=0
+					for x=1:1:$l(iris.QIRIS58,",") {
+						i x=1 s I58=..GetMappedCode(questname,"QIRIS58","IRIS",$p(iris.QIRIS58,",",x))
+						i x=2 s I59=..GetMappedCode(questname,"QIRIS58","IRIS",$p(iris.QIRIS58,",",x))
+						i x=3 s I60=..GetMappedCode(questname,"QIRIS58","IRIS",$p(iris.QIRIS58,",",x))
+						i x=4 s I61=..GetMappedCode(questname,"QIRIS58","IRIS",$p(iris.QIRIS58,",",x))
+					}
+					s I62=..GetMappedCode(questname,"QIRIS62","IRIS",iris.QIRIS62)
+					s I63=..GetMappedCode(questname,"QIRIS63","IRIS",iris.QIRIS63)
+					s I64=..GetMappedCode(questname,"QIRIS64","IRIS",iris.QIRIS64)
+					s I65=..GetMappedCode(questname,"QIRIS65","IRIS",iris.QIRIS65)
+					s I66=..GetMappedCode(questname,"QIRIS66","IRIS",iris.QIRIS66)
+					s I67=$justify(..GetMappedCode(questname,"QIRIS67","IRIS",iris.QIRIS67),"",2)
+					i I67="0.00" s I67=""
+					s I68=..GetMappedCode(questname,"QIRIS68","IRIS",iris.QIRIS68)
+					s I69=..GetMappedCode(questname,"QIRIS69","IRIS",iris.QIRIS69)
+					s I70=..GetMappedCode(questname,"QIRIS70","IRIS",iris.QIRIS70)
+					s I71=..GetMappedCode(questname,"QIRIS71","IRIS",iris.QIRIS71)
+					s I72=..GetMappedCode(questname,"QIRIS72","IRIS",iris.QIRIS72)
+				}
+				s ^zCacheTemp("IRISExtract","CaseGambling",repid,admid)=I52_","_I53_","_I54_","_I55_","_I56_","_I57_","_I58_","_I59_","_I60_","_I61_","_I62_","_I63_","_I64_","_I65_","_I66_","_I67_","_I68_","_I69_","_I70_","_I71_","_I72
+
+				; Set all values to null if 0
+				f x=1:1:$l(^zCacheTemp("IRISExtract","CaseGambling",repid,admid),",") {
+					i $p($g(^zCacheTemp("IRISExtract","CaseGambling",repid,admid)),",",x)="" s $p(^zCacheTemp("IRISExtract","CaseGambling",repid,admid),",",x)=0
+				}
+
+				s (I52,I53,I54,I55,I56,I57,I58,I59,I60,I61,I62,I63,I64,I65,I66,I67,I68,I69,I70,I71,I72)=""
+			}
+			; CasePSFO
+			i +I134="6" {
+				s I113=I13
+				i $g(iris) {
+					s x=0
+					for x=1:1:$l(iris.QIRIS75,",") {
+						i x=1 s I114=..GetMappedCode(questname,"QIRIS75","IRIS",$p(iris.QIRIS75,",",x))
+						i x=2 s I115=..GetMappedCode(questname,"QIRIS75","IRIS",$p(iris.QIRIS75,",",x))
+						i x=3 s I116=..GetMappedCode(questname,"QIRIS75","IRIS",$p(iris.QIRIS75,",",x))
+						i x=4 s I117=..GetMappedCode(questname,"QIRIS75","IRIS",$p(iris.QIRIS75,",",x))
+					}
+					s x=0
+					for x=1:1:$l(iris.QIRIS118,",") {
+						i x=1 s I118=..GetMappedCode(questname,"QIRIS118","IRIS",$p(iris.QIRIS118,",",x))
+						i x=2 s I119=..GetMappedCode(questname,"QIRIS118","IRIS",$p(iris.QIRIS118,",",x))
+						i x=3 s I120=..GetMappedCode(questname,"QIRIS118","IRIS",$p(iris.QIRIS118,",",x))
+						i x=4 s I121=..GetMappedCode(questname,"QIRIS118","IRIS",$p(iris.QIRIS118,",",x))
+					}
+					s x=0
+					for x=1:1:$l(iris.QIRIS81,",") {
+						i x=1 s I122=..GetMappedCode(questname,"QIRIS81","IRIS",$p(iris.QIRIS81,",",x))
+						i x=2 s I123=..GetMappedCode(questname,"QIRIS81","IRIS",$p(iris.QIRIS81,",",x))
+						i x=3 s I124=..GetMappedCode(questname,"QIRIS81","IRIS",$p(iris.QIRIS81,",",x))
+						i x=4 s I125=..GetMappedCode(questname,"QIRIS81","IRIS",$p(iris.QIRIS81,",",x))
+					}
+					s I126=iris.QIRIS79
+					i I126'="" s I126=..GetMappedCode(questname,"QIRIS79","IRIS",$p($g(^CT("EDU",I126)),"^",1))
+					s I127=..GetMappedCode(questname,"QIRIS80","IRIS",iris.QIRIS80)
+				}
+				
+				;TRC75229 24/06/2011 Updated query
+				k ques
+				s oe=0
+				f {
+					s oe=$o(^OEORD(0,"Adm",PAADMRowId,oe))
+					q:oe=""
+					s oei=0
+					f {
+						s oei=$o(^OEORD(oe,"I",oei))
+						q:oei=""
+						s item=$p($g(^OEORD(oe,"I",oei,1)),"^",2)
+						i $g(item)'="",$p($g(^ARCIM($p(item,"||"),$p(item,"||",2),1)),"^",10)'="" {
+							s cat=$p($g(^ARC("IC",$p($g(^ARCIM($p(item,"||"),$p(item,"||",2),1)),"^",10))),"^",8)
+							i $g(cat)'="" {
+								i $g(cat)=$o(^OEC("ORCAT",0,"Code","REF",0)) {
+									i $p($g(^OEORD(oe,"I",oei,1)),"^",9)>=DateFrom,$p($g(^OEORD(oe,"I",oei,1)),"^",9)<=DateTo {
+										s ques($p($g(^OEORD(oe,"I",oei,1)),"^",9))=$p($g(^OEORD(oe,"I",oei,12)),"^",15)
+									}
+								}
+							}
+						}
+					}
+				}
+				s x=0
+				s qid=0
+				f {
+					s qid=$o(ques(qid))
+					q:qid=""
+					s x=$i(x)
+					i qid'="" {
+						s srcs=##class(questionnaire.QSRCS).%OpenId(qid)
+						i srcs {
+							i x=1,srcs.QSCRS2B s I128=..GetMappedCode("PAC_SourceOfAttendance","ATTEND_Code","IRIS",$p($g(^PAC("ATTEND",srcs.QSCRS2B)),"^",1))
+							i x=2,srcs.QSCRS2B s I129=..GetMappedCode("PAC_SourceOfAttendance","ATTEND_Code","IRIS",$p($g(^PAC("ATTEND",srcs.QSCRS2B)),"^",1))
+							i x=3,srcs.QSCRS2B s I130=..GetMappedCode("PAC_SourceOfAttendance","ATTEND_Code","IRIS",$p($g(^PAC("ATTEND",srcs.QSCRS2B)),"^",1))
+							i x=4,srcs.QSCRS2B s I131=..GetMappedCode("PAC_SourceOfAttendance","ATTEND_Code","IRIS",$p($g(^PAC("ATTEND",srcs.QSCRS2B)),"^",1))
+						}
+					}
+				}
+				s ^zCacheTemp("IRISExtract","CasePSFO",repid,admid)=I113_","_I114_","_I115_","_I116_","_I117_","_I118_","_I119_","_I120_","_I121_","_I122_","_I123_","_I124_","_I125_","_I126_","_I127_","_I128_","_I129_","_I130_","_I131
+
+				; Set all values to null if 0
+				f x=1:1:$l(^zCacheTemp("IRISExtract","CasePSFO",repid,admid),",") {
+					i $p($g(^zCacheTemp("IRISExtract","CasePSFO",repid,admid)),",",x)="" s $p(^zCacheTemp("IRISExtract","CasePSFO",repid,admid),",",x)=0
+				}
+
+				s (I113,I114,I115,I116,I117,I118,I119,I120,I121,I122,I123,I124,I125,I126,I127,I128,I129,I130,I131)=""
+			}
+			; CaseSASS
+			i +I134="3" {
+				s I145=I13
+				s I147=..GetMappedCode("PAC_QualificationStatus","QUAL_Code","IRIS",adm.PAADMQualifStatusDR.QUALCode)
+				i $g(iris) {
+					s I146=..GetMappedCode(questname,"QIRIS146","IRIS",iris.QIRIS146)
+					s I148=..GetMappedCode(questname,"QIRIS148","IRIS",iris.QIRIS148)
+					s I149=..GetMappedCode(questname,"QIRIS149","IRIS",iris.QIRIS149)
+					s I150=..GetMappedCode(questname,"QIRIS150","IRIS",iris.QIRIS150)
+					s I151=..GetMappedCode(questname,"QIRIS58","IRIS",iris.QIRIS48)
+					s I152=..GetMappedCode(questname,"QIRIS152","IRIS",iris.QIRIS152)
+					i iris.QIRIS153'="" { s I153=$zd(iris.QIRIS153,4,,4)_" 00:00:00:000" } else { s I153="30/12/1899 00:00:00:000" }
+					i iris.QIRIS154'="" { s I154=$zd(iris.QIRIS154,4,,4)_" 00:00:00:000" } else { s I154="30/12/1899 00:00:00:000" }
+					s I155=..GetMappedCode(questname,"QIRIS155","IRIS",iris.QIRIS155)
+					s I156=..GetMappedCode(questname,"QIRIS156","IRIS",iris.QIRIS156)
+					s I157=..GetMappedCode(questname,"QIRIS157","IRIS",iris.QIRIS157)
+					s I158=..GetMappedCode(questname,"QIRIS45","IRIS",iris.QIRIS45)
+					s I159=..GetMappedCode(questname,"QIRIS159","IRIS",iris.QIRIS159)
+					s I160=..GetMappedCode(questname,"QIRIS160","IRIS",iris.QIRIS160)
+				}
+				s ^zCacheTemp("IRISExtract","CaseSASS",repid,admid)=I145_","_I146_","_I147_","_I148_","_I149_","_I150_","_I151_","_I152_","_I153_","_I154_","_I155_","_I156_","_I157_","_I158_","_I159_","_I160
+
+				; Set all values to null if 0
+				f x=1:1:$l(^zCacheTemp("IRISExtract","CaseSASS",repid,admid),",") {
+					i $p($g(^zCacheTemp("IRISExtract","CaseSASS",repid,admid)),",",x)="" s $p(^zCacheTemp("IRISExtract","CaseSASS",repid,admid),",",x)=0
+				}
+
+				s (I145,I146,I147,I148,I149,I150,I151,I152,I153,I154,I155,I156,I157,I158,I159,I160)=""
+			}
+			; CaseFVS
+			i +I134="7" {
+				s I37=I13
+				s I38=I14
+				s I39=..GetMappedCode("PAC_EmploymentStatus","EMPLST_Code","IRIS",adm.PAADMPAPMIDR.PAPMIPAPERDR.PAPEREmploymentStatDR.EMPLSTCode)
+				i $g(iris) {
+					s I40=iris.QIRIS40
+					s x=0
+					for x=1:1:$l(iris.QIRIS16,",") {
+						i x=1 s I41=..GetMappedCode(questname,"QIRIS16","IRIS",$p(iris.QIRIS16,",",x))
+						i x=2 s I42=..GetMappedCode(questname,"QIRIS16","IRIS",$p(iris.QIRIS16,",",x))
+						i x=3 s I43=..GetMappedCode(questname,"QIRIS16","IRIS",$p(iris.QIRIS16,",",x))
+						i x=4 s I44=..GetMappedCode(questname,"QIRIS16","IRIS",$p(iris.QIRIS16,",",x))
+					}
+					s I45=..GetMappedCode(questname,"QIRIS45","IRIS",iris.QIRIS45)
+					s I46=..GetMappedCode(questname,"QIRIS46","IRIS",iris.QIRIS46)
+					s I47=..GetMappedCode(questname,"QIRIS47","IRIS",iris.QIRIS47)
+					s I48=..GetMappedCode(questname,"QIRIS48","IRIS",iris.QIRIS48)
+					s I49=..GetMappedCode(questname,"QIRIS49","IRIS",iris.QIRIS49)
+					s I50=..GetMappedCode(questname,"QIRIS50","IRIS",iris.QIRIS50)
+					s I51=..GetMappedCode(questname,"QIRIS51","IRIS",iris.QIRIS51)
+				}
+				s ^zCacheTemp("IRISExtract","CaseFVS",repid,admid)=I37_","_I38_","_I39_","_I40_","_I41_","_I42_","_I43_","_I44_","_I45_","_I46_","_I47_","_I48_","_I49_","_I50_","_I51
+
+				; Set all values to null if 0
+				f x=1:1:$l(^zCacheTemp("IRISExtract","CaseFVS",repid,admid),",") {
+					i $p($g(^zCacheTemp("IRISExtract","CaseFVS",repid,admid)),",",x)="" s $p(^zCacheTemp("IRISExtract","CaseFVS",repid,admid),",",x)=0
+				}
+
+				s (I37,I38,I39,I40,I41,I42,I43,I44,I45,I46,I47,I48,I49,I50,I51)=""
+			}
+			; CaseLN
+			i +I134="10" {
+				s I73=I13
+				i $g(iris) {
+					s I74=..GetMappedCode(questname,"QIRIS74","IRIS",iris.QIRIS74)
+					s x=0
+					for x=1:1:$l(iris.QIRIS75,",") {
+						i x=1 s I75=..GetMappedCode(questname,"QIRIS75","IRIS",$p(iris.QIRIS75,",",x))
+						i x=2 s I76=..GetMappedCode(questname,"QIRIS75","IRIS",$p(iris.QIRIS75,",",x))
+						i x=3 s I77=..GetMappedCode(questname,"QIRIS75","IRIS",$p(iris.QIRIS75,",",x))
+						i x=4 s I78=..GetMappedCode(questname,"QIRIS75","IRIS",$p(iris.QIRIS75,",",x))
+					}
+					i iris.QIRIS79 s I79=..GetMappedCode(questname,"QIRIS79","IRIS",$p($g(^CT("EDU",iris.QIRIS79)),"^",1))
+					s I80=iris.QIRIS80
+					s x=0
+					for x=1:1:$l(iris.QIRIS81,",") {
+						i x=1 s I81=..GetMappedCode(questname,"QIRIS81","IRIS",$p(iris.QIRIS81,",",x))
+						i x=2 s I82=..GetMappedCode(questname,"QIRIS81","IRIS",$p(iris.QIRIS81,",",x))
+						i x=3 s I83=..GetMappedCode(questname,"QIRIS81","IRIS",$p(iris.QIRIS81,",",x))
+						i x=4 s I84=..GetMappedCode(questname,"QIRIS81","IRIS",$p(iris.QIRIS81,",",x))
+					}
+					s x=0
+					for x=1:1:$l(iris.QIRIS85,",") {
+						i x=1 s I85=..GetMappedCode(questname,"QIRIS85","IRIS",$p(iris.QIRIS85,",",x))
+						i x=2 s I86=..GetMappedCode(questname,"QIRIS85","IRIS",$p(iris.QIRIS85,",",x))
+						i x=3 s I87=..GetMappedCode(questname,"QIRIS85","IRIS",$p(iris.QIRIS85,",",x))
+					}
+					s I88=..GetMappedCode(questname,"QIRIS88","IRIS",iris.QIRIS88)
+					i iris.QIRIS89'="" { s I89=$zd(iris.QIRIS89,4,,4)_" 00:00:00:000" } else { s I89="30/12/1899 00:00:00:000" }
+					s I90=..GetMappedCode(questname,"QIRIS90","IRIS",iris.QIRIS90)
+					s I91=..GetMappedCode(questname,"QIRIS91","IRIS",iris.QIRIS91)
+					i iris.QIRIS92'="" { s I92=$zd(iris.QIRIS92,4,,4)_" 00:00:00:000" } else { s I92="30/12/1899 00:00:00:000" }
+					s x=0
+					for x=1:1:$l(iris.QIRIS93,",") {
+						i x=1 s I93=..GetMappedCode(questname,"QIRIS93","IRIS",$p(iris.QIRIS93,",",x))
+						i x=2 s I94=..GetMappedCode(questname,"QIRIS93","IRIS",$p(iris.QIRIS93,",",x))
+						i x=3 s I95=..GetMappedCode(questname,"QIRIS93","IRIS",$p(iris.QIRIS93,",",x))
+						i x=4 s I96=..GetMappedCode(questname,"QIRIS93","IRIS",$p(iris.QIRIS93,",",x))
+					}
+					s I97=..GetMappedCode(questname,"QIRIS97","IRIS",iris.QIRIS97)
+					i iris.QIRIS98'="" { s I98=$zd(iris.QIRIS98,4,,4)_" 00:00:00:000" } else { s I98="30/12/1899 00:00:00:000" }
+					s x=0
+					for x=1:1:$l(iris.QIRIS99,",") {
+						i x=1 s I99=..GetMappedCode(questname,"QIRIS99","IRIS",$p(iris.QIRIS99,",",x))
+						i x=2 s I100=..GetMappedCode(questname,"QIRIS99","IRIS",$p(iris.QIRIS99,",",x))
+						i x=3 s I101=..GetMappedCode(questname,"QIRIS99","IRIS",$p(iris.QIRIS99,",",x))
+						i x=4 s I102=..GetMappedCode(questname,"QIRIS99","IRIS",$p(iris.QIRIS99,",",x))
+					}
+					i iris.QIRIS104'="" { s I104=$zd(iris.QIRIS104,4,,4)_" 00:00:00:000" } else { s I104="30/12/1899 00:00:00:000" }
+					i iris.QIRIS105'="" { s I105=$zd(iris.QIRIS105,4,,4)_" 00:00:00:000" } else { s I105="30/12/1899 00:00:00:000" }
+					i iris.QIRIS106'="" { s I106=$zd(iris.QIRIS106,4,,4)_" 00:00:00:000" } else { s I106="30/12/1899 00:00:00:000" }
+				}
+				s ^zCacheTemp("IRISExtract","CaseLN",repid,admid)=I73_","_I74_","_I75_","_I76_","_I77_","_I78_","_I79_","_I80_","_I81_","_I82_","_I83_","_I84_","_I85_","_I86_","_I87_","_I88_","_I89_","_I90_","_I91_","_I92_","_I93_","_I94_","_I95_","_I96_","_I97_","_I98_","_I99_","_I100_","_I101_","_I102_","_I104_","_I105_","_I106
+
+				; Set all values to null if 0
+				f x=1:1:$l(^zCacheTemp("IRISExtract","CaseLN",repid,admid),",") {
+					i $p($g(^zCacheTemp("IRISExtract","CaseLN",repid,admid)),",",x)="" s $p(^zCacheTemp("IRISExtract","CaseLN",repid,admid),",",x)=0
+				}
+
+				s (I73,I74,I75,I76,I77,I78,I79,I80,I81,I82,I83,I84,I85,I86,I87,I88,I89,I90,I91,I92,I93,I94,I95,I96,I97,I98,I99,I100,I101,I102,I104,I105,I106)=""
+			}
+			d ..Issue(DateFrom,DateTo,repid,I295,admid)
+		}
+		i $g(iris),$IsObject(iris) k iris
+		i $g(adm),$IsObject(adm) k adm
+		d ..RelatedPersonChild(DateFrom,DateTo,repid,I295,admid)
+		s (I132,I133,I134,I136,I137,I138,I140,I139,I141,I142,I143,I144,I309,I310,I311,I312)=""
+	}
+	q 1
+]]></Implementation>
+</Method>
+
+<Method name="RelatedPersonChild">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>DateFrom:%String,DateTo:%String,repid:%String,I295:%String,admid:%String</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	s (NOKPAPERDOB,NOKCTSEXCode,NOKINDSTCode,NOKCTCOUCode,NOKCTZIPCode,NOKPAPERAgeYr,PAPMIRowId)=""
+	i $g(^||SITE)'="AUXX"  
+	{
+		s id=$o(^questionnaire.QIRISI("IndexPAAdmID",admid,""),-1)
+		i $g(id)'="" {
+			for x=0:1:5 {
+				i $lg(^questionnaire.QIRISD(id),59+x)="CU" {
+					s (I183,I184,I185,I186,I187,I188,I189,I190,I191,I192)=""
+					s I183=id_x
+					s I184=$c(34)_I295_I193_$c(34)
+					s I185=$lg(^questionnaire.QIRISD(id),83+x)
+					s I186=$lg(^questionnaire.QIRISD(id),89+x)
+					i I186'="" s I186=$p($g(^CT("SEX",I186)),"^",1)
+					s I187=$lg(^questionnaire.QIRISD(id),95+x)
+					i I187'="" s I187=$p($g(^PAC("INDST",I187)),"^",1)
+					i I187="" s I187="0"
+					s I188=$lg(^questionnaire.QIRISD(id),101+x)
+					i I188'="" s I188=$p($g(^CT("COU",I188)),"^",1)
+					s I189=..SLK($lg(^questionnaire.QIRISD(id),71+x),$lg(^questionnaire.QIRISD(id),77+x),I185,I186)
+					;s I189=I189_"data"_x_"data1"_$lg(^questionnaire.QIRISD(id),71+x)_"data2"_$lg(^questionnaire.QIRISD(id),77+x)_"data3"
+					s I190=$lg(^questionnaire.QIRISD(id),113+x)
+					s I191=$lg(^questionnaire.QIRISD(id),119+x)
+					s I192=$lg(^questionnaire.QIRISD(id),125+x)
+
+					s I183=$c(34)_I295_I183_$c(34)
+					i I185'="" { s I185=$zd(I185,4,,4)_" 00:00:00:000" } else { s I185="30/12/1899 00:00:00:000" }
+					s I186=..GetMappedCode("CT_Sex","CTSEX_Code","IRIS",$g(I186))
+					s I187=..GetMappedCode("PAC_IndigStatus","INDST_Code","IRIS",$g(I187))
+					s I188=..GetMappedCode("CT_Country","CTCOU_Code","IRIS",$g(I188))
+					s I189=$c(34)_I189_$c(34)
+					s I190=..GetMappedCode("questionnaire.QIRIS","QIRIS190"_$c(65+x),"IRIS",$g(I190))
+					s I191=..GetMappedCode("questionnaire.QIRIS","QIRIS191"_$c(65+x),"IRIS",$g(I191))
+					s I192=..GetMappedCode("questionnaire.QIRIS","QIRIS192"_$c(65+x),"IRIS",$g(I192))
+					i I190="" s I190=0
+					i I191="" s I191=0
+					i I192="" s I192=0
+
+					s ^zCacheTemp("IRISExtract","Child",repid,admid,I183)=I183_","_I184_","_I185_","_I186_","_I187_","_I188_","_I189_","_I190_","_I191_","_I192
+					; Set all values to null if 0
+					f x=1:1:$l(^zCacheTemp("IRISExtract","Child",repid,admid,I183),",") {
+						i $p($g(^zCacheTemp("IRISExtract","Child",repid,admid,I183)),",",x)="",(",8,9,10,")'[(","_x_",") s $p(^zCacheTemp("IRISExtract","Child",repid,admid,I183),",",x)=0
+					}
+					s (I183,I184,I185,I186,I187,I188,I189,I190,I191,I192)=""
+				}
+			}
+			
+			for x=0:1:5 {
+				i $lg(^questionnaire.QIRISD(id),59+x)="CR" {
+					s (I183,I183C,I184,I185,I186,I187,I188,I189,I190,I191,I192,I265)=""
+					s I183=$lg(^questionnaire.QIRISD(id),65+x)
+					&SQL(SELECT PAPER_RowId into :I183C FROM SQLUser.PA_Person WHERE PAPER_PAPMI_DR->PAPMI_No=:I183)
+					i I183C'=""	{
+						s (NOKPAPERDOB,NOKCTSEXCode,NOKINDSTCode,NOKCTCOUCode,NOKCTZIPCode,NOKPAPERAgeYr)=""
+						s pat=##class(User.PAPerson).%OpenId(I183C)
+						i pat {
+							s NOKCTZIPCode=pat.PAPERZipDR.CTZIPCode
+							s NOKPAPERDOB=pat.PAPERDob
+							s NOKCTSEXCode=pat.PAPERSexDR.CTSEXCode
+							s NOKPAPERAgeYr=pat.PAPERAgeYr
+							s NOKINDSTCode=pat.PAPERIndigStatDR.INDSTCode
+							s NOKCTCOUCode=pat.PAPERCountryBirthDR.CTCOUCode
+		
+							s rt=0
+							f {
+								s rt=$o(^RT(0,"PAT",I183C,rt))
+								q:rt=""
+								s record=##class(User.RTMaster).%OpenId(rt)
+								i record {
+									i record.RTMASMRTypeDR.TYPCode="SLK" {
+										s I265=$e(record.RTMASMRNo,$l(record.RTMASMRNo),$l(record.RTMASMRNo))
+										i I265=1 {
+											s I265=$e(record.RTMASMRNo,1,$l(record.RTMASMRNo)-1)_"M"
+										} elseif I265=2 {
+											s I265=$e(record.RTMASMRNo,1,$l(record.RTMASMRNo)-1)_"F"
+										}else {
+											s I265=record.RTMASMRNo
+										}
+									}
+									k record
+								}
+							}
+							k pat
+						}
+					}
+					s I185=NOKPAPERDOB
+					s I186=NOKCTSEXCode
+					s I187=NOKINDSTCode
+					s I188=NOKCTCOUCode
+
+					i I183C="" s I183=id_x
+					s I184=$c(34)_I295_I193_$c(34)
+
+					i I185="" s I185=$lg(^questionnaire.QIRISD(id),83+x)
+					i I186="" {
+						s I186=$lg(^questionnaire.QIRISD(id),89+x)
+						i I186'="" s I186=$p($g(^CT("SEX",I186)),"^",1)
+					}
+					i I187="" {
+						s I187=$lg(^questionnaire.QIRISD(id),95+x)
+						i I187'="" s I187=$p($g(^PAC("INDST",I187)),"^",1)
+						i I187="" s I187="0"
+					}
+					i I188="" {
+						s I188=$lg(^questionnaire.QIRISD(id),101+x)
+						i I188'="" s I188=$p($g(^CT("COU",I188)),"^",1)
+					}
+					i I265=""  s I189=..SLK($lg(^questionnaire.QIRISD(id),71+x),$lg(^questionnaire.QIRISD(id),77+x),I185,I186)
+					s I190=$lg(^questionnaire.QIRISD(id),113+x)
+					s I191=$lg(^questionnaire.QIRISD(id),119+x)
+					s I192=$lg(^questionnaire.QIRISD(id),125+x)
+
+					s I183=$c(34)_I295_I183_$c(34)
+					i I185'="" { s I185=$zd(I185,4,,4)_" 00:00:00:000" } else { s I185="30/12/1899 00:00:00:000" }
+					s I186=..GetMappedCode("CT_Sex","CTSEX_Code","IRIS",$g(I186))
+					s I187=..GetMappedCode("PAC_IndigStatus","INDST_Code","IRIS",$g(I187))
+					s I188=..GetMappedCode("CT_Country","CTCOU_Code","IRIS",$g(I188))
+					i I189="" s I189=$c(34)_I265_$c(34)
+					s I190=..GetMappedCode("questionnaire.QIRIS","QIRIS190"_$c(65+x),"IRIS",$g(I190))
+					s I191=..GetMappedCode("questionnaire.QIRIS","QIRIS191"_$c(65+x),"IRIS",$g(I191))
+					s I192=..GetMappedCode("questionnaire.QIRIS","QIRIS192"_$c(65+x),"IRIS",$g(I192))
+					i I190="" s I190=0
+					i I191="" s I191=0
+					i I192="" s I192=0
+
+					s ^zCacheTemp("IRISExtract","Child",repid,admid,I183)=I183_","_I184_","_I185_","_I186_","_I187_","_I188_","_I189_","_I190_","_I191_","_I192
+					; Set all values to null if 0
+					f x=1:1:$l(^zCacheTemp("IRISExtract","Child",repid,admid,I183),",") {
+						i $p($g(^zCacheTemp("IRISExtract","Child",repid,admid,I183)),",",x)="",(",8,9,10,")'[(","_x_",") s $p(^zCacheTemp("IRISExtract","Child",repid,admid,I183),",",x)=0
+					}
+					s (I183,I184,I185,I186,I187,I188,I189,I190,I191,I192)=""
+				}
+			}
+		}
+		
+		s PAPMIRowId=$p($g(^PAADM(admid)),"^",1)
+		i $g(PAPMIRowId)'="" {
+			s id=0
+			f {
+				s id=$o(^questionnaire.QIRISCRI("IndexPAPatMasID",PAPMIRowId,id))
+				q:id=""
+				i $lg(^questionnaire.QIRISCRD(id),38)<=DateTo,$s($lg(^questionnaire.QIRISCRD(id),39)="":DateTo,1:$lg(^questionnaire.QIRISCRD(id),39))>=DateFrom {
+					i $lg(^questionnaire.QIRISCRD(id),41)="1" {
+						i $lg(^questionnaire.QIRISCRD(id),25)="RU" {
+							s (I257,I258,I259,I260,I261,I262,I263,I264,I265,I266,I267,I268)=""
+							s I257=$c(34)_I295_id_$c(34)
+							s I258=$p($g(^PAADM(admid)),"^",81)
+							i I258'="" s I258=I295_I258
+							s I259=$lg(^questionnaire.QIRISCRD(id),21)
+							i I259'="" s I259=$p($g(^CT("CITAREA",I259)),"^",1)
+							s I260=$lg(^questionnaire.QIRISCRD(id),28)
+							s I261=$lg(^questionnaire.QIRISCRD(id),24)
+							i I261'="" s I261=$p($g(^CT("SEX",I261)),"^",1)
+							s I265=..SLK($lg(^questionnaire.QIRISCRD(id),29),$lg(^questionnaire.QIRISCRD(id),30),I260,I261)
+							s I262=$lg(^questionnaire.QIRISCRD(id),31)
+							i I262="" s I262="0"
+							s I263=$lg(^questionnaire.QIRISCRD(id),22)
+							i I263'="" s I263=$p($g(^PAC("INDST",I263)),"^",1)
+							s I264=$lg(^questionnaire.QIRISCRD(id),23)
+							i I264'="" s I264=$p($g(^CT("COU",I264)),"^",1)
+							s I266=$lg(^questionnaire.QIRISCRD(id),33)
+							s I267=$lg(^questionnaire.QIRISCRD(id),26)
+							s I268=$lg(^questionnaire.QIRISCRD(id),27)
+							;
+							s I259=$c(34)_..GetMappedCode("CT_CityArea","CITAREA_Code","IRIS",$g(I259))_$c(34)
+							i I260'="" { s I260=$zd(I260,4,,4)_" 00:00:00:000" } else { s I260="30/12/1899 00:00:00:000" }
+							s I261=..GetMappedCode("CT_Sex","CTSEX_Code","IRIS",$g(I261))
+							s I263=..GetMappedCode("PAC_IndigStatus","INDST_Code","IRIS",$g(I263))
+							s I264=..GetMappedCode("CT_Country","CTCOU_Code","IRIS",$g(I264))
+							s I265=$c(34)_I265_$c(34)
+							s I266=..GetMappedCode("CT_Relation","CTRLT_Code","IRIS",$g(I266))
+							s I267=..GetMappedCode("questionnaire.QIRISCR","QIRISCR267","IRIS",$g(I267))
+							s I268=..GetMappedCode("questionnaire.QIRISCR","QIRISCR268","IRIS",$g(I268))
+							;
+							s ^zCacheTemp("IRISExtract","RelatedPerson",repid,admid,I258_id)=I257_","_I258_","_I259_","_I261_","_I262_","_I263_","_I264_","_I265_","_I266_","_I267_","_I268
+							; Set all values to null if 0
+							f x=1:1:$l(^zCacheTemp("IRISExtract","RelatedPerson",repid,admid,I258_id),",") {
+								i $p($g(^zCacheTemp("IRISExtract","RelatedPerson",repid,admid,I258_id)),",",x)="" s $p(^zCacheTemp("IRISExtract","RelatedPerson",repid,admid,I258_id),",",x)=0
+							}
+							s (I257,I258,I259,I260,I261,I262,I263,I264,I265,I266,I267,I268)=""
+						}
+						i $lg(^questionnaire.QIRISCRD(id),25)="R" {
+							s (I257,I257C,I258,I259,I260,I261,I262,I263,I264,I265,I266,I267,I268)=""
+							s I257=$lg(^questionnaire.QIRISCRD(id),34)
+							&SQL(SELECT PAPER_RowId into :I257C FROM SQLUser.PA_Person WHERE PAPER_PAPMI_DR->PAPMI_No=:I257)
+							s I258=$p($g(^PAADM(admid)),"^",81)
+							i I258'="" s I258=I295_I258
+							s (NOKPAPERDOB,NOKCTSEXCode,NOKINDSTCode,NOKCTCOUCode,NOKCTZIPCode,NOKPAPERAgeYr)=""
+							s pat=##class(User.PAPerson).%OpenId(I257C)
+							i pat {
+								s NOKCTZIPCode=pat.PAPERZipDR.CTZIPCode
+								s NOKPAPERDOB=pat.PAPERDob
+								s NOKCTSEXCode=pat.PAPERSexDR.CTSEXCode
+								s NOKPAPERAgeYr=pat.PAPERAgeYr
+								s NOKINDSTCode=pat.PAPERIndigStatDR.INDSTCode
+								s NOKCTCOUCode=pat.PAPERCountryBirthDR.CTCOUCode
+			
+								s rt=0
+								f {
+									s rt=$o(^RT(0,"PAT",I257C,rt))
+									q:rt=""
+									s record=##class(User.RTMaster).%OpenId(rt)
+									i record {
+										i record.RTMASMRTypeDR.TYPCode="SLK" {
+											s I265=$e(record.RTMASMRNo,$l(record.RTMASMRNo),$l(record.RTMASMRNo))
+											i I265=1 {
+												s I265=$e(record.RTMASMRNo,1,$l(record.RTMASMRNo)-1)_"M"
+											} elseif I265=2 {
+												s I265=$e(record.RTMASMRNo,1,$l(record.RTMASMRNo)-1)_"F"
+											}else {
+												s I265=record.RTMASMRNo
+											}
+										}
+										k record
+									}
+								}
+								k pat
+							}
+						
+							s I259=$lg(^questionnaire.QIRISCRD(id),21)
+							i I259'="" s I259=$p($g(^CT("CITAREA",I259)),"^",1)
+							s I260=NOKPAPERDOB
+							s I261=NOKCTSEXCode
+							s I262=NOKPAPERAgeYr
+							i I262="" s I262="0"
+							s I263=NOKINDSTCode
+							s I264=NOKCTCOUCode
+							i I260="" s I260=$lg(^questionnaire.QIRISCRD(id),28)
+							i I261="" {
+								s I261=$lg(^questionnaire.QIRISCRD(id),24)
+								i I261'="" s I261=$p($g(^CT("SEX",I261)),"^",1)
+							}
+							i I265="" s I265=..SLK($lg(^questionnaire.QIRISCRD(id),29),$lg(^questionnaire.QIRISCRD(id),30),I260,I261)
+							i I262="" {
+								s I262=$lg(^questionnaire.QIRISCRD(id),31)
+								i I262="" s I262="0"
+							}
+							i I263="" {
+								s I263=$lg(^questionnaire.QIRISCRD(id),22)
+								i I263'="" s I263=$p($g(^PAC("INDST",I263)),"^",1)
+							}
+							i I264="" {
+								s I264=$lg(^questionnaire.QIRISCRD(id),23)
+								i I264'="" s I264=$p($g(^CT("COU",I264)),"^",1)
+							}
+							s I266=$lg(^questionnaire.QIRISCRD(id),33)
+							s I267=$lg(^questionnaire.QIRISCRD(id),26)
+							s I268=$lg(^questionnaire.QIRISCRD(id),27)
+							;
+							s I259=$c(34)_##class(Custom.VICIRISExtract).GetMappedCode("CT_CityArea","CITAREA_Code","IRIS",$g(I259))_$c(34)
+							i I260'="" { s I260=$zd(I260,4,,4)_" 00:00:00:000" } else { s I260="30/12/1899 00:00:00:000" }
+							s I261=##class(Custom.VICIRISExtract).GetMappedCode("CT_Sex","CTSEX_Code","IRIS",$g(I261))
+							s I263=##class(Custom.VICIRISExtract).GetMappedCode("PAC_IndigStatus","INDST_Code","IRIS",$g(I263))
+							s I264=##class(Custom.VICIRISExtract).GetMappedCode("CT_Country","CTCOU_Code","IRIS",$g(I264))
+							s I265=$c(34)_I265_$c(34)
+							s I266=##class(Custom.VICIRISExtract).GetMappedCode("CT_Relation","CTRLT_Code","IRIS",$g(I266))
+							s I267=##class(Custom.VICIRISExtract).GetMappedCode("questionnaire.QIRISCR","QIRISCR267","IRIS",$g(I267))
+							s I268=##class(Custom.VICIRISExtract).GetMappedCode("questionnaire.QIRISCR","QIRISCR268","IRIS",$g(I268))
+							;
+							s ^zCacheTemp("IRISExtract","RelatedPerson",repid,admid,I258_id)=I295_I257_","_I258_","_I259_","_I261_","_I262_","_I263_","_I264_","_I265_","_I266_","_I267_","_I268
+							; Set all values to null if 0
+							f x=1:1:$l(^zCacheTemp("IRISExtract","RelatedPerson",repid,admid,I258_id),",") {
+								i $p($g(^zCacheTemp("IRISExtract","RelatedPerson",repid,admid,I258_id)),",",x)="" s $p(^zCacheTemp("IRISExtract","RelatedPerson",repid,admid,I258_id),",",x)=0
+							}
+							s (I257,I258,I259,I260,I261,I262,I263,I264,I265,I266,I267,I268)=""
+						}
+					}
+				}
+			}
+		}
+		else {
+			s id=$o(^questionnaire.QAUXXIRISI("IndexPAAdmID",admid,""),-1)
+			i $g(id)'="" {
+			for x=0:1:5 {
+				i $lg(^questionnaire.QAUXXIRISD(id),59+x)="CU" {
+					s (I183,I184,I185,I186,I187,I188,I189,I190,I191,I192)=""
+					s I183=id_x
+					s I184=$c(34)_I295_I193_$c(34)
+					s I185=$lg(^questionnaire.QAUXXIRISD(id),83+x)
+					s I186=$lg(^questionnaire.QAUXXIRISD(id),89+x)
+					i I186'="" s I186=$p($g(^CT("SEX",I186)),"^",1)
+					s I187=$lg(^questionnaire.QAUXXIRISD(id),95+x)
+					i I187'="" s I187=$p($g(^PAC("INDST",I187)),"^",1)
+					i I187="" s I187="0"
+					s I188=$lg(^questionnaire.QAUXXIRISD(id),101+x)
+					i I188'="" s I188=$p($g(^CT("COU",I188)),"^",1)
+					s I189=..SLK($lg(^questionnaire.QAUXXIRISD(id),71+x),$lg(^questionnaire.QAUXXIRISD(id),77+x),I185,I186)
+					;s I189=I189_"data"_x_"data1"_$lg(^questionnaire.QAUXXIRISD(id),71+x)_"data2"_$lg(^questionnaire.QAUXXIRISD(id),77+x)_"data3"
+					s I190=$lg(^questionnaire.QAUXXIRISD(id),113+x)
+					s I191=$lg(^questionnaire.QAUXXIRISD(id),119+x)
+					s I192=$lg(^questionnaire.QAUXXIRISD(id),125+x)
+
+					s I183=$c(34)_I295_I183_$c(34)
+					i I185'="" { s I185=$zd(I185,4,,4)_" 00:00:00:000" } else { s I185="30/12/1899 00:00:00:000" }
+					s I186=..GetMappedCode("CT_Sex","CTSEX_Code","IRIS",$g(I186))
+					s I187=..GetMappedCode("PAC_IndigStatus","INDST_Code","IRIS",$g(I187))
+					s I188=..GetMappedCode("CT_Country","CTCOU_Code","IRIS",$g(I188))
+					s I189=$c(34)_I189_$c(34)
+					s I190=..GetMappedCode("questionnaire.QAUXXIRIS","QIRIS190"_$c(65+x),"IRIS",$g(I190))
+					s I191=..GetMappedCode("questionnaire.QAUXXIRIS","QIRIS191"_$c(65+x),"IRIS",$g(I191))
+					s I192=..GetMappedCode("questionnaire.QAUXXIRIS","QIRIS192"_$c(65+x),"IRIS",$g(I192))
+					i I190="" s I190=0
+					i I191="" s I191=0
+					i I192="" s I192=0
+
+					s ^zCacheTemp("IRISExtract","Child",repid,admid,I183)=I183_","_I184_","_I185_","_I186_","_I187_","_I188_","_I189_","_I190_","_I191_","_I192
+					; Set all values to null if 0
+					f x=1:1:$l(^zCacheTemp("IRISExtract","Child",repid,admid,I183),",") {
+						i $p($g(^zCacheTemp("IRISExtract","Child",repid,admid,I183)),",",x)="",(",8,9,10,")'[(","_x_",") s $p(^zCacheTemp("IRISExtract","Child",repid,admid,I183),",",x)=0
+					}
+					s (I183,I184,I185,I186,I187,I188,I189,I190,I191,I192)=""
+				}
+			}
+			
+			for x=0:1:5 {
+				i $lg(^questionnaire.QAUXXIRISD(id),59+x)="CR" {
+					s (I183,I183C,I184,I185,I186,I187,I188,I189,I190,I191,I192,I265)=""
+					s I183=$lg(^questionnaire.QAUXXIRISD(id),65+x)
+					&SQL(SELECT PAPER_RowId into :I183C FROM SQLUser.PA_Person WHERE PAPER_PAPMI_DR->PAPMI_No=:I183)
+					i I183C'=""	{
+						s (NOKPAPERDOB,NOKCTSEXCode,NOKINDSTCode,NOKCTCOUCode,NOKCTZIPCode,NOKPAPERAgeYr)=""
+						s pat=##class(User.PAPerson).%OpenId(I183C)
+						i pat {
+							s NOKCTZIPCode=pat.PAPERZipDR.CTZIPCode
+							s NOKPAPERDOB=pat.PAPERDob
+							s NOKCTSEXCode=pat.PAPERSexDR.CTSEXCode
+							s NOKPAPERAgeYr=pat.PAPERAgeYr
+							s NOKINDSTCode=pat.PAPERIndigStatDR.INDSTCode
+							s NOKCTCOUCode=pat.PAPERCountryBirthDR.CTCOUCode
+		
+							s rt=0
+							f {
+								s rt=$o(^RT(0,"PAT",I183C,rt))
+								q:rt=""
+								s record=##class(User.RTMaster).%OpenId(rt)
+								i record {
+									i record.RTMASMRTypeDR.TYPCode="SLK" {
+										s I265=$e(record.RTMASMRNo,$l(record.RTMASMRNo),$l(record.RTMASMRNo))
+										i I265=1 {
+											s I265=$e(record.RTMASMRNo,1,$l(record.RTMASMRNo)-1)_"M"
+										} elseif I265=2 {
+											s I265=$e(record.RTMASMRNo,1,$l(record.RTMASMRNo)-1)_"F"
+										}else {
+											s I265=record.RTMASMRNo
+										}
+									}
+									k record
+								}
+							}
+							k pat
+						}
+					}
+					s I185=NOKPAPERDOB
+					s I186=NOKCTSEXCode
+					s I187=NOKINDSTCode
+					s I188=NOKCTCOUCode
+
+					i I183C="" s I183=id_x
+					s I184=$c(34)_I295_I193_$c(34)
+
+					i I185="" s I185=$lg(^questionnaire.QAUXXIRISD(id),83+x)
+					i I186="" {
+						s I186=$lg(^questionnaire.QAUXXIRISD(id),89+x)
+						i I186'="" s I186=$p($g(^CT("SEX",I186)),"^",1)
+					}
+					i I187="" {
+						s I187=$lg(^questionnaire.QAUXXIRISD(id),95+x)
+						i I187'="" s I187=$p($g(^PAC("INDST",I187)),"^",1)
+						i I187="" s I187="0"
+					}
+					i I188="" {
+						s I188=$lg(^questionnaire.QAUXXIRISD(id),101+x)
+						i I188'="" s I188=$p($g(^CT("COU",I188)),"^",1)
+					}
+					i I265=""  s I189=..SLK($lg(^questionnaire.QAUXXIRISD(id),71+x),$lg(^questionnaire.QAUXXIRISD(id),77+x),I185,I186)
+					s I190=$lg(^questionnaire.QAUXXIRISD(id),113+x)
+					s I191=$lg(^questionnaire.QAUXXIRISD(id),119+x)
+					s I192=$lg(^questionnaire.QAUXXIRISD(id),125+x)
+
+					s I183=$c(34)_I295_I183_$c(34)
+					i I185'="" { s I185=$zd(I185,4,,4)_" 00:00:00:000" } else { s I185="30/12/1899 00:00:00:000" }
+					s I186=..GetMappedCode("CT_Sex","CTSEX_Code","IRIS",$g(I186))
+					s I187=..GetMappedCode("PAC_IndigStatus","INDST_Code","IRIS",$g(I187))
+					s I188=..GetMappedCode("CT_Country","CTCOU_Code","IRIS",$g(I188))
+					i I189="" s I189=$c(34)_I265_$c(34)
+					s I190=..GetMappedCode("questionnaire.QAUXXIRIS","QIRIS190"_$c(65+x),"IRIS",$g(I190))
+					s I191=..GetMappedCode("questionnaire.QAUXXIRIS","QIRIS191"_$c(65+x),"IRIS",$g(I191))
+					s I192=..GetMappedCode("questionnaire.QAUXXIRIS","QIRIS192"_$c(65+x),"IRIS",$g(I192))
+					i I190="" s I190=0
+					i I191="" s I191=0
+					i I192="" s I192=0
+
+					s ^zCacheTemp("IRISExtract","Child",repid,admid,I183)=I183_","_I184_","_I185_","_I186_","_I187_","_I188_","_I189_","_I190_","_I191_","_I192
+					; Set all values to null if 0
+					f x=1:1:$l(^zCacheTemp("IRISExtract","Child",repid,admid,I183),",") {
+						i $p($g(^zCacheTemp("IRISExtract","Child",repid,admid,I183)),",",x)="",(",8,9,10,")'[(","_x_",") s $p(^zCacheTemp("IRISExtract","Child",repid,admid,I183),",",x)=0
+					}
+					s (I183,I184,I185,I186,I187,I188,I189,I190,I191,I192)=""
+				}
+			}
+		}
+		
+		s PAPMIRowId=$p($g(^PAADM(admid)),"^",1)
+		i $g(PAPMIRowId)'="" {
+			s id=0
+			f {
+				s id=$o(^questionnaire.QAUXXIRISCRI("IndexPAPatMasID",PAPMIRowId,id))
+				q:id=""
+				i $lg(^questionnaire.QAUXXIRISCRD(id),38)<=DateTo,$s($lg(^questionnaire.QAUXXIRISCRD(id),39)="":DateTo,1:$lg(^questionnaire.QAUXXIRISCRD(id),39))>=DateFrom {
+					i $lg(^questionnaire.QAUXXIRISCRD(id),41)="1" {
+						i $lg(^questionnaire.QAUXXIRISCRD(id),25)="RU" {
+							s (I257,I258,I259,I260,I261,I262,I263,I264,I265,I266,I267,I268)=""
+							s I257=$c(34)_I295_id_$c(34)
+							s I258=$p($g(^PAADM(admid)),"^",81)
+							i I258'="" s I258=I295_I258
+							s I259=$lg(^questionnaire.QAUXXIRISCRD(id),21)
+							i I259'="" s I259=$p($g(^CT("CITAREA",I259)),"^",1)
+							s I260=$lg(^questionnaire.QAUXXIRISCRD(id),28)
+							s I261=$lg(^questionnaire.QAUXXIRISCRD(id),24)
+							i I261'="" s I261=$p($g(^CT("SEX",I261)),"^",1)
+							s I265=..SLK($lg(^questionnaire.QAUXXIRISCRD(id),29),$lg(^questionnaire.QAUXXIRISCRD(id),30),I260,I261)
+							s I262=$lg(^questionnaire.QAUXXIRISCRD(id),31)
+							i I262="" s I262="0"
+							s I263=$lg(^questionnaire.QAUXXIRISCRD(id),22)
+							i I263'="" s I263=$p($g(^PAC("INDST",I263)),"^",1)
+							s I264=$lg(^questionnaire.QAUXXIRISCRD(id),23)
+							i I264'="" s I264=$p($g(^CT("COU",I264)),"^",1)
+							s I266=$lg(^questionnaire.QAUXXIRISCRD(id),33)
+							s I267=$lg(^questionnaire.QAUXXIRISCRD(id),26)
+							s I268=$lg(^questionnaire.QAUXXIRISCRD(id),27)
+							;
+							s I259=$c(34)_..GetMappedCode("CT_CityArea","CITAREA_Code","IRIS",$g(I259))_$c(34)
+							i I260'="" { s I260=$zd(I260,4,,4)_" 00:00:00:000" } else { s I260="30/12/1899 00:00:00:000" }
+							s I261=..GetMappedCode("CT_Sex","CTSEX_Code","IRIS",$g(I261))
+							s I263=..GetMappedCode("PAC_IndigStatus","INDST_Code","IRIS",$g(I263))
+							s I264=..GetMappedCode("CT_Country","CTCOU_Code","IRIS",$g(I264))
+							s I265=$c(34)_I265_$c(34)
+							s I266=..GetMappedCode("CT_Relation","CTRLT_Code","IRIS",$g(I266))
+							s I267=..GetMappedCode("questionnaire.QAUXXIRISCR","QIRISCR267","IRIS",$g(I267))
+							s I268=..GetMappedCode("questionnaire.QAUXXIRISCR","QIRISCR268","IRIS",$g(I268))
+							;
+							s ^zCacheTemp("IRISExtract","RelatedPerson",repid,admid,I258_id)=I257_","_I258_","_I259_","_I261_","_I262_","_I263_","_I264_","_I265_","_I266_","_I267_","_I268
+							; Set all values to null if 0
+							f x=1:1:$l(^zCacheTemp("IRISExtract","RelatedPerson",repid,admid,I258_id),",") {
+								i $p($g(^zCacheTemp("IRISExtract","RelatedPerson",repid,admid,I258_id)),",",x)="" s $p(^zCacheTemp("IRISExtract","RelatedPerson",repid,admid,I258_id),",",x)=0
+							}
+							s (I257,I258,I259,I260,I261,I262,I263,I264,I265,I266,I267,I268)=""
+						}
+						i $lg(^questionnaire.QAUXXIRISCRD(id),25)="R" {
+							s (I257,I257C,I258,I259,I260,I261,I262,I263,I264,I265,I266,I267,I268)=""
+							s I257=$lg(^questionnaire.QAUXXIRISCRD(id),34)
+							&SQL(SELECT PAPER_RowId into :I257C FROM SQLUser.PA_Person WHERE PAPER_PAPMI_DR->PAPMI_No=:I257)
+							s I258=$p($g(^PAADM(admid)),"^",81)
+							i I258'="" s I258=I295_I258
+							s (NOKPAPERDOB,NOKCTSEXCode,NOKINDSTCode,NOKCTCOUCode,NOKCTZIPCode,NOKPAPERAgeYr)=""
+							s pat=##class(User.PAPerson).%OpenId(I257C)
+							i pat {
+								s NOKCTZIPCode=pat.PAPERZipDR.CTZIPCode
+								s NOKPAPERDOB=pat.PAPERDob
+								s NOKCTSEXCode=pat.PAPERSexDR.CTSEXCode
+								s NOKPAPERAgeYr=pat.PAPERAgeYr
+								s NOKINDSTCode=pat.PAPERIndigStatDR.INDSTCode
+								s NOKCTCOUCode=pat.PAPERCountryBirthDR.CTCOUCode
+			
+								s rt=0
+								f {
+									s rt=$o(^RT(0,"PAT",I257C,rt))
+									q:rt=""
+									s record=##class(User.RTMaster).%OpenId(rt)
+									i record {
+										i record.RTMASMRTypeDR.TYPCode="SLK" {
+											s I265=$e(record.RTMASMRNo,$l(record.RTMASMRNo),$l(record.RTMASMRNo))
+											i I265=1 {
+												s I265=$e(record.RTMASMRNo,1,$l(record.RTMASMRNo)-1)_"M"
+											} elseif I265=2 {
+												s I265=$e(record.RTMASMRNo,1,$l(record.RTMASMRNo)-1)_"F"
+											}else {
+												s I265=record.RTMASMRNo
+											}
+										}
+										k record
+									}
+								}
+								k pat
+							}
+						
+							s I259=$lg(^questionnaire.QAUXXIRISCRD(id),21)
+							i I259'="" s I259=$p($g(^CT("CITAREA",I259)),"^",1)
+							s I260=NOKPAPERDOB
+							s I261=NOKCTSEXCode
+							s I262=NOKPAPERAgeYr
+							i I262="" s I262="0"
+							s I263=NOKINDSTCode
+							s I264=NOKCTCOUCode
+							i I260="" s I260=$lg(^questionnaire.QAUXXIRISCRD(id),28)
+							i I261="" {
+								s I261=$lg(^questionnaire.QAUXXIRISCRD(id),24)
+								i I261'="" s I261=$p($g(^CT("SEX",I261)),"^",1)
+							}
+							i I265="" s I265=..SLK($lg(^questionnaire.QAUXXIRISCRD(id),29),$lg(^questionnaire.QAUXXIRISCRD(id),30),I260,I261)
+							i I262="" {
+								s I262=$lg(^questionnaire.QAUXXIRISCRD(id),31)
+								i I262="" s I262="0"
+							}
+							i I263="" {
+								s I263=$lg(^questionnaire.QAUXXIRISCRD(id),22)
+								i I263'="" s I263=$p($g(^PAC("INDST",I263)),"^",1)
+							}
+							i I264="" {
+								s I264=$lg(^questionnaire.QAUXXIRISCRD(id),23)
+								i I264'="" s I264=$p($g(^CT("COU",I264)),"^",1)
+							}
+							s I266=$lg(^questionnaire.QAUXXIRISCRD(id),33)
+							s I267=$lg(^questionnaire.QAUXXIRISCRD(id),26)
+							s I268=$lg(^questionnaire.QAUXXIRISCRD(id),27)
+							;
+							s I259=$c(34)_##class(Custom.VICIRISExtract).GetMappedCode("CT_CityArea","CITAREA_Code","IRIS",$g(I259))_$c(34)
+							i I260'="" { s I260=$zd(I260,4,,4)_" 00:00:00:000" } else { s I260="30/12/1899 00:00:00:000" }
+							s I261=##class(Custom.VICIRISExtract).GetMappedCode("CT_Sex","CTSEX_Code","IRIS",$g(I261))
+							s I263=##class(Custom.VICIRISExtract).GetMappedCode("PAC_IndigStatus","INDST_Code","IRIS",$g(I263))
+							s I264=##class(Custom.VICIRISExtract).GetMappedCode("CT_Country","CTCOU_Code","IRIS",$g(I264))
+							s I265=$c(34)_I265_$c(34)
+							s I266=##class(Custom.VICIRISExtract).GetMappedCode("CT_Relation","CTRLT_Code","IRIS",$g(I266))
+							s I267=##class(Custom.VICIRISExtract).GetMappedCode("questionnaire.QAUXXIRISCR","QIRISCR267","IRIS",$g(I267))
+							s I268=##class(Custom.VICIRISExtract).GetMappedCode("questionnaire.QAUXXIRISCR","QIRISCR268","IRIS",$g(I268))
+							;
+							s ^zCacheTemp("IRISExtract","RelatedPerson",repid,admid,I258_id)=I295_I257_","_I258_","_I259_","_I261_","_I262_","_I263_","_I264_","_I265_","_I266_","_I267_","_I268
+							; Set all values to null if 0
+							f x=1:1:$l(^zCacheTemp("IRISExtract","RelatedPerson",repid,admid,I258_id),",") {
+								i $p($g(^zCacheTemp("IRISExtract","RelatedPerson",repid,admid,I258_id)),",",x)="" s $p(^zCacheTemp("IRISExtract","RelatedPerson",repid,admid,I258_id),",",x)=0
+							}
+							s (I257,I258,I259,I260,I261,I262,I263,I264,I265,I266,I267,I268)=""
+						}
+					}
+				}
+			}
+		}
+		}
+	}
+	q 1
+]]></Implementation>
+</Method>
+
+<Method name="Issue">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>DateFrom:%String,DateTo:%String,repid:%String,I295:%String,admid:%String</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	i $g(^||SITE)'="AUXX" {
+		s id=$o(^questionnaire.QIRISI("IndexPAAdmID",admid,""),-1)
+		i $g(id)'="" {
+			s iris=##class(questionnaire.QIRIS).%OpenId(id)
+			i iris {
+				f x=0:1:9 {
+					s I227=I295_iris.QUESPAAdmDR.PAADMADMNo_id_x
+					s I228=$c(34)_I295_iris.QUESPAAdmDR.PAADMADMNo_$c(34)
+					s I229=$lg(^questionnaire.QIRISD(id),132+x)
+					i I229'="" s I229=$p($g(^PAC("WORKDIA",I229)),"^",1)
+					s I230=$lg(^questionnaire.QIRISD(id),142+x)
+					s I231=$lg(^questionnaire.QIRISD(id),152+x)
+					s I232=$lg(^questionnaire.QIRISD(id),162+x)
+					s I233=$lg(^questionnaire.QIRISD(id),172+x)
+					s I234=$lg(^questionnaire.QIRISD(id),182+x)
+
+					i $g(I229)'="" {
+						s I227=$c(34)_I227_$c(34)
+						s I229=..GetMappedCode("PAC_WorkingDiagnosis","WORKDIA_Code"_$c(65+x),"IRIS",$g(I229))
+						s I230=..GetMappedCode("questionnaire.QIRIS","QIRIS230"_$c(65+x),"IRIS",$g(I230))
+						s I231=..GetMappedCode("questionnaire.QIRIS","QIRIS231"_$c(65+x),"IRIS",$g(I231))
+						s I232=..GetMappedCode("questionnaire.QIRIS","QIRIS232"_$c(65+x),"IRIS",$g(I232))
+						s I233=..GetMappedCode("questionnaire.QIRIS","QIRIS233"_$c(65+x),"IRIS",$g(I233))
+						s I234=..GetMappedCode("questionnaire.QIRIS","QIRIS234"_$c(65+x),"IRIS",$g(I234))
+						i I231="" S I231="0"
+						i I232="" S I232="0"
+						i I233="" S I233="0"
+						i I234="" S I234="0"
+
+						s ^zCacheTemp("IRISExtract","Issue",repid,admid_I227)=I227_","_I228_","_I229_","_I230_","_I231_","_I232_","_I233_","_I234
+
+						; Set all values to null if 0
+						f y=1:1:$l(^zCacheTemp("IRISExtract","Issue",repid,admid_I227),",") {
+							i $p($g(^zCacheTemp("IRISExtract","Issue",repid,admid_I227)),",",y)="" s $p(^zCacheTemp("IRISExtract","Issue",repid,admid_I227),",",y)=0
+						}
+
+						s (I227,I228,I229,I230,I231,I232,I233,I234)=""
+					}
+				}
+				k iris
+			}
+		}
+ 
+		s id=$o(^questionnaire.QIRISII("IndexPAAdmID",admid,""),-1)
+		i $g(id)'="" {
+			s iris=##class(questionnaire.QIRISI).%OpenId(id)
+			i iris {
+				f x=0:1:49 {
+					s I227=I295_iris.QUESPAAdmDR.PAADMADMNo_id_x
+					s I228=$c(34)_I295_iris.QUESPAAdmDR.PAADMADMNo_$c(34)
+					s I229=$lg(^questionnaire.QIRISID(id),21+x)
+					i I229'="" s I229=$p($g(^PAC("WORKDIA",I229)),"^",1)
+					s I230=$lg(^questionnaire.QIRISID(id),71+x)
+					s I231=$lg(^questionnaire.QIRISID(id),121+x)
+					s I232=$lg(^questionnaire.QIRISID(id),171+x)
+					s I233=$lg(^questionnaire.QIRISID(id),221+x)
+					s I234=$lg(^questionnaire.QIRISID(id),271+x)
+
+					i $g(I229)'="" {
+						i x<=26 {
+							s I229=..GetMappedCode("PAC_WorkingDiagnosis","WORKDIA_Code"_$c(65+x),"IRIS",$g(I229))
+							s I230=..GetMappedCode("questionnaire.QIRIS","QIRIS230"_$c(65+x),"IRIS",$g(I230))
+							;s I231=..GetMappedCode("questionnaire.QIRIS","QIRIS231"_$c(65+x),"IRIS",$g(I231))
+							s I232=..GetMappedCode("questionnaire.QIRIS","QIRIS232"_$c(65+x),"IRIS",$g(I232))
+							s I233=..GetMappedCode("questionnaire.QIRIS","QIRIS233"_$c(65+x),"IRIS",$g(I233))
+							s I234=..GetMappedCode("questionnaire.QIRIS","QIRIS234"_$c(65+x),"IRIS",$g(I234))
+						}
+						i x>26 {
+							s I229=..GetMappedCode("PAC_WorkingDiagnosis","WORKDIA_Code"_$c(65+x)_$c(65+x),"IRIS",$g(I229))
+							s I230=..GetMappedCode("questionnaire.QIRIS","QIRIS230"_$c(65+x)_$c(65+x),"IRIS",$g(I230))
+							;s I231=..GetMappedCode("questionnaire.QIRIS","QIRIS231"_$c(65+x)_$c(65+x),"IRIS",$g(I231))
+							s I232=..GetMappedCode("questionnaire.QIRIS","QIRIS232"_$c(65+x)_$c(65+x),"IRIS",$g(I232))
+							s I233=..GetMappedCode("questionnaire.QIRIS","QIRIS233"_$c(65+x)_$c(65+x),"IRIS",$g(I233))
+							s I234=..GetMappedCode("questionnaire.QIRIS","QIRIS234"_$c(65+x)_$c(65+x),"IRIS",$g(I234))
+						}
+						i I230="" S I230="0"
+						i I231="" S I231="0"
+						i I232="" S I232="0"
+						i I233="" S I233="0"
+						i I234="" S I234="0"
+						s ^zCacheTemp("IRISExtract","Issue",repid,admid_I227)=I227_","_I228_","_I229_","_I230_","_I231_","_I232_","_I233_","_I234
+
+						; Set all values to null if 0
+						f y=1:1:$l(^zCacheTemp("IRISExtract","Issue",repid,admid_I227),",") {
+							i $p($g(^zCacheTemp("IRISExtract","Issue",repid,admid_I227)),",",y)="" s $p(^zCacheTemp("IRISExtract","Issue",repid,admid_I227),",",y)=0
+						}
+
+						s (I227,I228,I229,I230,I231,I232,I233,I234)=""
+					}
+				}
+				k iris
+			}
+		}
+	} else {
+		s cnt=0
+		f {
+			s id=$o(^questionnaire.QAUXXIRISI("IndexPAAdmID",admid,""),-1)
+			i $g(id)'="" {
+				s cnt=$i(cnt)
+				s iris=##class(questionnaire.QAUXXIRISI).%OpenId(id)
+				i iris,cnt<=10 {
+					i iris.QIRIS229A {
+						s I227=$c(34)_I295_iris.QUESPAAdmDR.PAADMADMNo_id_x_$c(34)
+						s I228=$c(34)_I295_iris.QUESPAAdmDR.PAADMADMNo_$c(34)
+						s I229=..GetMappedCode("PAC_WorkingDiagnosis","WORKDIA_Code","IRIS",$p($g(^PAC("WORKDIA",iris.QIRIS229A)),"^",1))
+						s I230=..GetMappedCode("questionnaire.QAUXXIRIS","QIRIS230"_$c(65+x),"IRIS",iris.QIRIS230A)
+						s I231=..GetMappedCode("questionnaire.QAUXXIRIS","QIRIS230"_$c(65+x),"IRIS",iris.QIRIS231A)
+						s I232=..GetMappedCode("questionnaire.QAUXXIRIS","QIRIS230"_$c(65+x),"IRIS",iris.QIRIS232A)
+						s I233=..GetMappedCode("questionnaire.QAUXXIRIS","QIRIS230"_$c(65+x),"IRIS",iris.QIRIS233A)
+						s I234=..GetMappedCode("questionnaire.QAUXXIRIS","QIRIS230"_$c(65+x),"IRIS",iris.QIRIS234A)
+						
+						s ^zCacheTemp("IRISExtract","Issue",repid,admid_I227)=I227_","_I228_","_I229_","_I230_","_I231_","_I232_","_I233_","_I234
+
+						; Set all values to null if 0
+						f x=1:1:$l(^zCacheTemp("IRISExtract","Issue",repid,admid_I227),",") {
+							i $p($g(^zCacheTemp("IRISExtract","Issue",repid,admid_I227)),",",x)="" s $p(^zCacheTemp("IRISExtract","Issue",repid,admid_I227),",",x)=0
+						}
+
+						s (I227,I228,I229,I230,I231,I232,I233,I234)=""
+					}
+					k iris
+				}
+			}
+		}	
+	}
+	q 1
+]]></Implementation>
+</Method>
+
+<Method name="Projects">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>DateFrom:%String,DateTo:%String,repid:%String</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	/*
+	i $g(^||SITE)'="AUXX" {
+		s END=0
+		&SQL(DECLARE PRO CURSOR FOR
+		SELECT DISTINCT
+		%EXACT(SESS_ParRef->DATE_ParRef->RES_EQ_DR),
+		SESS_ParRef->DATE_ParRef->RES_EQ_DR->EQ_Desc,
+		SESS_ParRef->DATE_ParRef->RES_EQ_DR->EQ_Group_DR->GRP_Code,
+		SESS_ParRef->DATE_ParRef->RES_EQ_DR->EQ_DateFrom,
+		SESS_ParRef->DATE_ParRef->RES_EQ_DR->EQ_DateTo,
+		SESS_SessionType_DR->SESS_Code,
+		SESS_SignifFacility_DR->SIGNF_Code,
+		SESS_ParRef->DATE_ParRef->RES_CTLOC_DR->CTLOC_Hospital_DR
+		FROM SQLUser.RB_ResEffDateSession
+		WHERE SESS_ParRef->DATE_ParRef->RES_EQ_DR->EQ_DateFrom<=:DateTo AND (SESS_ParRef->DATE_ParRef->RES_EQ_DR->EQ_DateTo IS NULL OR SESS_ParRef->DATE_ParRef->RES_EQ_DR->EQ_DateTo>=:DateFrom)
+		AND SESS_ParRef->DATE_ParRef->RES_EQ_DR->EQ_Group_DR IS NOT NULL)
+		&SQL(OPEN PRO)
+		while END=0 {
+			&SQL(Fetch PRO INTO :EQRowId,:EQDesc,:GRPCode,:EQDateFrom,:EQDateTo,:SESSCode,:SIGNFCode,:HOSPRowId)
+			i SQLCODE s END=1
+			i END=0 {
+				s I248=$g(I295)_EQRowId
+				i HOSPRowId'="" {
+					s TRUSTRowId=$o(^CT("HOSP",HOSPRowId,"TRUST",0))
+					i TRUSTRowId'="" {
+						s TRUSTRowId=$p($g(^CT("HOSP",HOSPRowId,"TRUST",TRUSTRowId)),"^",3)
+						i TRUSTRowId'="" s I249=$p($g(^PAC("TRUST",TRUSTRowId)),"^",1)
+					}
+				}
+				s I250=1
+				s I251=$c(34)_EQDesc_$c(34)
+				s I252=GRPCode
+				s I253=EQDateFrom
+				i I253'="" { s I253=$zd(I253,4,,4)_" 00:00:00:000" } else { s I253="30/12/1899 00:00:00:000" }
+				s I254=EQDateTo
+				i I254'="" { s I254=$zd(I254,4,,4)_" 00:00:00:000" } else { s I254="30/12/1899 00:00:00:000" }
+				s I255=SESSCode
+				s I256=SIGNFCode
+
+				s I249=##class(Custom.VICIRISExtract).GetMappedCode("PAC_Trust","TRUST_Code","IRIS",$g(I249))
+				s I252=##class(Custom.VICIRISExtract).GetMappedCode("RBC_EquipmentGroup","GRP_Code","IRIS",$g(I252))
+				s I255=##class(Custom.VICIRISExtract).GetMappedCode("RBC_SessionType","SESS_Code","IRIS",$g(I255))
+				s I256=##class(Custom.VICIRISExtract).GetMappedCode("CT_SignificantFacility","SIGNF_Code","IRIS",$g(I256))
+
+				s ^zCacheTemp("IRISExtract","Project",repid,EQRowId)=I248_","_I249_","_I250_","_I251_","_I252_","_I253_","_I254_","_I255_","_I256
+
+				s (I1,I2,I3,I4,I6,I7,I8,I9,I10,I12,TIMEDate,TIMEStartTime,EVRowId)=""
+					;TIME_EventSubType_DR->SUB_Code,
+				&SQL(DECLARE AVT CURSOR FOR
+				SELECT
+				TIME_ParRef->EV_Number,
+				TIME_ParRef->EV_RBResource_DR->RES_EQ_DR,
+				TIME_Date,
+				TIME_ItemCat_DR->ARCIC_Code,
+				TIME_AttendeeMaleNo,
+				TIME_AttendeeFemaleNo,
+				TIME_ParRef->EV_Duration,
+				TIME_TravelTime,
+				TIME_Charge,
+				TIME_ParRef->EV_VenueAddress2,
+				TIME_Date,
+				TIME_StartTime,
+				TIME_ParRef,
+				TIME_RowId
+				FROM SQLUser.RB_EventTimes
+				WHERE TIME_ParRef->EV_RBResource_DR->RES_EQ_DR=:EQRowId
+				AND TIME_Date BETWEEN (:DateTo-365) AND :DateTo)
+				&SQL(OPEN AVT)
+				s END1=0
+				while END1'=1 {
+					&SQL(Fetch AVT INTO :I1,:I2,:I3,:I4,:I6,:I7,:I8,:I9,:I10,:I12,:TIMEDate,:TIMEStartTime,:EVRowId,:TIMERowId)
+					i SQLCODE s END1=1
+					i END1=0 {
+						s I5=0
+						s na=0
+						f {
+							s na=$o(^RB("NA",0,"Event",EVRowId,na))
+							q:na=""
+							s avail=##class(User.RBNotAvail).%OpenId(na)
+							i avail {
+								i avail.NAFrTime=TIMEStartTime,avail.NAFrDate=TIMEDate {
+									i avail.NAArrived="Y" s I5=$i(I5)
+								}
+								d avail.%Close()
+							}
+						}
+						s I11=I295
+						s I12=$p($p($g(^RBEV(EVRowId)),"^",17)," ",2)_$p($p($g(^RBEV(EVRowId)),"^",17)," ",1)
+						i I12="" {
+							&SQL(SELECT
+							SESS_Room_DR->CTLOC_PagerNo
+							INTO :I12
+							FROM SQLUser.RB_ResEffDateSession,SQLUser.RB_Event
+							WHERE EV_RBResource_DR->RES_EQ_DR=SESS_ParRef->DATE_ParRef->RES_EQ_DR
+							AND EV_RBResource_DR->RES_EQ_DR=:I2)
+							s I12=I12
+						}
+						i I12="" {
+							&SQL(SELECT
+							EV_RBResource_DR->RES_CTLOC_DR->CTLOC_PagerNo
+							INTO :I12
+							FROM SQLUser.RB_Event
+							WHERE EV_RowId=:EVRowId)
+							s I12=I12
+						}
+						i I12="" s I12="0000"
+						s I1=I295_I1
+						s I2=I295_I2
+						i I3'="" { s I3=$zd(I3,4,,4)_" 00:00:00:000" } else { s I3="30/12/1899 00:00:00:000" }
+						s I4=##class(Custom.VICIRISExtract).GetMappedCode("RBC_EventSubType","SUB_Code","IRIS",$g(I4))
+						i I5="" s I5=0
+						i I6="" s I6=0
+						i I7="" s I7=0
+						i I8="" s I8=0
+						i I9="" s I9=0
+						s I10=I10*100
+						s I326=$zd(EXTDate,4,,4)_" 00:00:00:000"
+						s ^zCacheTemp("IRISExtract","Activity",repid,TIMERowId)=I1_","_I2_","_I3_","_I4_","_I5_","_I6_","_I7_","_I8_","_I9_","_I10_","_I11_","_I12
+					}
+				}
+				&SQL(CLOSE AVT)
+			}
+		}
+		&SQL(CLOSE PRO)
+	} else {
+		*/
+		;Include  all Events  with an Event type  code  (RB EventType_Dr)> EVT_Code)  of IRISP
+		;EV_DateCreated<= Parameter DateTo & Calculated Date (EV_DateCreated+ EV_PreparationTime (as Weeeks)_>= ParameterDate from 
+		
+		s ev=0
+		f {
+			s ev=$o(^RBEV(ev))
+			q:ev=""
+			q:(",B,I,D,")'[(","_$p($g(^RBEV(ev)),"^",2)_",")
+			s event=##class(User.RBEvent).%OpenId(ev) 
+			i event {
+				i event.EVTypeDR.EVTCode="IRISP",(event.EVDateCreated+(event.EVPreparationTime*7))>=DateFrom {
+					i event.EVDateCreated<=DateTo {
+						s I248=event.EVNumber
+						i event.EVHospitalDR,event.EVHospitalDR.ChildCTHospitalTrusts.GetAt(1),event.EVHospitalDR.ChildCTHospitalTrusts.GetAt(1).TRUSTTrustDR s I249=..GetMappedCode("PAC_Trust","TRUST_Code","IRIS",event.EVHospitalDR.ChildCTHospitalTrusts.GetAt(1).TRUSTTrustDR.TRUSTCode)
+						s I250=..ActiveProject(ev,DateFrom,DateTo,repid)
+						s I251=$c(34)_event.EVName_$c(34)
+						s I252=..GetMappedCode("RBC_EquipmentGroup","GRP_Code","IRIS",event.EVEventSubTypeDR.SUBCode)
+						s I253=event.EVDateCreated
+						i I253'="" { s I253=$zd(I253,4,,4)_" 00:00:00:000" } else { s I253="30/12/1899 00:00:00:000" }
+						s I254=(event.EVDateCreated+(event.EVPreparationTime*7))
+						i I254'="" { s I254=$zd(I254,4,,4)_" 00:00:00:000" } else { s I254="30/12/1899 00:00:00:000" }
+						s I255=..GetMappedCode("RBC_SessionType","SESS_Code","IRIS",event.EVInsTypeDR.INSTCode)
+						s I256=..GetMappedCode("CT_SignificantFacility","SIGNF_Code","IRIS",event.EVAuxInsTypeDR.AUXITCode)
+						
+						s ^zCacheTemp("IRISExtract","Project",repid,ev)=I248_","_I249_","_I250_","_I251_","_I252_","_I253_","_I254_","_I255_","_I256
+
+						; Set all values to null if 0
+						f x=1:1:$l(^zCacheTemp("IRISExtract","Project",repid,ev),",") {
+							i $p($g(^zCacheTemp("IRISExtract","Project",repid,ev)),",",x)="" s $p(^zCacheTemp("IRISExtract","Project",repid,ev),",",x)=0
+						}
+						
+						s (I248,I249,I250,I251,I252,I253,I254,I255,I256)=""						
+					}
+				}
+				k event
+			}
+		}
+	q 1
+]]></Implementation>
+</Method>
+
+<Method name="ActiveProject">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>eventid:%String,DateFrom:%String,DateTo:%String,repid:%String</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	s active=0
+	f date=DateFrom:1:DateTo {
+		s con=0
+		f {
+			s con=$o(^PAENQi("Date",date,con))
+			q:con=""
+			s contact=##class(User.PAEnquiryContact).%OpenId(con)
+			i contact {
+				i contact.ENQRBEventDR.%Id()=eventid {
+					s active=1
+					
+					s I1=contact.ENQContactNumber
+					s I2=contact.ENQRBEventDR.EVRBResourceDR.RESEQDR.%Id()
+					s I3=contact.ENQDate
+					i I3'="" { s I3=$zd(I3,4,,4)_" 00:00:00:000" } else { s I3="30/12/1899 00:00:00:000" }
+					s I4=..GetMappedCode("RBC_EventSubType","SUB_Code","IRIS",contact.ENQItemCatDR.ARCICCode)
+					f x=1:1:contact.ENQRBEventDR.ChildRBEventTimes.Count() {
+						s cnt=0
+						s na=0
+						f {
+							s na=$o(^RB("NA",0,"Event",contact.ENQRBEventDR.%Id(),na))
+							q:na=""
+							s avail=##class(User.RBNotAvail).%OpenId(na)
+							i avail {
+								i avail.NAFrTime=contact.ENQRBEventDR.ChildRBEventTimes.GetAt(x).TIMEStartTime,avail.NAFrDate=contact.ENQRBEventDR.ChildRBEventTimes.GetAt(x).TIMEDate {
+									i avail.NAArrived="Y" s cnt=$i(cnt)
+								}
+								k avail
+							}
+						}
+						s I5=cnt
+						s I6=contact.ENQRBEventDR.EVAttendeeMaleNo
+						s I7=contact.ENQRBEventDR.EVAttendeeFemaleNo
+						s I8=contact.ENQDuration
+						s I9=contact.ENQRBEventDR.EVPredictedTravelTime
+						s I10=contact.ENQRBEventDR.EVCharge
+						i contact.ENQHospitalDR,contact.ENQHospitalDR.ChildCTHospitalTrusts.GetAt(1),contact.ENQHospitalDR.ChildCTHospitalTrusts.GetAt(1).TRUSTTrustDR s I11=contact.ENQHospitalDR.ChildCTHospitalTrusts.GetAt(1).TRUSTTrustDR.TRUSTCode
+						s I12=contact.ENQCityAreaDR.CITAREACode
+						i I6="" s I6=0
+						i I7="" s I7=0
+						i I8="" s I8=0
+						i I9="" s I9=0
+						i I12="" s I12="0000"
+						
+						s ^zCacheTemp("IRISExtract","Activity",repid,contact.ENQRBEventDR.ChildRBEventTimes.GetAt(x).%Id())=I1_","_I2_","_I3_","_I4_","_I5_","_I6_","_I7_","_I8_","_I9_","_I10_","_I11_","_I12
+
+						; Set all values to null if 0
+						f y=1:1:$l(^zCacheTemp("IRISExtract","Activity",repid,contact.ENQRBEventDR.ChildRBEventTimes.GetAt(x).%Id()),",") {
+							i $p($g(^zCacheTemp("IRISExtract","Activity",repid,contact.ENQRBEventDR.ChildRBEventTimes.GetAt(x).%Id())),",",y)="" s $p(^zCacheTemp("IRISExtract","Activity",repid,contact.ENQRBEventDR.ChildRBEventTimes.GetAt(x).%Id()),",",y)=0
+						}
+						
+						s (I1,I2,I3,I4,I5,I6,I7,I8,I9,I10,I11,I12)=""
+					}
+				}
+				k contact
+			}
+		}
+	}
+	q active
+]]></Implementation>
+</Method>
+
+<Method name="NSCase">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>DateFrom:%String,DateTo:%String,repid:%String,I295:%String</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	 f date=DateFrom:1:DateTo {
+		 s con=0
+		 f {
+			 s con=$o(^PAENQi("Date",date,con)) 
+			 q:con="" 
+			 s contact=##class(User.PAEnquiryContact).%OpenId(con)
+			 i contact {
+				 s ContactType=""
+				 i contact.ENQOEOrdItemDR'="" s ContactType="I"
+				 i contact.ENQPAPERDR="" s ContactType="A"
+				 i contact.ENQRBEventDR'="",contact.ENQCTCPDR'="" s ContactType="P"
+				 i contact.ENQPAPERDR'="",contact.ENQOEOrdItemDR="" s ContactType="C"
+				 i contact.ENQHospitalDR,contact.ENQHospitalDR.ChildCTHospitalTrusts.GetAt(1),contact.ENQHospitalDR.ChildCTHospitalTrusts.GetAt(1).TRUSTTrustDR s I237=##class(Custom.AUXXIRISExtract).GetMappedCode("PAC_Trust","TRUST_Code","IRIS",contact.ENQHospitalDR.ChildCTHospitalTrusts.GetAt(1).TRUSTTrustDR.TRUSTCode)
+				 
+				 i I295=I237 {
+					 i $e(contact.ENQInsTypeDR.INSTCode4,1,4)="IRIS",contact.ENQRequestTypeDR.REQTYPCode="INSC",contact.ENQRequestStatusDR.REQSTCode="CO","A,C"[ContactType {
+						 s I235=con
+						 ;i contact.ENQHospitalDR.ChildCTHospitalTrusts.GetAt(1) s I237=contact.ENQHospitalDR.ChildCTHospitalTrusts.GetAt(1).TRUSTTrustDR.TRUSTCode
+						 s I322=contact.ENQPAPERDR.PAPERPAPMIDR.PAPMINo
+						 s I238=..GetMappedCode("CT_CityArea","CITAREA_Code","IRIS",contact.ENQCityAreaDR.CITAREACode)
+						 s I238=$c(34)_I238_$c(34)
+						 i ContactType="C" { s I239=..GetMappedCode("CT_Sex","CTSEX_Code","IRIS",contact.ENQPAPERDR.PAPERSexDR.CTSEXCode) } else { s I239=..GetMappedCode("CT_Sex","CTSEX_Code","IRIS",contact.ENQSexDR.CTSEXCode)}
+						 s I240=..GetMappedCode("ARC_InsuranceType","INST_Code","IRIS",contact.ENQInsTypeDR.INSTCode)
+						 s I241=contact.ENQDate
+						 i I241'="" { s I241=$zd(I241,4,,4)_" 00:00:00:000" } else { s I241="30/12/1899 00:00:00:000" }
+						 s I242=contact.ENQDuration
+						 s I243=contact.ENQTravelTime
+						 
+						 i $g(^||SITE)'="AUXX" {
+							 s I244=..GetMappedCode("questionnaire.QIRIS","QIRIS139","IRIS",contact.ENQContOutcomeDR.CONTOUTCCode)
+						 } else {
+							 s I244=..GetMappedCode("questionnaire.QAUXXIRIS","QIRIS139","IRIS",contact.ENQContOutcomeDR.CONTOUTCCode)
+						 }
+						 
+						 s I245=..GetMappedCode("questionnaire.QCONTACTS","QCONT245","IRIS",contact.ENQContInterpreterTypeDR.INTERPCode)
+						 s I247=..GetMappedCode("ARC_AuxilInsurType","AUXIT_Code","IRIS",contact.ENQAuxInsTypeDR.AUXITCode)
+						 i I242="" s I242 ="0"
+						 i I243="" s I243 ="0"
+						 i I245="" s I245 ="0"
+						 s I235=I295_I235
+						 i $g(I322)="" { s I322="0" } else { s I322=I295_I322 }
+						 i (I242+I243)'=0 s ^zCacheTemp("IRISExtract","NSCase",repid,I235)=I235_","_I322_","_I237_","_I238_","_I239_","_I240_","_I241_","_I242_","_I243_","_I244_","_I245_","_I247
+
+						; Set all values to null if 0
+						i $g(^zCacheTemp("IRISExtract","NSCase",repid,I235))'="" {
+							f x=1:1:$l(^zCacheTemp("IRISExtract","NSCase",repid,I235),",") {
+								i $p($g(^zCacheTemp("IRISExtract","NSCase",repid,I235)),",",x)="" s $p(^zCacheTemp("IRISExtract","NSCase",repid,I235),",",x)=0
+							}
+						}
+										
+						s (I235,I322,I237,I238,I239,I240,I241,I242,I243,I244,I245,I247)=""
+					 }
+				 }
+				k contact
+			 }
+		 }
+	 }
+	 q 1
+]]></Implementation>
+</Method>
+
+<Method name="Service">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>DateFrom:%String,DateTo:%String,admid:%String,repid:%String</FormalSpec>
+<Implementation><![CDATA[
+	s oe=0
+	f {
+		s oe=$o(^OEORD(0,"Adm",admid,oe))
+		q:oe=""
+		s oei=0
+		f {
+			s oei=$o(^OEORD(oe,"I",oei))
+			q:oei=""
+			i $d(^PAENQi("OEORI",oe_"||"_oei))
+			{
+				s con=$o(^PAENQi("OEORI",oe_"||"_oei,""))
+			
+			; If there is no labepisode number then create and add to order.
+				i $p($g(^OEORD(oe,"I",oei,3)),"^",20)="" {
+					s OEORIRowId=oe_"||"_oei
+					s Number=##Class(Custom.VICIRISExtract).ADISNum()
+					&SQL(UPDATE SQLUser.OE_OrdItem SET OEORI_LabEpisodeNo=:Number WHERE OEORI_RowId=:OEORIRowId)
+				}
+					
+			}
+			
+			s contact=##class(User.PAEnquiryContact).%OpenId(con)
+			i contact {
+				s ContactType=""
+				i contact.ENQPAPERDR="" s ContactType="A"
+				i contact.ENQRBEventDR'="",contact.ENQCTCPDR'="" s ContactType="P"
+				i contact.ENQPAPERDR'="",contact.ENQOEOrdItemDR="" s ContactType="C"
+				i contact.ENQPAPERDR'="",contact.ENQOEOrdItemDR'="" s ContactType="I"
+				i contact.ENQDate>=DateFrom,contact.ENQDate<=DateTo,$e(contact.ENQInsTypeDR.INSTCode4,1,4)="IRIS",contact.ENQRequestStatusDR.REQSTCode="CO",ContactType="I",contact.ENQRequestTypeDR.REQTYPCode'="INSC" {
+					i $g(^||SITE)'="AUXX" {
+						//607 	 13/09/2012 	 T2010 R2 - extract files have incorrect oid's
+						//s I269=$p(contact.ENQOEOrdItemDR.%Id(),"||",2)_contact.ENQOEOrdItemDR.OEORILabEpisodeNo_contact.ENQOEOrdItemDR.OEORISeqNo_":"_contact.ENQOEOrdItemDR.%Id()
+						//s I270=contact.ENQOEOrdItemDR.OEORIOEORDParRef.OEORDAdmDR.PAADMADMNo_contact.ENQOEOrdItemDR.OEORILabEpisodeNo
+						s I269=I295_$tr(contact.ENQOEOrdItemDR.OEORISeqNo,".",0)_contact.ENQOEOrdItemDR.OEORILabEpisodeNo
+						s I270=contact.ENQOEOrdItemDR.OEORIOEORDParRef.OEORDAdmDR.PAADMADMNo
+					} else {
+						s I269=con
+						s I270=contact.ENQOEOrdItemDR.OEORIOEORDParRef.OEORDAdmDR.PAADMADMNo
+					}
+					s I271=$s(contact.ENQRBEventDR.EVNumber'="":contact.ENQRBEventDR.EVNumber,1:0)
+					s I272=..GetMappedCode("ARC_ItemMst","ARCIM_SAMSText2","IRIS",$zstrip(contact.ENQOEOrdItemDR.OEORIItmMastDR.ARCIMText2,"*A"))
+					s I273=contact.ENQDate
+					i $g(I273)'="" s I273=$zd(I273,4,,4)_" 00:00:00:000"
+					i $g(I273)="" s I273="30/12/1899 00:00:00:000"
+					s I274=..GetMappedCode("questionnaire.QCONTACTS","QCONT274","IRIS",contact.ENQContVenueDR.CONTVENUECode)
+					s I275=..GetMappedCode("questionnaire.QCONTACTS","QCONT275","IRIS",contact.ENQContInterpreterTypeDR.INTERPCode)
+					s I276=contact.ENQDuration
+					s I277=contact.ENQTravelTime
+					s I278=..GetMappedCode("CT_CityArea","CITAREA_Code","IRIS",contact.ENQCityAreaDR.CITAREACode)
+					s I279=..GetMappedCode("questionnaire.QCONTACTS","QCONT279","IRIS",contact.ENQText2)
+					s I269=$c(34)_I269_$c(34)
+					s I270=$c(34)_I295_I270_$c(34)
+					i I271'=0 s I271=$c(34)_I295_$zstrip(I271,"*P")_$c(34)
+					i I276="" s I276=0
+					i I277="" s I277=0
+					
+					s irisc=""
+					s OEORIQuestionnaire=contact.ENQOEOrdItemDR.OEORIQuestionnaire
+					
+					i $g(^||SITE)'="AUXX" {
+						i $o(^SSU("WIN",0,"Code","IRISC",0))=$p($g(OEORIQuestionnaire),"||",1) s irisc=##class(questionnaire.QIRISC).%OpenId($p($g(OEORIQuestionnaire),"||",2))
+					} else {
+						i $o(^SSU("WIN",0,"Code","AUXXIRISC",0))=$p($g(OEORIQuestionnaire),"||",1) s irisc=##class(questionnaire.QAUXXIRISC).%OpenId($p($g(OEORIQuestionnaire),"||",2))
+					}
+					
+					i I276+I277'=0 {
+						s ^zCacheTemp("IRISExtract","Service",repid,contact.ENQOEOrdItemDR.%Id())=I269_","_I270_","_I271_","_I272_","_I273_","_I274_","_I275_","_I276_","_I277_","_I278_","_I279
+
+						; Set all values to null if 0
+						f x=1:1:$l(^zCacheTemp("IRISExtract","Service",repid,contact.ENQOEOrdItemDR.%Id()),",") {
+							i $p($g(^zCacheTemp("IRISExtract","Service",repid,contact.ENQOEOrdItemDR.%Id())),",",x)="" s $p(^zCacheTemp("IRISExtract","Service",repid,contact.ENQOEOrdItemDR.%Id()),",",x)=0
+						}
+
+						
+						i $zstrip(contact.ENQInsTypeDR.INSTCode4,"*","IRIS")="1" {
+							s I280=I269
+							i irisc {
+								s I281=..GetMappedCode("questionnaire.QCONTACTS","QCONT281","IRIS",irisc.QIRISC281)
+								s I282=..GetMappedCode("questionnaire.QCONTACTS","QCONT282","IRIS",irisc.QIRISC282)
+								s I283=..GetMappedCode("questionnaire.QCONTACTS","QCONT283","IRIS",irisc.QIRISC283)
+								s I284=..GetMappedCode("questionnaire.QCONTACTS","QCONT284","IRIS",irisc.QIRISC284)
+								s I285=..GetMappedCode("questionnaire.QCONTACTS","QCONT285","IRIS",irisc.QIRISC285)
+								s ^zCacheTemp("IRISExtract","ServiceFamily",repid,contact.ENQOEOrdItemDR.%Id())=I280_","_I281_","_I282_","_I283_","_I284_","_I285
+
+								; Set all values to null if 0
+								f x=1:1:$l(^zCacheTemp("IRISExtract","ServiceFamily",repid,contact.ENQOEOrdItemDR.%Id()),",") {
+									i $p($g(^zCacheTemp("IRISExtract","ServiceFamily",repid,contact.ENQOEOrdItemDR.%Id())),",",x)="" s $p(^zCacheTemp("IRISExtract","ServiceFamily",repid,contact.ENQOEOrdItemDR.%Id()),",",x)=0
+								}
+								s (I280,I281,I282,I283,I284,I285)=""
+								k irisc
+							}
+						}
+						i $zstrip(contact.ENQInsTypeDR.INSTCode4,"*","IRIS")="4" {
+							s I286=I269
+							i irisc {
+								s I287=..GetMappedCode("questionnaire.QCONTACTS","QCONT287","IRIS",irisc.QIRISC287)
+								s I288=..GetMappedCode("questionnaire.QCONTACTS","QCONT288","IRIS",irisc.QIRISC288)
+								s ^zCacheTemp("IRISExtract","ServiceMCH",repid,contact.ENQOEOrdItemDR.%Id())=I286_","_I287_","_I288
+								; Set all values to null if 0
+								f x=1:1:$l(^zCacheTemp("IRISExtract","ServiceMCH",repid,contact.ENQOEOrdItemDR.%Id()),",") {
+									i $p($g(^zCacheTemp("IRISExtract","ServiceMCH",repid,contact.ENQOEOrdItemDR.%Id())),",",x)="" s $p(^zCacheTemp("IRISExtract","ServiceMCH",repid,contact.ENQOEOrdItemDR.%Id()),",",x)=0
+								}
+								s (I286,I287,I288)=""
+								k irisc
+							}
+						}
+						i $zstrip(contact.ENQInsTypeDR.INSTCode4,"*","IRIS")="3" {
+							s I289=I269
+							i irisc {
+								s I290=..GetMappedCode("questionnaire.QCONTACTS","QCONT290","IRIS",irisc.QIRISC290)
+								s I291=..GetMappedCode("questionnaire.QCONTACTS","QCONT291","IRIS",irisc.QIRISC291)
+								s ^zCacheTemp("IRISExtract","ServiceSASS",repid,contact.ENQOEOrdItemDR.%Id())=I289_","_I290_","_I291
+								; Set all values to null if 0
+								f x=1:1:$l(^zCacheTemp("IRISExtract","ServiceSASS",repid,contact.ENQOEOrdItemDR.%Id()),",") {
+									i $p($g(^zCacheTemp("IRISExtract","ServiceSASS",repid,contact.ENQOEOrdItemDR.%Id())),",",x)="" s $p(^zCacheTemp("IRISExtract","ServiceSASS",repid,contact.ENQOEOrdItemDR.%Id()),",",x)=0
+								}
+								s (I289,I290,I291)=""
+								k irisc
+							}
+						}
+						i $zstrip(contact.ENQInsTypeDR.INSTCode4,"*","IRIS")="9" {
+							s I292=I269
+							s I293=..GetMappedCode("CT_CarPrvTp","CTCPT_Code","IRIS",contact.ENQCTCPDR.CTPCPCarPrvTpDR.CTCPTCode)
+							i $o(^SSU("WIN",0,"Code","SRCS",0))=$p($g(OEORIQuestionnaire),"||",1) {
+								s srcs=##class(questionnaire.QSRCS).%OpenId($p($g(OEORIQuestionnaire),"||",2))
+								i srcs {
+									s I294=..GetMappedCode("CT_CarPrvTp","CTCPT_Code","IRIS",srcs.QSCRS294)
+									k srcs
+								}
+							}
+							i I294="" s I294=..GetMappedCode("CT_CarPrvTp","CTCPT_Code","IRIS",contact.ENQOEOrdItemDR.OEORIDoctorDR.CTPCPCarPrvTpDR.CTCPTCode)
+							s ^zCacheTemp("IRISExtract","ServiceSCS",repid,contact.ENQOEOrdItemDR.%Id())=I292_","_I293_","_I294
+							; Set all values to null if 0
+							f x=1:1:$l(^zCacheTemp("IRISExtract","ServiceSCS",repid,contact.ENQOEOrdItemDR.%Id()),",") {
+								i $p($g(^zCacheTemp("IRISExtract","ServiceSCS",repid,contact.ENQOEOrdItemDR.%Id())),",",x)="" s $p(^zCacheTemp("IRISExtract","ServiceSCS",repid,contact.ENQOEOrdItemDR.%Id()),",",x)=0
+							}
+							s (I292,I293,I294)=""
+						}
+					}
+				}
+				k contact
+			}
+		}
+	}
+	q 1
+]]></Implementation>
+</Method>
+
+<Method name="GetPayorPlan">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>PAADMRowId:%String</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	s (Payor,PayorDesc,Plan,PlanDesc,PlanGroup1,PlanGroup6,PayorCode4,AUXITRowId)=""
+	//Appendix 8 - TRC159292
+	s obj=##class(User.PAAdm).%OpenId(PAADMRowId)
+	i obj {
+		
+		i (($p($g(^PAADM(PAADMRowId,"ADM2")),"^",104)'="")&&(^||SITE="AUXX")) {
+			s Payor=..GetMappedCode("CT_NFMI_Category","NFMI_Code","ADIS",obj.PAADMPAAdm2DR.PAADM2NFMICategDepartDR.DEPParRef.NFMICode)
+			s PayorDesc=..GetMappedCode("CT_NFMI_Category","NFMI_Desc","ADIS",obj.PAADMPAAdm2DR.PAADM2NFMICategDepartDR.DEPParRef.NFMIDesc)
+			s Plan=..GetMappedCode("CT_NFMI_CategDepart","DEP_Code","ADIS",obj.PAADMPAAdm2DR.PAADM2NFMICategDepartDR.DEPCode)
+			s PlanDesc=..GetMappedCode("CT_NFMI_CategDepart","DEP_Desc","ADIS",obj.PAADMPAAdm2DR.PAADM2NFMICategDepartDR.DEPDesc)
+			s PlanGroup1=..GetMappedCode("ARC_AuxilInsurType","AUXIT_PlanGroup1","ADIS",obj.PAADMPAAdm2DR.PAADM2NFMICategDepartDR.DEPCode)
+			s PlanGroup6=..GetMappedCode("ARC_AuxilInsurType","AUXIT_PlanGroup6","ADIS",obj.PAADMPAAdm2DR.PAADM2NFMICategDepartDR.DEPCode)
+			s PayorCode4=..GetMappedCode("NFMI_GovSubCateg","SUB_Code","ADIS",obj.PAADMPAAdm2DR.PAADM2NFMICategDepartDR.DEPParRef.NFMIGovSubCategDR.SUBCode)
+			s AUXITRowId=obj.PAADMPAAdm2DR.PAADM2NFMICategDepartDR.%Id()
+			
+		} else {
+			f x=1:1:obj.ChildPAAdmInsurance.Count() {
+				i obj.ChildPAAdmInsurance.GetAt(x).INSInsTypeDR,obj.ChildPAAdmInsurance.GetAt(x).INSAuxInsTypeDR {
+					s Payor=obj.ChildPAAdmInsurance.GetAt(x).INSInsTypeDR.INSTCode
+					s PayorDesc=obj.ChildPAAdmInsurance.GetAt(x).INSInsTypeDR.INSTDesc
+					s PayorCode4=obj.ChildPAAdmInsurance.GetAt(x).INSInsTypeDR.INSTCode4
+					s Plan=obj.ChildPAAdmInsurance.GetAt(x).INSAuxInsTypeDR.AUXITCode
+					s PlanDesc=obj.ChildPAAdmInsurance.GetAt(x).INSAuxInsTypeDR.AUXITDesc
+					s PlanGroup1=obj.ChildPAAdmInsurance.GetAt(x).INSAuxInsTypeDR.AUXITPlanGroup1
+					s PlanGroup6=obj.ChildPAAdmInsurance.GetAt(x).INSAuxInsTypeDR.AUXITPlanGroup6
+					s AUXITRowId=obj.ChildPAAdmInsurance.GetAt(x).INSAuxInsTypeDR.%Id()
+				}
+			}
+		}
+		k obj
+	}
+
+	q Payor_"^"_PayorDesc_"^"_Plan_"^"_PlanDesc_"^"_PlanGroup1_"^"_PlanGroup6_"^"_PayorCode4_"^"_AUXITRowId
+]]></Implementation>
+</Method>
+
+<Method name="AddOrderNumbers">
+<Description>
+This is the Class method to Add order numbers to all prior orders for extract order Id's and also to add order numbering funtion</Description>
+<ClassMethod>1</ClassMethod>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	n OEORDRowId,OEORIChildsub,OEORIRowId,Number,ORCATCounterTypeDR
+	s Number=0
+	s ORCATCounterTypeDR=""
+	i '$d(^COUNT("CNTTYPE",0,"Desc","ORDERITEMS")) &SQL(INSERT INTO SQLUser.PAC_CounterType (CNT_Desc,CNT_Length,CNT_Counter) VALUES ('Order Items','8','1'))
+	
+	s ORCATCounterTypeDR=$o(^COUNT("CNTTYPE",0,"Desc","ORDERITEMS",0))
+	&SQL(UPDATE SQLUser.OEC_OrderCategory SET ORCAT_CounterTypeDR=:ORCATCounterTypeDR)
+	
+	s OEORDRowId=0
+	while OEORDRowId'="" {
+		s OEORDRowId=$o(^OEORD(OEORDRowId))
+		i OEORDRowId'="" {
+			s OEORIChildsub=0
+			while OEORIChildsub'="" {
+				s OEORIChildsub=$o(^OEORD(OEORDRowId,"I",OEORIChildsub))
+				i OEORIChildsub'="" {
+					i $p($g(^OEORD(OEORDRowId,"I",OEORIChildsub,3)),"^",20)="" {
+						s OEORIRowId=OEORDRowId_"||"_OEORIChildsub
+						s Number=##Class(Custom.VICIRISExtract).ADISNum()
+						&SQL(UPDATE SQLUser.OE_OrdItem SET OEORI_LabEpisodeNo=:Number WHERE OEORI_RowId=:OEORIRowId)
+					}
+				}
+			}
+		}
+	}
+ 	q
+]]></Implementation>
+</Method>
+
+<Method name="ADISNum">
+<ClassMethod>1</ClassMethod>
+<Implementation><![CDATA[
+ n
+ s cnttype=$o(^COUNT("CNTTYPE",0,"Desc","ORDERITEMS",""))
+ q:'cnttype ""
+         L +^COUNT("CNTTYPE",cnttype)
+         s s1=$g(^COUNT("CNTTYPE",cnttype)),pref=$p(s1,"^",2),suf=$p(s1,"^",3)
+         s len=$p(s1,"^",4),cnt=$p(s1,"^",5)
+         s cnt=cnt+1
+         S $P(^COUNT("CNTTYPE",cnttype),"^",5)=cnt
+         L -^COUNT("CNTTYPE",cnttype)
+         Q pref_$$LPAD1(cnt,"0",len)_suf
+         ;
+         ;
+LPAD1(STRING,SUB,LENGTH)	;
+         N RES S STRING=$G(STRING),LENGTH=$G(LENGTH)
+         S:'$G(LENGTH) LENGTH=8
+         S $P(RES,SUB,LENGTH)=SUB
+         Q $E(RES,1,LENGTH-$L(STRING))_$E(STRING,1,LENGTH)
+]]></Implementation>
+</Method>
+
+<Method name="IRISExtractFetch">
+<Description>
+This is the Fetch component of the %Library.Query. 
+This should never have to change. It is designed to fetch the row for each subscript of the ^CacheTemp
+global and return this row to the Crystal Report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,&Row:%Library.List,&AtEnd:%Library.Integer=0]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // This fetch method should never have to change. 
+
+ // repid - Report ID
+ // ind   - sequence index which represents each row
+
+ New repid,ind
+
+ // Restore QHandle
+ Set AtEnd=$li(QHandle,1)
+ Set repid=$li(QHandle,2)
+ Set ind=$li(QHandle,3)
+
+ Set ind=$o(^CacheTemp(repid,ind))
+ If ind="" {	// if there are no more rows, finish fetching
+ Set AtEnd=1
+ Set Row=""
+ }
+ Else      {	// fetch row
+ Set Row=^CacheTemp(repid,ind)
+ }
+
+ // Save QHandle
+ s QHandle=$lb(AtEnd,repid,ind)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Query name="IRISExtract">
+<Description>
+This is the Stored Procedure Template. For Sample use only.
+It expects one parameter of type integer and will return 4 fields:
+Field1 - Integer
+Field2 - String
+Field3 - Date
+Field4 - Time</Description>
+<Type>%Library.Query</Type>
+<FormalSpec>Quarter:%Library.String,Year:%Library.String,Agency:%Library.String,VerMajor:%Library.String,VerMinor:%Library.String,VerRelease:%Library.String,VerBuild:%Library.String,Site:%Library.String</FormalSpec>
+<SqlProc>1</SqlProc>
+<Parameter name="CONTAINID" value="0"/>
+<Parameter name="ROWSPEC" value="File:%Library.String,Data:%Library.String"/>
+<Parameter name="SELECTMODE" value="ODBC"/>
+</Query>
+
+<Query name="LookUpAgency">
+<Type>%Library.SQLQuery</Type>
+<FormalSpec>Agency:%String</FormalSpec>
+<SqlQuery><![CDATA[SELECT TRUST_Desc, TRUST_RowId, TRUST_Code
+FROM SQLUser.PAC_Trust
+WHERE ((%ALPHAUP TRUST_Desc %STARTSWITH %ALPHAUP :Agency) OR (%ALPHAUP TRUST_Code %STARTSWITH %ALPHAUP :Agency))
+AND (TRUST_DateFrom <= CURRENT_DATE)
+AND ((TRUST_DateTo IS NULL) OR (TRUST_DateTo >= CURRENT_DATE))
+ORDER BY TRUST_Desc]]></SqlQuery>
+<Parameter name="CONTAINID" value="2"/>
+<Parameter name="ROWSPEC" value="Description:%String,HIDDEN:%String,Code:%String"/>
+</Query>
+
+<Method name="LookUpBrokerAgency">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>itmjs:%Library.String="",itmjsex:%Library.String="",Agency:%Library.String=""</FormalSpec>
+<Implementation><![CDATA[
+ n id,code,desc,activedate
+
+ s (id,code,desc)=""
+
+ ; Try and find a matching code
+ &sql(SELECT	TRUST_Desc, TRUST_RowId, TRUST_Code
+ INTO	:desc, :id, :code
+ FROM	SQLUser.PAC_Trust
+ WHERE	((%ALPHAUP TRUST_Desc = %ALPHAUP :Agency) OR (%ALPHAUP TRUST_Code = %ALPHAUP :Agency))
+ AND (TRUST_DateFrom <= CURRENT_DATE)
+ AND ((TRUST_DateTo IS NULL) OR (TRUST_DateTo >= CURRENT_DATE))
+ )
+ ;
+ i SQLCODE s desc=Agency q 0
+ s retval=itmjs_"('"_$ZCVT(desc,"O","JS")_"');"
+ i itmjsex'="""" s retval=retval_itmjsex_"('"_$ZCVT(desc,"O","JS")_"^"_id_"^"_$ZCVT(code,"O","JS")_"');"
+ &javascript<#(retval)#>
+ q 1
+]]></Implementation>
+</Method>
+
+<Method name="LookUpYearClose">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>QHandle:%Library.Binary</FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+	n repid
+	s repid=$li(QHandle,2)
+ 
+	i mon Do ..MonitorEnd(mon)
+	k ^CacheTemp("TRAK",repid)
+	q $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="LookUpYearExecute">
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,val:%String]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+	n repid,ind
+	s repid=$I(^CacheTemp("TRAK"))
+
+	s mon=..MonitorBegin()
+	
+	s currentyear=$p($zd(+$h,3),"-")
+	s startyear=currentyear-5
+	s stopyear=currentyear+5
+	
+	i val="" {
+		f y=startyear:1:stopyear {
+			s ind=$i(ind)
+			s ^CacheTemp("TRAK",repid,ind)=$LB(y)
+		}
+	} else {
+		f y=startyear:1:stopyear {
+			i val=$e(y,1,$l(val)) {
+				s ind=$i(ind)
+				s ^CacheTemp("TRAK",repid,ind)=$LB(y)
+			}
+		}
+	}			
+	s QHandle=$lb(0,repid,0)
+	q $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="LookUpYearFetch">
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,&Row:%Library.List,&AtEnd:%Library.Integer=0]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+	n repid,ind
+
+	s AtEnd=$li(QHandle,1)
+	s repid=$li(QHandle,2)
+	s ind=$li(QHandle,3)
+
+	s ind=$o(^CacheTemp("TRAK",repid,ind))
+	i ind="" {
+		s AtEnd=1
+		s Row=""
+	} else {
+		s Row=^CacheTemp("TRAK",repid,ind)
+	}
+	s QHandle=$lb(AtEnd,repid,ind)
+	q $$$OK
+]]></Implementation>
+</Method>
+
+<Query name="LookUpYear">
+<Type>%Library.Query</Type>
+<FormalSpec>val:%String</FormalSpec>
+<SqlProc>1</SqlProc>
+<Parameter name="CONTAINID" value="0"/>
+<Parameter name="ROWSPEC" value="Year:%String"/>
+</Query>
+
+<Method name="LookUpBrokerByYear">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>itmjs:%Library.String,itmjsex:%Library.String="",val:%Library.String=""</FormalSpec>
+<ReturnType>%Library.Boolean</ReturnType>
+</Method>
+
+<Method name="LookUpQuarterClose">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>QHandle:%Library.Binary</FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+	n repid
+	s repid=$li(QHandle,2)
+ 
+	i mon Do ..MonitorEnd(mon)
+	k ^CacheTemp("TRAK",repid)
+	q $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="LookUpQuarterExecute">
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,val:%String]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+	n repid,ind
+	s repid=$I(^CacheTemp("TRAK"))
+
+	s mon=..MonitorBegin()
+	
+	s quarterdesclist="January - March,April - June,July - September,October - December"
+	
+	i val="" {
+		f y=1:1:4 {
+			s ind=$i(ind)
+			s ^CacheTemp("TRAK",repid,ind)=$LB($p(quarterdesclist,",",y))
+		}
+	} else {
+		f y=1:1:4 {
+			s listvalue=$e($p(quarterdesclist,",",y),1,$l(val))
+			i $zcvt(val,"U")=$zcvt(listvalue,"U") {
+				s ind=$i(ind)
+				s ^CacheTemp("TRAK",repid,ind)=$LB($p(quarterdesclist,",",y))
+			}
+		}
+	}
+	
+	s QHandle=$lb(0,repid,0)
+	q $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="LookUpQuarterFetch">
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,&Row:%Library.List,&AtEnd:%Library.Integer=0]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+	n repid,ind
+
+	s AtEnd=$li(QHandle,1)
+	s repid=$li(QHandle,2)
+	s ind=$li(QHandle,3)
+
+	s ind=$o(^CacheTemp("TRAK",repid,ind))
+	i ind="" {
+		s AtEnd=1
+		s Row=""
+	} else {
+		s Row=^CacheTemp("TRAK",repid,ind)
+	}
+	s QHandle=$lb(AtEnd,repid,ind)
+	q $$$OK
+]]></Implementation>
+</Method>
+
+<Query name="LookUpQuarter">
+<Type>%Library.Query</Type>
+<FormalSpec>val:%String</FormalSpec>
+<SqlProc>1</SqlProc>
+<Parameter name="CONTAINID" value="0"/>
+<Parameter name="ROWSPEC" value="Year:%String"/>
+</Query>
+
+<Method name="LookUpBrokerByQuarter">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>itmjs:%Library.String,itmjsex:%Library.String="",val:%Library.String=""</FormalSpec>
+<ReturnType>%Library.Boolean</ReturnType>
+</Method>
+</Class>
+</Export>

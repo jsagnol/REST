@@ -1,0 +1,207 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.AUXX.Report.ZEN.StoredProc.TrialBalance">
+<ProcedureBlock>0</ProcedureBlock>
+<Super>Report.Abstract</Super>
+<TimeCreated>60099,32291.269269</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/AUXX/Report/ZEN/StoredProc/TrialBalance.xml#1 $</Default>
+</Parameter>
+
+<UDLText name="T">
+<Content><![CDATA[
+// Report Name: Trak Trial Balance <br>
+
+]]></Content>
+</UDLText>
+
+<UDLText name="T">
+<Content><![CDATA[
+// Report Code: AUXX.FIN0009 <br>
+
+]]></Content>
+</UDLText>
+
+<UDLText name="T">
+<Content><![CDATA[
+// LOGTRAK Number: 72214 <br>
+
+]]></Content>
+</UDLText>
+
+<UDLText name="T">
+<Content><![CDATA[
+// Report Description: The Trial alance Report provides aged debtor balances.
+
+]]></Content>
+</UDLText>
+
+<Method name="GetStartDate">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>Date</FormalSpec>
+<Implementation><![CDATA[
+ s date=..ConvertDateToCache($g(Date))
+ 
+ s date=$zd(date,0)
+ 
+ s month=$p(date," ",2)
+ s year=$p(date," ",3)
+ s day="01"
+ 
+ i month="Jan" s month="Jan"
+ i month="Feb" s month="Feb"
+ i month="Mar" s month="Mar"
+ i month="Apr" s month="Apr"
+ i month="May" s month="May"
+ i month="Jun" s month="Jun"
+ i month="Jul" s month="Jul"
+ i month="Aug" s month="Aug"
+ i month="Sep" s month="Sep"
+ i month="Oct" s month="Oct"
+ i month="Nov" s month="Nov"
+ i month="Dec" s month="Dec"
+
+ s newdate=day_" "_month_" "_year
+ q newdate
+]]></Implementation>
+</Method>
+
+<Method name="GetBalancesClose">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>QHandle:%Library.Binary</FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Clean up by purging the temporary node in ^CacheTemp global
+ New repid
+ Set repid=$li(QHandle,2)
+
+ //End Monitor (if configured to capture stats)
+ i mon Do ..MonitorEnd(mon)
+
+ 
+ Kill ^CacheTemp("TRAK",repid)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="GetBalancesExecute">
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,Hospital:%String,Payors:%String]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Get reportid i.e. use $INCREMENT to add another node to ^CacheTemp global. 
+ // We use ^CacheTemp global because it will always use memory before disk
+ New repid,ind
+
+ // Use $Increment to get the next node
+ Set repid=$I(^CacheTemp("TRAK"))
+ 
+ s mon=..MonitorBegin()
+ 
+ n ARPBLRowId,ARPBLBillNo,ARPBLDatePrinted,Currentp,Thirty,Sixty,Ninety,OneTwenty,PAADMAdmNo,PAADMAdmDate,PAADMDischgDate,PAPMIRowId,PAPMIName,PAPMIName2,PAPMIName3,INSTRowId,INSTCode,INSTDesc,AmountToPay,PAPMINo,HOSPRowId,HOSPCode,HOSPDesc
+ s (ARPBLRowId,ARPBLBillNo,ARPBLDatePrinted,PAADMAdmNo,PAADMAdmDate,PAADMDischgDate,PAPMIRowId,PAPMIName,PAPMIName2,PAPMIName3,INSTRowId,INSTCode,INSTDesc,PAPMINo,HOSPRowId,HOSPCode,HOSPDesc)=""
+ s (Currentp,Thirty,Sixty,Ninety,OneTwenty,AmountToPay)=0
+ s ind=1
+ i Hospital'="" s Hospital=$ZSTRIP(Hospital,"*CW")
+ i Payors'="" s Payors=$ZSTRIP(Payors,"*CW")
+
+ d GetBills
+
+ // Build QHandle (AtEnd,ReportID,Index)
+ Set QHandle=$lb(0,repid,0)
+ Quit $$$OK
+
+GetBills
+ &SQL(DECLARE Bills CURSOR FOR
+ SELECT
+ ARPBL_RowId,
+ ARPBL_BillNo,
+ ARPBL_DatePrinted,
+ case when current_date-ARPBL_DatePrinted <31 then ARPBL_AmountToPay else 0 end as Currentp,
+ case when current_date-ARPBL_DatePrinted between 31 and 60 then ARPBL_AmountToPay else 0 end as Thirty,
+ case when current_date-ARPBL_DatePrinted between 61 and 90 then ARPBL_AmountToPay else 0 end as Sixty,
+ case when current_date-ARPBL_DatePrinted between 91 and 120 then ARPBL_AmountToPay else 0 end as Ninety,
+ case when current_date-ARPBL_DatePrinted >120 then ARPBL_AmountToPay else 0 end as OneTwenty,
+ ARPBL_PAADM_DR->PAADM_AdmNo,
+ ARPBL_PAADM_DR->PAADM_AdmDate,
+ ARPBL_PAADM_DR->PAADM_DischgDate,
+ ARPBL_PAADM_DR->PAADM_PAPMI_DR->PAPMI_RowId,
+ ARPBL_PAADM_DR->PAADM_PAPMI_DR->PAPMI_Name,
+ ARPBL_PAADM_DR->PAADM_PAPMI_DR->PAPMI_Name2,
+ ARPBL_PAADM_DR->PAADM_PAPMI_DR->PAPMI_Name3,
+ ARPBL_InsuranceType_DR,
+ ARPBL_InsuranceType_DR->INST_Code,
+ ARPBL_InsuranceType_DR->INST_Desc,
+ ARPBL_AmountToPay,
+ ARPBL_PAADM_DR->PAADM_PAPMI_DR->PAPMI_No,
+ ARPBL_Hospital_DR,
+ ARPBL_Hospital_DR->HOSP_Code,
+ ARPBL_Hospital_DR->HOSP_Desc
+ INTO :ARPBLRowId,:ARPBLBillNo,:ARPBLDatePrinted,:Currentp,:Thirty,:Sixty,:Ninety,:OneTwenty,:PAADMAdmNo,:PAADMAdmDate,:PAADMDischgDate,:PAPMIRowId,:PAPMIName,:PAPMIName2,:PAPMIName3,:INSTRowId,:INSTCode,:INSTDesc,:AmountToPay,:PAPMINo,:HOSPRowId,:HOSPCode,:HOSPDesc
+ FROM SQLUser.AR_PatientBill
+ WHERE ARPBL_DatePrinted IS NOT NULL
+ AND ARPBL_AmountToPay<>0
+ AND ARPBL_PAADM_DR->PAADM_VisitStatus<>'C'
+ AND (({fn CONCAT( ',', {fn CONCAT((:Hospital),',')})} [ {fn CONCAT( ',', {fn CONCAT((ARPBL_Hospital_DR),',')})}) OR (:Hospital IS NULL))
+ AND (({fn CONCAT( ',', {fn CONCAT((:Payors),',')})} [ {fn CONCAT( ',', {fn CONCAT((ARPBL_InsuranceType_DR),',')})}) OR (:Payors IS NULL)))
+ 
+ &SQL(OPEN Bills)
+ f  &SQL(FETCH Bills) q:SQLCODE'=0  d
+ . d FormatDates
+ . s ind=$i(ind)
+ . s ^CacheTemp("TRAK",repid,$ZCVT(HOSPDesc,"U")_$ZCVT(INSTDesc,"U")_$ZCVT(PAPMIName,"U")_ind)=$LB(ARPBLRowId,ARPBLBillNo,ARPBLDatePrinted,Currentp,Thirty,Sixty,Ninety,OneTwenty,PAADMAdmNo,PAADMAdmDate,PAADMDischgDate,PAPMIRowId,PAPMIName,PAPMIName2,PAPMIName3,INSTRowId,INSTCode,INSTDesc,AmountToPay,PAPMINo,HOSPRowId,HOSPCode,HOSPDesc)
+ &SQL(CLOSE Bills)
+ q
+
+FormatDates
+ // Convert the dates to ODBC date format
+ Set PAADMAdmDate=..ConvertDateToODBC(PAADMAdmDate)
+ Set PAADMDischgDate=..ConvertDateToODBC(PAADMDischgDate)
+ Set ARPBLDatePrinted=..ConvertDateToODBC(ARPBLDatePrinted)
+ q
+]]></Implementation>
+</Method>
+
+<Method name="GetBalancesFetch">
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,&Row:%Library.List,&AtEnd:%Library.Integer=0]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // This fetch method should never have to change. 
+ // repid - Report ID
+ // ind   - sequence index which represents each row
+
+ New repid,ind
+
+ // Restore QHandle
+ Set AtEnd=$li(QHandle,1)
+ Set repid=$li(QHandle,2)
+ Set ind=$li(QHandle,3)
+
+ Set ind=$o(^CacheTemp("TRAK",repid,ind))
+ If ind="" {	// if there are no more rows, finish fetching
+ Set AtEnd=1
+ Set Row=""
+ }
+ Else      {	// fetch row
+ Set Row=^CacheTemp("TRAK",repid,ind)
+ }
+
+ // Save QHandle
+ s QHandle=$lb(AtEnd,repid,ind)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Query name="GetBalances">
+<Type>%Library.Query</Type>
+<FormalSpec>Hospital:%String,Payors:%String</FormalSpec>
+<SqlProc>1</SqlProc>
+<Parameter name="CONTAINID" value="0"/>
+<Parameter name="ROWSPEC" value="ARPBLRowId:%String,ARPBLBillNo:%String,ARPBLDatePrinted:%Date,Currentp:%Float,Thirty:%Float,Sixty:%Float,Ninety:%Float,OneTwenty:%Float,PAADMAdmNo:%String,PAADMAdmDate:%Date,PAADMDischgDate:%Date,PAPMIRowId:%String,PAPMIName:%String,PAPMIName2:%String,PAPMIName3:%String,INSTRowId:%String,INSTCode:%String,INSTDesc:%String,AmountToPay:%Float,PAPMINo:%String,HOSPRowId:%String,HOSPCode:%String,HOSPDesc:%String"/>
+</Query>
+</Class>
+</Export>

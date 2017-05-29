@@ -1,0 +1,221 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.SWARH.JS.RBAppointment.Whiteboard.Arrived">
+<Description>
+Component JavaScript for: RBAppointment.Whiteboard.Arrived</Description>
+<Modified>0</Modified>
+<Super>websys.AbstractJavaScript</Super>
+<TimeCreated>63537,10520.118381</TimeCreated>
+
+<Method name="JSContent">
+<Description>
+ </Description>
+<Internal>0</Internal>
+<Language>javascript</Language>
+<ClientMethod>1</ClientMethod>
+<Implementation><![CDATA[
+var RBWBA = {
+	/**
+	 * [refreshTime - Number of minutes until the page will reload]
+	 * @type {Number}
+	 */
+	refreshTime: 5,
+	/**
+	 * [timerReload - Used to store the setTimeout result if needed to be cancelled]
+	 * @type {mixed}
+	 */
+	timerReload: undefined,
+	/**
+	 * [idIconProfile1 - The ID of the element that contains IconProfile1]
+	 * @type {String}
+	 */
+	idIconProfile1 : "15",
+	/**
+	 * [idIconProfile2 - The ID of the element that contains IconProfile2]
+	 * @type {String}
+	 */
+	idIconProfile2 : "16",
+	/**
+	 * [idService The ID of the element that contains Service]
+	 * @type {String}
+	 */
+	idService : "10",
+	/**
+	 * [init - Scrolls to passed coordinates, changes cell headings and starts the refresh timer]
+	 */
+	init : function() {
+		RBWBA.scrollToPosition();
+		RBWBA.changeCellHeading(RBWBA.idIconProfile2, "Time");
+		RBWBA.changeCellHeading(RBWBA.idIconProfile1, "Icon Profile");
+		var refresh = document.getElementById("SNAPRefresh");
+		if ((refresh) && (refresh.value)) {
+			RBWBA.refreshTime = parseInt(refresh.value, 10);
+		}
+		RBWBA.setRefresh();
+		RBWBA.setLastRefreshTime();
+		RBWBA.appointmentDetailLinks();
+	},
+	/**
+	 * [scrollToPosition - When the timeout causes a page refresh it will pass the X and Y values in the hash so we can scroll to the same position]
+	 */
+	scrollToPosition: function() {
+		var str = window.location.hash;
+
+		var matchesX = /scrollX=(\d+)/.exec(str);
+		var matchesY = /scrollY=(\d+)/.exec(str);
+
+		var posX = (matchesX && matchesX.length ===2) ? matchesX[1] : 0;
+		var posY = (matchesY && matchesY.length ===2) ? matchesY[1] : 0;
+
+		window.scrollTo(posX, posY);
+	},
+	/**
+	 * [changeCellHeading - Changes the innerText value of a table header]
+	 * @param  {string} id   [the ID of the cell to find]
+	 * @param  {string} text [the value to replace the innerText with]
+	 */
+	changeCellHeading : function(id, text) {
+		id = "" + id; // Make sure id is String as comparing with ===
+		text = "" + text;
+		var table = document.getElementById("tRBAppointment_Whiteboard_Arrived");
+		var tableHeaders = table.getElementsByTagName("thead");
+		if (tableHeaders.length >= 1) {
+			var headerRows = tableHeaders[0].getElementsByTagName("tr");
+			if (headerRows.length === 1) {
+				var headerCells = headerRows[0].getElementsByTagName("th");
+				for (var i = 0; i < headerCells.length; i++) {
+					if (headerCells[i].id === id) {
+						headerCells[i].innerText = text;
+						break;
+					}
+				};
+				
+			}
+		}
+	},
+	/**
+	 * [setLastRefreshTime - Populates the SNAPRefreshTime with the current date/time]
+	 */
+	setLastRefreshTime: function() {
+		var span = document.getElementById("SNAPRefreshTime");
+		if (span) {
+			var d = new Date();
+			var s = "Last Refresh: " + d.getDate() + "/";
+			s += (d.getMonth() < 9) ? "0" + (d.getMonth() + 1) : (d.getMonth() + 1);
+			s += "/" + d.getFullYear() + " " + d.getHours() + ":";
+			s += (d.getMinutes() < 10) ? "0" + d.getMinutes() : d.getMinutes();
+			s += ":";
+			s += (d.getSeconds() < 10) ? "0" + d.getSeconds() : d.getSeconds();
+			span.innerText = s;
+		}
+	},
+	/**
+	 * [setRefresh - Creates the setTimeout for refreshing the page]
+	 */
+	setRefresh: function() {
+		if (RBWBA.refreshTime > 0) {
+			var timeout = (RBWBA.refreshTime * 1000 * 60);
+			RBWBA.timerReload = setTimeout(RBWBA.refreshGrid, timeout);
+		}
+	},
+	/**
+	 * [refreshGrid - Called to reload the page passing the current X and Y positions]
+	 */
+	refreshGrid: function() {
+		var doc = document.documentElement, body = document.body;
+		var scrollX = (doc && doc.scrollLeft || body && body.scrollLeft || 0);
+		var scrollY = (doc && doc.scrollTop  || body && body.scrollTop  || 0);
+
+
+		window.location.hash = "scrollX=" + scrollX + "&scrollY=" + scrollY;
+		window.location.reload(true);  //True forces server reload not from cache
+	},
+	/**
+	 * [appointmentDetailLinks - Loops the tbody rows and attempts to turn the location field into a link opening the Appointment Details screen and hiding the icon in the IconProfile]
+	 */
+	appointmentDetailLinks : function() {
+		var apptTable = document.getElementById("tRBAppointment_Whiteboard_Arrived"),
+			cellService = undefined,
+			cellIconProfile1 = undefined;
+
+		if (apptTable) {
+			var tableHeaders = apptTable.getElementsByTagName("thead"),
+				tableBody = apptTable.getElementsByTagName("tbody"),
+				bodyRows = undefined;
+
+			if ((tableBody) && (tableBody.length >= 1)) {
+				bodyRows = tableBody[0].getElementsByTagName("tr");
+			}
+
+			//Loop table headers to find the position of the IconProfile and Service cells
+			if (((tableHeaders) && (tableHeaders.length >= 1)) && ((bodyRows) && (bodyRows.length > 0))) {
+				var headerRows = tableHeaders[0].getElementsByTagName("tr");
+				if (headerRows.length === 1) {
+					var headerCells = headerRows[0].getElementsByTagName("th");
+					for (var i = 0; i < headerCells.length; i++) {
+						if (headerCells[i].id === RBWBA.idService) {
+							cellService = i;
+						} else if (headerCells[i].id === RBWBA.idIconProfile1) {
+							cellIconProfile1 = i;
+						}
+						if (cellService && cellIconProfile1)
+							break;
+					};
+				}
+			}
+
+			//If we found the positions of the headers and there are patients, convert the location in a link to appointment details
+			if ((cellService) && (cellIconProfile1) && ((bodyRows) && (bodyRows.length > 0))) {
+				SWARH.addArrayMethods();
+				for (var i = bodyRows.length - 1; i >= 0; i--) {
+					var rowCells = bodyRows[i].cells,
+						icons = rowCells[cellIconProfile1].getElementsByTagName("a"),
+						onclick,
+						icon;
+
+					//Loop the icons to find the first "Interactive Icon"	
+					for (var j = 0; j < icons.length; j++) {
+						var classes = icons[j].className.split(" ");
+						if (classes.contains('clsInteractiveIcon')) {
+							onclick = "" + icons[j].onclick.toString();
+							icon = icons[j];
+							break;
+						}
+					};					
+					
+					//If icon was found, create link and hide icon
+					if (onclick) {
+						//Remove funtion() { /** CODE_WE_WANT ** / } wrapper
+						var arr = onclick.split("{");
+						if (arr.length > 1) {
+							onclick = arr[1];
+						}
+						arr = onclick.split("}");
+						if (arr.length > 1) {
+							onclick = arr[0];
+						}
+
+						SWARH.addStringTrim();
+						var serviceText = (rowCells[cellService].innerText.trim() !== "") ? rowCells[cellService].innerText : "Event";
+						rowCells[cellService].innerHTML = "<a onclick=\"" + onclick + "\">" + serviceText + "</a>";
+						rowCells[cellService].innerHTML = "<a onclick=\"" + onclick + "\">" + rowCells[cellService].innerText + "</a>";
+						if (icon) icon.style.display = "none";
+					}
+				};
+			}
+		}
+	}
+};
+
+websys_addListener("load","onload",RBWBA.init);
+]]></Implementation>
+</Method>
+
+<Parameter name="SrcVer">
+<Description>
+This Parameter is updated by Perforce</Description>
+<Internal>0</Internal>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/SWARH/JS/RBAppointment/Whiteboard/Arrived.xml#1 $</Default>
+</Parameter>
+</Class>
+</Export>

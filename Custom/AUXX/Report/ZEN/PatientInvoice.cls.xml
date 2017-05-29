@@ -1,0 +1,378 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.AUXX.Report.ZEN.PatientInvoice">
+<Super>Custom.AUXX.Report.ZEN.Abstract</Super>
+<TimeCreated>61543,54550.041409</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/AUXX/Report/ZEN/PatientInvoice.xml#1 $</Default>
+</Parameter>
+
+<UDLText name="T">
+<Content><![CDATA[
+// Report Name: Patient Invoice
+
+]]></Content>
+</UDLText>
+
+<UDLText name="T">
+<Content><![CDATA[
+// Report Code: AUXX.FIN0006
+
+]]></Content>
+</UDLText>
+
+<UDLText name="T">
+<Content><![CDATA[
+// LOGTRAK Number: 72211
+
+]]></Content>
+</UDLText>
+
+<UDLText name="T">
+<Content><![CDATA[
+// 07/09/2012 confirm excess Function is present
+
+]]></Content>
+</UDLText>
+
+<UDLText name="T">
+<Content><![CDATA[
+// 11/09//2012 Add ABN and change code for Mail Address
+
+]]></Content>
+</UDLText>
+
+<Property name="InvoiceNo">
+<Type>%String</Type>
+<Parameter name="ZENURL" value="P1"/>
+</Property>
+
+<Property name="CMBS">
+<Type>%String</Type>
+<Parameter name="ZENURL" value="P2"/>
+</Property>
+
+<Property name="LogoPath">
+<Type>%String</Type>
+</Property>
+
+<XData name="ReportDefinition">
+<XMLNamespace>http://www.intersystems.com/zen/report/definition</XMLNamespace>
+<Data><![CDATA[
+<report xmlns='http://www.intersystems.com/zen/report/definition'
+   queryClass='Custom.AUXX.Report.ZEN.StoredProc.PatientInvoice' queryName='GetInvoice' name='PatientInvoice'>
+  <parameter expression='..InvoiceNo'/>
+  <parameter expression='..CMBS'/>
+  <attribute name='ReportTitle' expression='$$$Text("@Invoice@Invoice")'/>
+  <attribute name='timestamp' expression='$ZDATETIME($H, 2, 2)'/>
+  <attribute name='pattitle' expression='$$$Text("@PatientDetails:@Patient Details:")'/>
+  <attribute name='acctitle' expression='$$$Text("@AccountTo:@Account To:")'/>
+  <attribute name='payortitle' expression='$$$Text("@Payor:@Payor: ")'/>
+  <attribute name='plantitle' expression='$$$Text("@Plan:@Plan: ")'/>
+  <attribute name='claimform' expression='$$$Text("@ClaimForm:@Claim Form No: ")'/>
+  <attribute name='membertitle' expression='$$$Text("@GovernmentNo:@Government No: ")'/>
+  <attribute name='remitline' expression='$$$Text("@Pleasereturnlowersectionofthisinvoicewithyourpayment@Please return lower section of this invoice with your payment")'/>
+  <attribute name='remitadvice' expression='$$$Text("@RemittanceAdvice:@Remittance Advice:")'/>
+  <attribute name='checkline' expression='$$$Text("@Ifacknowledgementofpaymentisrequiredpleasetickbox@If acknowledgement of payment is required please tick box")'/>
+  <attribute name='username' expression='..Username'/>
+  <attribute name='InvoiceId' expression='..InvoiceNo'/>
+  
+
+
+
+  
+ <group name='top' breakOnField='InvoiceNo'>	
+  <element name='PrintAddress' field='PrintAddress'/>
+  <element name='PatAddress' field='PatAddress'/>
+   <element name='Text' field='Text'/>
+  <element name='HOSPLogo' field='HOSPLogo' expression='..SetLogo(%val)'/>
+  
+   <attribute name='InvoiceNo' field='ARPBLBillNo'/>
+  <attribute name='Facility' field='HOSPDesc' />
+  <attribute name='HospitalAdr' field='HOSPAddress' />  
+  <element name='HospBillAddress' field='HOSPBillAddress1'/>  
+  <attribute name='HospitalPhone' field='HOSPPhone' />
+  <attribute name='HospitalFax' field='HOSPFax' />
+  <attribute name='HospitalCity' field='HOSPCTCITDesc' />
+  <attribute name='HospitalProv' field='HOSPPROVCode' />
+  <attribute name='HospitalZip' field='HOSPCTZIPCode' />
+  <attribute name='ABN' field='HOSPCode' />
+  <attribute name='TaxInvoiceDate' field='ARPBLDatePrinted' expression='..DisplayDate(%val)' />
+  <attribute name='CurrentDate' field='CurrentDate' expression='..DisplayDate(%val)' />
+  
+  <attribute name='EpisodeNo' field='PAADMADMNo' />
+  <attribute name='URN' field='RTMASNo' />
+  <attribute name='patname1' field='PAPMIName' />
+  <attribute name='patname2' field='PAPMIName2' />
+  <attribute name='patcity' field='PAPERCTCITDesc' />
+  <attribute name='patzip' field='PAPERCTZIPCode' />
+  <attribute name='patprovidence' field='PAPERPROVDesc' />
+  <attribute name='AccountName' field='PatientName' />
+  <attribute name='Type' field='ARPBLPayorType' />
+  <attribute name='AccountAddress' field='MailAddress' />
+  <attribute name='AccountAddress2' field='MailAddress2' />
+  <attribute name='PatientName' field='PatientName' />
+  <attribute name='PatientAddress' field='MailAddress' />
+  <attribute name='PatientAddress2' field='MailAddress2' />
+  <attribute name='ADDRStreet' field='ADDRStreet' />
+  <attribute name='ADDRStreet2' field='ADDRStreet2' />
+  
+  <attribute name='Payor' field='INSTDesc' />
+  <attribute name='Claim' field='TRFVehInsPolicy' />
+  <attribute name='Plan' field='AUXITDesc' />
+  <attribute name='Membership' field='INSTGovern' />  
+  <aggregate name='OutstandingTotal' type='SUM' field='Amount'  />
+  <aggregate name='GSTTotal' type='SUM' field='ServiceTax' /> 
+  <aggregate name='InvoiceTotal' type='SUM' field='Rate1' />  
+  <group name='Detail'>     
+           <attribute name='Date' field='LineDate' expression='..DisplayDate(%val)'/>
+           <attribute name='Description' field='Description' />
+           <attribute name='Quantity' field='Quantity' />
+           <attribute name='Rate' field='Rate' />
+           <attribute name='Amount' field='Amount'/>
+           <attribute name='GST' field='ServiceTax'/>
+   </group>
+</group>
+ </report>
+]]></Data>
+</XData>
+
+<XData name="ReportDisplay">
+<XMLNamespace>http://www.intersystems.com/zen/report/display</XMLNamespace>
+<Data><![CDATA[
+<report xmlns='http://www.intersystems.com/zen/report/display'
+xmlns:auxxstyle='http://www.intersystems.com/zen/report/display/auxx/style'
+xmlns:auxx='http://www.intersystems.com/zen/report/display/auxx'
+  name='PatientInvoice'>
+<document width="210mm" height="297mm" marginLeft="10mm" marginRight="10mm" marginTop="10mm" marginBottom="15mm" footerHeight="0mm" headerHeight="10mm">
+
+<auxxstyle:auxxgroupheader/>
+<auxxstyle:auxxgroupsummary/>
+<auxxstyle:auxxhospitalheader/>
+<auxxstyle:auxxpageheader/>
+<auxxstyle:auxxparameterheader/>
+<auxxstyle:auxxreporttitle/>
+<auxxstyle:auxxtablecolumn/>
+
+<class name="table.patinv" >
+<att name="keep-with-next.within-line" value="auto" />
+<att name="keep-with-previous" value="always" />
+<att name="width" value="100%" />
+<att name="table-layout" value="fixed"/>
+</class>
+<class name="th.patinv">
+<att name="keep-with-next.within-line" value="auto" />
+<att name="font-family" value="Arial" />
+<att name="font-size" value="10pt"/>
+<!--<att name="font-weight" value="bold"/>-->
+<att name="padding-before" value="1.5pt" />
+</class>
+<class name="td.patinv">
+<att name="font-family" value="Arial" />
+<att name="font-size" value="10pt"/>
+<att name="font-weight" value="normal"/>
+<att name="display-align" value="before" />
+<att name="padding-before" value="1.5pt" />
+</class>
+
+
+</document>
+<auxx:PageHeader pagetitle='@ReportTitle'/>
+
+<body>
+<group name='top' class='auxxtablecolumn'>
+<auxx:ReportHeader reporttitle='@ReportTitle'/>
+
+  <table orient='col'>  
+ 
+  <table orient='row' align='left'  style='padding-left:35px'>   
+  <item name='Facility' field='@Facility' />
+  <item name='HospitalAdr' field='@HospitalAdr' breakOnLineFeed="true"/>
+ <item name='HospitalMail' field='concat(@HospitalCity," ",@HospitalProv," ",@HospitalZip)'/>
+  <item name='HospitalPhone' field='concat("Ph:  ",@HospitalPhone)'/>
+  <item name='HospitalFax' field='concat("Fax: ",@HospitalFax)'/>
+  <item name='ABN' field='@ABN'/>    
+ 
+  </table>
+   	
+ 
+ 	 
+ 	 <table orient='col' align ='left'>
+   <img src="#(..LogoPath)#" contentHeight="24mm" contentWidth="40mm" style="text-align:right" />    
+   
+   </table>
+   </table>
+   
+   <table orient='row' align='right'>
+<item name='TaxInvoiceDate' field='@TaxInvoiceDate' style="text-align:right"  />  
+</table>
+
+
+  <!--<line pattern="empty" width="100%"/> -->
+  
+  <table orient='col'>
+  
+   <table orient='row' align='left' width='70%'  style='padding-left:35px' >
+     <item field='/PatientInvoice/@acctitle'  />
+     <item name='accountname' field='@AccountName' ifxpath='@Type="P"'  />
+      <item field='PrintAddress' breakOnLineFeed="true" />
+     </table>
+	
+	
+  
+     <table orient='col' align='left'>
+      <table orient='row' foStyle="border-style='solid'" class='patinv' >
+    
+     <item value=" " >
+	  <caption value='@TAXINVOICE@TAX INVOICE' style='font-weight:bold;padding-left:5px'/>
+	  </item>
+
+	<item field='@InvoiceNo' style='padding-left:5px;padding-right:5px;font-weight:bold'>
+		<caption value='@InvNo:@Inv No: ' style='padding-left:5px;padding-right:5px;font-weight:bold'/>
+	 </item>
+	 <item field='@CurrentDate' style='padding-left:5px;padding-right:5px;'>
+		<caption value='@DateIssued:@Date Issued:' style='padding-left:5px;padding-right:5px'/>
+	 </item>
+ 
+	 <item field='@URN' style='padding-left:5px;padding-right:5px;'>
+		<caption value='@URN:@URN: ' style='padding-left:5px;padding-right:5px'/>
+	 </item>
+	 <item field='@EpisodeNo' style='padding-left:5px;padding-right:5px;'>
+		<caption value='@Episodeno:@Episode No: ' style='padding-left:5px;padding-right:5px'/>
+	 </item>
+     </table>
+  </table>
+  </table>
+ 
+ <line pattern="empty" width="100%"/>
+ 
+ <!--<table orient='col'>
+  <table orient='row' width="50%">
+  <p> </p>
+  </table>-->
+ <table orient='col' >   
+     <table orient='row' align='left' style='padding-left:35px' >
+     <item field='/PatientInvoice/@pattitle' />
+     <item name='patientname' field='@PatientName' />
+     <item field='PatAddress' breakOnLineFeed="true"/>
+     </table>
+  </table>
+  <!--</table>-->
+ 
+  <line pattern="empty" width="100%"/>
+  <table orient='col'>
+  <item field='concat(/PatientInvoice/@payortitle,@Payor)' width="35%"/>
+  <item field='concat(/PatientInvoice/@plantitle,@Plan)' width="35%"/>
+  <item field='concat(/PatientInvoice/@claimform,@Claim)'/>
+    <!--<item special='page-number-of' width="80%"/>-->
+  </table>
+
+  <table orient='col'>
+   <item field='' width="40%"/>
+   <item field='' width="50%"/>
+   </table>
+   <line pattern="solid" width="60%"/>
+ <table group='Detail' orient='col' foHeaderStyle="border-bottom-style='solid' font-weight='bold'">
+    <item caption='@Date@Date' field='@Date' width="15%"/>
+    <item caption='@Description@Description' field='@Description' width="35%"/>
+    <item caption='@Quantity@Quantity' field='@Quantity' width="10%" style='text-align:right'/>
+    <item caption='@Rate@Rate' field='@Rate' formatNumber="#####0.00" width="10%" style='text-align:right'/>
+    <item caption='@GST@GST' field='@GST' formatNumber="#####0.00" width="10%" style='text-align:right'/>
+    <item caption='@Credit@Credit' field='@Amount' formatNumber="######.00" ifxpath='@Amount&amp;lt;0' width="10%" style='text-align:right'/>
+    <item caption='@Debit@Debit' field='@Amount' formatNumber="######.00" ifxpath='@Amount&amp;gt;0' width="10%" style='text-align:right'/>
+ </table>
+ <line pattern="empty" width="100%"/>
+  <line pattern="empty" width="100%"/>
+   <line pattern="empty" width="100%"/>
+ 
+
+<table orient='col' width='100%' >        
+	<item value='' width='6%' />
+ 	<item value='@TotalGSTifApplicabletothisInvoice@Total GST if Applicable to this Invoice ' width='45%' />
+ 	<item field='@description' width='13%' />
+ 	<item field="GSTTotal" formatNumber="##,###,##0.00"  width='16%' style="text-align:right"/>	
+ </table>
+
+ 
+   <table orient='col' width='100%' >        
+	<item value='' width='6%' />
+ 	<item value='@TotalInvoiceAmountinclGSTifapplicable@Total Invoice Amount (incl GST if applicable)' width='45%' />
+ 	<item field='@description' width='13%' />
+ 	<item field="InvoiceTotal" formatNumber="##,###,##0.00"  width='16%' style="text-align:right"/>	
+ </table>
+ <table orient='col' width='100%' >        
+	<item value='' width='6%' />
+ 	<item value='@TotalAmountOutstandinginclGSTifapplicable@Total Amount Outstanding (incl GST if applicable)' width='45%' />
+ 	<item field='@description' width='13%' />
+ 	<item field="OutstandingTotal" formatNumber="##,###,##0.00"  width='16%' style="text-align:right"/>	
+ </table>
+
+   <line pattern="empty" lineHeight="15mm" width="100%"/>
+
+ <table orient='row' style='keep-together:always'>
+  <item field='/PatientInvoice/@remitline' />
+  <line pattern="solid" width="100%"/>
+  <table orient='col' style="keep-with-previous:always;keep-with-next:always">
+  <table orient='row' align='left' style="keep-with-previous:always;keep-with-next:always">
+  <item field='/PatientInvoice/@remitadvice'/>
+  <item name='Facility' field='@Facility'/>
+  <item field='HospBillAddress' breakOnLineFeed="true"/>
+  
+  <item name='HospitalPhone' field='concat("Ph:  ",@HospitalPhone)'/>
+  <item name='HospitalFax' field='concat("Fax: ",@HospitalFax)'/>
+  </table>
+  <table orient='row' align='left' style="keep-with-previous:always;keep-with-next:always">  
+  <item field='concat("Payor: ",@Payor)' />
+  <item field='concat("URN: ",@URN)' />
+  <item field='concat("Invoice No: ",@InvoiceNo)' />
+  <item field='concat("Patient Name: ",@PatientName)'/>
+
+   <table orient='col' align='left'>
+   <item value='@Amount@Amount: ' width="15%" />
+   <item field='OutstandingTotal' formatNumber="#####0.00" />
+   </table>
+  </table>
+  </table>
+  <line pattern="empty"  style="keep-with-previous:always;keep-with-next:always" width="100%"/>
+  <table orient='col' width="63%" style="keep-with-previous:always;keep-with-next:always">
+  <item field='/PatientInvoice/@checkline' width="80%"/>
+  
+   <!--Just to build an empty Box after the statement -->
+   <item value="" literalSpaces='true' style="border-style:solid" width="4%"/>
+   </table>
+   
+   <table >
+    <item field='Text' width="100%"/>
+   </table>
+   
+  </table>
+  </group>
+</body>
+</report>
+]]></Data>
+</XData>
+
+<Method name="SetLogo">
+<FormalSpec>path:%String</FormalSpec>
+<Implementation><![CDATA[
+	Set ..LogoPath = path
+
+	q $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="%OnAfterCreatePage">
+<Implementation><![CDATA[
+	Set img = ..%GetComponentById("img")
+	Set stream=##class(%FileBinaryStream).%New()
+	Set filename=$system.CSP.GetFileName("images/SWARH/home3.gif")
+	Do stream.LinkToFile(filename)
+	Set oid=stream.%Oid()
+	s img.streamId = oid
+]]></Implementation>
+</Method>
+</Class>
+</Export>

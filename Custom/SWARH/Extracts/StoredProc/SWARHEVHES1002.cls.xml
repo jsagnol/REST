@@ -1,0 +1,416 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.SWARH.Extracts.StoredProc.SWARHEVHES1002">
+<Description><![CDATA[
+<pre>
+**************************************************************************************************************************************
+* Report Code: SWARHEVHES1002
+* Report Description: Victorian Healthcare Experience Survey Extract(VHES)
+* Menu Caption: Victorian Healthcare Experience Survey Extract
+* Initial release: 04/04/2014
+* Developer: Bradly Sharpe
+* Called by USWARHEVHES1002.mac
+**************************************************************************************************************************************
+</pre>]]></Description>
+<ProcedureBlock>0</ProcedureBlock>
+<Super>Custom.SWARH.Report.ZEN.StoredProc.Abstract</Super>
+<TimeCreated>60471,58724.96519</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/SWARH/Extracts/StoredProc/SWARHEVHES1002.xml#1 $</Default>
+</Parameter>
+
+<Method name="SWARHEVHES1002Close">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)
+This is the Close component of the %Library.Query.
+This is standard code and should never have to change.
+This is where all the cleanup is performed, i.e. the purging of the temporary storage global ^CacheTemp.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>QHandle:%Library.Binary</FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Clean up by purging the temporary node in ^CacheTemp global
+ New repid,ind
+ Set repid=$li(QHandle,2)
+
+ //Start Monitor (if configured to capture stats)
+ //i mon Do ..MonitorEnd(mon)
+
+ Kill ^CacheTemp("TRAK",repid)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="SWARHEVHES1002Execute">
+<Description>
+This is the Execute section for the %Library.Query. 
+All of the logic will be performed here.
+A new node for the ^CacheTemp global will be created and each subscript of this global will contain
+a row for the report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,Hospital:%Integer,DateFrom:%Date,DateTo:%Date]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+		   
+ New repid,ind
+
+ Set repid=$I(^CacheTemp("TRAK"))
+ 
+ New RowID,CampusCode,HospitalCode,UniqueKey,SeparationDate,Title,GivenName,Surname,AddressLn1,AddressLn2,Locality,State,Postcode
+ 	,EmailAddress,AdmissionType,PreferredLanguage,YearofBirth,SeparationStatus,IndigenousStatus
+ 	//,PAFlag,PAAddressLn1,PAAddressLn2,PALocality,PAState,PAPostcode
+ Set (UniqueKey,SeparationDate,Title,GivenName,Surname,AddressLn1,AddressLn2,Locality,State,EmailAddress,PreferredLanguage,SeparationStatus,IndigenousStatus) = ""
+ 	//,PAAddressLn1,PAAddressLn2,PALocality,PAState,PAPostcode
+ Set (RowID,CampusCode,HospitalCode,Postcode,AdmissionType,YearofBirth)=0 //,PAFlag
+ s ind=1, END=0
+
+ //Start Monitor (if configured to capture stats)
+ //s mon=..MonitorBegin()
+ 
+ //Convert ODBC dates to cache format a.PAADM_type AS AdmissionType
+ s DateFrom=$$intdate^SSUTIL4(DateFrom)
+ s DateTo=$$intdate^SSUTIL4(DateTo)
+
+ &SQL(DECLARE SWARHEVHES1002 CURSOR FOR
+ SELECT 
+		sq.RowID
+	,	sq.CampusCode
+	,	sq.HospitalCode
+	,	sq.UniqueKey
+	,	sq.SeparationDate
+	,	sq.Title
+	,	sq.GivenName
+	,	sq.Surname
+	,	sq.AddressLn1
+	,	sq.AddressLn2
+	,	sq.Locality
+	,	sq.State
+	,	sq.Postcode
+	,	sq.EmailAddress
+	,	sq.AdmissionType
+	,	sq.PreferredLanguage
+	,	sq.YearofBirth
+	,	sq.SeparationStatus
+	,	indig.NATC_MappedValue AS IndigenousStatus
+FROM (
+	SELECT 
+			papmi.%ID AS RowID
+		,	adm.PAADM_Hospital_DR->HOSP_NationalCode AS CampusCode
+		,	LEFT(adm.PAADM_Hospital_DR->HOSP_NationalCode, 3) AS HospitalCode
+		,	adm.PAADM_ADMNo AS UniqueKey
+		,	adm.PAADM_DischgDate AS SeparationDate
+		,	papmi.PAPMI_Title_DR->TTL_Desc AS Title
+		,	papmi.PAPMI_Name2 AS GivenName
+		,	papmi.PAPMI_Name AS Surname
+		,	CASE WHEN (addr.PAFlag = 1)
+				THEN addr.PAAddressLn1
+				ELSE papmi.PAPMI_PAPER_DR->PAPER_StName
+			END AS AddressLn1
+		,	CASE WHEN (addr.PAFlag = 1)
+				THEN addr.PAAddressLn2
+				ELSE papmi.PAPMI_PAPER_DR->PAPER_Address2
+			END AS AddressLn2
+		,	CASE WHEN (addr.PAFlag = 1)
+				THEN addr.PALocality
+				ELSE papmi.PAPMI_PAPER_DR->PAPER_ZIP_DR->CTZIP_Desc
+			END AS Locality
+		,	CASE WHEN (addr.PAFlag = 1)
+				THEN addr.PAState
+				ELSE papmi.PAPMI_PAPER_DR->PAPER_ZIP_DR->CTZIP_Province_DR->PROV_Desc
+			END AS State
+		,	CASE WHEN (addr.PAFlag = 1)
+				THEN addr.PAPostcode
+				ELSE papmi.PAPMI_PAPER_DR->PAPER_ZIP_DR->CTZIP_Code
+			END AS Postcode
+		,	papmi.PAPMI_PAPER_DR->PAPER_Email AS EmailAddress
+		/*
+		,	CASE adm.PAADM_Type
+				WHEN 'I' THEN adm.PAADM_InPatAdmType_DR->IPAT_Code
+				WHEN 'E' THEN adm.PAADM_MainMRADM_DR->MRADM_DischClassif_DR->DSCL_Code
+				ELSE adm.PAADM_type
+			END AS AdmissionType
+		*/
+		,	CASE adm.PAADM_Type
+				WHEN 'I' THEN 
+					CASE adm.PAADM_InPatAdmType_DR->IPAT_Code
+						WHEN 'M' THEN 'M'
+						ELSE 'I'
+					END
+				ELSE adm.PAADM_type
+			END AS AdmissionType
+		,	nat.NATC_MappedValue AS PreferredLanguage
+		,	DATEPART(yyyy, papmi.PAPMI_PAPER_DR->PAPER_Dob) AS YearofBirth
+		,	CASE adm.PAADM_Type
+				WHEN 'E' THEN adm.PAADM_MainMRADM_DR->MRADM_DischClassif_DR->DSCL_Code
+				ELSE adm.PAADM_MainMRADM_DR->MRADM_DischType_DR->CTDSP_Code
+			END AS SeparationStatus
+		,	papmi.PAPMI_IndigStat_DR->INDST_NationalCode AS IndigenousStatus
+	FROM
+		SQLUser.PA_Adm adm
+			INNER JOIN 
+				SQLUser.PA_PatMas papmi
+					ON (adm.PAADM_PAPMI_DR = papmi.%ID)
+			INNER JOIN 
+				SQLUser.PAC_PreferredLanguage pref
+					ON (papmi.PAPMI_PrefLanguage_DR = pref.%ID)
+			INNER JOIN 
+				SQLUser.PAC_NationalCodes nat
+					ON (
+							pref.PREFL_Code = nat.NATC_ActualValue 
+						AND NATC_TableName = 'PAC_PreferredLanguage' 
+						AND NATC_FieldName = 'PREFL_VEMDCode'
+						AND NATC_ReportingType_DR = 4 --/* 'DHSVPRFL07' */
+					)
+			LEFT JOIN (
+				SELECT
+						CASE WHEN taddr.ADDR_ParRef > 0
+							THEN 1
+							ELSE 0
+						END AS PAFlag
+					,	taddr.ADDR_ParRef
+					,	taddr.ADDR_Street AS PAAddressLn1
+					,	taddr.ADDR_Street2 AS PAAddressLn2
+					,	taddr.ADDR_City_DR->CTCIT_Desc AS PALocality
+					,	taddr.ADDR_Province_DR->PROV_Desc AS PAState
+					,	taddr.ADDR_Zip_DR->CTZIP_Code AS PAPostcode
+					,	taddr.ADDR_AddressType_DR
+					,	taddr.ADDR_DateTo
+				FROM
+						SQLUser.PA_TempAddress taddr
+					LEFT JOIN
+						SQLUser.PA_TempAddress ntaddr
+							ON		ntaddr.ADDR_ParRef = taddr.ADDR_ParRef
+								AND ntaddr.%ID > taddr.%ID
+				WHERE
+						taddr.ADDR_AddressType_DR->CTADR_Code = 'P'
+					AND taddr.ADDR_DateTo IS NULL
+					AND ntaddr.%ID IS NULL
+			) AS addr
+				ON (addr.ADDR_ParRef = papmi.%ID)
+	WHERE
+	/* RELATES TO ALL EPISODE TYPES */
+			adm.PAADM_Hospital_DR = :Hospital
+		AND adm.PAADM_DischgDate BETWEEN :DateFrom AND :DateTo
+		AND adm.PAADM_VisitStatus = 'D' -- Episode is discharged
+		AND ( -- Patient is not deceased
+				adm.PAADM_PAPMI_DR->PAPMI_PAPER_DR->PAPER_Deceased != 'Y' 
+			OR	adm.PAADM_PAPMI_DR->PAPMI_PAPER_DR->PAPER_Deceased IS NULL
+			)
+		AND ( -- Excludes Intentional Self Harm
+				adm.PAADM_HumanIntent_DR != 34 
+			OR	adm.PAADM_HumanIntent_DR IS NULL
+			)
+		AND (
+				SELECT	COUNT(*)
+				FROM	SQLUser.MR_Diagnos diag
+				WHERE	diag.MRDIA_MRADM_ParRef = adm.PAADM_MainMRADM_DR
+					AND	diag.MRDIA_ICDCode_DR->MRCID_Code IS NOT NULL
+			) >= 1
+		AND (
+				SELECT COUNT(*)
+				FROM SQLUser.MR_Diagnos diag
+				WHERE	diag.MRDIA_MRADM_ParRef = adm.PAADM_MainMRADM_DR
+					AND (
+							diag.MRDIA_ICDCode_DR->MRCID_Code LIKE 'O0%'  -- Is abortion
+						OR	diag.MRDIA_ICDCode_DR->MRCID_Code LIKE 'F%' -- Is mental health
+						OR	diag.MRDIA_ICDCode_DR->MRCID_Code LIKE 'R45.81%' -- Is not suicidal ideation
+						OR	diag.MRDIA_ICDCode_DR->MRCID_Code IN ('O36.4','Z37.1','Z37.3','Z37.4','Z37.6','Z37.7','Z37.9','Z91.5','P95')
+					)
+					/* 
+					Diagnosis is: 
+						O36.4 = Maternal care for intrauterine death
+						Z37.1 = Single stillbirth
+						Z37.3 = Twins one liveborn and one stillborn
+						Z37.4 = Twins both stillborn
+						Z37.6 = Other multiple births some liveborn
+						Z37.7 = Other multiple births all stillborn 
+						Z37.9 = Outcome of delivery unspecified
+						Z91.5 = Personal History of Self-harm
+						P95   = Fetal death of unspecified cause
+				  */
+				) = 0
+
+	    AND nat.NATC_MappedValue IN ('1201', '4204', '3602', '2401', '7104', '3402', '3504', '3503', '3505', '2501', '2201', '7101', '4301', '5203', '2303', '6302')
+	    /*
+	    Includes:
+				1201 = English
+				4204 = Arabic
+				3602 = Polish
+				2401 = Italian
+				7104 = Chinese (Mandarin)
+				3402 = Russian
+				3504 = Macedonian
+				3503 = Croation
+				3505 = Serbian
+				2501 = Maltese
+				2201 = Greek
+				7101 = Cantonese
+				4301 = Turkish
+				5203 = Hindi
+				2303 = Spanish
+				6302 = Vietnamese
+	    */
+	AND (
+		(
+		/* INPATIENTS ONLY */
+				adm.PAADM_Type = 'I'
+
+			--/* AND adm.PAADM_InPatAdmType_DR->IPAT_DateTo IS NULL */
+			AND adm.PAADM_InPatAdmType_DR->IPAT_Code IN ('C', 'L', 'O', 'X', 'M', 'P')
+			/*
+			Includes:
+				C = Emergency admission through Emergency Department at this campus
+				L = Admission-from Waiting List
+				O = Other emergency admission
+				X = Other planned admission
+			*/
+			--/* AND adm.PAADM_MainMRADM_DR->MRADM_DischType_DR->CTDSP_DateTo IS NULL */
+			AND adm.PAADM_MainMRADM_DR->MRADM_DischType_DR->CTDSP_Code IN ('Z', 'H')
+			/*
+			Includes:
+				Z = Left against medical advice
+				H = Separation to private residence/accommodation
+			*/
+			AND adm.PAADM_MainMRADM_DR->MRADM_DRG_DR->DRG_Code IS NOT NULL -- Excludes non coded episodes
+			AND adm.PAADM_MainMRADM_DR->MRADM_DRG_DR->DRG_Code NOT LIKE 'O05%' -- Excludes Abortion W OR Procedure --/* AND adm.PAADM_MainMRADM_DR->MRADM_CareType_DR->CARETYP_DateTo IS NULL */
+			AND adm.PAADM_MainMRADM_DR->MRADM_CareType_DR->CARETYP_Code NOT IN ('0', '1', '3', '8', 'U')
+			/*
+			Excludes:
+				0 = Alcohol and Drug Program
+				1 = NHT / Non-Acute
+				3 = Family choice: Awake Attendant Care
+				8 = Palliative Care Program
+				U = Unqualified newborn
+			*/
+			AND adm.PAADM_MainMRADM_DR->MRADM_CareType_DR->CARETYP_Code NOT LIKE '5%' -- Excludes Mental Health
+
+		) OR (
+		/* EMERGENCY ONLY */
+				adm.PAADM_Type = 'E'
+			AND	adm.PAADM_MainMRADM_DR->MRADM_DischClassif_DR->DSCL_Code IN (1, 5, 10, 11, 30)
+			/*
+			Includes:
+				1  = Discharged to Home
+				5  = Left at Own Risk after Treatment Started
+				10 = Left after Clinical Advice Regarding Treatment Options
+				11 = Left at Own Risk (without treatment)
+				30 = Left after Clinical advice regarding treatment options – GP Co-Located clinic
+			*/
+		)
+	)
+) AS sq
+INNER JOIN SQLUser.PAC_NationalCodes indig
+  ON (
+                  NATC_TableName = 'PAC_IndigStatus'
+          AND     NATC_FieldName = 'INDST_NationalCode'
+          AND     NATC_ReportingType_DR = 7 -- 'DHS Victorian Indigenous Status'
+          AND     NATC_ActualValue = sq.IndigenousStatus
+  )
+
+ )
+                
+ &SQL(OPEN SWARHEVHES1002)
+ 
+ d FetchRow //Fetch first row
+  
+ while END=0 {
+  
+	 //If PAFlag = 1 d CheckPostalAddress
+	 d FormatDates, FormatTimes, FormatStrings
+  	 s sort = ind
+	 s ^CacheTemp("TRAK",repid,sort)=$LB(RowID,CampusCode,HospitalCode,UniqueKey,SeparationDate,Title,GivenName,Surname,AddressLn1
+	 	,AddressLn2,Locality,State,Postcode,EmailAddress,AdmissionType,PreferredLanguage,YearofBirth,SeparationStatus,IndigenousStatus)
+	 	//,PAFlag,PAAddressLn1,PAAddressLn2,PALocality,PAState,PAPostcode
+	 s ind=ind+1
+ 	 d FetchRow //Fetch next row
+ }
+
+ &SQL(CLOSE SWARHEVHES1002)
+ 
+ // Build QHandle (AtEnd,ReportID,Index)
+ Set QHandle=$lb(0,repid,0)
+
+ Quit $$$OK
+
+FetchRow
+ &sql(FETCH SWARHEVHES1002 INTO :RowID,:CampusCode,:HospitalCode,:UniqueKey,:SeparationDate,:Title,:GivenName,:Surname,:AddressLn1
+ 	,:AddressLn2,:Locality,:State,:Postcode,:EmailAddress,:AdmissionType,:PreferredLanguage,:YearofBirth,:SeparationStatus,:IndigenousStatus)
+ 	//,:PAFlag,:PAAddressLn1,:PAAddressLn2,:PALocality,:PAState,:PAPostcode
+ if SQLCODE '= 0 set END = 1
+ q
+ 
+FormatDates
+ s SeparationDate =..ConvertDateToODBC(SeparationDate)
+ q
+ 
+FormatTimes
+ //If Time s Time = $ZT(Time,2)
+ q
+ 
+FormatStrings // Cleanup specified strings
+ s GivenName = $ZStrip(GivenName,"*C")
+ s Surname = $ZStrip(Surname,"*C")
+ s AddressLn1 = $REPLACE($ZStrip(AddressLn1,"*C"),",","")
+ s AddressLn2 = $REPLACE($ZStrip(AddressLn2,"*C"),",","")
+ s Locality = $ZStrip(Locality,"*C") 
+ q
+ 
+
+ //CheckPostalAddress
+ //	s AddressLn1 = PAAddressLn1
+ //	s AddressLn2 = PAAddressLn2
+ //	s Locality = PALocality
+ //	s State = PAState
+ //	s Postcode = PAPostcode
+ //q
+]]></Implementation>
+</Method>
+
+<Method name="SWARHEVHES1002Fetch">
+<Description>
+This is the Fetch component of the %Library.Query. 
+This should never have to change. It is designed to fetch the row for each subscript of the ^CacheTemp
+global and return this row to the Crystal Report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,&Row:%Library.List,&AtEnd:%Library.Integer=0]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // This fetch method should never have to change. 
+ // repid - Report ID
+ // ind   - sequence index which represents each row
+
+ New repid,ind
+
+ // Restore QHandle
+ Set AtEnd=$li(QHandle,1)
+ Set repid=$li(QHandle,2)
+ Set ind=$li(QHandle,3)
+
+ Set ind=$o(^CacheTemp("TRAK",repid,ind))
+ If ind="" {	// if there are no more rows, finish fetching
+	 Set AtEnd=1
+	 Set Row=""
+ }
+ Else      {	// fetch row 
+ 	Set Row=^CacheTemp("TRAK",repid,ind)
+ }
+
+ // Save QHandle 
+ s QHandle=$lb(AtEnd,repid,ind)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Query name="SWARHEVHES1002">
+<Type>%Library.Query</Type>
+<FormalSpec>Hospital:%Integer,DateFrom:%Date,DateTo:%Date</FormalSpec>
+<SqlProc>1</SqlProc>
+<Parameter name="CONTAINID" value="0"/>
+<Parameter name="ROWSPEC" value="RowID:%Integer,CampusCode:%Integer,HospitalCode:%Integer,UniqueKey:%String,SeparationDate:%Date,Title:%String,GivenName:%String,Surname:%String,AddressLn1:%String,AddressLn2:%String,Locality:%String,State:%String,Postcode:%Integer,EmailAddress:%String,AdmissionType:%Integer,PreferredLanguage:%Integer,YearofBirth:%Integer,SeparationStatus:%String,IndigenousStatus:%String"/>
+<Parameter name="SELECTMODE" value="ODBC"/>
+</Query>
+</Class>
+</Export>

@@ -1,0 +1,141 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.AUXX.Report.ZEN.PrefLanguage">
+<Super>Custom.AUXX.Report.ZEN.Abstract</Super>
+<TimeCreated>61543,54550.041409</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/AUXX/Report/ZEN/PrefLanguage.xml#1 $</Default>
+</Parameter>
+
+<UDLText name="T">
+<Content><![CDATA[
+// Report Name: Current IP Preferred Language <br>
+
+]]></Content>
+</UDLText>
+
+<UDLText name="T">
+<Content><![CDATA[
+// Report Code: AUXX.ATD0007 <br>
+
+]]></Content>
+</UDLText>
+
+<UDLText name="T">
+<Content><![CDATA[
+// LOGTRAK Number: 72141 <br>
+
+]]></Content>
+</UDLText>
+
+<Property name="Facility">
+<Type>%String</Type>
+<Parameter name="ZENURL" value="P1"/>
+</Property>
+
+<Property name="Language">
+<Type>%String</Type>
+<Parameter name="ZENURL" value="P2"/>
+</Property>
+
+<XData name="ReportDefinition">
+<XMLNamespace>http://www.intersystems.com/zen/report/definition</XMLNamespace>
+<Data><![CDATA[
+<report xmlns='http://www.intersystems.com/zen/report/definition'
+   queryClass='Custom.AUXX.Report.ZEN.StoredProc.PrefLanguage' queryName='PatPrefLanguage' name='PrefLanguage'>
+  <parameter expression='..Facility'/>
+  <parameter expression='..Language'/>
+  <attribute name='ReportTitle' expression='$$$Text("@CurrentIPPreferredLanguage@Current IP Preferred Language")'/>
+  <attribute name='timestamp' expression='$ZDATETIME($H, 2, 2)'/>
+  <attribute name='username' expression='..Username'/>
+  <attribute name='Facility' expression="..GetHospListDesc(..Facility)"/>
+  <attribute name='Language' expression="..GetLanguageListDesc(..Language)"/>
+  
+  <group name="Facility" breakOnField="HOSPDesc">
+  <attribute name="description" field="HOSPDesc" />
+    <aggregate name='TotalEpisodes' type='CUSTOM' field='PAADMRowId' class='%ZEN.Report.Aggregate.CountDistinct'/>
+   <group name="Language" breakOnField="PREFLDesc">
+  <attribute name="description" field="PREFLDesc" />
+       <aggregate name='TotalEpisodes' type='CUSTOM' field='PAADMRowId' class='%ZEN.Report.Aggregate.CountDistinct'/>
+           <group name='Detail'>
+            <attribute fields='PAPMIName,PAPMIName2,PAPMIName3' name='PatientName' expression='..DisplayName(%val("PAPMIName"),%val("PAPMIName2"),%val("PAPMIName3"))'/>
+            <attribute field='PAPMINo' name='PAPMINo'/>
+            <attribute field='PAADMADMNo' name='PAADMADMNo'/>
+            <attribute field='PAADMAdmDate' name='PAADMAdmDate' expression='..DisplayDate(%val)'/>
+            <attribute field='PAPERAgeYr' name='PAPERAgeYr'/>
+            <attribute field='CTSEXCode' name='CTSEXCode'/>
+            <attribute field='WARDCode' name='WARDCode'/>
+            <attribute field='INSTCode' name='INSTCode'/>
+            <attribute field='CTCOUDesc' name='CTCOUDesc'/>
+            <attribute field='PAPERInterpreterFlag' name='PAPERInterpreterFlag'/>
+            </group>
+           </group>
+          </group>  
+        </report>
+]]></Data>
+</XData>
+
+<XData name="ReportDisplay">
+<XMLNamespace>http://www.intersystems.com/zen/report/display</XMLNamespace>
+<Data><![CDATA[
+<report xmlns='http://www.intersystems.com/zen/report/display'
+xmlns:auxxstyle='http://www.intersystems.com/zen/report/display/auxx/style'
+xmlns:auxx='http://www.intersystems.com/zen/report/display/auxx'
+  name='PrefLanguage'>
+ <document width= "#(..ReportWidth)#" height="#(..ReportHeight)#" marginLeft="#(..DocMarginLeft)#" marginRight="#(..DocMarginRight)#" 
+marginTop="#(..DocMarginTop)#" marginBottom="#(..DocMarginBottom)#" footerHeight="#(..DocFooterHeight)#" headerHeight="#(..DocHeaderHeight)#" 
+regionBeforeExtent="#(..DocHeaderHeight)#" regionAfterExtent="#(..DocFooterHeight)#" >
+<auxxstyle:auxxgroupheader/>
+<auxxstyle:auxxgroupsummary/>
+<auxxstyle:auxxhospitalheader/>
+<auxxstyle:auxxpageheader/>
+<auxxstyle:auxxpagefooter/>
+<auxxstyle:auxxparameterheader/>
+<auxxstyle:auxxreporttitle/>
+<auxxstyle:auxxtablecolumn/>
+
+</document>
+<auxx:PageHeader pagetitle='@ReportTitle'/>
+<auxx:ReportFooter username='@username' timestamp='@timestamp'/>
+<body>
+<!-- REPORT HEADER -->
+<auxx:ReportHeader reporttitle='@ReportTitle'/>
+<auxx:ReportParameterHeader label='@Facility:@Facility:' field='@Facility' xcondition="string-length(@Facility)>0"/>
+<auxx:ReportParameterHeader label='@Language:@Language:' field='@Language' xcondition="string-length(@Language)>0"/>
+
+<line pattern="solid" width="100%"/>
+<line pattern="empty" width="100%"></line> 
+<auxx:NoResults xcondition="not(Facility)" />
+<group name='Facility' pagebreak="true">
+<auxx:GroupHospitalHeader label="@Facility:@Facility:" field="@description"/>
+<line pattern="empty" lineHeight="1mm" />
+<group name='Language'>
+<auxx:GroupHeader label="@Language:@Language:" field="@description" />
+<line pattern="empty" lineHeight="2mm" />
+      <table class='auxxtablecolumn' group='Detail'>
+        <item field='@PatientName' width="22%" caption="@PatientName@Patient Name" />
+        <item field='@PAPMINo' width="12%" caption='@URN@URN'/>
+        <item field='@PAADMADMNo' width="12%" caption='@EpisodeNo@Episode No'/>
+        <item field='@PAADMAdmDate' width="9.5%" caption='@AdmissionDate@Admission Date'/> 
+        <item field='@PAPERAgeYr' width="4.5%" caption='@Age@Age'/>
+        <item field='@CTSEXCode' width="4%" style="text-align:center" caption='@Sex@Sex'/>
+        <item field='@WARDCode' width="7%" caption='@Ward@Ward'/>
+        <item field='@INSTCode' width='6%' caption='@Payor@Payor'/>
+        <item field='@CTCOUDesc' width="16%" caption='@CountryofBirth@Country of Birth'/>
+        <item field='@PAPERInterpreterFlag' width="7%" caption='@InterpreterRequired@Interpreter Required'/>
+     </table>
+<line pattern="empty" width="100%"></line> 
+	<auxx:GroupSummary label="@Totalnumberofepisodesfor@Total number of episodes for" group="@description" summaryvalue="TotalEpisodes" />
+	<line pattern="empty" lineHeight="4mm" />
+   </group>
+  <auxx:GroupSummary label="@Totalnumberofepisodesfor@Total number of episodes for" group="@description" summaryvalue="TotalEpisodes" />
+</group>
+</body>
+</report>
+]]></Data>
+</XData>
+</Class>
+</Export>

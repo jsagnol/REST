@@ -1,0 +1,292 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.AUXX.Report.ZEN.StoredProc.ErrorDRG">
+<ProcedureBlock>0</ProcedureBlock>
+<Super>Report.Abstract</Super>
+<TimeCreated>61017,51204.964063</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+This Parameter should be updated when synced from Perforce</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/AUXX/Report/ZEN/StoredProc/ErrorDRG.xml#1 $</Default>
+</Parameter>
+
+<UDLText name="T">
+<Content><![CDATA[
+// Report Name: Trak Error DRG <br>
+
+]]></Content>
+</UDLText>
+
+<UDLText name="T">
+<Content><![CDATA[
+// Report Code: Trak.CDG0003 <br>
+
+]]></Content>
+</UDLText>
+
+<UDLText name="T">
+<Content><![CDATA[
+// LOGTRAK Number: 72412 <br>
+
+]]></Content>
+</UDLText>
+
+<Method name="ErrorDRGRptClose">
+<Description>
+This is the Close component of the %Library.Query.
+This is standard code and should never have to change.
+This is where all the cleanup is performed, i.e. the purging of the temporary storage global ^CacheTemp.</Description>
+<Final>0</Final>
+<ClassMethod>1</ClassMethod>
+<CodeMode>code</CodeMode>
+<FormalSpec>QHandle:%Library.Binary</FormalSpec>
+<Private>0</Private>
+<ReturnType>%Library.Status</ReturnType>
+<SqlProc>0</SqlProc>
+<Implementation><![CDATA[
+ // Clean up by purging the temporary node in ^CacheTemp global
+ New repid
+ Set repid=$li(QHandle,2)
+ 
+   //Close Monitor (if configured to capture stats)
+ 	i mon Do ..MonitorEnd(mon)
+
+ 
+ Kill ^CacheTemp("TRAK",repid)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="ErrorDRGRptExecute">
+<Description>
+This is the Execute section for the %Library.Query. 
+All of the logic will be performed here.
+A new node for the ^CacheTemp global will be created and each subscript of this global will contain
+a row for the report.</Description>
+<ClassMethod>1</ClassMethod>
+<CodeMode>code</CodeMode>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,DateFrom:%Date,DateTo:%Date,Hospital:%String]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+	
+ // Get reportid i.e. use $INCREMENT to add another node to ^CacheTemp global. 
+ // We use ^CacheTemp global because it will always use memory before disk
+ New repid,ind
+
+ // Use $Increment to get the next node
+ Set repid=$I(^CacheTemp("TRAK"))
+
+ //Start Monitor (if configured to capture stats)
+ 	s mon=..MonitorBegin()
+  
+ // Build data into ^CacheTemp(ReportID)
+ // e.g. Set ^CacheTemp(ReportID,Index)=$LB(f1,f2,f3)
+ New Number,String,Date,Time,c,n
+ n PAPMIRowId,MRADMRowId,PAPMINo,PAPMIName3,PAPMIName2,PAPMIName,PAADMAdmNo,PAADMAdmDate,PAADMDischgDate,CTLOCDesc,CTLOCCode,HOSPDesc,HOSPRowId,CTLOCRowID,DRGCode,DRGDesc,WARDRowId,DischgWard,WARDDesc,MRCIDCode,MRCIDDesc,WARDCode,Oper,OPERDesc,DIAGDesc
+ s (PAPMIRowId,MRADMRowId,HOSPRowId,CTLOCRowID,WARDRowId)=0
+ s (PAPMINo,PAPMIName3,PAPMIName2,PAPMIName,PAADMAdmNo,PAADMAdmDate,PAADMDischgDate,CTLOCDesc,CTLOCCode,HOSPDesc,DRGCode,DRGDesc,DischgWard,WARDDesc,MRCIDCode,MRCIDDesc,WARDCode,Oper,OPERDesc,DIAGDesc)=""
+
+ s ind=1
+
+  //Convert ODBC dates to cache format
+ s DateFrom=..ConvertDateToCache(DateFrom)
+ s DateTo=..ConvertDateToCache(DateTo)
+
+ &sql(declare ErrorDRGRpt cursor for
+SELECT 
+PAADM_PAPMI_DR,
+PAADM_mainmradm_Dr,
+PAADM_PAPMI_DR->PAPMI_No, 
+PAADM_PAPMI_DR->PAPMI_Name3, 
+PAADM_PAPMI_DR->PAPMI_Name2, 
+PAADM_PAPMI_DR->PAPMI_Name,
+PAADM_AdmNo,
+PAADM_AdmDate,
+PAADM_DischgDate, 
+PAADM_DepCode_DR->CTLOC_Desc, 
+PAADM_DepCode_DR->CTLOC_Code, 
+PAADM_CurrentWard_DR->WARD_LocationDR->CTLOC_Hospital_DR->HOSP_Desc, 
+PAADM_CurrentWard_DR->WARD_LocationDR, 
+PAADM_DepCode_DR->CTLOC_RowID, 
+PAADM_mainmradm_Dr->mradm_drg_dr->DRG_Code,
+PAADM_mainmradm_Dr->mradm_drg_dr->DRG_Desc,
+PAADM_CurrentWard_DR,
+PAADM_CurrentWard_DR->WARD_Code,
+PAADM_CurrentWard_DR->WARD_Desc
+FROM sqluser.pa_adm
+WHERE paadm_type='I' 
+AND paadm_visitstatus='D'  
+AND substring(paadm_mainmradm_Dr->mradm_drg_dr->drg_code from 1 for 3)='960'
+AND PAADM_DischgDate  between :DateFrom AND :DateTo 
+AND (({fn CONCAT( ',', {fn CONCAT((:Hospital),',')})} [ {fn CONCAT( ',', {fn CONCAT((paadm_CURRENTWARD_DR->WARD_LocationDR->CTLOC_hospital_dr->HOSP_RowId),',')})}) OR (:Hospital IS NULL))
+GROUP BY paadm_admno)
+ &sql(open ErrorDRGRpt)
+
+ //fetch first row
+ &sql(fetch ErrorDRGRpt into :PAPMIRowId,:MRADMRowId,:PAPMINo,:PAPMIName3,:PAPMIName2,:PAPMIName,:PAADMAdmNo,:PAADMAdmDate,:PAADMDischgDate,:CTLOCDesc,:CTLOCCode,:HOSPDesc,:HOSPRowId,:CTLOCRowID,:DRGCode,:DRGDesc,:WARDRowId,:DischgWard,:WARDDesc)
+
+ while 'SQLCODE{
+
+ d FormatDates
+ 
+ s OPERDesc=..GetOperation(MRADMRowId)
+ s DIAGDesc=..GetDiagnosis(MRADMRowId)
+
+ // build the row
+ If DIAGDesc '="" Set ^CacheTemp("TRAK",repid,$ZCVT(HOSPDesc,"U")_" "_$ZCVT(DRGCode,"U")_PAPMINo_PAADMAdmNo_ind)=$LB(PAPMIRowId,MRADMRowId,PAPMINo,PAPMIName3,PAPMIName2,PAPMIName,PAADMAdmNo,PAADMAdmDate,PAADMDischgDate,CTLOCDesc,CTLOCCode,HOSPDesc,HOSPRowId,CTLOCRowID,DRGCode,DRGDesc,WARDRowId,DischgWard,WARDDesc,Oper,WARDCode,OPERDesc,DIAGDesc) 
+ s ind=ind+1
+ //fetch rows
+ &sql(fetch ErrorDRGRpt into :PAPMIRowId,:MRADMRowId,:PAPMINo,:PAPMIName3,:PAPMIName2,:PAPMIName,:PAADMAdmNo,:PAADMAdmDate,:PAADMDischgDate,:CTLOCDesc,:CTLOCCode,:HOSPDesc,:HOSPRowId,:CTLOCRowID,:DRGCode,:DRGDesc,:WARDRowId,:DischgWard,:WARDDesc)
+ }
+
+ &sql(close ErrorDRGRpt)
+
+ // Build QHandle (AtEnd,ReportID,Index)
+ Set QHandle=$lb(0,repid,0)
+
+ Quit $$$OK
+ 
+
+FormatDates
+ // Convert the dates to ODBC date format
+ If PAADMAdmDate Set PAADMAdmDate=..ConvertDateToODBC(PAADMAdmDate)
+ If PAADMDischgDate Set PAADMDischgDate=..ConvertDateToODBC(PAADMDischgDate)
+ Quit
+]]></Implementation>
+</Method>
+
+<Method name="ErrorDRGRptFetch">
+<Description>
+This is the Fetch component of the %Library.Query. 
+This should never have to change. It is designed to fetch the row for each subscript of the ^CacheTemp
+global and return this row to the Crystal Report.</Description>
+<Final>0</Final>
+<ClassMethod>1</ClassMethod>
+<CodeMode>code</CodeMode>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,&Row:%Library.List,&AtEnd:%Library.Integer=0]]></FormalSpec>
+<Private>0</Private>
+<ReturnType>%Library.Status</ReturnType>
+<SqlProc>0</SqlProc>
+<Implementation><![CDATA[
+ // This fetch method should never have to change. 
+
+ // repid - Report ID
+ // ind   - sequence index which represents each row
+
+ New repid,ind
+
+ // Restore QHandle
+ Set AtEnd=$li(QHandle,1)
+ Set repid=$li(QHandle,2)
+ Set ind=$li(QHandle,3)
+
+ Set ind=$o(^CacheTemp("TRAK",repid,ind))
+ If ind="" {	// if there are no more rows, finish fetching
+ Set AtEnd=1
+ Set Row=""
+ }
+ Else      {	// fetch row
+ Set Row=^CacheTemp("TRAK",repid,ind)
+ }
+
+ // Save QHandle
+ s QHandle=$lb(AtEnd,repid,ind)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Query name="ErrorDRGRpt">
+<Type>%Library.Query</Type>
+<FormalSpec>DateFrom:%Date,DateTo:%Date,Hospital:%String</FormalSpec>
+<SqlProc>1</SqlProc>
+<Parameter name="CONTAINID" value="0"/>
+<Parameter name="ROWSPEC" value="PAPMIRowId:%Integer,MRADMRowId:%Integer,PAPMINo:%String,PAPMIName3:%String,PAPMIName2:%String,PAPMIName:%String,PAADMAdmNo:%String,PAADMAdmDate:%Date,PAADMDischgDate:%Date,CTLOCDesc:%String,CTLOCCode:%String,HOSPDesc:%String,HOSPRowId:%Integer,CTLOCRowID:%Integer,DRGCode:%String,DRGDesc:%String,WARDRowId:%Integer,DischgWard:%String,WARDDesc:%String,Oper:%String,WARDCode:%String,OPERDesc:%String,DIAGDesc:%String"/>
+</Query>
+
+<Method name="GetOperation">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>MRADMRowId:%Integer</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+ s (Count,PROCChildsub,PROCDRGRank,OPERRowId)=0
+ s (OPERConcat,OPERCode,OPERDesc,OPERCodeDesc,key)=""  
+ k ^OPERList
+ 
+ i $g(MRADMRowId) = "" q ""  
+ 
+ s PROCChildsub=$o(^MR(MRADMRowId,"PROC",PROCChildsub),1) 
+ 
+ WHILE(PROCChildsub) '="" { 
+  
+  s Count=Count-1 
+  s OPERRowId=$p($g(^MR(MRADMRowId,"PROC",PROCChildsub)),"^",1)
+  s PROCDRGRank=$p($g(^MR(MRADMRowId,"PROC",PROCChildsub)),"^",3)  
+  i OPERRowId '="" { 
+  s OPERCode=$p($g(^ORC("OPER",OPERRowId)),"^",1)
+  s OPERDesc=$p($g(^ORC("OPER",OPERRowId)),"^",2)
+  i OPERCode '="" s OPERConcat=OPERCode_": "_OPERDesc
+  i PROCDRGRank '="" 
+  {s ^OPERList(PROCDRGRank) = OPERConcat}
+  else {set ^OPERList(Count)=OPERConcat} 
+  }
+  s PROCChildsub=$o(^MR(MRADMRowId,"PROC",PROCChildsub),1)  
+ }    
+ 
+ 
+   Set key=""
+   Set key = $o(^OPERList(""))       
+   While (key '= "") {               
+        if OPERCodeDesc '= "" {set OPERCodeDesc = OPERCodeDesc_$CHAR(10)_$CHAR(13)_^OPERList(key)}
+        else {set OPERCodeDesc=^OPERList(key)}                     
+        Set key=$o(^OPERList(key)) // next subscript                  
+ }       
+ q OPERCodeDesc
+]]></Implementation>
+</Method>
+
+<Method name="GetDiagnosis">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>MRADMRowId:%Integer</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+ 
+ s (Count,DIAGChildsub,DIAGDRGRank,DIAGRowId)=0
+ s (DIAGConcat,DIAGCode,DIAGDesc,DIAGCodeDesc,key)=""
+ k ^DIAGList
+ 
+ i $g(MRADMRowId) = "" q ""
+  
+  s DIAGChildsub=$o(^MR(MRADMRowId,"DIA",DIAGChildsub),1)
+  
+  WHILE (DIAGChildsub '="") {
+  
+  s Count=Count-1 	  
+  s DIAGRowId=$p($g(^MR(MRADMRowId,"DIA",DIAGChildsub)),"^",1)    
+  s DIAGPrefix=$p($g(^MR(MRADMRowId,"DIA",DIAGChildsub,1)),"^",13)
+  s DIAGDRGRank=$p($g(^MR(MRADMRowId,"DIA",DIAGChildsub)),"^",11)
+  
+  i DIAGRowId  {     
+  i DIAGPrefix = "P"{ 
+  s DIAGCode=$p($g(^MRC("ID",DIAGRowId)),"^",1)  
+  s DIAGDesc=$p($g(^MRC("ID",DIAGRowId)),"^",2)  
+  i DIAGCode '="" s DIAGConcat=DIAGCode_": "_DIAGDesc
+  i (DIAGDRGRank '="" )
+  {s ^DIAGList(DIAGDRGRank) = DIAGConcat}
+  else {s ^DIAGList(Count) = DIAGConcat} 
+  s (DIAGPRefix,DIAGRowId,DIAGConcat,DIAGDesc,DIAGCode,DIAGDRGRank)=""   
+  }}
+  s DIAGChildsub=$o(^MR(MRADMRowId,"DIA",DIAGChildsub),1)
+  }
+  Set key=""
+   Set key = $o(^DIAGList(""))    
+   While (key '= "") {               
+        if DIAGCodeDesc '= "" {set DIAGCodeDesc = DIAGCodeDesc_$CHAR(10)_$CHAR(13)_^DIAGList(key)}
+        else {set DIAGCodeDesc=^DIAGList(key)}             
+        Set key=$o(^DIAGList(key)) // next subscript    
+  }
+  q DIAGCodeDesc
+]]></Implementation>
+</Method>
+</Class>
+</Export>

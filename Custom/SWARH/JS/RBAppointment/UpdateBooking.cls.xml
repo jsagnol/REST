@@ -1,0 +1,105 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.SWARH.JS.RBAppointment.UpdateBooking">
+<Description>
+Component JavaScript for: RBAppointment.UpdateBooking</Description>
+<Modified>0</Modified>
+<Super>websys.AbstractJavaScript</Super>
+<TimeCreated>63537,10520.08921</TimeCreated>
+
+<Method name="JSContent">
+<Description>
+ </Description>
+<Internal>0</Internal>
+<Language>javascript</Language>
+<ClientMethod>1</ClientMethod>
+<Implementation><![CDATA[
+websys_removeListener("load","onload",DocumentLoadHandler);
+websys_addListener("load","onload",CustomDocumentLoadHandler);
+
+function CustomDocumentLoadHandler() {
+	DocumentLoadHandler();
+	RBUB.init();
+}
+
+var RBUB = {
+	init: function() {
+		var obj = document.getElementById('SERDesc');
+		if (obj) websys_addListener("change","onchange", RBUB.serviceChanged, obj);
+
+		if (SWARH) {
+			SWARH.loadJSON();
+		}
+		RBUB.createSNAPRoomList();
+	},
+	createSNAPRoomList : function() {
+		var config = {
+			invalidMessage : "Please Select a valid Service",
+			validParams : RBUB.getValidParams,
+			methodName : "GetRoomOptionsJSONForApptSlot"
+		};
+
+		if (typeof SNAP === "undefined") SWARH.loadSNAP(RBUB.createSNAPRoomList);
+		else SNAP.createSNAPRoomList(config);
+	},
+	getValidParams : function() {
+		var obj = document.getElementById("SchedID");
+		var schedID;
+		if (obj) schedID = obj.value;
+		var serID = RBUB.serviceID;
+
+		SWARH.log([schedID, serID]);
+
+		if ((schedID && (schedID !== "")) && (serID && (serID !== ""))) return [schedID, serID];
+		else return false;
+	},
+	serviceChanged : function () {
+		SWARH.log("serviceChanged");
+		RBUB.serviceID = undefined;
+		RBUB.updateRoomList();
+	},
+	updateRoomList : function() {
+		if (SWARH.checkSNAPUser()) {
+			if (typeof SNAP === "undefined") SWARH.loadSNAP(RBUB.updateRoomList);
+			else SNAP.refreshRoomList("SNAPRoom");
+		}
+	},
+	serviceID : undefined,
+	setServiceID : function(str) {
+		var serID;
+		if (str) {
+			var lu = str.split("^");
+			var SScheck="";
+
+			SWARH.log(str);
+
+			SScheck=mPiece(lu[3],String.fromCharCode(4),1);
+			if (SScheck!="SS") serID = mPiece(lu[3],String.fromCharCode(4),0);
+		}
+		RBUB.serviceID = serID;
+	}
+};
+
+
+if (typeof SERDescLookUpSelectOLD === 'undefined')
+	var SERDescLookUpSelectOLD = SERDescLookUpSelect;
+
+var SERDescLookUpSelect = function(str) {
+	var rv;
+	SWARH.log("SERDescLookUpSelect");
+	if (typeof SERDescLookUpSelectOLD !== 'undefined') rv = SERDescLookUpSelectOLD.apply(this, arguments);
+	RBUB.setServiceID(str);
+	RBUB.updateRoomList();
+	return rv;
+};
+]]></Implementation>
+</Method>
+
+<Parameter name="SrcVer">
+<Description>
+This Parameter is updated by Perforce</Description>
+<Internal>0</Internal>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/SWARH/JS/RBAppointment/UpdateBooking.xml#1 $</Default>
+</Parameter>
+</Class>
+</Export>

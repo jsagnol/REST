@@ -1,0 +1,91 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.SWARH.JS.OEOrder.Normal">
+<Description>
+Component JavaScript for: OEOrder.Normal</Description>
+<Modified>0</Modified>
+<Super>websys.AbstractJavaScript</Super>
+<TimeCreated>63537,10516.455041</TimeCreated>
+
+<Method name="JSContent">
+<Description>
+ </Description>
+<Internal>0</Internal>
+<Language>javascript</Language>
+<ClientMethod>1</ClientMethod>
+<Implementation><![CDATA[
+/*********************************************************************
+$Id: //custom_ccrs/au/AUSW/T2016/LIVE/cls/Custom/SWARH/JS/OEOrder/Normal.xml#2 $
+Version 1
+
+- General custom field validation for oeorder.normal component
+
+REMEMBER to update the versions with initials, date and description for each modification...
+IF		21/11/2011			- TRC90003 Created for AUXX
+RG		04/09/2015 			- Added questionnaire auto popup for allied health referrals
+PH		15/02/2016			- Added clause for SWH Camperdown
+**********************************************************************/
+
+/* For sites using the questionnaires to determine referral priority this will display the questionnaire automatically */
+ SWARH.onReady(initialLoad);
+
+function initialLoad(){
+  if (
+  	(/DIETREF|OTREF|PHYREF|PODREF|SPREF/.test(orderCatalogNo) // Specific Referrals
+    && 																// Specific Locations
+  	/696|697|699|707/.test(document.getElementById('HospID').value))		// SWH Warrnambool & Camperdown
+  	||
+  	(/CSSREF/.test(orderCatalogNo) && /696|699|707/.test(document.getElementById('HospID').value)) // Counselling & Services Support Referral used at SWH Warrnambool
+  	||
+  	(/SOCREF/.test(orderCatalogNo) && /697/.test(document.getElementById('HospID').value)) // Social Work Referral used at SWH Camperdown
+  ) {              
+    if (document.getElementById('QuestRowID').value=='') {         // OPTION: If you want it to pop up every time if a questionnaire hasn't been completed yet
+    //if (window.opener.TRELOADPAGE == 'oeorder.custom.csp') {          // OPTION: Open only if it came directly from the order page = Only shows it once when adding referral
+	    try { 
+  	    document.getElementById('OECPRDesc').readOnly = true;         // Only the questionnaire should be able to set the priority so mask the priority field
+        //QuestionnaireClickHandler();
+        setTimeout(function(){QuestionnaireClickHandler();},500);
+	    }
+	    catch(err) {}
+    };
+  };
+};
+
+websys_removeListener("load","onload",BodyLoadHandler);
+websys_addListener("load","onload",CustomBodyLoadHandler);
+
+function CustomBodyLoadHandler() {
+	//Call core script
+	BodyLoadHandler();
+	
+	if ((session['CONTEXT'].search('L78XFTSA1')>0)||(session['CONTEXT'].search('L77XFBSA2')>0)) {
+		var status=document.getElementById('hiddenOrderStatus');
+		if ((status)&&(status.value=="Verified")) {
+			var sttdat=document.getElementById('OEORISttDat');
+			if (sttdat) {
+				sttdat.disabled=false;
+				document.getElementById('ld252iOEORISttDat').style.visibility='visible';
+			}
+			var stttim=document.getElementById('OEORISttTim');
+			if (stttim) stttim.disabled=false;
+			var enddat=document.getElementById('OEORIEndDate');
+			if (enddat) {
+				enddat.disabled=false;
+				document.getElementById('ld252iOEORIEndDate').style.visibility='visible';
+			}
+			var endtim=document.getElementById('OEORIEndTime');
+			if (endtim) endtim.disabled=false;
+		}
+	}
+}
+]]></Implementation>
+</Method>
+
+<Parameter name="SrcVer">
+<Description>
+This Parameter is updated by Perforce</Description>
+<Internal>0</Internal>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/LIVE/cls/Custom/SWARH/JS/OEOrder/Normal.xml#2 $</Default>
+</Parameter>
+</Class>
+</Export>

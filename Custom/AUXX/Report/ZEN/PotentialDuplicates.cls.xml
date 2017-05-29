@@ -1,0 +1,162 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.AUXX.Report.ZEN.PotentialDuplicates">
+<Super>Custom.AUXX.Report.ZEN.Abstract</Super>
+<TimeCreated>61755,65646.777502</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/AUXX/Report/ZEN/PotentialDuplicates.xml#1 $</Default>
+</Parameter>
+
+<UDLText name="T">
+<Content><![CDATA[
+// Report Name: Potential Duplicates <br>
+
+]]></Content>
+</UDLText>
+
+<UDLText name="T">
+<Content><![CDATA[
+// Report Code: Trak.PotentialDuplicates <br>
+
+]]></Content>
+</UDLText>
+
+<UDLText name="T">
+<Content><![CDATA[
+// LOGTRAK Number: 72434 <br>
+
+]]></Content>
+</UDLText>
+
+<Property name="DateFrom">
+<Type>%String</Type>
+<Parameter name="ZENURL" value="P1"/>
+</Property>
+
+<Property name="DateTo">
+<Type>%String</Type>
+<Parameter name="ZENURL" value="P2"/>
+</Property>
+
+<Property name="Facility">
+<Type>%String</Type>
+<Parameter name="ZENURL" value="P3"/>
+</Property>
+
+<Parameter name="TOOLONGTEXT">
+<Default>wrap</Default>
+</Parameter>
+
+<XData name="ReportDefinition">
+<XMLNamespace>http://www.intersystems.com/zen/report/definition</XMLNamespace>
+<Data><![CDATA[
+<report xmlns='http://www.intersystems.com/zen/report/definition'
+   queryClass='Custom.AUXX.Report.ZEN.StoredProc.PotentialDuplicates' queryName='PotentialDuplicates' name='PotentialDuplicates'>
+  <parameter expression='..DateFrom'/>
+  <parameter expression='..DateTo'/>
+  <parameter expression='..Facility'/>
+  <attribute name='datefrom' expression='..DisplayDate(..DateFrom)'/>
+  <attribute name='dateto' expression='..DisplayDate(..DateTo)'/>
+  <attribute name='facility' expression='..GetHospListDesc(..Facility)'/>
+  <attribute name='ReportTitle' expression='$$$Text("@PotentialDuplicates@Potential Duplicates")'/>
+  <attribute name='timestamp' expression='$ZDATETIME($H, 2, 2)'/>  
+  <attribute name='username' expression='..Username'/>
+  
+   <aggregate name='TotalPotDup' type='SUM' field='count'/>
+    <group name="grouper" breakOnField="PAPMIName">    
+      <group name='Detail'> 
+       <attribute field='URN' name='URN'/>
+       <attribute field='PAPMIName' name='Surname'/>
+       <attribute field='PAPMIName2' name='GivenName'/>
+       <attribute field='PAPMIName3' name='MiddleName'/>
+       <attribute fields='PAPMIName,PAPMIName2,PAPMIName3' name='PatientName' expression='..DisplayName(%val("PAPMIName"),%val("PAPMIName2"),%val("PAPMIName3"))'/>
+       <attribute field='CTSEXCode' name='CTSEXCode'/>
+       <attribute field='PAPMIDOB' name='PAPMIDOB' expression='..DisplayDate(%val)' />
+       <element field='PAPersonAlias' name='Alias'/>
+       <attribute field='PAPMIAddress' name='AddressData'/>
+       <attribute field='RTMAVCurrentLocation' name='MRCurrentLocation'/>
+       <attribute field='DateAdded' name='DateAdded' expression='..DisplayDate(%val)' />
+       <attribute field='UserID' name='UserID' />
+       <attribute field='UserLoc' name='UserLoc'/>
+       <attribute field='count' name='count'/> 
+      </group>
+    </group>
+  </report>
+]]></Data>
+</XData>
+
+<XData name="ReportDisplay">
+<XMLNamespace>http://www.intersystems.com/zen/report/display</XMLNamespace>
+<Data><![CDATA[
+<report xmlns='http://www.intersystems.com/zen/report/display'
+xmlns:auxxstyle='http://www.intersystems.com/zen/report/display/auxx/style'
+xmlns:auxx='http://www.intersystems.com/zen/report/display/auxx'
+  name='PotentialDuplicates'>
+ <document width= "#(..ReportWidth)#" height="#(..ReportHeight)#" marginLeft="#(..DocMarginLeft)#" marginRight="#(..DocMarginRight)#" 
+marginTop="#(..DocMarginTop)#" marginBottom="#(..DocMarginBottom)#" footerHeight="#(..DocFooterHeight)#" headerHeight="#(..DocHeaderHeight)#" 
+regionBeforeExtent="#(..DocHeaderHeight)#" regionAfterExtent="#(..DocFooterHeight)#">
+<auxxstyle:auxxgroupheader/>
+<auxxstyle:auxxgroupsummary/>
+<auxxstyle:auxxhospitalheader/>
+<auxxstyle:auxxpagefooter/>
+<auxxstyle:auxxpageheader/>
+<auxxstyle:auxxparameterheader/>
+<auxxstyle:auxxreporttitle/>
+<auxxstyle:auxxtablecolumn/>
+</document>
+<!--<auxx:PageHeader pagetitle='@ReportTitle'/>-->
+<auxx:PageHeader pagetitle='@ReportTitle'/>
+<auxx:ReportFooter username='@username' timestamp='@timestamp'/>
+<body>
+<!-- REPORT HEADER -->
+ 
+	<auxx:ReportHeader reporttitle="@ReportTitle"/>
+	<auxx:ReportParameterHeader label='@Facility:@Facility:' field='@facility' xcondition="string-length(@facility)>0"/>
+    <auxx:ReportDateHeader datefrom="@datefrom" dateto="@dateto" />
+    <line pattern="solid" width="100%"/>
+    <line pattern="empty" width="100%"></line> 
+   
+    <table orient="col" class='auxxtablecolumn' ifxpath='/PotentialDuplicates/TotalPotDup!="0"' >
+        <item field='' width="10%" caption='@URN@URN'/>
+        <item field='' width="17%" caption="@PatientName@Patient Name" />
+        <item field='' width="9%" caption='@Alias@Alias'/>
+        <item field='' width="4%" style="text-align:center" caption='@Sex@Sex'/>
+        <item field='' width="9%" caption='@DateofBirth@Date of Birth'/> 
+        <item field='' width="20%" caption='@AddressDetails@Address Details'/>
+        <item field='' width="11%" caption='@MRCurrentLocation@MR Current Location'/>
+        <item field='' width="8%" caption='@DateAdded/Time@Date Added'/>
+        <item field='' width="7%" caption='@UserID@User ID'/>
+        <item field='' width="5%" caption='@UserLocn@User Locn'/> 
+     </table>
+
+
+<auxx:NoResults xcondition="not(grouper)" />
+<group name='grouper'>
+     <table orient="col" class='auxxtablecolumn' group='Detail'>
+        <item field='@URN' width="10%"  style="font-size:8pt"/>
+        <item field='@PatientName' width="17%" style="font-size:9pt"/>
+        <item field='Alias' width="9%" breakOnLineFeed="true" style="text-align:left;font-size:8pt" />
+        <item field='@CTSEXCode' width="4%" style="text-align:center;font-size:8pt" />
+        <item field='@PAPMIDOB' width="9%" style="font-size:8pt"/> 
+        <item field='@AddressData' width="20%" style="font-size:8pt" />
+        <item field='@MRCurrentLocation' width="11%" style="font-size:8pt" />
+        <item field='@DateAdded' width="8%" style="font-size:8pt"/>
+        <item field='@UserID' width="7%" style="font-size:8pt" />
+        <item field='@UserLoc' width="5%" style="font-size:8pt" /> 
+     </table>
+     <br/>
+	
+   </group> 
+          <line pattern="empty" width="100%"></line> 
+       <line pattern="empty" lineHeight="2mm" />
+   <line pattern="empty" width="100%"/> 
+  <auxx:GroupSummary label="@TotalnumberofPotentialDuplicates@Total number of Potential Duplicates" summaryvalue="TotalPotDup" ifxpath='/PotentialDuplicates/TotalPotDup!="0"'/>
+</body>
+</report>
+]]></Data>
+</XData>
+</Class>
+</Export>

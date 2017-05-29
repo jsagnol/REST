@@ -1,0 +1,209 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.SWARH.JS.PANok.Edit">
+<Description>
+Component JavaScript for: PANok.Edit</Description>
+<Modified>0</Modified>
+<Super>websys.AbstractJavaScript</Super>
+<TimeCreated>63537,10518.400635</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+This Parameter is updated by Perforce</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/SWARH/JS/PANok/Edit.xml#1 $</Default>
+</Parameter>
+
+<Method name="JSContent">
+<Description>
+ </Description>
+<Language>javascript</Language>
+<ClientMethod>1</ClientMethod>
+<Implementation><![CDATA[
+//for ARMC
+
+
+function CustomDocumentLoadHandler() {
+    DocumentLoadHandler();
+
+    var obj = document.getElementById('NOKName')
+    if (obj) obj.onchange = ConvertToAnd;
+
+    obj = document.getElementById('PAPERTelH')
+    if (obj) obj.onchange = phoneChangeHandler;
+
+    obj = document.getElementById('PAPERTelO')
+    if (obj) obj.onchange = phoneChangeHandler;
+
+    obj = document.getElementById('PAPERMobPhone')
+    if (obj) obj.onchange = phoneChangeHandler;
+
+    var obj = document.getElementById('update1')
+    if (obj) obj.onclick = UpdateCustom;
+    if (tsc['update1']) websys_sckeys[tsc['update1']] = UpdateCustom;
+}
+
+
+// PERFORM ALL CUSTOM CHECKING, THEN CALL STANDARD SCRIPT UPDATE CHECK
+function UpdateCustom() {
+	if (!CheckMandatoryFields()) { return }
+	//ConvertNameCase();
+	ConvertToAnd()
+	UpdateClickHandler()
+
+}
+
+function ConvertToAnd(e) { // 2016-10-06 (RG) - Added 'e' parameter
+	var re=/&/;
+	var eSrc = websys_getSrcElement(e)
+	//obj=document.getElementById('NOKName');
+	if ((eSrc)&&(eSrc.value!="")) {
+		name=eSrc.value
+		name=name.replace(re," and ")
+		eSrc.value=name
+	}
+}
+
+// CONVERT SURNAME AND INITIAL LETTER OF OTHER NAMES TO UPPERCASE, OTHER LETTERS TO LOWER CASE
+//function ConvertNameCase() {
+	//var obj;
+	//var name="";
+	//var re=/\s/g;
+	//var re = /^(\s)|(\s)$/g ;
+	//obj=document.getElementById('PAPERName');
+	//if ((obj)&&(obj.value!="")) {
+	//	name=obj.value
+	//	name=name.replace(re,"")
+	//	obj.value = name.toUpperCase();
+	//}
+	//var obj=document.getElementById('PAPERName2');
+	//if ((obj)&&(obj.value!="")) {
+	//	name = obj.value;
+	//	//alert("a"+obj.value)
+	//	name = name.replace(re,"");
+	//	obj.value = name.charAt(0).toUpperCase() + name.slice(1).toLowerCase();
+	//	//alert("b"+obj.value)
+	//}
+	//var obj=document.getElementById('PAPERName3');
+	//if ((obj)&&(obj.value!="")) {
+	//	name = obj.value;
+	//	name = name.replace(re,"");
+	//	obj.value = name.charAt(0).toUpperCase() + name.slice(1).toLowerCase();
+	//}
+//}
+
+// STANDARD CHANGE HANDLERS
+
+function phoneChangeHandler(e) {
+	var eSrc = websys_getSrcElement(e);
+	var lbl = document.getElementById('c' + eSrc) 
+	if ((eSrc)&&(eSrc.value!="")) {
+		if (!isTelephone(eSrc)) {
+		alert("\'" + 'Telephone number: ' + "\' " + t['XINVALID'] + "\n");
+		}
+	}
+}
+
+
+// CHECK FOR A VALID TELEPHONE NUMBER - ACCEPTS NUMERALS, (, ), +, - IN ANY ORDER
+function isTelephone(fld) {
+	var reTele = /^[\d\+\(\)\-\s]*$/
+	var obj=fld.value
+	if ((obj)&&(obj.value!="")) {
+		if (!(reTele.test(obj))) {
+  		return false
+		} else {
+		return true;
+		}
+	}
+}	
+
+
+function CheckMandatoryFields() {
+	
+	var msg="";
+	
+	
+	var obj = document.getElementById('PAPERTelH'); 
+	if ((obj)&&(obj.value!="")) {
+		if (!isTelephone(obj)) {
+			msg += "\'" + t['PAPERTelH'] + "\' " + t['XINVALID'] + "\n";
+		}
+	}
+	var obj = document.getElementById('PAPERTelO'); 
+	if ((obj)&&(obj.value!="")) {
+		if (!isTelephone(obj)) {
+			msg += "\'" + t['PAPERTelO'] + "\' " + t['XINVALID'] + "\n";
+		}
+	}
+	var obj = document.getElementById('PAPERMobPhone'); 
+	if ((obj)&&(obj.value!="")) {
+		if (!isTelephone(obj)) {
+			msg += "\'" + t['PAPERMobPhone'] + "\' " + t['XINVALID'] + "\n";
+		}
+	}
+	
+
+	if (msg != "") {
+		alert(msg)
+		return false;
+	} else {
+		return true;
+	}
+}
+
+// Code generated from Region.AUXX.JS.PANok.Edit on 2014-08-05 10:04:04 - manual changes will be overwritten
+	function LookUpRelationSelect(str) {
+	    var lu = str.split("^");
+		if ((lu[1])&&(lu[1]!="")) {
+			var valid=tkMakeServerCall("Region.AUXX.UDF.LUF","ValidCTRelation",lu[1]);
+		    obj=document.getElementById('NOKRelation');
+		    if (obj) {
+				if (valid==1) {
+				    if (obj) obj.value = lu[0];
+				    if ((FHobj)&&(FHobj.value=="Y")) DefaultReciprocals(lu[3],lu[4])
+				} else {
+					alert("\'" + t['NOKRelation'] + "\' " + t['XINVALID'] + "\n");
+					websys_setClass(obj,'clsInvalid');
+					websys_setfocus('NOKRelation');
+					obj.value="";
+					return websys_cancel();
+				}
+		    }
+		}
+	}
+
+
+//document.body.onload = CustomDocumentLoadHandler;
+websys_removeListener("load","onload",DocumentLoadHandler); 
+websys_addListener("load","onload",CustomDocumentLoadHandler);
+
+//tknoll-miller (SWARH) 2009-09-16 Load authorise script
+var authcfg = {
+   'buttons': [
+      'update1'
+   ],
+   'fields': {
+      'username': 'UserCode',
+      'password': 'PIN'
+   }
+};
+//tknoll-miller (SWARH) 2009-09-16 Load authorise script
+// Scope variables
+(function() {
+   var loadScript = function(type, src) {
+      var head = document.getElementsByTagName('head')[0];
+      var script = document.createElement('script');
+      script.type = type;
+      script.src = src;
+      head.appendChild(script);
+      websys_addListener('load', 'onload', function(){document.isLoaded=true});
+      return script;
+   };
+
+   loadScript('text/javascript', '../custom/SWARH/scripts/authorise4.js');
+})();
+//end tknoll-miller (SWARH) 2009-09-16 Load authorise script
+]]></Implementation>
+</Method>
+</Class>
+</Export>

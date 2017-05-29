@@ -1,0 +1,208 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.AUXX.Report.ZEN.StoredProc.SCTTLivingCaring">
+<Description>
+Report Name: Confidential Referral Coversheet
+Report Code: AUXX.SCTT0001
+TRC Number: 152012</Description>
+<ProcedureBlock>0</ProcedureBlock>
+<Super>Report.Abstract</Super>
+<TimeCreated>62970,48071.923811</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/AUXX/Report/ZEN/StoredProc/SCTTLivingCaring.xml#1 $</Default>
+</Parameter>
+
+<Method name="LCAClose">
+<Description>
+This is the Close component of the %Library.Query.
+This is standard code and should never have to change.
+This is where all the cleanup is performed, i.e. the purging of the temporary storage global ^CacheTemp.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>QHandle:%Library.Binary</FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+	// Clean up by purging the temporary node in ^CacheTemp global
+	New repid
+	Set repid=$LIST(QHandle,2)
+
+	//Start Monitor (if configured to capture stats)
+	i mon Do ..MonitorEnd(mon)
+
+	Kill ^CacheTemp("TRAK",repid)
+
+	Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="LCAExecute">
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,EpisodeID:%Library.String,ReferralID:%Library.String,ID:%Library.String]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+	// Get reportid i.e. use $INCREMENT to add another node to ^CacheTemp("TRAK") global. 
+	// We use ^CacheTemp global because CACHETEMP is a memory resident database
+	New repid,ind
+
+	// Use $Increment to get the next node and clean up
+	Set repid=$Increment(^CacheTemp("TRAK"))
+	
+	//Start Monitor (if configured to capture stats)
+	s mon=..MonitorBegin()
+	
+	
+	s (ClientName,DOB,Sex,UR,qid,LivCode,LivDesc,LivCmt,AccomCode,AccomDesc,AccomCmt,EmpCode,EmpDesc,EmpCmt,HealthCode,HealthDesc,Legal,Q1,Q2,Q3,Q4,FinCode,FinDesc,AvailCode,AvailDesc,ResCode,ResDesc,RelCode,RelDesc,AllCode,AllDesc,SustCode,SustDesc,ThrCode,ThrDesc,Threats,OtherRel,ReferralTo)=""
+	
+	s adm=EpisodeID
+	
+	s PageTitle="Profile: Living and Caring Arrangements"
+	s PageDesc="To assist workers/practitioners to screen for consumer's accommodation and financial needs."_$c(13,10)_$c(13,10)_$c(13,10)
+	s PageSideText="Living and Caring Arrangements"
+	i adm {
+		s pat=$p($g(^PAADM(adm)),"^")
+
+		s patobj=##class(User.PAPatMas).%OpenId(pat)
+		i patobj {
+			s ClientName=patobj.PAPMIName_", "_patobj.PAPMIName2
+			s DOB=patobj.PAPMIDOB
+			i DOB s DOB=$zd(DOB,4,,4)
+			s Sex=patobj.PAPMISexDR.CTSEXDesc
+			s UR=patobj.PAPMINo
+			k patobj
+		}
+
+		i ReferralID'="" {
+			s quescode=0
+			f {
+				s quescode=$o(^PA("DISSUM",ReferralID,"DET",0,"QuestCode1",quescode))
+				q:quescode=""
+				s quesid=0
+				f {
+					s quesid=$o(^PA("DISSUM",ReferralID,"DET",0,"QuestCode1",quescode,quesid))
+					q:quesid=""
+					i quescode="QAUXXSCTLCA" s qid=quesid
+				}
+			}
+		} else {
+			s qid=ID
+		}
+		s qobj=##class(questionnaire.QAUXXSCTLCA).%OpenId(qid)
+		i qobj {
+			s LivCode=qobj.Q01
+			s LivDesc=##class(Custom.AUXX.Report.ZEN.StoredProc.SCTTReport).GetQuesAnswerDesc("AUXXSCTLCA","01",LivCode)
+			s LivCmt=..GetTextArea(qobj,"01a")
+			s AccomCode=qobj.Q02
+			s AccomDesc=##class(Custom.AUXX.Report.ZEN.StoredProc.SCTTReport).GetQuesAnswerDesc("AUXXSCTLCA","02",AccomCode)
+			s AccomCmt=..GetTextArea(qobj,"02a")
+			s EmpCode=qobj.Q03
+			s EmpDesc=##class(Custom.AUXX.Report.ZEN.StoredProc.SCTTReport).GetQuesAnswerDesc("AUXXSCTLCA","03",EmpCode)
+			s EmpCmt=..GetTextArea(qobj,"03a")
+			s HealthCode=qobj.Q04
+			s HealthDesc=##class(Custom.AUXX.Report.ZEN.StoredProc.SCTTReport).GetQuesAnswerDesc("AUXXSCTLCA","04",HealthCode)
+			s Legal=..GetTextArea(qobj,"05")
+			i Legal="" s Legal=$c(13,10)
+			s Q1=qobj.Q06
+			s Q2=qobj.Q07
+			s Q3=qobj.Q08
+			s Q4=qobj.Q09
+			s FinCode=qobj.Q10
+			s FinDesc=##class(Custom.AUXX.Report.ZEN.StoredProc.SCTTReport).GetQuesAnswerDesc("AUXXSCTLCA","10",FinCode)
+			s AvailCode=qobj.Q11
+			s AvailDesc=##class(Custom.AUXX.Report.ZEN.StoredProc.SCTTReport).GetQuesAnswerDesc("AUXXSCTLCA","11",AvailCode)
+			s ResCode=qobj.Q12
+			s ResDesc=##class(Custom.AUXX.Report.ZEN.StoredProc.SCTTReport).GetQuesAnswerDesc("AUXXSCTLCA","12",ResCode)
+			s RelCode=qobj.Q13
+			s RelDesc=##class(Custom.AUXX.Report.ZEN.StoredProc.SCTTReport).GetQuesAnswerDesc("AUXXSCTLCA","13",RelCode)
+			s AllCode=qobj.Q14
+			s AllDesc=##class(Custom.AUXX.Report.ZEN.StoredProc.SCTTReport).GetQuesAnswerDesc("AUXXSCTLCA","14",AllCode)
+			s SustCode=qobj.Q15
+			s SustDesc=##class(Custom.AUXX.Report.ZEN.StoredProc.SCTTReport).GetQuesAnswerDesc("AUXXSCTLCA","15",SustCode)
+			s ThrCode=qobj.Q16
+			s ThrDesc=##class(Custom.AUXX.Report.ZEN.StoredProc.SCTTReport).GetQuesAnswerDesc("AUXXSCTLCA","16",ThrCode)
+			s Threats=..GetTextArea(qobj,"29")
+			i Threats="" s Threats=$c(13,10)_$c(13,10)_$c(13,10)_$c(13,10)_$c(13,10)
+			s OtherRel=..GetTextArea(qobj,"21")
+			s OtherRel="Other relevant information: "_$c(13,10)_OtherRel
+			f y=1:1:4 {
+				i y>$l(OtherRel,$c(13,10)) s OtherRel=OtherRel_$c(13,10)
+			}
+			s ReferralTo=..GetTextArea(qobj,"22")
+			s ReferralTo="Referral Recommended To: "_$c(13,10)_ReferralTo_$c(13,10)_$c(13,10)
+			
+			k qobj
+			s ind=$i(ind)
+			s ^CacheTemp("TRAK",repid,ind)=$lb("LCA",PageTitle,PageDesc,PageSideText,ClientName,DOB,Sex,UR,qid,LivCode,LivDesc,LivCmt,AccomCode,AccomDesc,AccomCmt,EmpCode,EmpDesc,EmpCmt,HealthCode,HealthDesc,Legal,Q1,Q2,Q3,Q4,FinCode,FinDesc,AvailCode,AvailDesc,ResCode,ResDesc,RelCode,RelDesc,AllCode,AllDesc,SustCode,SustDesc,ThrCode,ThrDesc,Threats,OtherRel,ReferralTo)
+		}
+	}
+
+	// Build QHandle (AtEnd,ReportID,Index)
+	Set QHandle=$LISTBUILD(0,repid,0)
+	Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="LCAFetch">
+<Description>
+This is the Fetch component of the %Library.Query. 
+This should never have to change. It is designed to fetch the row for each subscript of the 
+^CacheTemp("TRAK" global and return this row to the Report writer</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,&Row:%Library.List,&AtEnd:%Library.Integer=0]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+	// This fetch method should never have to change. 
+	// repid - Report ID
+	// ind   - sequence index which represents each row
+	New repid,ind
+
+	// Restore QHandle
+	Set AtEnd=$LI(QHandle,1)
+	Set repid=$LI(QHandle,2)
+	Set ind=$LI(QHandle,3)
+
+	Set ind=$order(^CacheTemp("TRAK",repid,ind))
+	If ind="" {	// if there are no more rows, finish fetching
+		Set AtEnd=1
+		Set Row=""
+	} else {	// fetch row
+		Set Row=^CacheTemp("TRAK",repid,ind)
+	}
+
+	// Save QHandle
+	Set QHandle=$lb(AtEnd,repid,ind)
+	Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Query name="LCA">
+<Description>
+This is the Stored Procedure Template. For Sample use only.
+It expects one parameter of type integer and will return 4 fields:
+Field1 - Integer
+Field2 - String
+Field3 - Date
+Field4 - Time</Description>
+<Type>%Library.Query</Type>
+<FormalSpec>EpisodeID:%Library.String,ReferralID:%Library.String,ID:%Library.String</FormalSpec>
+<SqlProc>1</SqlProc>
+<Parameter name="CONTAINID" value="0"/>
+<Parameter name="ROWSPEC" value="FormCode:%String,PageTitle:%String,PageDesc:%String,PageSideText:%String,ClientName:%String,DOB:%String,Sex:%String,UR:%String,qid:%String,LivCode:%String,LivDesc:%String,LivCmt:%String,AccomCode:%String,AccomDesc:%String,AccomCmt:%String,EmpCode:%String,EmpDesc:%String,EmpCmt:%String,HealthCode:%String,HealthDesc:%String,Legal:%String,Q1:%String,Q2:%String,Q3:%String,Q4:%String,FinCode:%String,FinDesc:%String,AvailCode:%String,AvailDesc:%String,ResCode:%String,ResDesc:%String,RelCode:%String,RelDesc:%String,AllCode:%String,AllDesc:%String,SustCode:%String,SustDesc:%String,ThrCode:%String,ThrDesc:%String,Threats:%String,OtherRel:%String,ReferralTo:%String"/>
+</Query>
+
+<Method name="GetTextArea">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>obj:%CacheObject,num:%String</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	s text=""
+	f z=1:1:$METHOD($PROPERTY(obj,"Q"_num),"Count") {
+		i text'="" s text=text_$c(13,10)_$METHOD($PROPERTY(obj,"Q"_num),"GetAt",z)
+		i text="" s text=$METHOD($PROPERTY(obj,"Q"_num),"GetAt",z)
+	}
+	q text
+]]></Implementation>
+</Method>
+</Class>
+</Export>

@@ -1,0 +1,407 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.SWARH.Report.RptSvc.StoredProc.SWARHRPMI1003">
+<Description><![CDATA[
+<pre>
+**************************************************************************************************************************************
+* Report Code: SWARHRPMI1003
+* Report Description: Checks patients created in the time range against existing patients to display potential matches/duplicates
+* Menu Caption: PMI/Potential Duplicates (SWARH)
+* Initial release: Unknown
+* Developer: Unknown
+* Modified: 2017-01-25 (rpgladman) - Replacement of query as it was taking almost 3 minutes to run causing timeouts
+**************************************************************************************************************************************
+</pre>]]></Description>
+<ProcedureBlock>0</ProcedureBlock>
+<Super>Custom.SWARH.Report.RptSvc.StoredProc.Abstract</Super>
+<TimeCreated>60905,54849</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/SWARH/Report/RptSvc/StoredProc/SWARHRPMI1003.xml#1 $</Default>
+</Parameter>
+
+<UDLText name="T">
+<Content><![CDATA[
+/*
+ * ---START TEMPLATE COMMENT BLOCK---
+ * SWARH Reporting Services Report Stored Procedure Template
+ *
+ * Use Tools->Copy Class in Studio to copy this template to your new
+ * Stored Procedure class.
+ *
+ * Name your class as per SWARH naming conventions (SWARHR<reportcode>)
+ * within the Custom.SWARH.Report.RptSvc.StoredProc package.
+ *
+ * Find and Replace "AAATemplateStoredProcQuery" with your report code
+ * to name the stored procedure as per SWARH naming conventions
+ *
+ * All places in this class requiring modification are comment-tagged;
+ * search for "TEMPLATE MODIFY:" and you'll find instructions in each
+ * place requiring modification.
+ * Remove the tagged comments as you go to ensure you've made all
+ * required changes.
+ *
+ * Details of Modification Steps Required:
+ * 1.  Change Query name and prefix of Execute, Close and Fetch methods to
+ *     desired query name, eg. Query <MyQueryName>,
+ *     ClassMethod <MyQueryName>Execute, ClassMethod <MyQueryName>Fetch,
+ *     ClassMethod <MyQueryName>Close
+ * 2.  Alter the SQL query in <MyQueryName>Execute to perform the desired SQL
+ *     query. Use WinSQL or the Ensemble Management Portal to test your query.
+ * 3.  Alter the parameters of the Query <MyQuery> and the <MyQueryName>Execute
+ *     method to suit your query's requirements.
+ * 4.  In the <MyQueryName>Execute method, set up field variables for your
+ *     query's output fields.  Each field variable name is specified in at least
+ *      5 places.
+ *   a.   Declare field variable under an n/New line (eg. 'New MyField').
+ *   b.   Initialise field variable under an s/Set line (initialise to "" for
+ *        string/date/time fields  or 0 for numeric fields)
+ *        (eg. Set (MyField,MyOtherField)=""
+ *   c&d. Place field variable prefixed with  ':' in the 'fetch ... into '
+ *        output variable list under the FetchRow subroutine,
+ *        eg. 'fetch MyReportCursor INTO :MyField,:MyOtherField'.
+ *        Note that output fields need to be specified in the same order as they
+ *		  are specified in the SELECT statement).
+ *	 e.   In the ^CacheTemp row assignment $LB list, at the appropriate index
+ *        for the output column,
+ *          eg. s ^CacheTemp("TRAK",repid,sort)=$LB(MyField,MyOtherField,...) 
+ * 5.  Add appropriate conversion assignments under the FormatDates label for
+ *     any date or time fields.
+ * 6.  Build up the sort string on the 's sort = ' line, with desired fields to
+ *     sort the output rowset on. To ignore uppercase/lowercase characters, you
+ *     need to wrap each variable in a $ZCVT(<variable>,"U") to convert it to
+ *     uppercase.   Sorting using this method is supposedly faster than using
+ *     ORDER BY in most circumstances.
+ *     Build the sort string using:
+ *     s sort = $ZCVT(SortField1,"U")_" "_$ZCVT(SortField2,"U")_" "_..._" "_ind
+ *     The sort string should always end with '" "_ind', and if no sorting is
+ *     required outside the SQL query, simply specify 'set sort = ind'.
+ * 7.  Set up output field names and types in the Query ROWSPEC parameter to
+ *     match the desired output field names and types, in the correct order
+ *     (as specified in the ^CacheTemp row assignment $LB list from step 4e).
+ * 8.  Fill out Report Name and Code in detail comment below.
+ * 9.  Test the stored procedure using WinSQL by executing:
+ *     CALL <Custom_SWARH_Report_RptSvc_StoredProc.<ClassName>_<QueryName>(Params)
+ *     or using the Ensemble System Management Portal, navigate to SQL,
+ *     select namespace, SQL Schemas and find "Custom_SWARH_Report_RptSvc_StoredProc
+ *     and click "Procedures", find your procedure and click "Run".
+ * 10. Finally, remove all the TEMPLATE MODIFY: tagged comments (if you haven't
+ *     already) and this comment block and you're done!
+ * ---END TEMPLATE COMMENT BLOCK---
+ */
+]]></Content>
+</UDLText>
+
+<UDLText name="T">
+<Content><![CDATA[
+/*
+ * Report Name: <SWARHReportName> <br>
+ * Report Code: SWARH.R.<SWARHReportCode> <br>
+ * SWARH Developer: your name <br>
+ */
+]]></Content>
+</UDLText>
+
+<Method name="SWARHRPMI1003QueryClose">
+<Description>
+This is the Close component of the %Library.Query.
+This is standard code and should never have to change.
+This is where all the cleanup is performed, i.e. the purging of the temporary storage global ^CacheTemp.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>QHandle:%Library.Binary</FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Clean up by purging the temporary node in ^CacheTemp global
+ New repid,ind
+ Set repid=$li(QHandle,2)
+
+ //Start Monitor (if configured to capture stats)
+ i mon Do ..MonitorEnd(mon)
+
+ Kill ^CacheTemp("TRAK",repid)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="SWARHRPMI1003QueryExecute">
+<Description>
+This is the Execute section for the %Library.Query. 
+All of the logic will be performed here.
+A new node for the ^CacheTemp global will be created and each subscript of this global will contain
+a row for the report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,DateFrom:%Date,DateTo:%Date]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Get reportid i.e. use $INCREMENT to add another node to ^CacheTemp global. 
+ // We use ^CacheTemp global because it will always use memory before disk
+ New repid,ind
+
+  // Use $Increment to get the next node
+ Set repid=$I(^CacheTemp("TRAK"))
+ 
+ /* TEMPLATE MODIFY: Define and initialise appropriate column variables to describe output rowset columns */
+ New candidatePAPERRowId, candpmiPAPMINo, candidatePAPERName, candidatePAPERName2, candidatePAPERName3, candidatePAPERDob,
+     duplicatePAPERRowId,  duppmiPAPMINo, duplicatePAPERName, duplicatePAPERName2, duplicatePAPERName3, duplicatePAPERDob,
+     HOSPDesc
+ Set (candidatePAPERRowId, duplicatePAPERRowId)=0
+ Set (candpmiPAPMINo, candidatePAPERName, candidatePAPERName2, candidatePAPERName3, candidatePAPERDob,
+      duppmiPAPMINo, duplicatePAPERName, duplicatePAPERName2, duplicatePAPERName3, duplicatePAPERDob, HOSPDesc)=""
+
+ s ind=1, END=0
+
+ //Start Monitor (if configured to capture stats)
+ s mon=..MonitorBegin()
+ 
+ /* TEMPLATE MODIFY: Clean up parameter variables - $zstrip(<variable>,"*CW") strips all control characters and whitespace, "<>W" just strips leading/trailing whitespace
+  * NOTE: DO NOT DO "*W" ZSTRIP FROM DATES AS IT REMOVES THE WHITESPACE BETWEEN THE DATE AND TIME AND THIS BREAKS THE QUERY! */
+ //s Hospital=$zstrip(Hospital,"*CW")
+ //Convert ODBC dates to cache format
+ s DateFrom=..ConvertDateToCache(DateFrom)
+ s DateTo=..ConvertDateToCache(DateTo)
+ 
+ /*
+  * TEMPLATE MODIFY:
+  *		1. Change name of cursor to something more descriptive than MyReportCursor (need to change in 4 places; here, 2x "fetch" expressions and close expression below)
+  *		2. Change SQL query to query desired data, passing valid parameters as defined in Query and Execute method arguments.
+  *		3. Pass appropriate parameters using :<ParameterVariableName> - eg. :Hospital
+  */
+  
+  
+ &SQL(DECLARE MyReportCursor CURSOR FOR
+    SELECT 
+       candidate.PAPER_RowId
+      ,candpmi.PAPMI_No
+      ,candidate.PAPER_Name
+      ,candidate.PAPER_Name2
+      ,candidate.PAPER_Name3
+      ,candidate.PAPER_Dob
+      ,duplicate.PAPER_RowId
+      ,duppmi.PAPMI_No
+      ,duplicate.PAPER_Name
+      ,duplicate.PAPER_Name2
+      ,duplicate.PAPER_Name3
+      ,duplicate.PAPER_Dob
+      ,%EXACT(audit.AUD_LogonLocation_DR->CTLOC_Hospital_DR->Hosp_Desc) AS Hosp_Desc
+    FROM 
+      SQLUser.SS_AuditTrail        AS audit
+      INNER JOIN SQLUser.PA_Person AS candidate ON (audit.AUD_TableRowId  = candidate.PAPER_RowId)
+      INNER JOIN SQLUser.PA_PatMas AS candpmi   ON (candidate.PAPER_RowId = candpmi.PAPMI_PAPER_DR)
+      INNER JOIN SQLUser.PA_Person AS duplicate ON 
+        (candidate.PAPER_RowId != duplicate.PAPER_RowId
+          -- DOB is the same and...
+          -- Surname is the same or second name is the same or second and third names are the same
+          AND (candidate.PAPER_DOB = duplicate.PAPER_DOB
+               AND ((candidate.PAPER_Name)  = (duplicate.PAPER_Name)
+                    OR (candidate.PAPER_Name2) = (duplicate.PAPER_Name2)
+                    OR ((candidate.PAPER_Name2) = (duplicate.PAPER_Name3)
+                        OR (candidate.PAPER_Name3) = (duplicate.PAPER_Name2)
+                       )
+                   )
+              )
+        )
+      INNER JOIN SQLUser.PA_PatMas AS duppmi    ON (duplicate.PAPER_RowId = duppmi.PAPMI_PAPER_DR)
+    WHERE audit.AUD_Table = 'PA_Person'
+      AND audit.AUD_Action = 'I'
+      AND audit.AUD_PAPMI_DR->PAPMI_Active IS NULL
+      AND audit.AUD_Date BETWEEN :DateFrom AND :DateTo
+      AND duppmi.PAPMI_Active IS NULL
+      AND (candpmi.PAPMI_No IS NOT NULL AND duppmi.PAPMI_No IS NOT NULL)
+
+  UNION -------------------------------------------------------------------------------------------
+
+  SELECT 
+     candidate.PAPER_RowId
+    ,candpmi.PAPMI_No
+    ,candidate.PAPER_Name
+    ,candidate.PAPER_Name2
+    ,candidate.PAPER_Name3
+    ,candidate.PAPER_Dob
+    ,duplicate.PAPER_RowId
+    ,duppmi.PAPMI_No
+    ,duplicate.PAPER_Name
+    ,duplicate.PAPER_Name2
+    ,duplicate.PAPER_Name3
+    ,duplicate.PAPER_Dob
+    ,%EXACT(audit.AUD_LogonLocation_DR->CTLOC_Hospital_DR->Hosp_Desc) AS Hosp_Desc
+  FROM SQLUser.SS_AuditTrail     AS audit
+    INNER JOIN SQLUser.PA_Person AS candidate ON (audit.AUD_TableRowId = candidate.PAPER_RowId)
+    INNER JOIN SQLUser.PA_PatMas AS candpmi   ON (candidate.PAPER_RowId = candpmi.PAPMI_PAPER_DR)
+    INNER JOIN SQLUser.PA_Person AS duplicate ON (
+      candidate.PAPER_RowId != duplicate.PAPER_RowId
+      -- Surname is the same, sex is the same and...
+      -- First name is the same, second names are the same
+      AND ((candidate.PAPER_Name) = (duplicate.PAPER_Name)
+           AND ((candidate.PAPER_Name2) = (duplicate.PAPER_Name2)
+                AND ((candidate.PAPER_Name3) = (duplicate.PAPER_Name3))
+               )
+           AND candidate.PAPER_Sex_DR = duplicate.PAPER_Sex_DR
+          )
+    )
+    INNER JOIN SQLUser.PA_PatMas AS duppmi    ON (duplicate.PAPER_RowId = duppmi.PAPMI_PAPER_DR)
+  WHERE audit.AUD_Table = 'PA_Person'
+    AND audit.AUD_Action = 'I'
+    AND audit.AUD_PAPMI_DR->PAPMI_Active IS NULL
+    AND audit.AUD_Date BETWEEN :DateFrom AND :DateTo
+    AND duppmi.PAPMI_Active IS NULL
+    AND (candpmi.PAPMI_No IS NOT NULL AND duppmi.PAPMI_No IS NOT NULL)
+  ORDER BY 3,4
+)
+ 
+ 
+ 
+ 
+ // -- Old version, replaced 2017-01-25 --
+ //&SQL(DECLARE MyReportCursor CURSOR FOR 
+ //SELECT DISTINCT -- get rid of duplicate 'insert' audits....
+ //        candidate.PAPER_RowId, candpmi.PAPMI_No, candidate.PAPER_Name, candidate.PAPER_Name2, candidate.PAPER_Name3, candidate.PAPER_Dob,
+ //        duplicate.PAPER_RowId, duppmi.PAPMI_No, duplicate.PAPER_Name, duplicate.PAPER_Name2, duplicate.PAPER_Name3, duplicate.PAPER_Dob,
+ //        %EXACT(audit.AUD_LogonLocation_DR->CTLOC_Hospital_DR->Hosp_Desc) AS Hosp_Desc
+ //FROM SQLUser.SS_AuditTrail audit
+ //  INNER JOIN
+ //           SQLUser.PA_Person candidate ON (audit.AUD_TableRowId = candidate.PAPER_RowId)
+ //     INNER JOIN
+ //             SQLUser.PA_PatMas candpmi ON (candidate.PAPER_RowId = candpmi.PAPMI_PAPER_DR)
+ //     INNER JOIN
+ //             SQLUser.PA_Person duplicate ON
+ //             (       candidate.PAPER_RowId != duplicate.PAPER_RowId
+ //             AND     (
+ //                             (
+ //                                     candidate.PAPER_DOB = duplicate.PAPER_DOB
+ //                             AND     (       %ALPHAUP(candidate.PAPER_Name) = %ALPHAUP(duplicate.PAPER_Name)
+ //                                     OR      %ALPHAUP(candidate.PAPER_Name2) = %ALPHAUP(duplicate.PAPER_Name2)
+ //                                     OR      (%ALPHAUP(candidate.PAPER_Name2) = %ALPHAUP(duplicate.PAPER_Name3) OR %ALPHAUP(candidate.PAPER_Name3) = %ALPHAUP(duplicate.PAPER_Name2))
+ //                                     )
+ //                             )
+ //                      OR
+ //                             (       %ALPHAUP(candidate.PAPER_Name) = %ALPHAUP(duplicate.PAPER_Name)
+ //                             AND     (
+ //                             			%ALPHAUP(candidate.PAPER_Name2) = %ALPHAUP(duplicate.PAPER_Name2)
+ //                             		AND		(
+ //                             					%ALPHAUP(candidate.PAPER_Name3) = %ALPHAUP(duplicate.PAPER_Name3)
+ //                             				--OR	(candidate.PAPER_Name3 IS NULL AND duplicate.PAPER_Name3 IS NULL)
+ //                             				)
+ //                             		)
+ //                             AND     candidate.PAPER_Sex_DR = duplicate.PAPER_Sex_DR
+ //                             )
+ //                    )
+ //             )
+ //     INNER JOIN
+ //             SQLUser.PA_PatMas duppmi ON (duplicate.PAPER_RowId = duppmi.PAPMI_PAPER_DR)
+ //
+ //WHERE audit.AUD_Table = 'PA_Person'
+ //  AND audit.AUD_Action = 'I'
+ //  AND audit.AUD_PAPMI_DR->PAPMI_Active IS NULL
+ //  AND audit.AUD_Date BETWEEN :DateFrom AND :DateTo
+ //  AND duppmi.PAPMI_Active IS NULL
+ //  AND (candpmi.PAPMI_No IS NOT NULL AND duppmi.PAPMI_No IS NOT NULL)
+ //ORDER BY candidate.PAPER_Name, candidate.PAPER_Name2)
+
+ &SQL(OPEN MyReportCursor)
+ 
+ //FETCH FIRST ROW
+ d FetchRow
+  
+ while END=0 {
+  
+	 d FormatDates
+  	 //d FormatTimes
+  	 
+	 /* TEMPLATE MODIFY: Build the sort string here from column variables. Convert strings to uppercase ($ZCVT(<field>,"U") and separate with spaces */
+	 s sort = ind		// don't sort - uncomment this line if you've sorted in the query
+	 //s sort = $ZCVT(HOSPDesc,"U")_" "_$ZCVT(WARDDesc,"U")_" "_$ZCVT(ROOMCode,"U")_" "_$ZCVT(BEDCode,"U")_" "_$ZCVT(CTRLGDesc,"U")_" "_$ZCVT(PAPERName,"U")_" "_$ZCVT(PAPERName2,"U")_" "_$ZCVT(PAPERName3,"U")_ind
+ 
+	 /* TEMPLATE MODIFY: Build the list of fields by placing correct column variable names in the $LB() here. */
+	 s ^CacheTemp("TRAK",repid,sort)=$LB(candidatePAPERRowId, candpmiPAPMINo, candidatePAPERName, candidatePAPERName2, candidatePAPERName3, candidatePAPERDob,
+     duplicatePAPERRowId,  duppmiPAPMINo, duplicatePAPERName, duplicatePAPERName2, duplicatePAPERName3, duplicatePAPERDob, HOSPDesc)
+	 s ind=ind+1
+ 
+	 //fetch rows
+	 d FetchRow
+ }
+
+ &SQL(CLOSE MyReportCursor)
+ 
+ // Build QHandle (AtEnd,ReportID,Index)
+ Set QHandle=$lb(0,repid,0)
+
+ Quit $$$OK
+
+FetchRow
+ /* TEMPLATE MODIFY: Rename cursor to something moreChange fetch INTO parameter list to match column variable names */
+ &sql(FETCH MyReportCursor INTO
+ 	 :candidatePAPERRowId, :candpmiPAPMINo, :candidatePAPERName, :candidatePAPERName2, :candidatePAPERName3, :candidatePAPERDob,
+     :duplicatePAPERRowId,  :duppmiPAPMINo, :duplicatePAPERName, :duplicatePAPERName2, :duplicatePAPERName3, :duplicatePAPERDob,
+     :HOSPDesc)
+ if SQLCODE '= 0 set END = 1
+ q
+ 
+FormatDates
+ /* TEMPLATE MODIFY: Add an entry to perform a date format for all date fields here */
+ s candidatePAPERDob=..ConvertDateToODBC(candidatePAPERDob)
+ s duplicatePAPERDob=..ConvertDateToODBC(duplicatePAPERDob)
+ q
+ 
+FormatTimes
+ /* TEMPLATE MODIFY: Add an entry to perform a time format for all time fields here */
+ //s PAADMAdmTime=..ConvertTimeToODBC(PAADMAdmTime)
+ q
+]]></Implementation>
+</Method>
+
+<Method name="SWARHRPMI1003QueryFetch">
+<Description>
+This is the Fetch component of the %Library.Query. 
+This should never have to change. It is designed to fetch the row for each subscript of the ^CacheTemp
+global and return this row to the Crystal Report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,&Row:%Library.List,&AtEnd:%Library.Integer=0]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // This fetch method should never have to change. 
+
+ // repid - Report ID
+ // ind   - sequence index which represents each row
+
+ New repid,ind
+
+ // Restore QHandle
+ Set AtEnd=$li(QHandle,1)
+ Set repid=$li(QHandle,2)
+ Set ind=$li(QHandle,3)
+
+ Set ind=$o(^CacheTemp("TRAK",repid,ind))
+ If ind="" {	// if there are no more rows, finish fetching
+	 Set AtEnd=1
+	 Set Row=""
+ }
+ Else      {	// fetch row
+ 	Set Row=^CacheTemp("TRAK",repid,ind)
+ }
+
+ // Save QHandle
+ s QHandle=$lb(AtEnd,repid,ind)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<UDLText name="T">
+<Content><![CDATA[
+/* TEMPLATE MODIFY: Rename Stored Proc query to <MyStoredProcName> 
+ * TEMPLATE MODIFY: Change parameters to match desired stored procedure parameters
+ * TEMPLATE MODIFY: Change ROWSPEC list to match desired output column names and column data types */
+]]></Content>
+</UDLText>
+
+<Query name="SWARHRPMI1003Query">
+<Type>%Library.Query</Type>
+<FormalSpec>DateFrom:%Date,DateTo:%Date</FormalSpec>
+<SqlProc>1</SqlProc>
+<Parameter name="CONTAINID" value="0"/>
+<Parameter name="ROWSPEC" value="candidatePAPERRowId:%Library.Integer, candpmiPAPMINo:%Library.String, candidatePAPERName:%Library.String, candidatePAPERName2:%Library.String, candidatePAPERName3:%Library.String, candidatePAPERDob:%Library.Date,duplicatePAPERRowId:%Library.Integer,  duppmiPAPMINo:%Library.String, duplicatePAPERName:%Library.String, duplicatePAPERName2:%Library.String, duplicatePAPERName3:%Library.String, duplicatePAPERDob:%Library.Date,HOSPDesc:%Library.String"/>
+<Parameter name="SELECTMODE" value="ODBC"/>
+</Query>
+</Class>
+</Export>

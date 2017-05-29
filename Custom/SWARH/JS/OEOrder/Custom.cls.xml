@@ -1,0 +1,240 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.SWARH.JS.OEOrder.Custom">
+<Description>
+Component JavaScript for: OEOrder.Custom</Description>
+<Modified>0</Modified>
+<Super>websys.AbstractJavaScript</Super>
+<TimeCreated>63537,10516.371038</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+This Parameter is updated by Perforce</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/SWARH/JS/OEOrder/Custom.xml#1 $</Default>
+</Parameter>
+
+<Method name="JSContent">
+<Description>
+ </Description>
+<Language>javascript</Language>
+<ClientMethod>1</ClientMethod>
+<Implementation><![CDATA[
+/*********************************************************************
+$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/SWARH/JS/OEOrder/Custom.xml#1 $
+Version 1
+
+- General custom field validation for oeorder.custom component
+
+REMEMBER to update the versions with initials, date and description for each modification...
+	PO		17/02/2010		- TRC 40828 and TRC 41184
+							 *   > 40828: Dual/overseer signatures for student nurses when prescribing &
+							 *     administering medication.
+							 *     This restricted Security Group is _hardcoded_ directly under these comments.
+							 *
+							 *   > 53946: SWARH Dual Signatures for Phone Orders.
+							 *   +>  Other functionality required for the implementation of this feature:
+							 *   +-->  Custom class: {namespace}.Custom.SWARHOEOrderCustom
+
+	IF		03/05/2013		- Log 88934/TRC 134133 Set tickbox to "on" for [ShowBrands] and [NonFormulary]
+
+**********************************************************************/
+
+/*
+//Log 88934/TRC 134133
+if (document.getElementById('ShowBrands')) document.getElementById('ShowBrands').checked=true;
+if (document.getElementById('NonFormulary')) document.getElementById('NonFormulary').checked=true;
+
+// Restricted Security Group  is identified by the variable:  rsg
+var rsg = "Student Nurse";
+var context = "W50057";
+
+function CustomUpdateClick() {
+	//self.setTimeout('CustomUpdateClick()',2000);
+	var uc   = document.getElementById("UserCode");
+	var osu  = document.getElementById("User2");
+	var pin  = document.getElementById("PIN");
+	var uop  = document.getElementById("PIN2");
+	var lsgi  = session['LOGON.GROUPID'];
+
+
+	if(uc&&(uc.className=="clsRequired")&&(uc.value=="")) {
+		alert(t['UserCode'] + " " + t['XMISSING']);
+		return false;
+	}
+	if(osu&&(osu.className=="clsRequired")&&(osu.value=="")) {
+		alert(t['User2'] + " " + t['XMISSING']);
+		return false;
+	}
+	if(uc.value==osu.value) {
+		alert(t['User2'] + " " + t['XINVALID']);
+		return false;
+	}
+	if(pin&&(pin.className=="clsRequired")&&(pin.value=="")) {
+		alert(t['PIN'] + " " + t['XMISSING']);
+		return false;
+	}
+	if(uop&&(uop.className=="clsRequired")&&(uop.value=="")) {
+		alert(t['PIN2'] + " " + t['XMISSING']);
+		return false;
+	}
+	if (osu.value != "" && uc.value != "")
+		user = osu.value;
+	else
+		user = uc.value;
+	//if (context=session['CONTEXT']) {
+		validlist  = tkMakeServerCall("Custom.SWARHOEOrderCustom","ValidateList", uc.value);
+		if (validlist == "1") {
+			validlist = tkMakeServerCall("Custom.SWARHOEOrderCustom","ValidateList", osu.value);
+			if (validlist == "1") {
+				// if (osu.value==uc.value) {
+				//	msg = "Care Provider cannot be the same for both signatures. The phone order has not been created";
+				//	alert(msg);
+				//	return false;
+				//}
+			} else {
+				msg = "User " + osu.value + " is not authorised to create phone orders. The phone order has not been created";
+				alert(msg);
+				return false;
+			}
+		} else {
+			msg = "User " + uc.value + " is not authorised to create phone orders. The phone order has not been created";
+			alert(msg);
+			return false;
+		}
+		UpdateClickHandler();
+	//}
+}
+
+function DisableMandatoryField(fldName) {
+	//alert(fldName);
+	var fld = document.getElementById(fldName);
+	var lbl = document.getElementById('c'+fldName);
+	if (fld) {
+		fld.disabled = false;
+		fld.className = "";
+		if (lbl) lbl = lbl.className = "";
+	}
+}
+
+function EnableMandatoryField(fldName) {
+	var fld = document.getElementById(fldName);
+	var lbl = document.getElementById('c'+fldName);
+	if (fld) {
+		fld.disabled = false;
+		fld.className = "";
+		if (lbl) lbl = lbl.className = "clsRequired";
+	}
+}
+
+function makeRequired(str){
+	var Obj=document.getElementById(str);
+	var cObj=document.getElementById("c"+str);
+	if (Obj) Obj.className="clsRequired";
+	if (cObj) cObj.className="clsRequired";
+	return;
+}
+
+function makeNotRequired(str){
+	var Obj=document.getElementById(str);
+	var cObj=document.getElementById("c"+str);
+	if (Obj) Obj.className="";
+	if (cObj) cObj.className="";
+	return;
+
+}
+
+function ValidateFirstSignature() {
+	var uc  = document.getElementById("UserCode");
+	isAuthorised = tkMakeServerCall("Custom.SWARHOEOrdExec","ValidateList2", uc.value);
+	if (isAuthorised == "0") {
+		DisableMandatoryField("OverseerUser");
+		makeNotRequired("OverseerUser");
+		DisableMandatoryField("OverseerPassword");
+		makeNotRequired("OverseerPassword");
+	} else {
+		EnableMandatoryField("OverseerUser");
+		makeRequired("OverseerUser");
+		EnableMandatoryField("OverseerPassword");
+		makeRequired("OverseerPassword");
+	}
+}
+
+function DisableUpdateButton(Disable){
+            // disable Update button till csp finishes inserting items to database.
+            var updObj=document.getElementById("Update");
+            if ((updObj)&&(Disable=="1")) {
+                        updObj.disabled=true;
+            }
+            if ((updObj)&&(Disable=="0")) {
+                        updObj.disabled=false;
+                        if (context==session['CONTEXT']) {
+		updObj.onclick=CustomUpdateClick;
+		} else {
+		updObj.onclick=UpdateClickHandler;
+		}
+            }
+}
+
+function CustomOnBodyLoadHandler() {
+	BodyOnLoadHandler();
+	//alert("load");
+	var user = session['LOGON.USERID'];
+	var lsg  = session['LOGON.GROUPDESC'];
+	var uc   = document.getElementById("UserCode");
+	if (uc) {uc.onblur=ValidateFirstSignature;}
+	ValidateFirstSignature
+	var osu  = document.getElementById("User2");
+	var pin  = document.getElementById("PIN");
+	var uop  = document.getElementById("PIN2");
+	if (!lsg) {
+		alert("Cannot determine the Login User's Security Group.");
+		return false;
+	}
+
+	var updateobj=document.getElementById("Update");
+	if (updateobj) updateobj.onclick=CustomUpdateClick;
+}
+//alert(context);
+//if (context==session['CONTEXT']) {document.body.onload=CustomOnBodyLoadHandler;}
+if (context==session['CONTEXT']) {
+	websys_removeListener("load","onload",BodyOnLoadHandler);
+	websys_addListener("load","onload",CustomOnBodyLoadHandler);
+	}
+
+*/
+
+// DO NOT ADD ANY NEW CODE AFTER THIS LINE, ADD ALL NEW CODE BEFORE THIS BIOMETRICS POPUP CODE
+//tknoll-miller (SWARH) 2009-09-16 Load authorise popup script
+var authcfg = {
+	'version':4,
+	'buttons':{
+      'Update':[{'title':'Update Dual','popups':['firstuser','seconduser']}]
+	},
+	'popups':{
+		'default':{'username':'UserCode','password':'PIN'},
+		'firstuser':{'title':'First User','username':'UserCode','password':'PIN'},
+		'seconduser':{'title':'Second User','username':'User2','password':'PIN2'}
+	}
+};
+
+//tknoll-miller (SWARH) 2009-09-16 Load authorise script
+// Scope variables
+(function() {
+   var loadScript = function(type, src) {
+      var head = document.getElementsByTagName('head')[0];
+      var script = document.createElement('script');
+      script.type = type;
+      script.src = src;
+      head.appendChild(script);
+      websys_addListener('load', 'onload', function(){document.isLoaded=true});
+      return script;
+   };
+
+   loadScript('text/javascript', '../custom/SWARH/scripts/authorise4.js');
+})();
+//end tknoll-miller (SWARH) 2009-09-16 Load authorise script
+// DO NOT ADD ANY CODE BELOW THIS BIOMETRICS POPUP SCRIPT, PLEASE ADD IT BEFORE THE COMMENT ABOVE THE PREVIOUS SECTION
+]]></Implementation>
+</Method>
+</Class>
+</Export>

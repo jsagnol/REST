@@ -1,0 +1,285 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.AUXX.Report.ZEN.StoredProc.SCTTConfidentialRefCS">
+<Description>
+Report Name: Confidential Referral Coversheet
+Report Code: AUXX.SCTT0001
+TRC Number: 152012</Description>
+<ProcedureBlock>0</ProcedureBlock>
+<Super>Report.Abstract</Super>
+<TimeCreated>62970,48071.923811</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/AUXX/Report/ZEN/StoredProc/SCTTConfidentialRefCS.xml#1 $</Default>
+</Parameter>
+
+<Method name="CoverSheetClose">
+<Description>
+This is the Close component of the %Library.Query.
+This is standard code and should never have to change.
+This is where all the cleanup is performed, i.e. the purging of the temporary storage global ^CacheTemp.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>QHandle:%Library.Binary</FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+	// Clean up by purging the temporary node in ^CacheTemp global
+	New repid
+	Set repid=$LIST(QHandle,2)
+
+	//Start Monitor (if configured to capture stats)
+	i mon Do ..MonitorEnd(mon)
+
+	Kill ^CacheTemp("TRAK",repid)
+
+	Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="CoverSheetExecute">
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,EpisodeID:%Library.String,ReferralID:%Library.String,ReferralToID:%Library.String]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+	// Get reportid i.e. use $INCREMENT to add another node to ^CacheTemp("TRAK") global. 
+	// We use ^CacheTemp global because CACHETEMP is a memory resident database
+	New repid,ind
+
+	// Use $Increment to get the next node and clean up
+	Set repid=$Increment(^CacheTemp("TRAK"))
+	
+	//Start Monitor (if configured to capture stats)
+	s mon=..MonitorBegin()
+	
+	s (qid,refdocid,ngid)=""
+	s (qid,RefTo,RefToType,RefSpec,RefPhone,RefFax,RefEmail,RefAddress1,RefAddress2,RefCity,RefZip,RefOrg,AgencyName,AgencySpec,AgencyPhone,AgencyFax,AgencyEmail,AgencyAddress1,AgencyCity,AgencyZip)=""
+	s (Priority,IncludeFAS,IncludeTHB,IncludeTHC,IncludeLCA,IncludePAV,IncludeTNA,IncludeTPS,IncludeTCC,OtherNotes,RefOutcome,EstDate,RefNotProc,RefComments,DateAck,Name,Position,RefAddress,AgencyAddress)=""
+	
+	s adm=EpisodeID
+	
+	i adm,ReferralID {
+		s pat=$p($g(^PAADM(adm)),"^")
+
+		s patobj=##class(User.PAPatMas).%OpenId(pat)
+		i patobj {
+			s ClientName=patobj.PAPMIName_", "_patobj.PAPMIName2
+			s DOB=patobj.PAPMIDOB
+			i DOB s DOB=$zd(DOB,4,,4)
+			s Sex=patobj.PAPMISexDR.CTSEXDesc
+			s UR=patobj.PAPMINo
+			k patobj
+		}
+		
+		s ngo=0
+		i $p(ReferralToID,":",2)'="" {
+			s ReferralToIDx=$p(ReferralToID,":",2)
+			i ReferralToIDx'="" {
+				s ngid=##class(web.PACNonGovOrg).GetIdFromCodeOrDescription($p(ReferralToIDx," ("))
+				i ngid'="" {
+					s ngo=1
+				} else {
+					s refdocid=##class(web.PACRefDoctor).GetIdFromCodeOrDescription($p($p(ReferralToIDx," (",2),")"))
+					s ngo=0
+				}
+			}
+		}
+		
+		s RefToType=$p($g(^PA("DISSUM",ReferralID)),"^",22)
+		f x=1:1:$l(RefToType,"&") {
+			s reflist=$p(RefToType,"&",x)
+			
+			i $p(reflist,"|")="REF",ngo=0,refdocid=$p(reflist,"|",2) s qid=$p(reflist,"|",3)
+			i $p(reflist,"|")="NG",ngo=1,ngid=$p(reflist,"|",2) s qid=$p(reflist,"|",3)
+		}
+		
+		s dsobj=##class(User.PADischargeSummary).%OpenId(ReferralID)
+		i dsobj {
+			i dsobj.DISCareProvDR {
+				s AgencyName=dsobj.DISCareProvDR.CTPCPDesc
+				s AgencySpec=dsobj.DISCareProvDR.CTPCPSpecDR.CTSPCDesc
+				s AgencyPhone=dsobj.DISCareProvDR.CTPCPTelO
+				s AgencyFax=dsobj.DISCareProvDR.CTPCPFax
+				s AgencyEmail=dsobj.DISCareProvDR.CTPCPEmail
+				s AgencyAddress1=dsobj.DISCareProvDR.CTPCPStName.GetAt(1)
+				s AgencyCity=dsobj.DISCareProvDR.CTPCPCityDR.CTCITDesc
+				s AgencyZip=dsobj.DISCareProvDR.CTPCPZipDR.CTZIPCode
+
+				s AgencyAddress=" Address: "_AgencyAddress1_$c(13,10)_AgencyCity_" "_AgencyZip
+			}
+			k dsobj
+		}
+
+		i 'ngo {
+			s refobj=##class(User.PACRefDoctor).%OpenId(refdocid)
+			i refobj {
+				s RefTo=refobj.REFDDesc_", "_refobj.REFDForename
+				s RefSpec=refobj.REFDSpecialtyDR.CTSPCDesc
+				f x=1:1:refobj.ChildPACRefDoctorClinic.Count() {
+					s RefPhone=refobj.ChildPACRefDoctorClinic.GetAt(x).CLNClinicDR.CLNPhone
+					s RefFax=refobj.ChildPACRefDoctorClinic.GetAt(x).CLNClinicDR.CLNFax
+					s RefEmail=refobj.ChildPACRefDoctorClinic.GetAt(x).CLNClinicDR.CLNEmail
+					s RefAddress1=refobj.ChildPACRefDoctorClinic.GetAt(x).CLNClinicDR.CLNAddress1
+					s RefAddress2=refobj.ChildPACRefDoctorClinic.GetAt(x).CLNClinicDR.CLNAddress2
+					s RefCity=refobj.ChildPACRefDoctorClinic.GetAt(x).CLNClinicDR.CLNCityDR.CTCITDesc
+					s RefZip=refobj.ChildPACRefDoctorClinic.GetAt(x).CLNClinicDR.CLNZipDR.CTZIPCode
+					
+					s RefAddress=" Address: "_RefAddress1_$c(13,10)_$s(RefAddress2'="":RefAddress2_$c(13,10),1:"")_RefCity_" "_RefZip
+				}
+				k refobj
+			}
+		} else {
+			s ngobj=##class(User.PACNonGovOrg).%OpenId(ngid)
+			i ngobj {
+				s RefOrg=ngobj.NGODesc
+				s RefSpec=""
+				s RefPhone=ngobj.NGOPhone
+				s RefFax=ngobj.NGOFax
+				s RefEmail=ngobj.NGOEmail
+				s RefAddress1=ngobj.NGOAddress.GetAt(1)
+				s RefCity=ngobj.NGOCityDR.CTCITDesc
+				s RefZip=ngobj.NGOZipDR.CTZIPCode
+				
+				s RefAddress=" Address: "_RefAddress1_$c(13,10)_RefCity_" "_RefZip
+
+				k ngobj
+			}
+		}
+		i AgencyAddress="" s AgencyAddress=" Address: "
+		i RefAddress="" s RefAddress=" Address: "
+		
+		s quescode=0
+		f {
+			s quescode=$o(^PA("DISSUM",ReferralID,"DET",0,"QuestCode1",quescode))
+			q:quescode=""
+			s quesid=0
+			f {
+				s quesid=$o(^PA("DISSUM",ReferralID,"DET",0,"QuestCode1",quescode,quesid))
+				q:quesid=""
+				i quescode="QAUXXSCTFAS" s IncludeFAS=1
+				i quescode="QAUXXSCTTHB" s IncludeTHB=1
+				i quescode="QAUXXSCTTHC" s IncludeTHC=1
+				i quescode="QAUXXSCTLCA" s IncludeLCA=1
+				i quescode="QAUXXSCTPAV" s IncludePAV=1
+				i quescode="QAUXXSCTTNA" s IncludeTNA=1
+				i quescode="QAUXXSCTTPS" s IncludeTPS=1
+				i quescode="QAUXXSCTTCC" s IncludeTCC=1
+			}
+		}
+		
+		s qobj=##class(questionnaire.QAUXXSCTTR).%OpenId(qid)
+		i qobj {
+			s Priority=qobj.Q09
+			;s IncludeFAS=$o(^questionnaire.QAUXXSCTFASI("IndexPAAdmID",adm,""),-1),IncludeFAS=$s(IncludeFAS'="":1,1:0)
+			;s IncludeTHB=$o(^questionnaire.QAUXXSCTTHBI("IndexPAAdmID",adm,""),-1),IncludeTHB=$s(IncludeTHB'="":1,1:0)
+			;s IncludeTHC=$o(^questionnaire.QAUXXSCTTHCI("IndexPAAdmID",adm,""),-1),IncludeTHC=$s(IncludeTHC'="":1,1:0)
+			;s IncludeLCA=$o(^questionnaire.QAUXXSCTLCAI("IndexPAAdmID",adm,""),-1),IncludeLCA=$s(IncludeLCA'="":1,1:0)
+			;s IncludePAV=$o(^questionnaire.QAUXXSCTPAVI("IndexPAAdmID",adm,""),-1),IncludePAV=$s(IncludePAV'="":1,1:0)
+			;s IncludeTNA=$o(^questionnaire.QAUXXSCTTNAI("IndexPAAdmID",adm,""),-1),IncludeTNA=$s(IncludeTNA'="":1,1:0)
+			;s IncludeTPS=$o(^questionnaire.QAUXXSCTTPSI("IndexPAAdmID",adm,""),-1),IncludeTPS=$s(IncludeTPS'="":1,1:0)
+			;s IncludeTCC=$o(^questionnaire.QAUXXSCTTCCI("IndexPAAdmID",adm,""),-1),IncludeTCC=$s(IncludeTCC'="":1,1:0)
+
+			s (OtherNotes,OtherNotesPC)="",OtherNotesPB=0
+			f x=1:1:qobj.Q35.Count() {
+				i OtherNotes'="" s OtherNotes=OtherNotes_$c(13,10)_qobj.Q35.GetAt(x)
+				i OtherNotes="" s OtherNotes=qobj.Q35.GetAt(x)
+			}
+			; Check if text is too big for allocated space
+			s OtherNotesPC=##class(Custom.AUXX.Report.ZEN.StoredProc.SCTTReport).ContinuePage(OtherNotes,5,95)
+			i OtherNotesPC["<...(PTO)>" s OtherNotesPB=1	; if OtherNotesPB=1 then add a page break into the ZEN report so that we can repeat the header
+			
+			i qobj.Q35.Count()<3 {
+				f x=qobj.Q35.Count():1:3 {
+					s OtherNotes=OtherNotes_$c(13,10)
+				}
+			}
+			s RefOutcome=qobj.Q22
+			s EstDate=qobj.Q32
+			i EstDate s EstDate=$zd(EstDate,4,,4)
+			s RefNotProc=qobj.Q23
+			
+			s (RefComments,RefCommentsPC)="",RefCommentsPB=0
+			f x=1:1:qobj.Q25.Count() {
+				i RefComments'="" s RefComments=RefComments_$c(13,10)_qobj.Q25.GetAt(x)
+				i RefComments="" s RefComments=qobj.Q25.GetAt(x)
+			}
+			; Check if text is too big for allocated space
+			s RefCommentsPC=##class(Custom.AUXX.Report.ZEN.StoredProc.SCTTReport).ContinuePage(RefComments,2,95)
+			i RefCommentsPC["<...(PTO)>" s RefCommentsPB=1	; if OtherNotesPB=1 then add a page break into the ZEN report so that we can repeat the header
+
+			i qobj.Q25.Count()<2 {
+				f x=qobj.Q25.Count():1:2 {
+					s RefComments=RefComments_$c(13,10)
+				}
+			}
+
+			s DateAck=qobj.Q29
+			i DateAck s DateAck=$zd(DateAck,4,,4)
+			s Name=qobj.Q30
+			s Position=qobj.Q31
+			k qobj
+		}
+		
+		s PageTitle="Confidential Referral Cover Sheet"
+		s PageDesc="Please acknowledge that you have received this referral by completing and signing below and returning via fax/email/mail"
+		s PageSideText="                                                                      Confidential Referral Cover Sheet"
+
+		s ind=$i(ind)
+		s ^CacheTemp("TRAK",repid,ind)=$lb("CRCS",PageTitle,PageDesc,PageSideText,ClientName,DOB,Sex,UR,qid,RefTo,RefToType,RefSpec,RefPhone,RefFax,RefEmail,RefAddress1,RefAddress2,RefCity,RefZip,RefOrg,AgencyName,AgencySpec,AgencyPhone,AgencyFax,AgencyEmail,AgencyAddress1,AgencyCity,AgencyZip,Priority,IncludeFAS,IncludeTHB,IncludeTHC,IncludeLCA,IncludePAV,IncludeTNA,IncludeTPS,IncludeTCC,OtherNotes,OtherNotesPC,OtherNotesPB,RefOutcome,EstDate,RefNotProc,RefComments,RefCommentsPC,RefCommentsPB,DateAck,Name,Position,RefAddress,AgencyAddress,qid)
+	}
+
+	// Build QHandle (AtEnd,ReportID,Index)
+	Set QHandle=$LISTBUILD(0,repid,0)
+	Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="CoverSheetFetch">
+<Description>
+This is the Fetch component of the %Library.Query. 
+This should never have to change. It is designed to fetch the row for each subscript of the 
+^CacheTemp("TRAK" global and return this row to the Report writer</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,&Row:%Library.List,&AtEnd:%Library.Integer=0]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+	// This fetch method should never have to change. 
+	// repid - Report ID
+	// ind   - sequence index which represents each row
+	New repid,ind
+
+	// Restore QHandle
+	Set AtEnd=$LI(QHandle,1)
+	Set repid=$LI(QHandle,2)
+	Set ind=$LI(QHandle,3)
+
+	Set ind=$order(^CacheTemp("TRAK",repid,ind))
+	If ind="" {	// if there are no more rows, finish fetching
+		Set AtEnd=1
+		Set Row=""
+	} else {	// fetch row
+		Set Row=^CacheTemp("TRAK",repid,ind)
+	}
+
+	// Save QHandle
+	Set QHandle=$lb(AtEnd,repid,ind)
+	Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Query name="CoverSheet">
+<Description>
+This is the Stored Procedure Template. For Sample use only.
+It expects one parameter of type integer and will return 4 fields:
+Field1 - Integer
+Field2 - String
+Field3 - Date
+Field4 - Time</Description>
+<Type>%Library.Query</Type>
+<FormalSpec>EpisodeID:%Library.String,ReferralID:%Library.String,ReferralToID:%Library.String</FormalSpec>
+<SqlProc>1</SqlProc>
+<Parameter name="CONTAINID" value="0"/>
+<Parameter name="ROWSPEC" value="FormCode:%String,PageTitle:%String,PageDesc:%String,PageSideText:%String,ClientName:%String,DOB:%String,Sex:%String,UR:%String,qid:%String,RefTo:%String,RefToType:%String,RefSpec:%String,RefPhone:%String,RefFax:%String,RefEmail:%String,RefAddress1:%String,RefAddress2:%String,RefCity:%String,RefZip:%String,RefOrg:%String,AgencyName:%String,AgencySpec:%String,AgencyPhone:%String,AgencyFax:%String,AgencyEmail:%String,AgencyAddress1:%String,AgencyCity:%String,AgencyZip:%String,Priority:%String,IncludeFAS:%String,IncludeTHB:%String,IncludeTHC:%String,IncludeLCA:%String,IncludePAV:%String,IncludeTNA:%String,IncludeTPS:%String,IncludeTCC:%String,OtherNotes:%String,OtherNotesPC:%String,OtherNotesPB:%String,RefOutcome:%String,EstDate:%String,RefNotProc:%String,RefComments:%String,RefCommentsPC:%String,RefCommentsPB:%String,DateAck:%String,Name:%String,Position:%String,RefAddress:%String,AgencyAddress:%String,SCTTRefQuesId:%String"/>
+</Query>
+</Class>
+</Export>

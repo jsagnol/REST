@@ -1,0 +1,232 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.AUXX.Report.ZEN.StoredProc.ExpectedDischarges">
+<ProcedureBlock>0</ProcedureBlock>
+<Super>Report.Abstract</Super>
+<TimeCreated>60150,57972.381948</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/AUXX/Report/ZEN/StoredProc/ExpectedDischarges.xml#1 $</Default>
+</Parameter>
+
+<UDLText name="T">
+<Content><![CDATA[
+// Report Name: Expected Discharges <br>
+
+]]></Content>
+</UDLText>
+
+<UDLText name="T">
+<Content><![CDATA[
+// Report Code: AUXX.ATD0011 <br>
+
+]]></Content>
+</UDLText>
+
+<UDLText name="T">
+<Content><![CDATA[
+// LOGTRAK Number: 72194 <br>
+
+]]></Content>
+</UDLText>
+
+<Method name="GetDischargesClose">
+<Description>
+This is the Close component of the %Library.Query.
+This is standard code and should never have to change.
+This is where all the cleanup is performed, i.e. the purging of the temporary storage global ^CacheTemp.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>QHandle:%Library.Binary</FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Clean up by purging the temporary node in ^CacheTemp global
+ New repid
+ Set repid=$li(QHandle,2)
+
+ //Start Monitor (if configured to capture stats)
+ i mon Do ..MonitorEnd(mon)
+
+ Kill ^CacheTemp("TRAK",repid)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="GetDischargesExecute">
+<Description>
+This is the Execute section for the %Library.Query. 
+All of the logic will be performed here.
+A new node for the ^CacheTemp global will be created and each subscript of this global will contain
+a row for the report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,DateFrom:%Library.Date,DateTo:%Library.Date,Hospital:%Library.String,Ward:%Library.String]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+
+ // Get reportid i.e. use $INCREMENT to add another node to ^CacheTemp global. 
+ // We use ^CacheTemp global because it will always use memory before disk
+ New repid,ind, END
+ 
+ // Use $Increment to get the next node and clean up
+ Set repid=$Increment(^CacheTemp("TRAK"))
+ Kill ^CacheTemp("TRAK",repid)
+ 
+ //Start Monitor (if configured to capture stats)
+ s mon=..MonitorBegin()
+ 
+ // Build data into ^CacheTemp(ReportID)
+ // e.g. Set ^CacheTemp(ReportID,Index)=$LB(f1,f2,f3)
+ New PAADMRowID,PAADMAdmNo,PAADMAdmDate,PAADMEstimDischargeDate,PAPMINo,PAPERRowID,PAPERName,PAPERName2,PAPERName3,TTLCode,PAPMIVIPFlag
+ New CTPCPRowID,CTPCPDesc,WARDRowID,WARDCode,WARDDesc,CTLOCFLoor,HOSPRowID,HOSPDesc,ROOMCode,BEDCode
+                  
+ Set (PAADMRowID,PAADMAdmNo,PAADMAdmDate,PAADMEstimDischargeDate,PAPMINo,PAPERRowID,PAPERName,PAPERName2,PAPERName3,TTLCode,PAPMIVIPFlag,
+      CTPCPRowID,CTPCPDesc,WARDRowID,WARDCode,WARDDesc,CTLOCFLoor,HOSPRowID,HOSPDesc,ROOMCode,BEDCode
+     ) = ""
+
+ s ind=1, END = 0
+ 
+ // Strip white space/control chars from blank variables
+ if Hospital '= ""
+	{
+		set Hospital = $ZSTRIP(Hospital,"*WC")
+	}
+ 
+ if Ward '= "" 
+	{
+		 set Ward = $ZSTRIP(Ward,"*WC")
+	}
+
+ //	convert dates to cache format
+
+ set DateFrom=..ConvertDateToCache(DateFrom)
+ set DateTo=..ConvertDateToCache(DateTo)
+ //s DateFrom = $$intdate^SSUTIL4(DateFrom)
+ //s DateTo = $$intdate^SSUTIL4(DateTo)
+
+  
+ do GetExpectedDischarges
+ 
+  
+  // Build QHandle (AtEnd,ReportID,Index)
+ Set QHandle=$lb(0,repid,0)
+ Quit $$$OK 
+  
+ //Get all patients with expected discharge dates within the selected date range
+GetExpectedDischarges
+ &sql(declare GetExpectedDischarges cursor for
+ 		select distinct
+                paadm_rowid,
+                paadm_admno,
+                PAADM_AdmDate,
+                paadm_estimdischargedate,
+                paadm_papmi_dr->papmi_no,
+                paadm_papmi_dr->papmi_paper_dr->paper_rowid,
+                paadm_papmi_dr->papmi_paper_dr->paper_name,
+                paadm_papmi_dr->papmi_paper_dr->paper_name2,
+                paadm_papmi_dr->papmi_paper_dr->paper_name3,
+                paadm_papmi_dr->papmi_paper_dr->paper_title_dr->ttl_desc,
+                PAADM_PAPMI_dr->PAPMI_VIPFlag,
+                PAADM_AdmDocCodeDR->CTPCP_RowID,
+                PAADM_AdmDocCodeDR->CTPCP_Desc,
+                paadm_currentward_dr->ward_rowid,
+                paadm_currentward_dr->ward_code,
+                paadm_currentward_dr->ward_desc,
+                paadm_currentward_dr->ward_locationdr->ctloc_floor,
+                paadm_currentward_dr->ward_locationdr->ctloc_hospital_dr->hosp_rowid,
+                paadm_currentward_dr->ward_locationdr->ctloc_hospital_dr->hosp_desc,
+                paadm_currentroom_dr->room_code,
+                paadm_currentbed_dr->bed_code
+                from SQLUSER.pa_adm
+                where paadm_type = 'I'
+                and paadm_visitstatus = 'A'
+                and paadm_estimdischargedate between :DateFrom and :DateTo
+                AND (({fn CONCAT( ',', {fn CONCAT((:Hospital),',')})} [ {fn CONCAT( ',', {fn CONCAT((paadm_currentward_dr->ward_locationdr->ctloc_hospital_dr->hosp_rowid),',')})}) OR (:Hospital IS NULL))
+                AND (({fn CONCAT( ',', {fn CONCAT((:Ward),',')})} [ {fn CONCAT( ',', {fn CONCAT((paadm_currentward_dr->WARD_RowId),',')})}) OR (:Ward IS NULL))
+		)
+ 		
+ &sql(open GetExpectedDischarges)
+ 
+ do FetchExpectedDischarges
+ 
+ while END=0
+ { 
+	 do FormatDates
+	 do BuildRow
+	 do FetchExpectedDischarges
+ }
+ 
+ &sql(close GetExpectedDischarges)
+ 
+ quit
+
+FetchExpectedDischarges
+ //fetch rows into cursor
+ &sql(fetch GetExpectedDischarges INTO 
+ 	 	:PAADMRowID,:PAADMAdmNo,:PAADMAdmDate,:PAADMEstimDischargeDate,
+ 	 	:PAPMINo,:PAPERRowID,:PAPERName,:PAPERName2,:PAPERName3,:TTLCode,:PAPMIVIPFlag,
+ 	 	:CTPCPRowID,:CTPCPDesc,:WARDRowID,:WARDCode,:WARDDesc,:CTLOCFLoor,:HOSPRowID,:HOSPDesc,:ROOMCode,:BEDCode
+        )
+
+ if SQLCODE '= 0 set END = 1
+
+ Quit
+
+
+FormatDates
+ // Convert the dates to ODBC date format
+ If PAADMAdmDate  Set PAADMAdmDate =..ConvertDateToODBC(PAADMAdmDate)
+ If PAADMEstimDischargeDate Set PAADMEstimDischargeDate=..ConvertDateToODBC(PAADMEstimDischargeDate)
+ 
+ Quit
+
+
+BuildRow
+ // build the row
+ Set ^CacheTemp("TRAK",repid,HOSPDesc_" "_WARDDesc_" "_PAPERName_" "_PAPERName2_" "_PAPERName3_ind)=$LB(PAADMRowID,PAADMAdmNo,PAADMAdmDate,PAADMEstimDischargeDate,PAPMINo,PAPERRowID,PAPERName,PAPERName2,PAPERName3,TTLCode,PAPMIVIPFlag,CTPCPRowID,CTPCPDesc,WARDRowID,WARDCode,WARDDesc,CTLOCFLoor,HOSPRowID,HOSPDesc,ROOMCode,BEDCode)
+ Set ind=ind+1
+ quit
+]]></Implementation>
+</Method>
+
+<Method name="GetDischargesFetch">
+<Description>
+This is the Fetch component of the %Library.Query. 
+This should never have to change. It is designed to fetch the row for each subscript of the ^CacheTemp</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,&Row:%Library.List,&AtEnd:%Library.Integer=0]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // This fetch method should never have to change. 
+
+ New repid,ind
+
+ // Restore QHandle
+ Set AtEnd=$li(QHandle,1)
+ Set repid=$li(QHandle,2)
+ Set ind=$li(QHandle,3)
+
+ Set ind=$o(^CacheTemp("TRAK",repid,ind))
+ If ind="" {	// if there are no more rows, finish fetching
+ Set AtEnd=1
+ Set Row=""
+ }
+ Else      {	// fetch row
+ Set Row=^CacheTemp("TRAK",repid,ind)
+ }
+
+ // Save QHandle
+ s QHandle=$lb(AtEnd,repid,ind)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Query name="GetDischarges">
+<Type>%Library.Query</Type>
+<FormalSpec>DateFrom:%Library.Date,DateTo:%Library.Date,Hospital:%Library.String,Ward:%Library.String</FormalSpec>
+<SqlProc>1</SqlProc>
+<Parameter name="CONTAINID" value="0"/>
+<Parameter name="ROWSPEC" value="PAADMRowID:%Library.String,PAADMAdmNo:%Library.String,PAADMAdmDate:%Library.Date,PAADMEstimDischargeDate:%Library.Date,PAPMINo:%Library.String,PAPERRowID:%Library.String,PAPERName:%Library.String,PAPERName2:%Library.String,PAPERName3:%Library.String,TTLCode:%Library.String,PAPMIVIPFlag:%Library.String,CTPCPRowID:%Library.String,CTPCPDesc:%Library.String,WARDRowID:%Library.String,WARDCode:%Library.String,WARDDesc:%Library.String,CTLOCFLoor:%Library.String,HOSPRowID:%Library.String,HOSPDesc:%Library.String,ROOMCode:%Library.String,BEDCode:%Library.String"/>
+</Query>
+</Class>
+</Export>

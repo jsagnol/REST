@@ -1,0 +1,265 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.SWARH.Report.ZEN.SWARHZEPR1002">
+<Description><![CDATA[
+<pre>
+**************************************************************************************************************************************
+* Report Code: SWARHZEPR1001
+* Report Description: Clinical Notes report returns both HTML and txt notes for the selected parameters.
+* Menu Caption: Clinical Notes (New)
+* Initial release: 22/09/2016 Developer: Michael Welsh
+* Modified: 
+**************************************************************************************************************************************
+</pre>]]></Description>
+<Super>Report.ZEN.Abstract</Super>
+<TimeCreated>61815,46184.251494</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/SWARH/Report/ZEN/SWARHZEPR1002.xml#1 $</Default>
+</Parameter>
+
+<Property name="HospitalID">
+<Type>%Integer</Type>
+<Parameter name="ZENURL" value="P1"/>
+</Property>
+
+<Property name="PatientUR">
+<Type>%String</Type>
+<Parameter name="ZENURL" value="P2"/>
+</Property>
+
+<Property name="DateFrom">
+<Type>%Date</Type>
+<Parameter name="ZENURL" value="P3"/>
+</Property>
+
+<Property name="DateTo">
+<Type>%Date</Type>
+<Parameter name="ZENURL" value="P4"/>
+</Property>
+
+<Property name="EpisodeID">
+<Type>%Integer</Type>
+<Parameter name="ZENURL" value="P5"/>
+</Property>
+
+<Property name="NoteNurseID">
+<Type>%Integer</Type>
+<Parameter name="ZENURL" value="P6"/>
+</Property>
+
+<Property name="NoteTypeID">
+<Type>%String</Type>
+<Parameter name="ZENURL" value="P7"/>
+</Property>
+
+<Property name="TMPStreamIDs">
+<Type>%String</Type>
+<InitialExpression>0</InitialExpression>
+</Property>
+
+<Property name="AnnotId">
+<Type>%Integer</Type>
+<InitialExpression>0</InitialExpression>
+</Property>
+
+<XData name="ReportDefinition">
+<Description>
+This XML defines the logical contents of this report.</Description>
+<XMLNamespace>http://www.intersystems.com/zen/report/definition</XMLNamespace>
+<Data><![CDATA[
+<report xmlns="http://www.intersystems.com/zen/report/definition"
+ name="ClinicalNote" queryClass="Custom.SWARH.Report.ZEN.StoredProc.SWARHZEPR1002"
+  queryName="SWARHZEPR1002">
+  <parameter expression="..HospitalID" />
+  <parameter expression='..PatientUR'/>
+  <parameter expression='..DateFrom'/>
+  <parameter expression="..DateTo" />
+  <parameter expression='..EpisodeID'/>
+  <parameter expression="..NoteNurseID" />
+  <parameter expression='..NoteTypeID'/>
+   
+  <attribute name="ReportTitle" expression='$$$Text("Clinical Notes")' />
+  <attribute name="timestamp" expression='$ZDATETIME($H, 2, 2)'/>
+  <attribute name="username" expression="..Username"/>
+  <attribute name="HospitalID" expression="..HospitalID" />
+  <attribute name="PatientUR" expression="..PatientUR"/>
+  <attribute name="DateFrom" expression="..DisplayDate(..DateFrom)"/>
+  <attribute name="DateTo" expression="..DisplayDate(..DateTo)"/>
+  <attribute name="EpisodeID" expression="..EpisodeID"/>       
+
+  <element name="URNo" field="URNo" expression='%val_" "'/>
+  <element name="PatientName" fields="Surname,GivenName,OtherGivenName" expression='..DisplayName(%val("Surname"),", ",%val("GivenName"),%val("OtherGivenName"))' />
+  <element name="EpisodeNo" field="EpisodeNo"/>
+  <element name="DOB" field="DOB" expression='$zd($zdh(%val,3),4,,4)_" "'/>
+  <element name="HospDesc" field="Hospital"/>
+  <element name="HospLogo" fields='ServerNme,NameSpce,HospDR'
+	 expression='"http://"_%val("ServerNme")_"/trakcare/"_%val("NameSpce")_"/web/images/SWARH/HospLogos/"_%val("HospDR")_".jpg"'/>
+  
+  <group name="Details">
+  <element name="Episode" field="EpisodeNo"/>
+  <element name="NOTNotes" field="nnNotes"/>
+  <element name="CNTDesc" field="NoteTypeDesc"/>
+  <element name="NOTDate" field="NoteDate" expression='..DisplayDate(%val)'/>  
+  <element name="NOTTime" field="NoteTime" expression='..DisplayTime(%val)'/>
+  <element name="NoteNurse" field="NoteNurse"/>  
+  <element name="CTCPTDesc" field="NoteCPDesc"/>  
+  <element name="HTMLNotes" field="HTMLNotes" escape="html" />  
+  <element name="AnnotId" field="idTMPOEAnnot" expression='..buildTMPStreamIDs(%val)' /> 
+  <element name="AnnotData" field="AnnotData" fieldType="stream"/> 
+  <element name="width" expression="6"/>
+  <element name="height" expression="6"/>
+  </group>
+</report>
+]]></Data>
+</XData>
+
+<XData name="ReportDisplay">
+<Description>
+This XML defines the display for this report.
+This is used to generate the XSLT stylesheets for both HTML and XSL-FO.</Description>
+<XMLNamespace>http://www.intersystems.com/zen/report/display</XMLNamespace>
+<Data><![CDATA[
+<report xmlns="http://www.intersystems.com/zen/report/display"
+xmlns:trakstyle='http://www.intersystems.com/zen/report/display/trak/style'
+xmlns:trak='http://www.intersystems.com/zen/report/display/trak'
+ name="ClinicalNote">
+<!-- add display definition of the report here. -->
+<document width="210mm" height="297mm" marginLeft="10mm" marginRight="10mm" marginTop="5mm" marginBottom="10mm"  headerHeight="25mm" regionBeforeExtent="10mm">
+<trakstyle:trakgroupheader/>
+<trakstyle:trakgroupsummary/>
+<trakstyle:trakhospitalheader/>
+<trakstyle:trakpagefooter/>
+<trakstyle:trakpageheader/>
+<trakstyle:trakparameterheader/>
+<trakstyle:trakreporttitle/>
+<trakstyle:traktablecolumn/>
+<trakstyle:traktablecolumnoverflow/>
+</document>
+
+<pageheader width="100%">
+<table width="100%" style="font-weight:bold">
+<block width="40%" style="text-align:left">
+<item field="//@ReportTitle" style="font-size:14pt"/>
+<br/>
+<line pattern="empty" lineHeight="2mm" />
+<br/>
+<item field="HospDesc" style="font-size:10pt"/>
+</block>
+<block width="40%" style="text-align:left; font-size:10pt">
+<item value="Patient: "/>
+<item field="PatientName"/>
+<br/>
+<line pattern="empty" lineHeight="2mm" />
+<br/>
+<item value="UR No: "/>
+<item field="URNo"/>
+<item value="   DOB: "/>
+<item field="DOB"/>
+<br/>
+<line pattern="empty" lineHeight="2mm" />
+<br/>
+<item value="Episode No: " ifxpath="@EpisodeID!=&quot;&quot;"/>
+<item field="EpisodeNo" ifxpath="@EpisodeID!=&quot;&quot;"/>
+<item value="Date From: " ifxpath="@DateFrom!=&quot;&quot;"/>
+<item field="@DateFrom" ifxpath="@DateFrom!=&quot;&quot;"/>
+<br/>
+<item value="Date To: " ifxpath="@DateTo!=&quot;&quot;"/>
+<item field="@DateTo" ifxpath="@DateTo!=&quot;&quot;"/>
+</block>
+<block width="20%" style="text-align:right">
+<table orient="col">
+<img src="!HospLogo" contentHeight="50%"/> 
+</table>
+</block>
+</table>
+<line pattern="solid" width="100%"/>
+</pageheader>
+
+<pagefooter>
+<table>
+<block style="font-size:small;">
+<item value="Created on "/>
+<item field="//@timestamp "/>
+<item value="by "/>
+<item field="//@username"/>
+<br/>
+<item value="Report Code:SWARHZEPR1002" style="font-size:x-small;"/>
+</block>
+<block style="font-size:small" width="15%">
+<item value="Page&#160;"/>
+<item special="page-number-of"/>
+</block>
+</table>
+</pagefooter>
+
+<body>
+<group name="Details">
+<table style="font-size:10pt; font-weight:bold">
+<item value="Episode No" width="15%"/>
+<item value="Date" width="15%"/>
+<item value="Time" width="10%"/>
+<item value="Type" width="20%"/>
+<item value="Care Provider" width="20%"/>
+<item value="Care Provider Type" width="20%"/>
+</table>
+<table style="font-size:10pt">
+<item field="Episode" width="15%"/>
+<item field="NOTDate" width="15%"/>
+<item field="NOTTime" width="10%"/>
+<item field="CNTDesc" width="20%"/>
+<item field="NoteNurse" width="20%"/>
+<item field="CTCPTDesc" width="20%"/>
+</table>
+<line pattern="solid" width="100%"/>
+<line pattern="empty" lineHeight="0.5mm"/>
+<table orient="row" class="traktablecolumnoverflow">
+<item field='HTMLNotes' width="100%"  breakOnLineFeed="false" copyhtml="true" ifxpath="HTMLNotes" style="font-size:10pt"/>
+<item field='NOTNotes' width="100%"  breakOnLineFeed="true"/>
+</table>
+ <table orient='col' class='hkbhtablecolumn' width='100%'>
+ <img src="!AnnotData" caption="" contentHeight="6cm" contentWidth="6cm"/>
+  </table>
+  <line pattern="solid" width="100%"/>
+  <line pattern="empty" lineHeight="1mm"/>
+ </group> 
+ </body>
+</report>
+]]></Data>
+</XData>
+
+<Method name="buildTMPStreamIDs">
+<FormalSpec>TMPStreamID:%String</FormalSpec>
+<ReturnType>%Status</ReturnType>
+<Implementation><![CDATA[
+ if TMPStreamID'="",..TMPStreamIDs'="" set ..TMPStreamIDs=..TMPStreamIDs_","
+ if TMPStreamID'="" set ..TMPStreamIDs=..TMPStreamIDs_TMPStreamID
+ quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="%OnAfterReport">
+<ReturnType>%Status</ReturnType>
+<Implementation><![CDATA[
+	s sc=##super()
+	
+	//cleanup TMPStreams
+	s count=1
+	i (..TMPStreamIDs)'="" {
+		DO {
+			s tmpid=$p(..TMPStreamIDs,",",count)
+			i $g(tmpid) {
+				s deleted=##class(websys.TMPStream).%DeleteId(tmpid)					
+			}
+			s count=count+1
+		} while $g(tmpid)'=""
+	}
+	
+	//quit sc
+	quit $$$OK
+]]></Implementation>
+</Method>
+</Class>
+</Export>

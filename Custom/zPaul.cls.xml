@@ -1,0 +1,76 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.zPaul">
+<Abstract>0</Abstract>
+<ClassType/>
+<ProcedureBlock>0</ProcedureBlock>
+<Super>%Library.RegisteredObject</Super>
+<TimeCreated>63609,49663.516113</TimeCreated>
+<Inheritance>right</Inheritance>
+
+<Method name="LookupResponsesDateBroker">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>itmjs:%Library.String,itmjsex:%Library.String,parref:%String="",code:%Library.String=""</FormalSpec>
+<ReturnType>%Boolean</ReturnType>
+<Implementation><![CDATA[
+	k ^zpaul
+	n desc,realcode,id
+	s date=+$h
+	s code=$zcvt(code, "U")
+	&SQL(
+		DECLARE LOOKUPDATEBROKER CURSOR FOR
+		SELECT RESP_RowId,RESP_Code
+		FROM SQLUser.SS_UserDefWinContResp
+		WHERE (RESP_ParRef=:parref)
+		AND ((RESP_DateFrom<=:date) OR (RESP_DateFrom IS NULL)) AND ((RESP_DateTo>=:date) OR (RESP_DateTo IS NULL))
+	)
+	&sql(OPEN LOOKUPDATEBROKER)
+	f {
+		s (id,realcode,desc)=""
+		&sql(FETCH LOOKUPDATEBROKER INTO :id,:realcode)
+		i SQLCODE q
+		s desc=..GetTranslatedDescription(id)
+		i $zcvt(realcode,"U")'=code,$zcvt(desc,"U")'=code continue
+		q
+	}
+	i $g(SQLCODE),code'="" &sql(CLOSE LOOKUPDATEBROKER) q 0
+	&sql(CLOSE LOOKUPDATEBROKER)
+	
+	s retval=itmjs_"('"_$ZCVT(desc,"O","JS")_"');"
+	i itmjsex'="""" s retval=retval_itmjsex_"('"_$ZCVT(desc,"O","JS")_"^"_$zcvt(realcode,"O","JS")_"');"
+	&javascript<#(retval)#>
+
+	q 1
+]]></Implementation>
+</Method>
+
+<Method name="GetTranslatedDescription">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>id:%String=""</FormalSpec>
+<ProcedureBlock>0</ProcedureBlock>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	q:id="" ""
+	s desc=""
+	s ^zpaul(1)=SQLCODE
+	s langid=$s($d(%session):$g(%session.Data("LOGON.LANGID")),1:##class(websys.Configuration).LanguageAppGetStored(1))
+	s ^zpaul(2)=SQLCODE
+	s compId=##class(web.SSUserDefWindow).GetComponentId(+id)
+	s ^zpaul(3)=SQLCODE
+	s ctrlCode=$p($g(^SSU("WIN",+id,"CON",$p(id,"||",2))),"^",7)
+	s respCode=$p($g(^SSU("WIN",+id,"CON",$p(id,"||",2),"RESP",$p(id,"||",3))),"^",1)
+	
+	i langid,ctrlCode'="",respCode'="" {
+		s objTransItem=##class(websys.TranslationTypeItem).%OpenId("QRESP||"_langid_"||"_compId_"||"_ctrlCode_"_"_respCode)
+		s ^zpaul(4)=SQLCODE
+		i objTransItem {
+			s desc=objTransItem.Value
+			k objTransItem
+		}
+	}
+	i desc="" s desc=$p($g(^SSU("WIN",+id,"CON",$p(id,"||",2),"RESP",$p(id,"||",3))),"^",2)
+	q desc
+]]></Implementation>
+</Method>
+</Class>
+</Export>

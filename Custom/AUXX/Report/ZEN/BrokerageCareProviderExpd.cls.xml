@@ -1,0 +1,211 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.AUXX.Report.ZEN.BrokerageCareProviderExpd">
+<Super>Custom.AUXX.Report.ZEN.Abstract</Super>
+<TimeCreated>61583,38648.81142</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/AUXX/Report/ZEN/BrokerageCareProviderExpd.xml#1 $</Default>
+</Parameter>
+
+<Property name="DateFrom">
+<Description>
+********************************************************************
+* AUXX.BRO0010 Brokerage Care Provider Expenditure    
+*
+* Initial release: 01/06/2012
+* 
+* TRC Number: 99239
+********************************************************************</Description>
+<Type>%String</Type>
+<Parameter name="ZENURL" value="P1"/>
+</Property>
+
+<Property name="DateTo">
+<Type>%String</Type>
+<Parameter name="ZENURL" value="P2"/>
+</Property>
+
+<Property name="Facility">
+<Type>%String</Type>
+<Parameter name="ZENURL" value="P3"/>
+</Property>
+
+<Property name="CareProv">
+<Type>%String</Type>
+<Parameter name="ZENURL" value="P4"/>
+</Property>
+
+<Property name="Program">
+<Type>%String</Type>
+<Parameter name="ZENURL" value="P5"/>
+</Property>
+
+<XData name="ReportDefinition">
+<XMLNamespace>http://www.intersystems.com/zen/report/definition</XMLNamespace>
+<Data><![CDATA[
+<report xmlns='http://www.intersystems.com/zen/report/definition'
+   queryClass='Custom.AUXX.Report.ZEN.StoredProc.BrokerageCareProviderExpd' queryName='GetRecords' name='BrokerageCareProviderExpd'>
+   <parameter expression='..DateFrom'/>
+  <parameter expression='..DateTo'/>
+  <parameter expression='..Facility'/>
+ <parameter expression='..CareProv'/>
+   <parameter expression='..Program'/>
+
+  <attribute name='ReportTitle' expression='$$$Text("@BrokerageCareProviderExpenditure@Brokerage Care Provider Expenditure")'/>
+  <attribute name='timestamp' expression='$ZDATETIME($H, 2, 2)'/>  
+  <attribute name='username' expression='..Username'/>
+ 
+  <attribute name="datefrom" expression="..DisplayDate(..DateFrom)"/>
+  <attribute name="dateto" expression="..DisplayDate(..DateTo)"/>
+  <attribute name='facility' expression='..GetHospListDesc(..Facility)'/>
+  <attribute name='CareProv' expression="..GetCareProvListDesc(..CareProv)"/>
+  <attribute name="Program" expression="..GetProgramListDesc(..Program)"/>
+
+  <group name="Service" breakOnField="DEPDesc">
+   <aggregate name='TotPlanSpend' type='SUM' field='PlannedSpend'/>
+   <aggregate name='TotActSpend' type='SUM' field='ActualSpend'/>
+  <!-- <aggregate name='TotBudVar' type='SUM' field='BudgetVariance'/>
+       <aggregate type="CUSTOM" class="Custom.AUXX.Report.ZEN.Aggregate.SpendMinus"
+               name="TotBudVar" fields="PlannedUnits,ActualUnits"/> -->
+       <aggregate type="CUSTOM" class="Custom.AUXX.Report.ZEN.Aggregate.SpendMinus"
+               name="TotBudVar" fields="PlannedSpend,ActualSpend"/>
+
+
+  <group name="CareProv" breakOnField="CTPCPDesc">
+  <attribute name="description" field="CTPCPDesc" />
+   <aggregate name='CPPlanSpend' type='SUM' field='PlannedSpend'/>
+   <aggregate name='CPActSpend' type='SUM' field='ActualSpend'/>
+   
+       <aggregate type="CUSTOM" class="Custom.AUXX.Report.ZEN.Aggregate.SpendMinus"
+               name="CPBudVar" fields="PlannedSpend,ActualSpend"/>
+       <aggregate name='CPDuration' type='SUM' field='Duration'/>
+       <aggregate name='CPORRate' type='MAX' field='ORRate'/>
+       <aggregate name='CPBaseUnit' type='MAX' field='BaseUnit'/>   
+    <element name='CaptionOne' expression='"Service"_$C(13,10)_"Date"' />
+    <element name='CaptionTwo' expression='"Cost"_$C(13,10)_"UOM"' />
+
+
+  <group name="Pat" breakOnField="PAPMINo">
+  
+    <group name="OI" breakOnField="ARCIMDesc">
+  	   <attribute name="description" field="DEPDesc" />
+       <attribute fields='PAPMIName,PAPMIName2' name='PatientName' expression='..DisplayName(%val("PAPMIName"),%val("PAPMIName2"))'/>
+	   <attribute field='PAPMINo' name='PAPMINo' />
+       <attribute field='NGODesc' name='NGODesc'/>
+       <attribute field='arcimdesc' name='arcimdesc'/>
+       <attribute field='VendorRate' name='VendorRate'/>
+       <attribute field='RateType' name='RateType'/>
+       <aggregate name='SPlannedUnits' type='SUM' field='PlannedUnits'/>
+       <aggregate name='SActualUnits' type='SUM' field='ActualUnits'/>
+       <aggregate name='SPlannedSpend' type='SUM' field='PlannedSpend'/>
+       <aggregate name='SActualSpend' type='SUM' field='ActualSpend'/>
+       <aggregate name='SDuration' type='SUM' field='Duration'/>
+       <aggregate name='MORRate' type='MAX' field='ORRate'/>
+       <aggregate name='MBaseUnit' type='MAX' field='BaseUnit'/>
+       <aggregate type="CUSTOM" class="Custom.AUXX.Report.ZEN.Aggregate.Minus"
+               name="UnitMinus" fields="PlannedUnits,ActualUnits"/>
+       <aggregate type="CUSTOM" class="Custom.AUXX.Report.ZEN.Aggregate.SpendMinus"
+               name="SpendMinus" fields="PlannedSpend,ActualSpend"/>
+      <group name='Detail'>
+       <attribute field='Duration' name='Duration'/>
+       <attribute field='ORRate' name='ORRate'/>   
+       <attribute field='BaseUnit' name='BaseUnit'/> 
+       <attribute field='ActualUnits' name='ActualUnits'/>
+       <attribute field='PlannedUnits' name='PlannedUnits'/>
+       <attribute field='PlannedSpend' name='PlannedSpend'/>
+       <attribute field='ActualSpend' name='ActualSpend'/>
+  </group>
+ </group>
+ </group>
+ </group>
+ </group>
+
+  </report>
+]]></Data>
+</XData>
+
+<XData name="ReportDisplay">
+<XMLNamespace>http://www.intersystems.com/zen/report/display</XMLNamespace>
+<Data><![CDATA[
+<report xmlns='http://www.intersystems.com/zen/report/display'
+xmlns:auxxstyle='http://www.intersystems.com/zen/report/display/auxx/style'
+xmlns:auxx='http://www.intersystems.com/zen/report/display/auxx'
+  name='BrokerageCareProviderExpd'>
+<document width= "#(..ReportWidth)#" height="#(..ReportHeight)#" marginLeft="#(..DocMarginLeft)#" marginRight="#(..DocMarginRight)#" 
+marginTop="#(..DocMarginTop)#" marginBottom="#(..DocMarginBottom)#" footerHeight="#(..DocFooterHeight)#" headerHeight="#(..DocHeaderHeight)#" 
+regionBeforeExtent="#(..DocHeaderHeight)#" regionAfterExtent="#(..DocFooterHeight)#">
+<auxxstyle:auxxgroupheader/>
+<auxxstyle:auxxgroupsummary/>
+<auxxstyle:auxxhospitalheader/>
+<auxxstyle:auxxpagefooter/>
+<auxxstyle:auxxpageheader/>
+<auxxstyle:auxxparameterheader/>
+<auxxstyle:auxxreporttitle/>
+<auxxstyle:auxxtablecolumn/>
+</document>
+<auxx:PageHeader pagetitle='@ReportTitle'/>
+<auxx:ReportFooter username='@username' timestamp='@timestamp'/>
+
+<body>
+<!-- REPORT HEADER -->
+<auxx:ReportHeader reporttitle='@ReportTitle'/>
+<auxx:ReportParameterHeader label='@Facility:@Facility:' field='@facility' xcondition="string-length(@facility)>0"/>
+<auxx:ReportParameterHeader label='@CareProvider:@CareProvider:' field='@CareProv'  xcondition="string-length(@CareProv)>0"/>
+<auxx:ReportParameterHeader label='@Program:@Program:' field='@Program'  xcondition="string-length(@Program)>0"/>
+<auxx:ReportDateHeader datefrom="@datefrom" dateto="@dateto" />
+
+<line pattern="solid" width="100%"></line>
+<group name='Service' >
+<group name='CareProv' >
+<auxx:GroupHeader label="@CareProvider:@Care Provider:" field="@description"/>
+<line pattern="empty" lineHeight="2mm" />
+<group name='Pat' >
+     <table class='auxxtablecolumn'  group='OI'  >
+        <item field='@PatientName' width="15%"  caption="@ClientName@Client Name"  />
+        <item field='@PAPMINo' width="10%" caption='@URN@URN'/>
+        <item field='@arcimdesc' width="17%" caption="@OrderItem@Order Item"/>
+        <item field='@VendorRate' width="7.5%" caption='@VendorRate@Vendor Rate' formatNumber="###,##0.00"  style="text-align:right" ifxpath='@VendorRate&amp;gt;0'/> 
+        <item field='' width="0.5%" />
+        <item field='@RateType' width="10%" caption='@RateType@Rate Type' />
+        <item field='SPlannedUnits' width="8%" caption='@UnitsPlanned@Units Planned' formatNumber="###,##0" style="text-align:right"/> 
+        <!--<item ifxpath="(SPlannedUnits-SActualUnits)>0" field='SPlannedUnits-SActualUnits' caption='Units Undelivered'  width="8%" style="text-align:right" formatNumber="###0.00"/>-->
+        <item ifxpath="(UnitMinus)>0" field='UnitMinus' caption='Units Undelivered'  width="8%" style="text-align:right" />
+        <item field='SPlannedSpend' width="8%" style="text-align:right" caption='@PlannedSpend@Planned Spend' formatNumber="###,##0.00"/>
+        <!--<item field='SPlannedSpend-SActualSpend' width="8%" caption='@BudgetVariance@Budget Variance' formatNumber="###,##0.00" style="text-align:right"  ifxpath='@BudgetVariance&amp;gt;0'/>-->
+        <item field='SpendMinus' width="8%" caption='@BudgetVariance@Budget Variance' formatNumber="###,##0.00" style="text-align:right" />
+	    <!--<item ifxpath="(MBaseUnit)>0" field='SDuration div MBaseUnit*MORRate' caption='Actual Spend'  width="8%" style="text-align:right" formatNumber="###0.00"/>-->
+	    <item field='SActualSpend' width="8%" style="text-align:right" caption='@ActualSpend@Actual Spend' formatNumber="###,##0.00"/>
+
+
+  	</table> 
+<line pattern="empty" width="100%"></line> 
+   </group> 
+
+
+ <table class='auxxgroupsummary' >
+	    <item value='@Totalsfor@Totals for '  width="7%" />
+        <item field='@description' width="69%" />
+       <item field='CPPlanSpend' width="8%" formatNumber="###0.00" style="text-align:right"/>
+        <item field="CPBudVar" formatNumber="###0.00" style="text-align:right"  width="8%"/>
+ 	    <item field='CPActSpend' width="8%" formatNumber="###0.00" style="text-align:right"/>
+
+ 	</table> 
+<line pattern="empty" width="100%"></line> 
+  </group> 
+
+ <table class='auxxgroupsummary' >
+	    <item value='@ReportTotals@Report Totals'  width="76%" />
+           <item field='TotPlanSpend' width="8%" formatNumber="###0.00" style="text-align:right"/>
+        <item field="TotBudVar" formatNumber="###0.00" width="8%" style="text-align:right"/>
+	    <item field='TotActSpend' width="8%" formatNumber="###0.00" style="text-align:right"/>
+ 	</table> 
+ </group> 
+</body>
+</report>
+]]></Data>
+</XData>
+</Class>
+</Export>

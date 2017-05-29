@@ -1,0 +1,666 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.AUSW.Report.ZEN.Abstract">
+<Abstract>1</Abstract>
+<ProcedureBlock>0</ProcedureBlock>
+<Super>Report.ZEN.Abstract</Super>
+<TimeCreated>62374,54625.094929</TimeCreated>
+<DependsOn>Custom.AUSW.Report.ZEN.Composite.Abstract</DependsOn>
+
+<Parameter name="SrcVer">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/AUSW/Report/ZEN/Abstract.xml#1 $</Default>
+</Parameter>
+
+<Parameter name="DISTRIBUTESOURCE">
+<Type>%String</Type>
+<Default>1</Default>
+</Parameter>
+
+<Parameter name="DOMAIN">
+<Description>
+This Parameter should be updated when synced from Perforce
+Parameter SrcVer = "$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/AUSW/Report/ZEN/Abstract.xml#1 $";
+This parameter MUST be overwritten by Custom.Zen.Abstract for Site specific localization domain</Description>
+<Default>AUSWZenReports</Default>
+</Parameter>
+
+<Parameter name="DEFAULTMODE">
+<Default>pdf</Default>
+</Parameter>
+
+<Parameter name="ZENLOCALIZE">
+<Default>1</Default>
+</Parameter>
+
+<Parameter name="XSLTMODE">
+<Default>server</Default>
+</Parameter>
+
+<Parameter name="TOOLONGTEXT">
+<Default>none</Default>
+</Parameter>
+
+<Property name="ReportWidth">
+<Type>%ZEN.Datatype.string</Type>
+<InitialExpression>"297mm"</InitialExpression>
+</Property>
+
+<Property name="ReportHeight">
+<Type>%ZEN.Datatype.string</Type>
+<InitialExpression>"210mm"</InitialExpression>
+</Property>
+
+<Property name="DocMarginLeft">
+<Type>%ZEN.Datatype.string</Type>
+<InitialExpression>"10mm"</InitialExpression>
+</Property>
+
+<Property name="DocMarginRight">
+<Type>%ZEN.Datatype.string</Type>
+<InitialExpression>"10mm"</InitialExpression>
+</Property>
+
+<Property name="DocMarginTop">
+<Type>%ZEN.Datatype.string</Type>
+<InitialExpression>"10mm"</InitialExpression>
+</Property>
+
+<Property name="DocMarginBottom">
+<Type>%ZEN.Datatype.string</Type>
+<InitialExpression>"10mm"</InitialExpression>
+</Property>
+
+<Property name="DocFooterHeight">
+<Type>%ZEN.Datatype.string</Type>
+<InitialExpression>"35mm"</InitialExpression>
+</Property>
+
+<Property name="DocHeaderHeight">
+<Type>%ZEN.Datatype.string</Type>
+<InitialExpression>"25mm"</InitialExpression>
+</Property>
+
+<Method name="GetTrakLanguage">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>trakuserid</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	//If a zen code exists in the language table for current trak user, then return this code
+	s lang="", userid=""
+	s trakuserid=$g(trakuserid)
+	i $g(trakuserid)'="" {
+		s langid=$p($g(^SSU("SSUSR",trakuserid)),"^",13)
+		i $g(langid)'="" s lang=$p($g(^SS("LAN",langid)),"^",3)
+	}
+	q lang
+]]></Implementation>
+</Method>
+
+<Method name="%OnBeforeReport">
+<ReturnType>%Status</ReturnType>
+<Implementation><![CDATA[
+ do ##super()
+ s trakuserid=..UserID
+ s lang=..GetTrakLanguage(trakuserid)
+ i $g(lang)="" s lang=$$$SessionLanguage
+ //default if no other language can be resolved
+ i $g(lang)="" s lang="en"
+ set %response.Language=##class(%MessageDictionary).MatchLanguage(lang,"AUXXZenReports")
+ quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="GetReasonGroupListDesc">
+<FormalSpec>rgrp:%String</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	//convert refpri list parameter id's into descriptions
+	s count=1, rgrpdesc=""
+	i $g(rgrp)'="" {
+		DO {
+			s rgrpid=$p(rgrp,",",count)
+			i $g(rgrpid) {
+				i count>1 s rgrpdesc=rgrpdesc_"; "
+				s rgrpdesc=rgrpdesc_$p(^PAC("WLRG",rgrpid),"^",2)
+				
+			}
+			
+			s count=count+1
+		} while $g(rgrpid)'=""
+	}
+	q rgrpdesc
+]]></Implementation>
+</Method>
+
+<Method name="GetADSOUListDesc">
+<FormalSpec>adsou:%String</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	//convert refpri list parameter id's into descriptions
+	s count=1, adsoudesc=""
+	i $g(adsou)'="" {
+		DO {
+			s adsouid=$p(adsou,",",count)
+			i $g(adsouid) {
+				i count>1 s adsoudesc=adsoudesc_"; "
+				s adsoudesc=adsoudesc_$p(^PAC("ADSOU",adsouid),"^",2)
+				
+			}
+			
+			s count=count+1
+		} while $g(adsouid)'=""
+	}
+	q adsoudesc
+]]></Implementation>
+</Method>
+
+<Method name="GetCareTypeListDesc">
+<FormalSpec>caret:%String</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	//convert refpri list parameter id's into descriptions
+	s count=1, caretdesc=""
+	i $g(caret)'="" {
+		DO {
+			s caretid=$p(caret,",",count)
+			i $g(caretid) {
+				i count>1 s caretdesc=caretdesc_"; "
+				s caretdesc=caretdesc_$p(^PAC("CARETYP",caretid),"^",2)
+				
+			}
+			
+			s count=count+1
+		} while $g(caretid)'=""
+	}
+	q caretdesc
+]]></Implementation>
+</Method>
+
+<Method name="GetWLStandbyStatusListDesc">
+<FormalSpec>ss:%String</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	//convert standby status list parameter id's into descriptions
+	s count=1, ssdesc=""
+	i $g(ss)'="" {
+		DO {
+			s ssid=$p(ss,",",count)
+			i $g(ssid) {
+				i count>1 s ssdesc=ssdesc_"; "
+				s ssdesc=ssdesc_$p(^PAC("STANDST",ssid),"^",2)				
+			}
+			
+			s count=count+1
+		} while $g(ssid)'=""
+	}
+	q ssdesc
+]]></Implementation>
+</Method>
+
+<Method name="GetWLWaitingListDesc">
+<FormalSpec>wl:%String</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	//convert wlcat list parameter id's into descriptions
+	s count=1, wldesc=""
+	i $g(wl)'="" {
+		DO {
+			s wlid=$p(wl,",",count)
+			i $g(wlid) {
+				i count>1 s wldesc=wldesc_"; "
+				s wldesc=wldesc_$p(^PAC("WLT",wlid),"^",2)				
+			}
+			
+			s count=count+1
+		} while $g(wlid)'=""
+	}
+	q wldesc
+]]></Implementation>
+</Method>
+
+<Method name="GetRefStatListDesc">
+<FormalSpec>refstat:%String</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	//convert refstat list parameter id's into descriptions
+	s count=1, refstatdesc=""
+	i $g(refstat)'="" {
+		DO {
+			s refstatid=$p(refstat,",",count)
+			i $g(refstatid) {
+				i count>1 s refstatdesc=refstatdesc_"; "
+				s refstatdesc=refstatdesc_$p(^PAC("RST",refstatid),"^",2)
+				
+			}
+			
+			s count=count+1
+		} while $g(refstatid)'=""
+	}
+	q refstatdesc
+]]></Implementation>
+</Method>
+
+<Method name="GetRefPriorityListDesc">
+<FormalSpec>refpriority:%String</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	//convert refpri list parameter id's into descriptions
+	s count=1, refprioritydesc=""
+	i $g(refpriority)'="" {
+		DO {
+			s refpriorityid=$p(refpriority,",",count)
+			i $g(refpriorityid) {
+				i count>1 s refprioritydesc=refprioritydesc_"; "
+				s refprioritydesc=refprioritydesc_$p(^PAC("REFPRI",refpriorityid),"^",2)
+				
+			}
+			
+			s count=count+1
+		} while $g(refpriorityid)'=""
+	}
+	q refprioritydesc
+]]></Implementation>
+</Method>
+
+<Method name="GetDRGVersionDesc">
+<FormalSpec>drgver:%String</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	//convert drgver list parameter id's into descriptions
+	s count=1, drgverdesc=""
+	i $g(drgver)'="" {
+		DO {
+			s drgverid=$p(drgver,",",count)
+			i $g(drgverid) {
+				i count>1 s drgverdesc=drgverdesc_"; "
+				s drgverdesc=drgverdesc_$p(^MRC("DRGVER",drgverid),"^",2)
+					 
+			}
+				
+			s count=count+1
+		} while $g(drgverid)'=""
+	}
+	q drgverdesc
+]]></Implementation>
+</Method>
+
+<Method name="GetInvoiceNo">
+<FormalSpec>InvoiceRowId:%String</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+    //convert Invoice parameter id's into Invoice Number
+    s count=1, InvoiceNo=""
+    i $g(InvoiceRowId)'="" {
+         DO {
+             s InvoiceNoId=$p(InvoiceRowId,",",count)
+             s ^zJD1(count)=InvoiceNoId
+             i $g(InvoiceNoId) {
+                i count>1 s InvoiceNo=InvoiceNo_"; "
+                s InvoiceNo=InvoiceNo_$p($g(^ARPBL(InvoiceNoId)),"^",8)  
+                s ^zJD(count)=InvoiceNo                                                           
+             }
+                                                
+             s count=count+1
+         } while $g(InvoiceNoId)'=""
+     }
+     q InvoiceNo
+]]></Implementation>
+</Method>
+
+<Method name="GetProcedureListDesc">
+<FormalSpec>procedure:%String</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	//convert procedure list parameter id's into descriptions
+	s count=1, operdesc=""
+	i $g(procedure)'="" {
+		DO {
+			s operid=$p(procedure,",",count)
+			i $g(operid) {
+				i count>1 s operdesc=operdesc_"; "
+				s operdesc=operdesc_$p(^ORC("OPER",operid),"^",2)	
+			}
+			
+			s count=count+1
+		} while $g(operid)'=""
+	}
+	q operdesc
+]]></Implementation>
+</Method>
+
+<Method name="GetSPPPListDesc">
+<FormalSpec>sppp:%String</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	//convert State PPP list parameter id's into descriptions
+	s count=1, spppdesc=""
+	i $g(sppp)'="" {
+		DO {
+			s spppid=$p(sppp,",",count)
+			i $g(spppid) {
+				i count>1 s spppdesc=spppdesc_"; "
+				s spppdesc=spppdesc_$p(^PAC("SPPP",spppid),"^",2)
+				
+			}
+			
+			s count=count+1
+		} while $g(spppid)'=""
+	}
+	q spppdesc
+]]></Implementation>
+</Method>
+
+<Method name="GetAnaesListDesc">
+<FormalSpec>anaes:%String</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	//convert anaesthetic method list parameter id's into descriptions
+	s count=1, anaesdesc=""
+	i $g(anaes)'="" {
+		DO {
+			s anaesid=$p(anaes,",",count)
+			i $g(anaesid) {
+				i count>1 s anaesdesc=anaesdesc_"; "
+				s anaesdesc=anaesdesc_$p(^ORC("ANMET",anaesid),"^",2)
+				
+			}
+			
+			s count=count+1
+		} while $g(anaesid)'=""
+	}
+	q anaesdesc
+]]></Implementation>
+</Method>
+
+<Method name="GetReqReasonDesc">
+<FormalSpec>rea:%String</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	//convert REA list parameter id's into descriptions
+	s count=1, readesc=""
+	i $g(rea)'="" {
+		DO {
+			s reaid=$p(rea,",",count)
+			i $g(reaid) {
+				i count>1 s readesc=readesc_"; "
+				s readesc=readesc_$p(^RTC("REA",reaid),"^",1)				
+			}
+			
+			s count=count+1
+		} while $g(reaid)'=""
+	}
+	q readesc
+]]></Implementation>
+</Method>
+
+<Method name="GetUSACCDesc">
+<FormalSpec>usacc:%String</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	//convert USACC list parameter id's into descriptions
+	s count=1, usaccdesc=""
+	i $g(usacc)'="" {
+		DO {
+			s usaccid=$p(usacc,",",count)
+			i $g(usaccid) {
+				i count>1 s usaccdesc=usaccdesc_"; "
+				s usaccdesc=usaccdesc_$p(^PAC("USACC",usaccid),"^",2)				
+			}
+			
+			s count=count+1
+		} while $g(usaccid)'=""
+	}
+	q usaccdesc
+]]></Implementation>
+</Method>
+
+<Method name="GetIPATListDesc">
+<FormalSpec>ipat:%String</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	//convert IPAT list parameter id's into descriptions
+	s count=1, ipatdesc=""
+	i $g(ipat)'="" {
+		DO {
+			s ipatid=$p(ipat,",",count)
+			i $g(ipatid) {
+				i count>1 s ipatdesc=ipatdesc_"; "
+				s ipatdesc=ipatdesc_$p(^PAC("IPAT",ipatid),"^",2)				
+			}
+			
+			s count=count+1
+		} while $g(ipatid)'=""
+	}
+	q ipatdesc
+]]></Implementation>
+</Method>
+
+<Method name="GetDisClassListDesc">
+<FormalSpec>dscl:%String</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	//convert DSCL list parameter id's into descriptions
+	s count=1, dscldesc=""
+	i $g(dscl)'="" {
+		DO {
+			s dsclid=$p(dscl,",",count)
+			i $g(dsclid) {
+				i count>1 s dscldesc=dscldesc_"; "
+				s dscldesc=dscldesc_$p(^PAC("DSCL",dsclid),"^",2)				
+			}
+			
+			s count=count+1
+		} while $g(dsclid)'=""
+	}
+	q dscldesc
+]]></Implementation>
+</Method>
+
+<Method name="GetINDSTListDesc">
+<FormalSpec>indst:%String</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	//convert INDST list parameter id's into descriptions
+	s count=1, indstdesc=""
+	i $g(indst)'="" {
+		DO {
+			s indstid=$p(indst,",",count)
+			i $g(indstid) {
+				i count>1 s indstdesc=indstdesc_"; "
+				s indstdesc=indstdesc_$p(^PAC("INDST",indstid),"^",2)				
+			}
+			
+			s count=count+1
+		} while $g(indstid)'=""
+	}
+	q indstdesc
+]]></Implementation>
+</Method>
+
+<Method name="GetOperTypeDesc">
+<FormalSpec>oper:%String</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	//convert OPER list parameter id's into descriptions
+	s count=1, operdesc=""
+	i $g(oper)'="" {
+		DO {
+			s operid=$p(oper,",",count)
+			i $g(operid) {
+				i count>1 s operdesc=operdesc_"; "
+				s operdesc=operdesc_$p(^ORC("OPER",operid),"^",2)				
+			}
+			
+			s count=count+1
+		} while $g(operid)'=""
+	}
+	q operdesc
+]]></Implementation>
+</Method>
+
+<Method name="GetDRGList">
+<FormalSpec>drg:%String</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	//convert drg list parameter id's into descriptions
+	s count=1, drgdesc=""
+	i $g(drg)'="" {
+		DO {
+			s drgid=$p(drg,",",count)
+			i $g(drgid) {
+				i count>1 s drgdesc=drgdesc_"; "
+				s drgdesc=drgdesc_$p(^MRC("DRG",drgid),"^",2)				
+			}
+			
+			s count=count+1
+		} while $g(drgid)'=""
+	}
+	q drgdesc
+]]></Implementation>
+</Method>
+
+<Method name="GetUserListDesc">
+<FormalSpec>user:%String</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	//convert hospital list parameter id's into descriptions
+	
+		
+	s UserDesc=""
+	if $g(user) '="" {
+	f x=1:1:$l(user,",") {
+	s userid=$p($g(user),",",x)
+	i $g(UserDesc)'="" s UserDesc=UserDesc_"; "_$p(^SSU("SSUSR",userid),"^",2)
+	i $g(UserDesc)="" s UserDesc=$p(^SSU("SSUSR",userid),"^",2)
+ }}
+ q UserDesc
+]]></Implementation>
+</Method>
+
+<Method name="GetStatusDesc">
+<FormalSpec>Status:%String</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	//To display status into proper descriptions
+	s count=1, StatusDesc=""
+	i $g(Status)'="" {
+		DO {
+			s statusid=$p(Status,",",count)
+			i $g(statusid) {
+				i count>1 s StatusDesc=StatusDesc_"; "
+				s StatusDesc=StatusDesc_$p(^PAC("WLS",statusid),"^",2)
+				
+			}
+			
+			s count=count+1
+		} while $g(statusid)'=""
+	}
+	q StatusDesc
+]]></Implementation>
+</Method>
+
+<Method name="GetRBEquipmentListDesc">
+<FormalSpec>rbeq:%String</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	//convert Resource Theatre Room list parameter id's into descriptions
+	s count=1, rbeqdesc=""
+	i $g(rbeq)'="" {
+		DO {
+			s rbeqid=$p(rbeq,",",count)
+			i $g(rbeqid) {
+				i count>1 s rbeqdesc=rbeqdesc_"; "
+				s rbeqdesc=rbeqdesc_$p(^RB("RES",rbeqid),"^",17)
+				
+			}
+			
+			s count=count+1
+		} while $g(rbeqid)'=""
+	}
+	q rbeqdesc
+]]></Implementation>
+</Method>
+
+<Method name="GetAPPTStatusDesc">
+<FormalSpec>Status:%String</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	//To display status into proper descriptions
+	s StatusDesc=""
+	if $g(Status)'=""{
+	f x=1:1:$l(Status,",") {
+	s statusid=$p($g(Status),",",x)
+	i $g(StatusDesc)'="" s StatusDesc=StatusDesc_"; "_##class(websys.StandardTypeItem).GetDescriptionFromCode("RBApptStatus",statusid)
+	i $g(StatusDesc)="" s StatusDesc=##class(websys.StandardTypeItem).GetDescriptionFromCode("RBApptStatus",statusid)
+ }}
+	q StatusDesc
+]]></Implementation>
+</Method>
+
+<Method name="GetInterpretingServicesListDesc">
+<FormalSpec>Int:%String</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	//To display interpreting Service in  descriptions
+	s count=1, IntDesc=""
+	i $g(Int)'="" {
+		DO {
+			s intid=$p(Int,",",count)
+			i $g(intid) {
+				i count>1 s IntDesc=IntDesc_"; "
+				s IntDesc=IntDesc_$p(^PAC("INTERP",intid),"^",2)				
+			}			
+			s count=count+1
+		} while $g(intid)'=""
+	}
+	q IntDesc
+]]></Implementation>
+</Method>
+
+<Method name="DisplayMRDate">
+<FormalSpec>date:%Date</FormalSpec>
+<ReturnType>%Date</ReturnType>
+<Implementation><![CDATA[
+	//convert odbc date into format dd mmm yyyy
+	if ($g(date)'="" & $g(date)'=0) s date=$zd($zdh(date,3),4,,4)
+	q date
+]]></Implementation>
+</Method>
+
+<Method name="DisplayMRTime">
+<FormalSpec>time:%Time</FormalSpec>
+<ReturnType>%Time</ReturnType>
+<Implementation><![CDATA[
+	//convert odbc time into format HH:MM
+	if $g(time)'="" s time=$zt($zth(time,2),2)
+	q time
+]]></Implementation>
+</Method>
+
+<Method name="GetMedType">
+<FormalSpec>type:%String,flag:%String,vardose:%String,phorder:%String,datepoau:%String,timepoau:%String,dateaureq:%String,doctype:%String</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	//convert abbreviation to full text
+	if $g(type)'="" {	  
+	    if type="WARFARIN" s type1="WARFARIN" else
+        if type="INSULIN" s type1="INSULIN" else
+        if type="IV" s type1="INTRAVENOUS INFUSIONS" else 
+        if type="NIO" s type1="Nurse Initiated Medication" else 
+        if type="PO" s type1="Phone Order" else
+        if type="POE" s type1="Phone Order - Expired" else 
+        if type="DIS" s type1="Discharge Medication" else
+        if type="PRN" s type1="PRN" else
+        if type="ADJ" s type1="Regular Variable Dose Medication" else
+      	if type="VAR" s type1="Regular Variable Dose Medication" else
+		if type="OTH" s type1="Regular Medication" else
+		if type="ONE" s type1="Once Only" else
+		if type="STAT" s type1="STAT"	  
+	}
+	q type1
+]]></Implementation>
+</Method>
+</Class>
+</Export>

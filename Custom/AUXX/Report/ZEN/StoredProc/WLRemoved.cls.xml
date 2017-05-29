@@ -1,0 +1,194 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.AUXX.Report.ZEN.StoredProc.WLRemoved">
+<ProcedureBlock>0</ProcedureBlock>
+<Super>Report.Abstract</Super>
+<TimeCreated>59388,55236.125</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/AUXX/Report/ZEN/StoredProc/WLRemoved.xml#1 $</Default>
+</Parameter>
+
+<UDLText name="T">
+<Content><![CDATA[
+// Report Name: Trak Waiting List Removed <br>
+
+]]></Content>
+</UDLText>
+
+<UDLText name="T">
+<Content><![CDATA[
+// Report Code: Trak.WLT0006 <br>
+
+]]></Content>
+</UDLText>
+
+<UDLText name="T">
+<Content><![CDATA[
+// LOGTRAK Number: 72460 <br>	
+
+]]></Content>
+</UDLText>
+
+<Method name="WaitingListClose">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>QHandle:%Library.Binary</FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Clean up by purging the temporary node in ^CacheTemp global
+ New repid
+ Set repid=$LIST(QHandle,2)
+ 
+ //Start Monitor (if configured to capture stats)
+ i mon Do ..MonitorEnd(mon)
+
+ Kill ^CacheTemp("TRAK",repid)
+ 
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="WaitingListExecute">
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,DateFrom:%Date,DateTo:%Date,Hospital:%Library.String,WaitList:%Library.String,Location:%Library.String,Reason:%Library.String]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Get reportid i.e. use $INCREMENT to add another node to ^CacheTemp("TRAK") global. 
+ // We use ^CacheTemp global because CACHETEMP is a memory resident database
+ New repid,ind
+
+ // Use $Increment to get the next node and clean up
+ Set repid=$Increment(^CacheTemp("TRAK"))
+ Kill ^CacheTemp("TRAK",repid)
+ 
+ //Start Monitor (if configured to capture stats)
+ s mon=..MonitorBegin()
+  
+ n WLRowId,WLNo,WLDate,WLDaysOnList,PAPMINo,PAPMIName,PAPMIName2,PAPMIName3,CTSEXCode,PAPERAge,WLOPERDesc,WLProcedureFreeText,HOSPRowId,HOSPCode,HOSPDesc,CTLOCRowId,CTLOCCode,CTLOCDesc,WLTRowId,WLTCode,WLTDesc,WLPRowId,WLPCode,WLPDesc,SPPP,RDate
+ s (WLRowId,WLNo,WLDate,WLDaysOnList,PAPMINo,PAPMIName,PAPMIName2,PAPMIName3,CTSEXCode,PAPERAge,WLOPERDesc,WLProcedureFreeText,HOSPRowId,HOSPCode,HOSPDesc,CTLOCRowId,CTLOCCode,CTLOCDesc,WLTRowId,WLTCode,WLTDesc,WLPRowId,WLPCode,WLPDesc,SPPP,RDate)=""
+ 
+ n TRANSChildsub,WLSCode,REARowId,REACode,READesc,WLDateOfList,WLRemovedDate
+ s (TRANSChildsub,WLSCode,REARowId,REACode,READesc,WLDateOfList,WLRemovedDate)=""
+ 
+ i $g(Hospital)'="" s Hospital=$zstrip(Hospital,"*C")
+ i $g(WaitList)'="" s WaitList=$zstrip(WaitList,"*C")
+ i $g(Location)'="" s Location=$zstrip(Location,"*C")
+ i $g(Reason)'="" s Reason=$zstrip(Reason,"*C")
+ 
+ s DateFrom=..ConvertDateToCache(DateFrom)
+ s DateTo=..ConvertDateToCache(DateTo)
+ 
+ d GetData
+ 
+ 
+ // Build QHandle (AtEnd,ReportID,Index)
+ Set QHandle=$LISTBUILD(0,repid,0)
+ Quit $$$OK
+ 
+GetData
+ &SQL(DECLARE WL CURSOR FOR
+ SELECT DISTINCT
+ %exact(WL_RowId),
+ WL_No,
+ WL_Date,
+ WL_DateOfList,
+ WL_DaysOnList,
+ WL_PAPMI_DR->PAPMI_No,
+ WL_PAPMI_DR->PAPMI_Name,
+ WL_PAPMI_DR->PAPMI_Name2,
+ WL_PAPMI_DR->PAPMI_Name3,
+ WL_PAPMI_DR->PAPMI_Sex_DR->CTSEX_Code,
+ WL_PAPMI_DR->PAPMI_PAPER_DR->PAPER_AgeYr,
+ WL_Operation_DR->OPER_Desc,
+ WL_ProcedureFreeText,
+ WL_Hospital_DR,
+ WL_Hospital_DR->HOSP_Code,
+ WL_Hospital_DR->HOSP_Desc,
+ WL_CTLOC_DR,
+ WL_CTLOC_DR->CTLOC_Code,
+ WL_CTLOC_DR->CTLOC_Desc,
+ WL_WaitListType_DR,
+ WL_WaitListType_DR->WLT_Code,
+ WL_WaitListType_DR->WLT_Desc,
+ WL_WaitListPrior_DR,
+ WL_WaitListPrior_DR->WLP_Code,
+ WL_WaitListPrior_DR->WLP_Desc,
+ TRANS_ReasonNotAvail_DR,
+ TRANS_ReasonNotAvail_DR->REA_Code,
+ TRANS_ReasonNotAvail_DR->REA_Desc,
+ TRANS_Date,
+ WL_StateProc_DR->SPPP_Desc
+ INTO :WLRowId,:WLNo,:WLDate,:WLDateOfList,:WLDaysOnList,:PAPMINo,:PAPMIName,:PAPMIName2,:PAPMIName3,:CTSEXCode,:PAPERAge,:WLOPERDesc,:WLProcedureFreeText,:HOSPRowId,:HOSPCode,:HOSPDesc,:CTLOCRowId,:CTLOCCode,:CTLOCDesc,:WLTRowId,:WLTCode,:WLTDesc,:WLPRowId,:WLPCode,:WLPDesc,:REARowId,:REACode,:READesc,:RDate,:SPPP
+ FROM SQLUser.PA_WaitingList,SQLUser.PA_WaitingListTransaction
+ WHERE WL_WaitListStatus_DR->WLS_Code='R' and wl_rowid=trans_parref and TRANS_STATUS_DR->WLS_Code='R' and TRANS_DateEffective=WL_DateOfList
+ AND WL_DateOfList BETWEEN :DateFrom AND :DateTo and WL_DateMinusExcludeDays=WL_DateMinusExcludeDays
+ AND (({fn CONCAT( ',', {fn CONCAT((:Hospital),',')})} [ {fn CONCAT( ',', {fn CONCAT((WL_Hospital_DR->HOSP_RowId),',')})}) OR (:Hospital IS NULL))
+ AND (({fn CONCAT( ',', {fn CONCAT((:WaitList),',')})} [ {fn CONCAT( ',', {fn CONCAT((WL_WaitListType_DR->WLT_RowId),',')})}) OR (:WaitList IS NULL))
+ AND (({fn CONCAT( ',', {fn CONCAT((:Location),',')})} [ {fn CONCAT( ',', {fn CONCAT((WL_CTLOC_DR->CTLOC_RowId),',')})}) OR (:Location IS NULL))
+ AND (({fn CONCAT( ',', {fn CONCAT((:Reason),',')})} [ {fn CONCAT( ',', {fn CONCAT((TRANS_ReasonNotAvail_DR->REA_RowId),',')})}) OR (:Reason IS NULL)))
+
+ 
+ &SQL(OPEN WL)
+ 
+ f  &SQL(FETCH WL) q:SQLCODE'=0  d
+ . s WLDate=..ConvertDateToODBC(WLDate)
+ . s RDate=..ConvertDateToODBC(RDate)
+ . i READesc="" s READesc="No Reason Recorded"
+ . s WLDateOfList=..ConvertDateToODBC(WLDateOfList)
+ . s WLProcedureFreeText=$zstrip(WLProcedureFreeText,"*C")
+ . d BuildRow
+ &SQL(CLOSE WL)
+ q
+
+BuildRow
+ s ind=$i(ind)
+ s ^CacheTemp("TRAK",repid,$ZCVT(HOSPDesc,"U")_" "_$ZCVT(READesc,"U")_" "_$ZCVT(PAPMIName,"U")_" "_$ZCVT(PAPMIName2,"U")_" "_$ZCVT(PAPMIName3,"U")_" "_$ZCVT(WLTDesc,"U")_" "_$ZCVT(CTLOCDesc,"U")_ind)=$LISTBUILD(WLRowId,WLNo,WLDate,WLDateOfList,WLDaysOnList,PAPMINo,PAPMIName,PAPMIName2,PAPMIName3,CTSEXCode,PAPERAge,WLOPERDesc,WLProcedureFreeText,HOSPRowId,HOSPCode,HOSPDesc,CTLOCRowId,CTLOCCode,CTLOCDesc,WLTRowId,WLTCode,WLTDesc,WLPRowId,WLPCode,WLPDesc,REARowId,REACode,READesc,RDate,SPPP)
+ q
+]]></Implementation>
+</Method>
+
+<Method name="WaitingListFetch">
+<Description>
+This is the Fetch component of the %Library.Query. 
+This should never have to change. It is designed to fetch the row for each subscript of the 
+^CacheTemp("TRAK" global and return this row to the Report writer</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,&Row:%Library.List,&AtEnd:%Library.Integer=0]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // This fetch method should never have to change. 
+ // repid - Report ID
+ // ind   - sequence index which represents each row
+
+ New repid,ind
+
+ // Restore QHandle
+ Set AtEnd=$LI(QHandle,1)
+ Set repid=$LI(QHandle,2)
+ Set ind=$LI(QHandle,3)
+
+ Set ind=$order(^CacheTemp("TRAK",repid,ind))
+ If ind="" {	// if there are no more rows, finish fetching
+ 	Set AtEnd=1
+ 	Set Row=""
+ }  Else  {	// fetch row
+ 	Set Row=^CacheTemp("TRAK",repid,ind)
+ }
+
+ // Save QHandle
+ Set QHandle=$lb(AtEnd,repid,ind)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Query name="WaitingList">
+<Type>%Library.Query</Type>
+<FormalSpec>DateFrom:%Date,DateTo:%Date,Hospital:%Library.String,WaitList:%Library.String,Location:%Library.String,Reason:%Library.String</FormalSpec>
+<SqlProc>1</SqlProc>
+<Parameter name="CONTAINID" value="0"/>
+<Parameter name="ROWSPEC" value="WLRowId:%String,WLNo:%String,WLDate:%Date,WLDateOfList:%Date,WLDaysOnList:%String,PAPMINo:%String,PAPMIName:%String,PAPMIName2:%String,PAPMIName3:%String,CTSEXCode:%String,PAPERAge:%String,WLOPERDesc:%String,WLProcedureFreeText:%String,HOSPRowId:%String,HOSPCode:%String,HOSPDesc:%String,CTLOCRowId:%String,CTLOCCode:%String,CTLOCDesc:%String,WLTRowId:%String,WLTCode:%String,WLTDesc:%String,WLPRowId:%String,WLPCode:%String,WLPDesc:%String,REARowId:%String,REACode:%String,READesc:%String,RDate:%Date,SPPP:%String"/>
+</Query>
+</Class>
+</Export>

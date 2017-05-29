@@ -1,0 +1,192 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.AUXX.Report.ZEN.ExpectedDischarges">
+<Super>Custom.AUXX.Report.ZEN.Abstract</Super>
+<TimeCreated>61472,17734.643479</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/AUXX/Report/ZEN/ExpectedDischarges.xml#1 $</Default>
+</Parameter>
+
+<UDLText name="T">
+<Content><![CDATA[
+// Report Name: Expected Discharges <br>
+
+]]></Content>
+</UDLText>
+
+<UDLText name="T">
+<Content><![CDATA[
+// Report Code: AUXX.ATD0011 <br>
+
+]]></Content>
+</UDLText>
+
+<UDLText name="T">
+<Content><![CDATA[
+// LOGTRAK Number: 72194 <br>
+
+]]></Content>
+</UDLText>
+
+<Property name="DateFrom">
+<Type>%String</Type>
+<Parameter name="ZENURL" value="P1"/>
+</Property>
+
+<Property name="DateTo">
+<Type>%String</Type>
+<Parameter name="ZENURL" value="P2"/>
+</Property>
+
+<Property name="Facility">
+<Type>%String</Type>
+<Parameter name="ZENURL" value="P3"/>
+</Property>
+
+<Property name="Ward">
+<Type>%String</Type>
+<Parameter name="ZENURL" value="P4"/>
+</Property>
+
+<Parameter name="TOOLONGTEXT">
+<Default>none</Default>
+</Parameter>
+
+<UDLText name="T">
+<Content><![CDATA[
+// This XML defines the logical contents of this report.
+
+]]></Content>
+</UDLText>
+
+<UDLText name="T">
+<Content><![CDATA[
+// This XML defines the logical contents of this report.
+
+]]></Content>
+</UDLText>
+
+<XData name="ReportDefinition">
+<XMLNamespace>http://www.intersystems.com/zen/report/definition</XMLNamespace>
+<Data><![CDATA[
+<report xmlns="http://www.intersystems.com/zen/report/definition"
+ name="ExpectedDischarges" queryClass="Custom.AUXX.Report.ZEN.StoredProc.ExpectedDischarges" queryName="GetDischarges" >
+ 
+ <parameter expression="..DateFrom" />
+ <parameter expression="..DateTo" />
+ <parameter expression="..Facility" />
+ <parameter expression="..Ward" />
+ 
+ <attribute name="username" expression="..Username" />
+ <attribute name="pagetitle" expression='$$$Text("@ExpectedDischarges@Expected Discharges")' />
+ <attribute name="reporttitle" expression='$$$Text("@ExpectedDischarges@Expected Discharges")' />
+ <attribute name="timestamp" expression="$zdt($h,2)" />
+ <attribute name="Facility" expression="..Facility"/>
+ <attribute name="Ward" expression="..Ward" />
+ <attribute name="hospitaldesc" expression="..GetHospListDesc(..Facility)"/>
+ <attribute name="warddesc" expression="..GetWardListDesc(..Ward)"/>
+ <attribute name="datefrom" expression="..DisplayDate(..DateFrom)"/>
+ <attribute name="dateto" expression="..DisplayDate(..DateTo)"/>
+
+ <group name="Facility" breakOnField="HOSPDesc">
+ <attribute name="description" field="HOSPDesc" />
+
+ <group name="Ward" breakOnField="WARDDesc">
+ <attribute name="RowId" field="WARDRowId" />
+ <attribute name="WARD_Code" field="WARDCode" />
+ <attribute name="WARD_Desc" field="WARDDesc" />
+ <aggregate name="CountDischarges" type="COUNT" field="PAADMEstimDischargeDate" />	
+	<group name="Patient">
+	<attribute name="Registration" field="PAPMINo" />
+	<attribute name="Admission" field="PAADMAdmNo" />
+	<element name="PatientName" fields="PAPERName,PAPERName2,PAPERName3,TTLCode" 
+	expression='..DisplayName(%val("PAPERName2"),%val("PAPERName3"),%val("PAPERName"))' />
+	<element name="Title" field="TTLCode" />
+	<element name="Surname" field="PAPERName" /> 
+	<element name="GivenName" field="PAPERName2" />
+	<element name="Clinician" field="CTPCPDesc" />
+	<element name="AdmDate" field="PAADMAdmDate" expression='..DisplayDate(%val)' />
+	<element name="ExpectedDischarge" field="PAADMEstimDischargeDate" expression='..DisplayDate(%val)' />
+	<element name="Room" field="ROOMCode" />	
+	<element name="Bed" field="BEDCode" />
+	</group> <!-- end Patient -->
+</group> <!-- end Ward -->
+<aggregate name="CountDischarges" type="COUNT" field="PAADMEstimDischargeDate" />	
+</group> <!-- end Facility -->
+
+</report>
+]]></Data>
+</XData>
+
+<XData name="ReportDisplay">
+<Description>
+This XML defines the display for this report.
+This is used to generate the XSLT stylesheets for both HTML and XSL-FO.</Description>
+<XMLNamespace>http://www.intersystems.com/zen/report/display</XMLNamespace>
+<Data><![CDATA[
+<report xmlns="http://www.intersystems.com/zen/report/display"
+xmlns:auxx="http://www.intersystems.com/zen/report/display/auxx"
+xmlns:auxxstyle="http://www.intersystems.com/zen/report/display/auxx/style"
+ name="ExpectedDischarges">
+ <document width= "#(..ReportWidth)#" height="#(..ReportHeight)#" marginLeft="#(..DocMarginLeft)#" marginRight="#(..DocMarginRight)#" 
+marginTop="#(..DocMarginTop)#" marginBottom="#(..DocMarginBottom)#" footerHeight="#(..DocFooterHeight)#" headerHeight="#(..DocHeaderHeight)#" 
+regionBeforeExtent="#(..DocHeaderHeight)#" regionAfterExtent="#(..DocFooterHeight)#" >
+<auxxstyle:auxxgroupheader />
+<auxxstyle:auxxgroupsummary />
+<auxxstyle:auxxhospitalheader />
+<auxxstyle:auxxpageheader />
+<auxxstyle:auxxpagefooter />
+<auxxstyle:auxxreporttitle />
+<auxxstyle:auxxparameterheader />
+<auxxstyle:auxxtablecolumn />
+</document>
+
+ <auxx:PageHeader pagetitle="@pagetitle"/>
+ <auxx:PageFooter timestamp="@timestamp" username="@username"/>
+
+<body>
+ <auxx:ReportHeader reporttitle="@reporttitle"/>
+ <auxx:ReportParameterHeader xcondition="string-length(@hospitaldesc)>0" label="@Facility:@Facility:" field="@hospitaldesc" />
+ <auxx:ReportParameterHeader xcondition="string-length(@warddesc)>0" label="@Ward:@Ward:" field="@warddesc" />
+ <auxx:ReportDateHeader datefrom="@datefrom" dateto="@dateto" xcondition="string-length(@datefrom)+string-length(@dateto)>0" />
+  <line style='none'/>
+  
+ <!-- check for no results -->
+ <auxx:NoResults xcondition="not(Facility)" />
+ 
+ <!-- group for facility -->
+   <group name="Facility" pagebreak="true">
+<auxx:GroupHospitalHeader label="@Facility:@Facility:" field="@description" />
+<line pattern="empty" lineHeight="1mm" />
+ <group name="Ward" >
+  <auxx:GroupHeader label="@Ward:@Ward:" field="@WARD_Desc"/> 
+  <line pattern="empty" lineHeight="2mm" />
+<table class="auxxtablecolumn" group="Patient" >
+<item field="@Registration" caption="@URN@URN" width="12%"/>
+<item field="@Admission" caption="@EpisodeNo@Episode No" width="12%" />
+<item field="PatientName" caption='@PatientName@Patient Name' width="20%"/>
+<item field="AdmDate" caption="@AdmissionDate@Admission Date"  width="10%"/>
+<item field="ExpectedDischarge" caption="@ExpDischargeDate@Exp. Discharge Date" width="13%" />
+<item field="Room" caption="@Room@Room"  width="8%"/>
+<item field="Bed" caption="@Bed@Bed"  width="5%"/>
+<item field="Clinician" caption="@Clinician@Clinician" width="18%" />
+</table>
+ <line pattern="empty" width="100%"></line> 
+ <auxx:GroupSummary group="@WARD_Desc" label="@TotalExpectedDischargesfor@Total Expected Discharges for" summaryvalue="CountDischarges" />
+<line pattern="empty" lineHeight="4mm" />
+</group>
+  <line pattern="empty" width="100%"></line> 
+ <auxx:GroupSummary group="@description" label="@TotalExpectedDischargesfor@Total Expected Discharges for" summaryvalue="CountDischarges" />
+
+</group>
+
+</body>
+
+</report>
+]]></Data>
+</XData>
+</Class>
+</Export>

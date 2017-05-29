@@ -1,0 +1,288 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.SWARH.Report.RptSvc.StoredProc.SWARHREPR1007">
+<Description><![CDATA[
+<pre>
+**************************************************************************************************************************************
+* Report Code: SWARHREPR1007
+* Report Description: Observation Report - Printable version using Report Services.  This replaces the 
+*   existing Crystal Reports version (SWARH.Reports.MTED.029) with one that looks closer in appearance 
+*   to the one displayed in the EPR.
+* Menu Caption: Patient Observations 
+* Initial release: 19/08/15
+* Developer: Ross Gladman
+* Report shows: Replicates the observation report in the EPR (using reporting services) so that it can be 
+*               printed and then supplied to other locations that do not use Trak when transferring a patient.
+* Modified: 2015-12-01 (rpgladman) - Corrected lookup field used in observation attribute union 
+*           2016-05-05 (rpgladman) - Added D.O.B. & Gender (T363737)
+*           2016-05-11 (rpgladman) - Added extra comment fields to each value where applicable
+*			2016-06-14 (rpgladman) - Now returns user defined reference ranges (if any) for observations over the default range
+**************************************************************************************************************************************
+</pre>]]></Description>
+<ProcedureBlock>0</ProcedureBlock>
+<Super>Custom.SWARH.Report.RptSvc.StoredProc.Abstract</Super>
+<TimeCreated>60905,54849</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/SWARH/Report/RptSvc/StoredProc/SWARHREPR1007.xml#1 $</Default>
+</Parameter>
+
+<Method name="SWARHREPR1007Close">
+<Description>
+This is the Close component of the %Library.Query.
+This is standard code and should never have to change.
+This is where all the cleanup is performed, i.e. the purging of the temporary storage global ^CacheTemp.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>QHandle:%Library.Binary</FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Clean up by purging the temporary node in ^CacheTemp global
+  New repid,ind
+ Set repid=$List(QHandle,2)
+
+ //Start Monitor (if configured to capture stats)
+ If mon Do ..MonitorEnd(mon)
+
+ Kill ^CacheTemp("TRAK",repid)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="SWARHREPR1007Execute">
+<Description>
+This is the Execute section for the %Library.Query. 
+All of the logic will be performed here.
+A new node for the ^CacheTemp global will be created and each subscript of this global will contain
+a row for the report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,Hospital:%Library.Integer,EpisodeID:%Library.Integer,MRCObsGroupID:%Library.Integer]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Get reportid i.e. use $INCREMENT to add another node to ^CacheTemp global. 
+ // We use ^CacheTemp global because it will always use memory before disk
+ New repid,ind
+
+  // Use $Increment to get the next node
+ Set repid=$Increment(^CacheTemp("TRAK"))
+ 
+ //New MRCObsGroupID // Currently not used
+ New EpisodeNumber, PatientNumber, PatientName, ObservationItemLabel, ObservationItemMeasurement
+ New NormalReferenceRange, EpisodeReferenceRange, ObservationItemValue, ObservationLocation, OBSDate
+ New OBSTime, OBSDisplayOrder, OBSGroup, PatientDOB, PatientGender
+
+ //Set MRCObsGroupID = ""
+ Set (EpisodeNumber, PatientNumber, PatientName, ObservationItemLabel, ObservationItemMeasurement, 
+     NormalReferenceRange, EpisodeReferenceRange, ObservationItemValue, ObservationLocation, OBSDate, 
+     OBSTime, OBSDisplayOrder, OBSGroup, PatientDOB, PatientGender) = ""
+
+ Set ind=1, END=0
+
+ //Start Monitor (if configured to capture stats)
+ Set mon=..MonitorBegin()
+ 
+ //Convert ODBC dates to cache format
+ //Set DateFrom=..ConvertDateToCache(DateFrom)
+ //Set DateTo=..ConvertDateToCache(DateTo)
+ 
+ // SQL Query
+ &SQL(DECLARE ObsDataCursor CURSOR FOR
+    ----------------------------------------------------------------------------
+    -- Get Observation lines ---------------------------------------------------
+    ----------------------------------------------------------------------------
+    SELECT -- DISTINCT BY (ITM_Desc,OBS_Date,OBS_Time)
+        :Hospital                                    As Hospital
+      , ADM.PAADM_AdmNo                              As EpisodeNumber
+      , ADM.PAADM_PAPMI_DR->PAPMI_No                 As PatientNumber
+      , ADM.PAADM_PAPMI_DR->PAPMI_Name||', '||ADM.PAADM_PAPMI_DR->PAPMI_Name2||NVL(' '||ADM.PAADM_PAPMI_DR->PAPMI_Name3,'')
+                                                     As PatientName
+      , ADM.PAADM_PAPMI_DR->PAPMI_DOB                As PatientDOB
+      , ADM.PAADM_PAPMI_DR->PAPMI_Sex_DR->CTSEX_Desc As PatientGender
+      , OBSIT.ITM_Desc                               As ObservationItemLabel
+      , OBSIT.ITM_CTUOM_DR->CTUOM_Desc               As ObservationItemMeasurement
+      , OBSRR.RR_From||' - '||OBSRR.RR_To            As NormalReferenceRange
+      , (SELECT PREFLowRange||' - '||PREFHighRange FROM epr_Pref.Observations WHERE PREFPAADMDR=:EpisodeID
+           AND PREFObsItemDR = OBS.OBS_Item_DR
+           AND (PREFStartDate IS NOT NULL) AND ((PREFStartDate||PREFStartTime) <= {fn NOW()})
+           AND ((PREFEndDate IS NULL) OR ((PREFEndDate||PREFEndTime)>{fn NOW()})))
+                                                     As EpisodeReferenceRange
+      , CASE WHEN OBSIT.ITM_InputType='L' THEN
+        NVL((SELECT LU_Desc FROM SQLUser.MRC_ObservationItemLookUp WHERE LU_ParRef=OBS.OBS_Item_DR AND LU_Code=OBS.OBS_Value),'') || NVL(' ['||OBS.OBS_ShortDesc||']','')
+        ELSE (NVL(OBS.OBS_Value,'') || NVL(' ['||OBS.OBS_ShortDesc||']','')) END
+                                                     As ObservationItemValue
+      , OBS.OBS_Entry_DR->OBSENTRY_PatLoc_DR->CTLOC_Desc
+                                                     As ObservationLocation
+      , OBS.OBS_Date                                 As OBSDate
+      , OBS.OBS_Time                                 As OBSTime
+      , RIGHT('0000000'||OBSGI.ITM_RowPosition,7)||'0'||'00'
+                                                     As OBSDisplayOrder
+      , OBSGI.ITM_ParRef->GRP_Desc                   As OBSGroup
+                                               
+    FROM
+        SQLUser.PA_Adm ADM
+          LEFT JOIN SQLUser.MR_Observations              OBS   ON ADM.PAADM_MainMRADM_DR=OBS.OBS_ParRef
+          LEFT JOIN SQLUser.MRC_ObservationItem          OBSIT ON OBS.OBS_Item_DR=OBSIT.ITM_RowId
+          LEFT JOIN SQLUser.MRC_ObservationItemRefRanges OBSRR ON OBS.OBS_Item_DR=OBSRR.RR_ParRef
+          LEFT JOIN SQLUser.MRC_ObservationGroupItems    OBSGI ON OBS.OBS_Item_DR=OBSGI.ITM_ObsItem_DR
+    WHERE
+        -- PAADM_AdmNo='ED643367'
+        PAADM_RowId=:EpisodeID
+      AND
+        OBS_Date IS NOT NULL                                -- Sometimes it seems to create rows with no details except the childsub, this culls them
+      AND
+        (ITM_EndDate IS NULL OR ITM_EndDate>{fn CURDATE()}) -- Current
+      AND
+        -- ITM_ParRef=30                                         -- Test data - 30 = Normal ED view, 4=General Observations
+        (:MRCObsGroupID IS NULL OR ITM_ParRef=:MRCObsGroupID) -- MRCObsGroupId
+      AND
+        ((OBS.OBS_ErrorReason_DR NOT IN (1,2,3,4)) OR (OBS.OBS_ErrorReason_DR IS NULL)) -- Remove items that have been corrected, It should really just remove 1&2 but Trak shows 3&4 as crossed out also.  I think this is an error but we will follow their policy.
+
+
+    UNION ALL
+    
+    ----------------------------------------------------------------------------
+    -- Get Observation Attribute lines -----------------------------------------
+    ----------------------------------------------------------------------------
+
+    SELECT -- DISTINCT BY (OBSAT_ItemAttribute_DR->ATTR_Desc, OBS_Date, OBS_Time)
+        :Hospital                                    As Hospital
+      , PAADM_AdmNo                                  As EpisodeNumber
+      , PAADM_PAPMI_DR->PAPMI_No                     As PatientNumber
+      , ADM.PAADM_PAPMI_DR->PAPMI_Name||', '||ADM.PAADM_PAPMI_DR->PAPMI_Name2||NVL(' '||ADM.PAADM_PAPMI_DR->PAPMI_Name3,'')
+                                                     As PatientName
+      , ADM.PAADM_PAPMI_DR->PAPMI_DOB                As PatientDOB
+      , ADM.PAADM_PAPMI_DR->PAPMI_Sex_DR->CTSEX_Desc As PatientGender
+      , '  '||OBSAT_ItemAttribute_DR->ATTR_Desc      As ObservationItemLabel
+      , ''                                           As ObservationItemMeasurement
+      , OBSRR.RR_From||' - '||OBSRR.RR_To            As NormalReferenceRange  -- There are no ranges for attribute lines currently so these will always return defaults.
+      , (SELECT PREFLowRange||' - '||PREFHighRange FROM epr_Pref.Observations WHERE PREFPAADMDR=:EpisodeID
+           AND PREFObsItemDR = OBS.OBS_Item_DR
+           AND (PREFStartDate IS NOT NULL) AND ((PREFStartDate||PREFStartTime) <= {fn NOW()})
+           AND ((PREFEndDate IS NULL) OR ((PREFEndDate||PREFEndTime)>{fn NOW()})))
+                                                     As EpisodeReferenceRange
+      , CASE WHEN OBS_Item_DR->ITM_InputType='L' THEN NVL(%External(OBSAT_ValueDisplay),'') || NVL(' ['||OBS.OBS_ShortDesc||']','')
+        ELSE NVL(OBSAT_ValueDisplay,'')  || NVL(' ['||OBS.OBS_ShortDesc||']','') END
+                                                     As ObservationItemValue
+      , OBS_Entry_DR->OBSENTRY_PatLoc_DR->CTLOC_Desc
+                                                     As ObservationLocation
+      , OBS_Date                                     As OBSDate
+      , OBS_Time                                     As OBSTime
+      , RIGHT('0000000'||OBSGI.ITM_RowPosition,7)||'1'||'99'
+                                                     As OBSDisplayOrder
+      , ITM_ParRef->GRP_Desc                         As OBSGroup
+    FROM
+        SQLUser.PA_Adm ADM
+          LEFT JOIN SQLUser.MR_Observations              OBS   ON ADM.PAADM_MainMRADM_DR=OBS.OBS_ParRef
+          LEFT JOIN SQLUser.MR_ObservationsAttribute     OBSAT ON OBS.OBS_RowId=OBSAT.OBSAT_ParRef
+          LEFT JOIN SQLUser.MRC_ObservationGroupItems    OBSGI ON OBS.OBS_Item_DR=OBSGI.ITM_ObsItem_DR
+          LEFT JOIN SQLUser.MRC_ObservationItemRefRanges OBSRR ON OBS.OBS_Item_DR=OBSRR.RR_ParRef
+    WHERE
+         --PAADM_AdmNo='ED643367'
+         PAADM_RowId=:EpisodeID
+       AND
+         OBS_Date IS NOT NULL                     -- Sometimes it seems to create rows with no details except the childsub, this culls them
+       AND
+         IFNULL(OBSAT_ItemAttribute_DR,'Null','OK')='OK' -- Weird things happen if you use IS NOT NULL on a _DR, that is why IFNULL is used here
+       AND
+         -- ITM_ParRef=30                                         -- Test data - 30 = Normal ED view, 4=General Observations
+         (:MRCObsGroupID IS NULL OR ITM_ParRef=:MRCObsGroupID)  -- MRCObsGroupID
+       AND
+         (ITM_EndDate IS NULL OR ITM_EndDate>{fn CURDATE()}) -- Current
+      AND
+        ((OBS.OBS_ErrorReason_DR NOT IN (1,2,3,4)) OR (OBS.OBS_ErrorReason_DR IS NULL)) -- Remove items that have been corrected, It should really just remove 1&2 but Trak shows 3&4 as crossed out also.  I think this is an error but we will follow their policy.
+
+    ORDER BY
+      OBSGroup DESC, OBSDisplayOrder, OBSDate DESC, OBSTime DESC
+    )
+    
+ &SQL(OPEN ObsDataCursor) 
+ 
+ //FETCH FIRST ROW
+ Do FetchRow
+  
+ While END=0 {
+	 Set sort = ind		// don't sort - uncomment this line if you've sorted in the query
+
+   Do FormatDates 
+   Do FormatTimes
+	 
+	 Set ^CacheTemp("TRAK",repid,sort)=$ListBuild(Hospital, EpisodeNumber, PatientNumber, PatientName, PatientDOB, PatientGender, ObservationItemLabel, ObservationItemMeasurement, NormalReferenceRange, EpisodeReferenceRange, ObservationItemValue, ObservationLocation, OBSDate, OBSTime, OBSDisplayOrder, OBSGroup)
+ 
+	 Set ind=ind+1
+ 
+	 //fetch rows
+	 
+	 Do FetchRow
+ }
+
+ &SQL(CLOSE ObsDataCursor)
+ 
+ // Build QHandle (AtEnd,ReportID,Index)
+ Set QHandle=$ListBuild(0,repid,0)
+
+ Quit $$$OK
+
+FetchRow
+ &SQL(FETCH ObsDataCursor INTO :Hospital,:EpisodeNumber,:PatientNumber,:PatientName,:PatientDOB,:PatientGender,:ObservationItemLabel,:ObservationItemMeasurement,:NormalReferenceRange,:EpisodeReferenceRange,:ObservationItemValue,:ObservationLocation,:OBSDate,:OBSTime,:OBSDisplayOrder,:OBSGroup)
+
+ If SQLCODE '= 0 Set END = 1
+ Quit
+
+FormatDates
+  Set OBSDate=..ConvertDateToODBC(OBSDate)
+  Set PatientDOB=..ConvertDateToODBC(PatientDOB)
+  Quit
+ 
+FormatTimes
+  Set OBSTime=..ConvertTimeToHHMM(OBSTime)
+  Quit
+]]></Implementation>
+</Method>
+
+<Method name="SWARHREPR1007Fetch">
+<Description>
+This is the Fetch component of the %Library.Query. 
+This should never have to change. It is designed to fetch the row for each subscript of the ^CacheTemp
+global and return this row to the Crystal Report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,&Row:%Library.List,&AtEnd:%Library.Integer=0]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // This fetch method should never have to change. 
+
+ // repid - Report ID
+ // ind   - sequence index which represents each row
+
+ New repid,ind
+
+ // Restore QHandle
+ Set AtEnd=$List(QHandle,1)
+ Set repid=$List(QHandle,2)
+ Set ind=$List(QHandle,3)
+
+ Set ind=$Order(^CacheTemp("TRAK",repid,ind))
+ If ind="" {	// if there are no more rows, finish fetching
+	 Set AtEnd=1
+	 Set Row=""
+ }
+ Else      {	// fetch row
+ 	Set Row=^CacheTemp("TRAK",repid,ind)
+ }
+
+ // Save QHandle
+ Set QHandle=$ListBuild(AtEnd,repid,ind)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Query name="SWARHREPR1007">
+<Type>%Library.Query</Type>
+<FormalSpec>Hospital:%Library.Integer,EpisodeID:%Library.Integer,MRCObsGroupID:%Library.Integer</FormalSpec>
+<SqlProc>1</SqlProc>
+<Parameter name="CONTAINID" value="0"/>
+<Parameter name="ROWSPEC" value="Hospital:%Integer,EpisodeNumber:%String,PatientNumber:%String,PatientName:%String,PatientDOB:%String,PatientGender:%String,ObservationItemLabel:%String,ObservationItemMeasurement:%String,NormalReferenceRange:%String,EpisodeReferenceRange:%String,ObservationItemValue:%String,ObservationLocation:%String,OBSDate:%String,OBSTime:%String,OBSDisplayOrder:%String,OBSGroup:%String"/>
+<Parameter name="SELECTMODE" value="ODBC"/>
+</Query>
+</Class>
+</Export>

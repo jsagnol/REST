@@ -1,0 +1,265 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.SWARH.Report.RptSvc.StoredProc.SWARHRPAC1002">
+<Description><![CDATA[
+<pre>
+**************************************************************************************************************************************
+* Report Code: SWARHRPAC1002
+* Report Description: Project Accountability
+* Menu Caption: 
+* Initial release: 
+* Developer: Michael Welsh
+* Modified: JS - 08/01/2015: Altered Outcome field to show description rather than code. 
+**************************************************************************************************************************************
+</pre>]]></Description>
+<ProcedureBlock>0</ProcedureBlock>
+<Super>Custom.SWARH.Report.ZEN.StoredProc.Abstract</Super>
+<TimeCreated>60905,54849</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/SWARH/Report/RptSvc/StoredProc/SWARHRPAC1002.xml#1 $</Default>
+</Parameter>
+
+<Method name="SWARHRPAC1002Close">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)
+This is the Close component of the %Library.Query.
+This is standard code and should never have to change.
+This is where all the cleanup is performed, i.e. the purging of the temporary storage global ^CacheTemp.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>QHandle:%Library.Binary</FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Clean up by purging the temporary node in ^CacheTemp global
+ New repid,ind
+ Set repid=$li(QHandle,2)
+
+ //Start Monitor (if configured to capture stats)
+ i mon Do ..MonitorEnd(mon)
+
+ Kill ^CacheTemp("TRAK",repid)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="SWARHRPAC1002Execute">
+<Description>
+This is the Execute section for the %Library.Query. 
+All of the logic will be performed here.
+A new node for the ^CacheTemp global will be created and each subscript of this global will contain
+a row for the report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,Hospital:%Integer,DateFrom:%Date,DateTo:%Date,Specialty:%Integer,Program:%String]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+		   
+ New repid,ind
+
+ Set repid=$I(^CacheTemp("TRAK"))
+ 
+ New EpisodeNo,URNo,Surname,GivenName,MidName,AdmDate,RefDate,SpecialtyDR,SpecialtyCode,SpecialtyDesc,ProgramDR,ProgramCode,ProgramDesc
+ 	,RefSourceDR,RefSourceCode,RefSourceDesc,RefClinicDR,RefClinicCode,RefClinicDesc,RefDocListDR,RefDocListCode,RefDocListDesc,RefExpDate
+ 	,RefPeriodDR,RefPeriodCode,RefPeriodDesc,RefStatusDR,RefStatusCode,RefStatusDesc,RefPriorityDR,RefPriorityCode,RefPriorityDesc,RefType
+ 	,RefTypeCode,RefTypeDesc,VisitStatus,RefReceivedDate,ServiceActive,ApptDate,ApptTime,ApptDuration,ClientAtStart,ClientDuring,ApptStatus
+ 	,ClientServiceAtStart,ClientServiceDuring,ClientAcceptedDuring,ClientDischargedDuring,ClientRefRejected,EpisodeLOS,ServiceLOS
+ 	,DeclinedReasonCode,DeclinedReasonDesc,Outcome,BrokerageDate
+ Set (EpisodeNo,URNo,Surname,GivenName,MidName,AdmDate,RefDate,SpecialtyCode,SpecialtyDesc,ProgramDR,ProgramCode,ProgramDesc,RefSourceCode,RefSourceDesc
+ 	,RefClinicCode,RefClinicDesc,RefDocListCode,RefDocListDesc,RefExpDate,RefPeriodCode,RefPeriodDesc,RefStatusCode,RefStatusDesc,RefPriorityCode
+ 	,RefPriorityDesc,RefTypeCode,RefTypeDesc,VisitStatus,RefReceivedDate,ServiceActive,ApptDate,ApptTime,ApptStatus,DeclinedReasonCode,DeclinedReasonDesc
+ 	,Outcome,BrokerageDate) = ""
+ Set (SpecialtyDR,RefSourceDR,RefClinicDR,RefDocListDR,RefPeriodDR,RefStatusDR,RefPriorityDR,RefType,ApptDuration
+ 	,ClientAtStart,ClientDuring,ClientServiceAtStart,ClientServiceDuring,ClientAcceptedDuring,ClientDischargedDuring,ClientRefRejected
+ 	,EpisodeLOS,ServiceLOS)=0
+ s ind=1, END=0
+
+ //Start Monitor (if configured to capture stats)
+ s mon=..MonitorBegin()
+ 
+ //Convert ODBC dates to cache format
+ s DateFrom=$$intdate^SSUTIL4(DateFrom)
+ s DateTo=$$intdate^SSUTIL4(DateTo)
+ 
+ &SQL(DECLARE SWARHRPAC1002 CURSOR FOR
+ 	SELECT
+        adm.PAADM_ADMNo AS EpisodeNo
+        ,adm.PAADM_PAPMI_DR->PAPMI_No AS URNo
+        ,adm.PAADM_PAPMI_DR->PAPMI_Name AS Surname
+        ,adm.PAADM_PAPMI_DR->PAPMI_Name2 AS GivenName
+        ,adm.PAADM_PAPMI_DR->PAPMI_Name3 AS MidName
+        ,adm.PAADM_AdmDate AS AdmDate
+        ,adm.PAADM_RefDate AS RefDate
+        ,adm.PAADM_DepCode_DR AS SpecialtyDR
+        ,adm.PAADM_DepCode_DR->CTLOC_Code AS SpecialtyCode
+        ,adm.PAADM_DepCode_DR->CTLOC_Desc AS SpecialtyDesc
+        ,adm.PAADM_PAAdm2_DR->PAADM2_NFMICategDepart_DR->DEP_RowID AS ProgramDR
+        ,adm.PAADM_PAAdm2_DR->PAADM2_NFMICategDepart_DR->DEP_Code AS ProgramCode
+        ,adm.PAADM_PAAdm2_DR->PAADM2_NFMICategDepart_DR->DEP_Desc AS ProgramDesc
+        ,adm.PAADM_SourceOfAttend_DR AS RefSourceDR
+        ,adm.PAADM_SourceOfAttend_DR->ATTEND_Code AS RefSourceCode
+        ,adm.PAADM_SourceOfAttend_DR->ATTEND_Desc AS RefSourceDesc
+        ,adm.PAADM_RefDocClinic_DR->CLN_Clinic_DR AS RefClinicDR
+        ,adm.PAADM_RefDocClinic_DR->CLN_Clinic_DR->CLN_Code AS RefClinicCode
+        ,adm.PAADM_RefDocClinic_DR->CLN_Clinic_DR->CLN_Desc AS RefClinicDesc
+        ,adm.PAADM_RefDocList_DR AS RefDocListDR
+        ,adm.PAADM_RefDocList_DR->REFD_Code AS RefDocListCode
+        ,adm.PAADM_RefDocList_DR->REFD_Desc AS RefDocListDesc
+        ,adm.PAADM_RefExpiryDate AS RefExpDate
+        ,adm.PAADM_RefPeriod_DR AS RefPeriodDR
+        ,adm.PAADM_RefPeriod_DR->REFPER_Code AS RefPeriodCode
+        ,adm.PAADM_RefPeriod_DR->REFPER_Desc AS RefPeriodDesc
+        ,adm.PAADM_RefStat_DR AS RefStatusDR
+        ,adm.PAADM_RefStat_DR->RST_Code AS RefStatusCode
+        ,adm.PAADM_RefStat_DR->RST_Desc AS RefStatusDesc
+        ,adm.PAADM_ReferralPriority_DR AS RefPriorityDR
+        ,adm.PAADM_ReferralPriority_DR->REFPRI_Code AS RefPriorityCode
+        ,adm.PAADM_ReferralPriority_DR->REFPRI_Desc AS RefPriorityDesc
+        ,adm.PAADM_ReferralType AS RefType
+        ,adm.PAADM_ReferralType->REFT_Code AS RefTypeCode
+        ,adm.PAADM_ReferralType->REFT_Desc AS RefTypeDesc
+        ,adm.PAADM_VisitStatus AS VisitStatus
+        ,adm.PAADM_DateReceived AS RefReceivedDate
+        ,app.APPT_RBCServ_DR->SER_Active AS ServiceActive
+        ,app.APPT_DateComp AS ApptDate
+        ,app.APPT_TimeComp AS ApptTime
+        ,app.APPT_Duration AS ApptDuration
+        ,app.APPT_Status AS ApptStatus
+        ,CASE WHEN adm.PAADM_DateReceived < :DateFrom THEN 1 ELSE 0 END AS ClientAtStart
+        ,CASE WHEN adm.PAADM_DateReceived BETWEEN :DateFrom AND :DateTo THEN 1 ELSE 0 END AS ClientDuring
+        ,CASE WHEN adm.PAADM_DateReceived < :DateFrom AND cpw.CPW_Date < :DateFrom THEN 1 ELSE 0 END AS ClientServiceAtStart
+        ,CASE WHEN adm.PAADM_DateReceived BETWEEN :DateFrom AND :DateTo AND cpw.CPW_Date BETWEEN :DateFrom AND :DateTo THEN 1 ELSE 0 END AS ClientServiceDuring
+        ,CASE WHEN adm.PAADM_DateReceived BETWEEN :DateFrom AND :DateTo AND adm.PAADM_RefStat_DR->RST_Code = 'A' THEN 1 ELSE 0 END AS ClientAcceptedDuring
+        ,CASE WHEN adm.PAADM_DischgDate BETWEEN :DateFrom AND :DateTo THEN 1 ELSE 0 END AS ClientDischargedDuring
+        ,CASE WHEN adm.PAADM_RefStat_DR->RST_Code = 'D' THEN 1 ELSE 0 END AS ClientRefRejected
+        ,CASE WHEN adm.PAADM_DischgDate IS NULL THEN DateDiff('dd',adm.PAADM_DateReceived,:DateTo) ELSE DateDiff('dd',adm.PAADM_DateReceived,adm.PAADM_DischgDate) END AS EpisodeLOS
+        ,CASE WHEN app.APPT_DateComp IS NOT NULL
+        	THEN CASE WHEN adm.PAADM_DischgDate IS NULL
+        		THEN DateDiff('dd',adm.PAADM_DateReceived,:DateTo) 
+        		ELSE DateDiff('dd',adm.PAADM_DateReceived,adm.PAADM_DischgDate) END
+        	ELSE 0 END AS ServiceLOS
+        ,adm.PAADM_WaitList_DR->WL_RefStatusReason_DR->REFSTREA_Code AS DeclinedReasonCode
+        ,adm.PAADM_WaitList_DR->WL_RefStatusReason_DR->REFSTREA_Desc AS DeclinedReasonDesc
+        ,vinah.QSACS32 AS Outcome
+        ,cpw.CPW_Date AS BrokerageDate
+	FROM
+        SQLUser.PA_Adm adm
+        	LEFT OUTER JOIN SQLUser.RB_Appointment app ON (app.APPT_Adm_DR = adm. PAADM_RowID)
+        	LEFT OUTER JOIN questionnaire.QAUXXVINAH vinah ON (vinah.QUESPAAdmDR = adm.PAADM_RowID)        	
+            LEFT OUTER JOIN SQLUser.MR_ClinicalPathWays cpw ON (cpw.CPW_ParRef = adm.PAADM_MainMRADM_DR)
+	WHERE
+        (adm.PAADM_Hospital_DR = :Hospital)
+        AND (adm.PAADM_DateReceived <= :DateTo)
+        AND (adm.PAADM_DischgDate >= :DateFrom OR (adm.PAADM_DischgDate IS NULL))
+        AND (adm.PAADM_Type = 'O')
+        AND (adm.PAADM_DepCode_DR->CTLOC_RowID = :Specialty OR (:Specialty IS NULL))
+        AND (adm.PAADM_PAADM2_DR->PAADM2_NFMICategDepart_DR->DEP_RowID = :Program OR (:Program IS NULL))
+    GROUP BY adm.PAADM_ADMNo
+
+    )
+                
+ &SQL(OPEN SWARHRPAC1002)
+ 
+ d FetchRow //Fetch first row
+  
+ while END=0 {
+  
+	 d FormatDates, FormatTimes, FormatStrings, GetOutcomeDesc
+  	 s sort = ind
+	 s ^CacheTemp("TRAK",repid,sort)=$LB(EpisodeNo,URNo,Surname,GivenName,MidName,AdmDate,RefDate,SpecialtyDR,SpecialtyCode,SpecialtyDesc
+	 	,ProgramDR,ProgramCode,ProgramDesc,RefSourceDR,RefSourceCode,RefSourceDesc,RefClinicDR,RefClinicCode,RefClinicDesc,RefDocListDR
+	 	,RefDocListCode,RefDocListDesc,RefExpDate,RefPeriodDR,RefPeriodCode,RefPeriodDesc,RefStatusDR,RefStatusCode,RefStatusDesc,RefPriorityDR
+	 	,RefPriorityCode,RefPriorityDesc,RefType,RefTypeCode,RefTypeDesc,VisitStatus,RefReceivedDate,ServiceActive,ApptDate,ApptTime
+	 	,ApptDuration,ApptStatus,ClientAtStart,ClientDuring,ClientServiceAtStart,ClientServiceDuring,ClientAcceptedDuring,ClientDischargedDuring
+	 	,ClientRefRejected,EpisodeLOS,ServiceLOS,DeclinedReasonCode,DeclinedReasonDesc,Outcome,BrokerageDate)
+	 s ind=ind+1
+ 	 d FetchRow //Fetch next row
+ }
+
+ &SQL(CLOSE SWARHRPAC1002)
+ 
+ // Build QHandle (AtEnd,ReportID,Index)
+ Set QHandle=$lb(0,repid,0)
+
+ Quit $$$OK
+
+FetchRow
+ &sql(FETCH SWARHRPAC1002 INTO :EpisodeNo,:URNo,:Surname,:GivenName,:MidName,:AdmDate,:RefDate,:SpecialtyDR,:SpecialtyCode,:SpecialtyDesc
+ 	,:ProgramDR,:ProgramCode,:ProgramDesc,:RefSourceDR,:RefSourceCode,:RefSourceDesc,:RefClinicDR,:RefClinicCode,:RefClinicDesc,:RefDocListDR
+ 	,:RefDocListCode,:RefDocListDesc,:RefExpDate,:RefPeriodDR,:RefPeriodCode,:RefPeriodDesc,:RefStatusDR,:RefStatusCode,:RefStatusDesc
+ 	,:RefPriorityDR,:RefPriorityCode,:RefPriorityDesc,:RefType,:RefTypeCode,:RefTypeDesc,:VisitStatus,:RefReceivedDate,:ServiceActive
+ 	,:ApptDate,:ApptTime,:ApptDuration,:ApptStatus,:ClientAtStart,:ClientDuring,:ClientServiceAtStart,:ClientServiceDuring,:ClientAcceptedDuring
+ 	,:ClientDischargedDuring,:ClientRefRejected,:EpisodeLOS,:ServiceLOS,:DeclinedReasonCode,:DeclinedReasonDesc,:Outcome,:BrokerageDate)
+ if SQLCODE '= 0 set END = 1
+ q
+ 
+FormatDates
+ s AdmDate =..ConvertDateToODBC(AdmDate)
+ s RefDate =..ConvertDateToODBC(RefDate)
+ s RefExpDate =..ConvertDateToODBC(RefExpDate)
+ s RefReceivedDate =..ConvertDateToODBC(RefReceivedDate)
+ s ApptDate =..ConvertDateToODBC(ApptDate)
+ s BrokerageDate =..ConvertDateToODBC(BrokerageDate)
+ q
+ 
+FormatTimes
+ If ApptTime s ApptTime = $ZT(ApptTime,2)
+ q
+ 
+FormatStrings // Cleanup specified strings
+ s Surname = $ZCONVERT(Surname,"W") 
+ s GivenName = $ZCONVERT(GivenName,"W")
+ s MidName = $ZCONVERT(MidName,"W")
+ q
+ 
+GetOutcomeDesc
+ s Outcome =  ##Class(web.SSUserDefWinContResp).GetDescriptionsFromCodes("85||43",Outcome)
+ q
+]]></Implementation>
+</Method>
+
+<Method name="SWARHRPAC1002Fetch">
+<Description>
+This is the Fetch component of the %Library.Query. 
+This should never have to change. It is designed to fetch the row for each subscript of the ^CacheTemp
+global and return this row to the Crystal Report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,&Row:%Library.List,&AtEnd:%Library.Integer=0]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // This fetch method should never have to change. 
+ // repid - Report ID
+ // ind   - sequence index which represents each row
+
+ New repid,ind
+
+ // Restore QHandle
+ Set AtEnd=$li(QHandle,1)
+ Set repid=$li(QHandle,2)
+ Set ind=$li(QHandle,3)
+
+ Set ind=$o(^CacheTemp("TRAK",repid,ind))
+ If ind="" {	// if there are no more rows, finish fetching
+	 Set AtEnd=1
+	 Set Row=""
+ }
+ Else      {	// fetch row 
+ 	Set Row=^CacheTemp("TRAK",repid,ind)
+ }
+
+ // Save QHandle 
+ s QHandle=$lb(AtEnd,repid,ind)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Query name="SWARHRPAC1002">
+<Type>%Library.Query</Type>
+<FormalSpec>Hospital:%Integer,DateFrom:%Date,DateTo:%Date,Specialty:%Integer,Program:%String</FormalSpec>
+<SqlProc>1</SqlProc>
+<Parameter name="CONTAINID" value="0"/>
+<Parameter name="ROWSPEC" value="EpisodeNo:%String,URNo:%String,Surname:%String,GivenName:%String,MidName:%String,AdmDate:%Date,RefDate:%Date,SpecialtyDR:%Integer,SpecialtyCode:%String,SpecialtyDesc:%String,ProgramDR:%String,ProgramCode:%String,ProgramDesc:%String,RefSourceDR:%Integer,RefSourceCode:%String,RefSourceDesc:%String,RefClinicDR:%Integer,RefClinicCode:%String,RefClinicDesc:%String,RefDocListDR:%Integer,RefDocListCode:%String,RefDocListDesc:%String,RefExpDate:%Date,RefPeriodDR:%Integer,RefPeriodCode:%String,RefPeriodDesc:%String,RefStatusDR:%Integer,RefStatusCode:%String,RefStatusDesc:%String,RefPriorityDR:%Integer,RefPriorityCode:%String,RefPriorityDesc:%String,RefType:%Integer,RefTypeCode:%String,RefTypeDesc:%String,VisitStatus:%String,RefReceivedDate:%Date,ServiceActive:%String,ApptDate:%Date,ApptTime:%String,ApptDuration:%String,ApptStatus:%String,ClientAtStart:%Integer,ClientDuring:%Integer,ClientServiceAtStart:%Integer,ClientServiceDuring:%Integer,ClientAcceptedDuring:%Integer,ClientDischargedDuring:%Integer,ClientRefRejected:%Integer,EpisodeLOS:%Integer,ServiceLOS:%Integer,DeclinedReasonCode:%String,DeclinedReasonDesc:%String,Outcome:%String,BrokerageDate:%Date"/>
+<Parameter name="SELECTMODE" value="ODBC"/>
+</Query>
+</Class>
+</Export>

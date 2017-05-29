@@ -1,0 +1,236 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.AUXX.Report.ZEN.StoredProc.ReceiptsList">
+<ProcedureBlock>0</ProcedureBlock>
+<Super>Report.Abstract</Super>
+<TimeCreated>61017,52907.544935</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/AUXX/Report/ZEN/StoredProc/ReceiptsList.xml#1 $</Default>
+</Parameter>
+
+<UDLText name="T">
+<Content><![CDATA[
+// Report Name: Receipts List <br>
+
+]]></Content>
+</UDLText>
+
+<UDLText name="T">
+<Content><![CDATA[
+// Report Code: AUXX.FIN0008 <br>
+
+]]></Content>
+</UDLText>
+
+<UDLText name="T">
+<Content><![CDATA[
+// LOGTRAK Number: 72213 <br>
+
+]]></Content>
+</UDLText>
+
+<Method name="GetReceiptsClose">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>QHandle:%Library.Binary</FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Clean up by purging the temporary node in ^CacheTemp global
+ New repid
+ Set repid=$li(QHandle,2)
+ 
+ //Close Monitor (if configured to capture stats)
+ i mon Do ..MonitorEnd(mon)
+ 
+ Kill ^CacheTemp("TRAK",repid)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="GetReceiptsExecute">
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,DateFrom:%Date,DateTo:%Date,Hospital:%String,Cashier:%String]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+	
+ // Get reportid i.e. use $INCREMENT to add another node to ^CacheTemp global. 
+ // We use ^CacheTemp global because it will always use memory before disk
+ New repid,ind
+
+ // Use $Increment to get the next node
+ Set repid=$I(^CacheTemp("TRAK"))
+ 
+ //Start Monitor (if configured to capture stats)
+ s mon=..MonitorBegin()
+ 
+ // Build data into ^CacheTemp(ReportID)
+ // e.g. Set ^CacheTemp(ReportID,Index)=$LB(f1,f2,f3)
+ new Number,String,Date,Time,c,n,END,NEXT
+ new EpisodeType,PAYMRowId,ARRCPRowId,ARRCPNumber,ARRCPDate,ARPBLBillNo,PAPMINo,PAADMAdmNo,PAPMIName,PAPMIName2,PAPMIName3,HOSPDesc,SSUSRInitials,Other,Cash,Credit,Cheque,Deposit,PAADMSubType
+ new CTPMGrpCode,CTPMDesc,CTPMDesc,PAYMAMT
+ set (EpisodeType,PAYMRowId,ARRCPRowId,ARRCPNumber,ARRCPDate,PAPMINo,PAADMAdmNo,PAPMIName,PAPMIName2,PAPMIName3,HOSPDesc,SSUSRInitials,PAADMSubType)=""
+ set (CTPMGrpCode,CTPMDesc,CTPMDesc)=""
+ set (PAYMAMT,Cash,Credit,Cheque,Deposit,Other)=0
+
+ //set (END,NEXT)=0
+ set ind=1
+
+  //Convert ODBC dates to cache format
+ s DateFrom=..ConvertDateToCache(DateFrom)
+ s DateTo=..ConvertDateToCache(DateTo)
+ 
+ i $g(Hospital)'="" s Hospital=$zstrip(Hospital,"*C")
+ i $g(Cashier)'="" s Cashier=$zstrip(Cashier,"*C") 
+  
+ &sql(declare GetReceipts cursor for
+select
+case when ARRAL_ADMISSION_DR->PAADM_Type='E' then 'Emergency' when ARRAL_ADMISSION_DR->PAADM_Type='I' then 'InPatients' when ARRAL_ADMISSION_DR->PAADM_Type='O' then 'Outpatients' else 'Unclassified' end,
+paym_Rowid,
+ARRCP_RowId,
+PAYM_PayMode_DR->CTPM_GrpCode,
+PAYM_PayMode_DR->CTPM_Code,
+PAYM_PayMode_DR->CTPM_Desc,
+PAYM_Amt,
+ARRCP_Number,
+ARRCP_Date,
+arral_arpbil_dr->ARPBL_BillNo,
+CASE WHEN ARRCP_PAPMI_DR->PAPMI_No IS NOT NULL THEN ARRCP_PAPMI_DR->PAPMI_NO ELSE ARRAL_ADMISSION_dR->PAADM_PAPMI_dR->PAPMI_No end,
+ARRAL_ADMISSION_DR->PAADM_AdmNo,
+CASE WHEN ARRCP_PAPMI_DR->PAPMI_Name IS NOT NULL THEN ARRCP_PAPMI_DR->PAPMI_Name ELSE ARRAL_ADMISSION_dR->PAADM_PAPMI_dR->PAPMI_Name end,
+CASE WHEN ARRCP_PAPMI_DR->PAPMI_Name2 IS NOT NULL THEN ARRCP_PAPMI_DR->PAPMI_Name2 ELSE ARRAL_ADMISSION_dR->PAADM_PAPMI_dR->PAPMI_Name2 end,
+CASE WHEN ARRCP_PAPMI_DR->PAPMI_Name3 IS NOT NULL THEN ARRCP_PAPMI_DR->PAPMI_Name3 ELSE ARRAL_ADMISSION_dR->PAADM_PAPMI_dR->PAPMI_Name3 end,
+%EXACT(ARRCP_Hospital_DR->HOSP_Desc),
+ARRCP_AddUserID->SSUSR_Initials,
+case when PAYM_PayMode_DR is null or NOT PAYM_PayMode_DR->CTPM_GrpCode IN ('CC','CQ','DP','CH') then PAYM_Amt end,
+ARRAL_ADMISSION_DR->PAADM_Epissubtype_DR->SUBT_Desc
+from SQLUser.AR_Receipts, SQLUser.AR_RcptAlloc, SQLUser.ar_RCPTPayMode
+WHERE ARRCP_Date between :DateFrom and :DateTo and ARRCP_RowId=ARRAL_ARRCP_ParRef and ARRCP_RowId=PAYM_ParRef
+and PAYM_Amt<>0 
+    AND (({fn CONCAT( ',', {fn CONCAT((:Hospital),',')})} [ {fn CONCAT( ',', {fn CONCAT((ARRCP_HOSPITAL_DR->HOSP_RowId),',')})}) OR (:Hospital IS NULL))
+    AND (({fn CONCAT( ',', {fn CONCAT((:Cashier),',')})} [ {fn CONCAT( ',', {fn CONCAT((ARRCP_AddUserID),',')})}) OR (:Cashier IS NULL))
+Group by arrcp_hospital_dr->HOSP_Desc,arrcp_number,paym_rowid
+)
+ &sql(open GetReceipts)
+
+ //fetch first row
+ &sql(fetch GetReceipts into :EpisodeType,:PAYMRowId,:ARRCPRowId,:CTPMGrpCode,:CTPMCode,:CTPMDesc,:PAYMAmt,:ARRCPNumber,:ARRCPDate,:ARPBLBillNo,:PAPMINo,:PAADMAdmNo,:PAPMIName,:PAPMIName2,:PAPMIName3,:HOSPDesc,:SSUSRInitials,:Other,:PAADMSubType)
+
+ while 'SQLCODE{	
+		 // build the row
+		 do FormatDates
+		 do GetCash
+		 do GetCredit
+		 do GetCheque
+		 do GetDeposit
+		 
+		 i EpisodeType="" {s (EpisodeType)="Unclassified"}
+		 i EpisodeType="Unclassified" {s (PAADMSubType)="Unclassified"}
+		 //Set ^CacheTemp("TRAK",repid,HOSPDesc_" "_EpisodeType_" "_ARRCPNumber_ind)=$LB(EpisodeType,PAYMRowId,ARRCPRowId,CTPMGrpCode,CTPMCode,CTPMDesc,PAYMAmt,ARRCPNumber,ARRCPDate,ARPBLBillNo,PAPMINo,PAADMAdmNo,PAPMIName,PAPMIName2,PAPMIName3,HOSPDesc,SSUSRInitials,Other,Cash,Credit,Cheque,Deposit,PAADMSubType)
+		 Set ^CacheTemp("TRAK",repid,HOSPDesc_" "_PAADMSubType_" "_ARRCPNumber_ind)=$LB(EpisodeType,PAYMRowId,ARRCPRowId,CTPMGrpCode,CTPMCode,CTPMDesc,PAYMAmt,ARRCPNumber,ARRCPDate,ARPBLBillNo,PAPMINo,PAADMAdmNo,PAPMIName,PAPMIName2,PAPMIName3,HOSPDesc,SSUSRInitials,Other,Cash,Credit,Cheque,Deposit,PAADMSubType)
+		 s ind=ind+1
+	 
+ 	//fetch rows
+ &sql(fetch GetReceipts into :EpisodeType,:PAYMRowId,:ARRCPRowId,:CTPMGrpCode,:CTPMCode,:CTPMDesc,:PAYMAmt,:ARRCPNumber,:ARRCPDate,:ARPBLBillNo,:PAPMINo,:PAADMAdmNo,:PAPMIName,:PAPMIName2,:PAPMIName3,:HOSPDesc,:SSUSRInitials,:Other,:PAADMSubType)}
+
+ &sql(close GetReceipts)
+
+ // Build QHandle (AtEnd,ReportID,Index)
+ Set QHandle=$lb(0,repid,0)
+
+ Quit $$$OK
+ 
+FormatDates
+ // Convert the dates to ODBC date format
+ If ARRCPDate Set ARRCPDate=..ConvertDateToODBC(ARRCPDate)
+ Quit
+ 
+GetCash
+ SET (Cash)=0
+
+ &sql(SELECT
+ sum(PAYM_Amt)
+	INTO :Cash
+	FROM SQLUser.AR_RcptPayMode
+	WHERE	PAYM_RowId=:PAYMRowId and PAYM_PayMode_DR->CTPM_GrpCode='CH'
+	Group by PAYM_RowId	  	      			
+)
+ Quit 
+
+GetCredit
+ SET (Credit)=0
+
+ &sql(SELECT
+ sum(PAYM_Amt)
+	INTO :Credit
+	FROM SQLUser.AR_RcptPayMode
+	WHERE	PAYM_RowId=:PAYMRowId and PAYM_PayMode_DR->CTPM_GrpCode='CC'
+	Group by PAYM_RowId	  	      			
+)
+ Quit 
+
+GetCheque
+ SET (Cheque)=0
+
+ &sql(SELECT
+ sum(PAYM_Amt)
+	INTO :Cheque
+	FROM SQLUser.AR_RcptPayMode
+	WHERE	PAYM_RowId=:PAYMRowId and PAYM_PayMode_DR->CTPM_GrpCode='CQ'
+	Group by PAYM_RowId  	      			
+)
+ Quit 
+
+GetDeposit
+ SET (Deposit)=0
+
+ &sql(SELECT
+ sum(PAYM_Amt)
+	INTO :Deposit
+	FROM SQLUser.AR_RcptPayMode
+	WHERE	PAYM_RowId=:PAYMRowId and PAYM_PayMode_DR->CTPM_GrpCode='DP'
+	Group by PAYM_RowId	  	      			
+)
+ Quit
+]]></Implementation>
+</Method>
+
+<Method name="GetReceiptsFetch">
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,&Row:%Library.List,&AtEnd:%Library.Integer=0]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // This fetch method should never have to change. 
+
+ New repid,ind
+
+ // Restore QHandle
+ Set AtEnd=$li(QHandle,1)
+ Set repid=$li(QHandle,2)
+ Set ind=$li(QHandle,3)
+
+ Set ind=$o(^CacheTemp("TRAK",repid,ind))
+ If ind="" {	// if there are no more rows, finish fetching
+ Set AtEnd=1
+ Set Row=""
+ }
+ Else      {	// fetch row
+ Set Row=^CacheTemp("TRAK",repid,ind)
+ }
+
+ // Save QHandle
+ s QHandle=$lb(AtEnd,repid,ind)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Query name="GetReceipts">
+<Type>%Library.Query</Type>
+<FormalSpec>DateFrom:%Date,DateTo:%Date,Hospital:%String,Cashier:%String</FormalSpec>
+<SqlProc>1</SqlProc>
+<Parameter name="CONTAINID" value="0"/>
+<Parameter name="ROWSPEC" value="EpisodeType:%String(MAXLEN=255),PAYMRowId:%String(MAXLEN=255),ARRCPRowId:%String(MAXLEN=255),CTPMGrpCode:%String(MAXLEN=255),CTPMCode:%String(MAXLEN=255),CTPMDesc:%String,PAYMAmt:%Float,ARRCPNumber:%String(MAXLEN=255),ARRCPDate:%Date,ARPBLBillNo:%String(MAXLEN=255),PAPMINo:%String(MAXLEN=255),PAADMAdmNo:%String(MAXLEN=255),PAPMIName:%String(MAXLEN=255),PAPMIName2:%String(MAXLEN=255),PAPMIName3:%String(MAXLEN=255),HOSPDesc:%String(MAXLEN=255),SSUSRInitials:%String(MAXLEN=255),Other:%Float,Cash:%Float,Credit:%Float,Cheque:%Float,Deposit:%Float,PAADMSubType:%String"/>
+</Query>
+</Class>
+</Export>

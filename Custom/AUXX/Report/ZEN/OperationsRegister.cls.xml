@@ -1,0 +1,176 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.AUXX.Report.ZEN.OperationsRegister">
+<Super>Custom.AUXX.Report.ZEN.Abstract</Super>
+<TimeCreated>61543,54550.041409</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/AUXX/Report/ZEN/OperationsRegister.xml#1 $</Default>
+</Parameter>
+
+<UDLText name="T">
+<Content><![CDATA[
+// Report Name: AUXX Operations Register <br>
+
+]]></Content>
+</UDLText>
+
+<UDLText name="T">
+<Content><![CDATA[
+// Report Code: AUXX.OPT0002 <br>
+
+]]></Content>
+</UDLText>
+
+<Property name="DateFrom">
+<Type>%String</Type>
+<Parameter name="ZENURL" value="P1"/>
+</Property>
+
+<Property name="DateTo">
+<Type>%String</Type>
+<Parameter name="ZENURL" value="P2"/>
+</Property>
+
+<Property name="Facility">
+<Type>%String</Type>
+<Parameter name="ZENURL" value="P3"/>
+</Property>
+
+<Property name="TheatreDept">
+<Type>%String</Type>
+<Parameter name="ZENURL" value="P4"/>
+</Property>
+
+<Property name="Theatre">
+<Type>%String</Type>
+<Parameter name="ZENURL" value="P5"/>
+</Property>
+
+<XData name="ReportDefinition">
+<XMLNamespace>http://www.intersystems.com/zen/report/definition</XMLNamespace>
+<Data><![CDATA[
+<report xmlns='http://www.intersystems.com/zen/report/definition'
+   queryClass='Custom.AUXX.Report.ZEN.StoredProc.OperationsRegister' queryName='OperationsRegister' name='OperationsRegister'>
+  <parameter expression='..DateFrom'/>
+  <parameter expression='..DateTo'/>
+  <parameter expression='..Facility'/>
+  <parameter expression='..TheatreDept'/>
+  <parameter expression='..Theatre'/>
+  <attribute name='ReportTitle' expression='$$$Text("@OperationsRegister@Operations Register")'/>
+  <attribute name='timestamp' expression='$ZDATETIME($H, 2, 2)'/>
+  <attribute name='username' expression='..Username'/>
+  <attribute name='facility' expression="..GetHospListDesc(..Facility)"/>
+   <attribute name="datefrom" expression="..DisplayDate(..DateFrom)"/>
+  <attribute name="dateto" expression="..DisplayDate(..DateTo)"/>
+  <attribute name='otarea' expression="..GetSpecialtyListDesc(..TheatreDept)"/>
+  <attribute name='theatre' expression="..GetRBEquipmentListDesc(..Theatre)"/>
+  
+  <group name="facility" breakOnField="HOSPDesc">
+  <attribute name="description" field="HOSPDesc" />
+  <aggregate name='TotalOperations' type='CUSTOM' field='ANAOPRowID' class='%ZEN.Report.Aggregate.CountDistinct'/>
+  <group name="TheatreDept" breakOnField="TheatreDeptDesc">
+  <attribute name="description" field="TheatreDeptDesc" />
+  <aggregate name='TotalOperations' type='CUSTOM' field='ANAOPRowID' class='%ZEN.Report.Aggregate.CountDistinct'/>
+  <group name="Theatre" breakOnField="TheatreDesc">
+  <attribute name="description" field="TheatreDesc" />
+  <aggregate name='TotalOperations' type='CUSTOM' field='ANAOPRowID' class='%ZEN.Report.Aggregate.CountDistinct'/>
+   <group name="Date" breakOnField="ANAOPOpStartDate"> 
+  <attribute name="description" field="ANAOPOpStartDate" expression="$ZD($ZDATEH(%val,5),2)"/>
+       <aggregate name='TotalOperations' type='CUSTOM' field='ANAOPRowID' class='%ZEN.Report.Aggregate.CountDistinct'/>
+           <group name='Detail'>
+            <element field='PAPMINo' name='PAPMINo'/>
+  	        <element fields='PAPERName,PAPERName2,PAPERName3' name='PatientName' expression='..DisplayName(%val("PAPERName"),%val("PAPERName2"),%val("PAPERName3"))'/>
+            <element field='SPPPDesc' name='ANAOPProcedure' escape="none"/>
+            <element field='ANTYPEDesc' name='ANTYPEDesc'/>
+            <element field='ANATheatreInTime' name='ANATheatreInTime'/>
+            <element field='ANATheatreOutTime' name='ANATheatreOutTime'/>
+            <element field='FullSurgeonName' name='FullSurgeonName'/>
+            <element field='AssistingSurgeon' name='AssistingSurgeon' escape="none"/>
+            <element field='FullAnaesName' name='FullAnaesName'/>
+                 </group>
+              </group>
+             </group>
+            </group>
+           </group>
+        </report>
+]]></Data>
+</XData>
+
+<XData name="ReportDisplay">
+<XMLNamespace>http://www.intersystems.com/zen/report/display</XMLNamespace>
+<Data><![CDATA[
+<report xmlns='http://www.intersystems.com/zen/report/display'
+xmlns:auxxstyle='http://www.intersystems.com/zen/report/display/auxx/style'
+xmlns:auxx='http://www.intersystems.com/zen/report/display/auxx'
+  name='OperationsRegister'>
+<document width= "#(..ReportWidth)#" height="#(..ReportHeight)#" marginLeft="#(..DocMarginLeft)#" marginRight="#(..DocMarginRight)#" 
+marginTop="#(..DocMarginTop)#" marginBottom="#(..DocMarginBottom)#" footerHeight="#(..DocFooterHeight)#" headerHeight="#(..DocHeaderHeight)#" 
+regionBeforeExtent="#(..DocHeaderHeight)#" regionAfterExtent="#(..DocFooterHeight)#" >
+<auxxstyle:auxxgroupheader/>
+<auxxstyle:auxxgroupsummary/>
+<auxxstyle:auxxhospitalheader/>
+<auxxstyle:auxxpagefooter/>
+<auxxstyle:auxxpageheader/>
+<auxxstyle:auxxparameterheader/>
+<auxxstyle:auxxreporttitle/>
+<auxxstyle:auxxtablecolumn/>
+</document>
+<auxx:PageHeader pagetitle='@ReportTitle'/>
+<auxx:ReportFooter username='@username' timestamp='@timestamp'/>
+
+<body>
+<!-- REPORT HEADER -->
+<auxx:ReportHeader reporttitle='@ReportTitle'/>
+<auxx:ReportParameterHeader label='@Facility:@Facility:' field='@facility' xcondition="string-length(@facility)>0"/>
+<auxx:ReportParameterHeader label='@TheatreLocation:@Theatre Location:' field='@otarea' xcondition="string-length(@otarea)>0"/>
+<auxx:ReportParameterHeader label='@Theatre:@Theatre:' field='@theatre' xcondition="string-length(@theatre)>0"/>
+<auxx:ReportDateHeader datefrom="@datefrom" dateto="@dateto" />
+<line pattern="solid" width="100%"/>
+<line pattern="empty" width="100%"/>
+
+<!-- No Results -->
+<auxx:NoResults xcondition="not(facility)" />
+
+<group name='facility' pagebreak="true">
+ <auxx:GroupHospitalHeader label="@Facility:@Facility:" field="@description"/>
+ <line pattern="empty" lineHeight="1mm" />
+<group name='TheatreDept'>
+<auxx:GroupHeader label="@TheatreLocation@Theatre Location:" field="@description" />
+<group name='Theatre'>
+<auxx:GroupHeader label="@Theatre:@Theatre:" field="@description" />
+<group name='Date'>
+<auxx:GroupHeader label="@Date:@Date: " field="@description" />
+<line pattern="empty" lineHeight="1mm" />
+     <table class='auxxtablecolumn' group='Detail'>
+        <item field='PAPMINo' width="11%" caption='@URN@URN'/>
+        <item field='PatientName' width="18%" caption="@Name@Name" />
+        <item field='ANAOPProcedure' caption="@Procedure(s)@Procedure(s)" width="15%"  literal-spaces="true" breakOnLineFeed="true"/>
+        <item field='ANTYPEDesc' width="9%" caption='@Anaesthetic@Anaesthetic'/> 
+        <item field='ANATheatreInTime' width="6%" caption='@TheatreInTime@Theatre In Time'/> 
+        <item field='ANATheatreOutTime' width="6%" caption='@TheatreOutTime@Theatre Out Time'/>
+        <item field='FullSurgeonName' width="12%" caption='@Surgeon@Surgeon'/>
+        <item field='AssistingSurgeon' caption='@AssistantSurgeon(s)@Assistant Surgeon(s)' literal-spaces="true" breakOnLineFeed="true" width="11%"   />
+        <item field='FullAnaesName' width="12%" caption='@Anaesthetist@Anaesthetist'/>
+      </table>
+	<line pattern="empty" width="100%"></line> 
+	<!--<auxx:GroupSummary label="@TotalOperationsfor@Total Operations for" group="@description" summaryvalue="TotalOperations" />-->
+	<!--<line pattern="empty" lineHeight="2mm" />-->
+   </group>
+   <auxx:GroupSummary label="@TotalOperationsfor@Total Operations for" group="@description" summaryvalue="TotalOperations" />
+   <line pattern="empty" lineHeight="2mm" />
+   </group>
+   <auxx:GroupSummary label="@TotalOperationsfor@Total Operations for" group="@description" summaryvalue="TotalOperations" />
+   <line pattern="empty" lineHeight="2mm" />
+   </group>
+   <auxx:GroupSummary label="@TotalOperationsfor@Total Operations for" group="@description" summaryvalue="TotalOperations" />
+   <line pattern="empty" lineHeight="4mm" />
+  </group>
+</body>
+</report>
+]]></Data>
+</XData>
+</Class>
+</Export>

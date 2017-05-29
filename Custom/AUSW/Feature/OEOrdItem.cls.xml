@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.AUSW.Feature.OEOrdItem">
+<IncludeCode>Custom.AUSW.Features</IncludeCode>
+<ProcedureBlock>1</ProcedureBlock>
+<Super>websys.UDFExt.Abstract</Super>
+<TimeCreated>64190,49479.643465</TimeCreated>
+
+<Method name="OnAfterSave">
+<ClassMethod>1</ClassMethod>
+<ReturnType>%Boolean</ReturnType>
+<Implementation><![CDATA[
+	set OEOrdItemIDs = %UDF.DataGet("OEOrdItemIDs")
+	set id = %UDF.Id
+	//Taken from UDF entry: $$OnAfterSave^USWARHOEOrdItem($g(OEOrdItemIDs),$g(id)) - Event: OnAfterSave
+	Quit $$OnAfterSave^USWARHOEOrdItem($g(OEOrdItemIDs),$g(id))
+]]></Implementation>
+</Method>
+
+<Method name="OnSQLTrigger">
+<ClassMethod>1</ClassMethod>
+<ReturnType>%Boolean</ReturnType>
+<Implementation><![CDATA[
+	set rowid = %UDF.DataGet("rowid")
+	//Taken from UDF entry: $$OnSQLTrigger^UAUXXOEOrder($g(rowid)) - Event: OnSQLTrigger
+	Quit $$OnSQLTrigger^UAUXXOEOrder($g(rowid))
+]]></Implementation>
+</Method>
+
+<Method name="RegisterEntryPoints">
+<ClassMethod>1</ClassMethod>
+<ReturnType>%Status</ReturnType>
+<Implementation><![CDATA[
+	set sc = $$$OK
+	Try {
+		set sc = ..RegisterWithFeature("User.OEOrdItem", "OnAfterSave","##class(Custom.AUSW.Feature.OEOrdItem).OnAfterSave()", $$$Feature(AUSWOEOrdItemOnAfterSave))
+		If $System.Status.IsError(sc) Quit
+	} catch(ex){
+		set sc = ex.AsStatus()
+	}
+	Try {
+		set sc = ..RegisterWithFeature("User.OEOrdItem", "OnSQLTrigger","##class(Custom.AUSW.Feature.OEOrdItem).OnSQLTrigger()", $$$Feature(AUSWOEOrdItemOnSQLTrigger))
+		If $System.Status.IsError(sc) Quit
+	} catch(ex){
+		set sc = ex.AsStatus()
+	}
+	Quit sc
+]]></Implementation>
+</Method>
+</Class>
+</Export>

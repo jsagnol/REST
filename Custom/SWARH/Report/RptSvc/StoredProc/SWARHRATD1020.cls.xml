@@ -1,0 +1,501 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.SWARH.Report.RptSvc.StoredProc.SWARHRATD1020">
+<Description><![CDATA[
+<pre>
+***************************************************************************************************************************************
+* Report Code: SWARHRATD1020
+* Report Description: WEIS Data
+* Menu Caption: Weis Data
+* Initial Release: N/A	Developer: Sharon Rees
+* Modified: 13/04/2016 Developer: MW
+* Description: Added Indigenous Status description to report. Updated report to use #CACHETEMPSUBSCRIPT
+*
+* NOTE: When making any changes to this please take into consideration that this stored procedure is also called by SASQLH01 and 
+*       manipulated to create views for PowerBudget to use.  Changing the columns returned may break this functionality so check to see
+*       that any changes here do not cause issues for PowerBudget.
+***************************************************************************************************************************************
+</pre>]]></Description>
+<ProcedureBlock>0</ProcedureBlock>
+<Super>Custom.SWARH.Report.RptSvc.StoredProc.Abstract</Super>
+<TimeCreated>60905,54849</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/SWARH/Report/RptSvc/StoredProc/SWARHRATD1020.xml#1 $</Default>
+</Parameter>
+
+<Method name="SWARHRATD1020Execute">
+<Description>
+This is the Execute section for the %Library.Query. 
+All of the logic will be performed here.
+A new node for the ^CacheTemp global will be created and each subscript of this global will contain
+a row for the report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,Hospital:%Integer,DateFrom:%Date,DateTo:%Date,DateType:%Integer]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Get reportid i.e. use $INCREMENT to add another node to ^CacheTemp global. 
+ // We use ^CacheTemp global because it will always use memory before disk
+ New repid,ind
+
+ // Use $Increment to get the next node
+ Set repid=$INCREMENT(^CacheTemp(..#CACHETEMPSUBSCRIPT))
+ 
+ // Build data into ^CacheTemp(ReportID)
+ // e.g. Set ^CacheTemp(ReportID,Index)=$LB(f1,f2,f3)
+ New Number,String,Date,Time,c,n
+ New AdmId,PAPMINo,PAADMADMNo,PAPMIName,PAPMIName2,PAPMIName3,Age,DOB,SEX,City,PostCode,Deceased,DeceasedDate,BirthPlace,PreLanguage,Interpreter,AdmType,AdmCri,PAADMAdmDate,PAADMAdmTime,
+ PAADMDischgDate,PAADMDischgTime,PAADMHospitalDR,HOSPDesc,TreatingDoc,AdmDoc,Payor,Plan,WIES,DRGCode,DRGDesc,CTCode,CTDesc,LOS,LastWardCode,LastWardDesc,AdmWardCode,
+ DRGVERCode,DRGVERDesc,DRGVERDFrom,DRGVERDTo,StateLOS,OverNightWeight,SamedayWeight,DRGGroup,DchDate,DchTime,MchVentHrs,Speciality,Patcat,PlanStay,INTREACode,INTREADesc,IndigStatus
+ 
+ s (AdmId,Age,PAADMHospitalDR,LOS,StateLOS,OverNightWeight,SamedayWeight,WIES)=0
+ s (PAPMINo,PAADMADMNo,PAPMIName,PAPMIName2,PAPMIName3,DOB,SEX,City,PostCode,Deceased,DeceasedDate,BirthPlace,PreLanguage,Interpreter,AdmType,AdmCri,PAADMAdmDate,PAADMAdmTime,
+ PAADMDischgDate,PAADMDischgTime,HOSPDesc,TreatingDoc,AdmDoc,Payor,Plan,DRGCode,DRGDesc,CTCode,CTDesc,LOS,LastWardCode,LastWardDesc,AdmWardCode,DRGVERCode,DRGVERDesc,
+ DRGVERDFrom,DRGVERDTo,DRGGroup,DchDate,DchTime,MchVentHrs,Speciality,Patcat,PlanStay,INTREACode,INTREADesc,IndigStatus)="" 
+  
+ Set ind=1, END=0
+
+ //Start Monitor (if configured to capture stats)
+ Set mon=..MonitorBegin()
+
+ //Convert ODBC dates to cache format
+ Set DateFrom=..ConvertDateToCache(DateFrom)
+ Set DateTo=..ConvertDateToCache(DateTo)
+
+ If (DateType = 0) //Discharged Date
+ {
+ &sql(declare Discharged cursor for
+ SELECT DISTINCT
+	A.PAADM_RowId as AdmId,
+    B.PAPMI_No,
+    A.PAADM_ADMNo,
+    {fn UCASE(%EXACT(B.PAPMI_Name))},
+    UCASE(B.PAPMI_Name2),
+    UCASE(B.PAPMI_Name3),
+    DATEDIFF('yy',PAPMI_DOB,PAADM_AdmDate) As Age,
+    B.PAPMI_DOB As DOB,
+    B.PAPMI_Sex_DR->CTSEX_Code As SEX,
+    B.PAPMI_PAPER_DR->PAPER_ZIP_DR->CTZIP_Desc AS City,
+    B.PAPMI_PAPER_DR->PAPER_ZIP_DR->CTZIP_Code As PostCode,
+    B.PAPMI_Deceased As Deceased,
+    B.PAPMI_Deceased_Date As DeceasedDate,
+    B.PAPMI_CountryOfBirth_DR ->CTCOU_Desc As BirthPlace,
+    B.PAPMI_PAPER_DR->PAPER_PrefLanguage_DR->PREFL_Code As PreLanguage,
+    B.PAPMI_PAPER_DR->PAPER_InterpreterRequired As Interpreter,
+    A.PAADM_InPatAdmType_DR->IPat_Code as AdmType,
+    A.PAADM_AdmReason_dr->REA_Code as AdmCri,
+    A.PAADM_AdmDate,
+    A.PAADM_AdmTime,
+    A.PAADM_DischgDate,
+    A.PAADM_DischgTime,
+    A.PAADM_Hospital_DR,
+    A.PAADM_Hospital_DR->HOSP_Desc,
+    A.PAADM_TreatingDr_DR->CTPCP_Desc As TreatingDoc,
+    A.PAADM_AdmDocCodeDR->CTPCP_Desc As AdmDoc,
+    H.INS_InsType_DR->INST_Code AS Payor,
+    H.INS_AuxInsType_DR->AUXIT_Desc as Plan,
+    C.MRADM_TotalWIESScore As WIES,
+    D.DRG_Code As DRGCode,
+    D.DRG_Desc As DRGDesc,
+    C.MRADM_CareType_DR->CareTyp_Code As CTCode,
+    C.MRADM_CareType_DR->CareTyp_Desc As CTDesc,
+    CASE WHEN A.PAADM_DischgDate is null THEN datediff("d",A.PAADM_AdmDate,getdate()) ELSE
+    (CASE WHEN datediff("d",A.PAADM_AdmDate,A.PAADM_DischgDate)=0 THEN 1 ELSE datediff("d",A.PAADM_AdmDate,A.PAADM_DischgDate) END) END as LOS,
+    A.PAADM_CurrentWard_DR->Ward_Code As LastWardCode,
+    A.PAADM_CurrentWard_DR->Ward_Desc As LastWardDesc,
+    --F.TRANS_Ward_DR->Ward_Code As AdmWardCode,
+    --F.TRANS_Ward_DR->Ward_Desc As AdmWardDesc,
+    E.VER_Version_DR->DRGVER_Code As DRGVERCode,
+    E.VER_Version_DR->DRGVER_Desc As DRGVERDesc,
+    E.VER_Version_DR->DRGVER_DateFrom As DRGVERDFrom,
+    E.VER_Version_DR->DRGVER_DateTo As DRGVERDTo,
+    G.TAR_DayHospitalTariff As StateLOS,
+    G.TAR_ReabilitaionLimitDay As OverNightWeight,
+    G.TAR_LimitDay AS SamedayWeight,
+    Left(D.DRG_Code,3) As DRGGroup,
+    To_Char(A.PAADM_DischgDate,'DD/MM/YYYY') As DchDate,
+    Cast(A.PAADM_DischgTime As VARCHAR(5)) As DchTime,
+    C.MRADM_DurationMechVent As MchVentHrs,
+    A.PAADM_DepCode_DR->CTLOC_Code As Speciality,
+    H.INS_instype_dr->INST_PayorGroup_DR->PGRP_desc as Patcat,
+    A.PAADM_AdmCateg_DR->ADMCAT_Desc as PlanStay,
+    PAADM_MainMRADM_DR->MRADM_IntentReadmit_DR->INTREA_Code,
+	PAADM_MainMRADM_DR->MRADM_IntentReadmit_DR->INTREA_Desc,
+	A.PAADM_PAPMI_DR->PAPMI_IndigStat_DR->INDST_Desc As IndigStatus
+
+ FROM SQLUser.PA_Adm A
+        LEFT OUTER JOIN SQLUser.PA_PatMas B ON A.PAADM_PAPMI_DR = B.PAPMI_RowId
+        LEFT OUTER JOIN SQLUser.MR_Adm C ON A.PAADM_MainMRADM_DR = C.MRADM_RowId
+        LEFT OUTER JOIN SQLUser.MRC_DRGCodes D ON C.MRADM_DRG_DR = D.DRG_RowID
+        LEFT OUTER JOIN SQLUser.MRC_DRGCodesVersion E ON D.DRG_RowId = E.VER_ParRef
+        --LEFT OUTER JOIN SQLUser.PA_AdmTransaction F ON A.PAADM_RowID = F.TRANS_ParRef
+        LEFT OUTER JOIN SQLUser.BLC_DRG_Tariff G ON D.DRG_RowID = G.TAR_DRG_DR
+        LEFT OUTER JOIN SQLUser.PA_AdmInsurance H ON A.PAADM_RowID = H.INS_ParRef
+
+ WHERE
+        A.PAADM_Hospital_DR = :Hospital
+        AND A.PAADM_DischgDate  BETWEEN :DateFrom AND :DateTo
+        AND A.PAADM_VisitStatus = 'D'
+        AND A.PAADM_Type = 'I'
+        --AND F.TRANS_Ward_DR <> ''
+        --AND F.TRANS_Transtype_DR in(1,3)
+        AND H.INS_AuxInsType_DR <> ''
+        
+ )
+ }
+  If (DateType = 1) //Admission Date
+ {
+ &sql(declare Admission cursor for
+ SELECT DISTINCT
+	A.PAADM_RowId as AdmId,
+    B.PAPMI_No,
+    A.PAADM_ADMNo,
+    {fn UCASE(%EXACT(B.PAPMI_Name))},
+    UCASE(B.PAPMI_Name2),
+    UCASE(B.PAPMI_Name3),
+    DATEDIFF('yy',PAPMI_DOB,PAADM_AdmDate) As Age,
+    B.PAPMI_DOB As DOB,
+    B.PAPMI_Sex_DR->CTSEX_Code As SEX,
+    B.PAPMI_PAPER_DR->PAPER_ZIP_DR->CTZIP_Desc AS City,
+    B.PAPMI_PAPER_DR->PAPER_ZIP_DR->CTZIP_Code As PostCode,
+    B.PAPMI_Deceased As Deceased,
+    B.PAPMI_Deceased_Date As DeceasedDate,
+    B.PAPMI_CountryOfBirth_DR ->CTCOU_Desc As BirthPlace,
+    B.PAPMI_PAPER_DR->PAPER_PrefLanguage_DR->PREFL_Code As PreLanguage,
+    B.PAPMI_PAPER_DR->PAPER_InterpreterRequired As Interpreter,
+    A.PAADM_InPatAdmType_DR->IPat_Code as AdmType,
+    A.PAADM_AdmReason_dr->REA_Code as AdmCri,
+    A.PAADM_AdmDate,
+    A.PAADM_AdmTime,
+    A.PAADM_DischgDate,
+    A.PAADM_DischgTime,
+    A.PAADM_Hospital_DR,
+    A.PAADM_Hospital_DR->HOSP_Desc,
+    A.PAADM_TreatingDr_DR->CTPCP_Desc As TreatingDoc,
+    A.PAADM_AdmDocCodeDR->CTPCP_Desc As AdmDoc,
+    H.INS_InsType_DR->INST_Code AS Payor,
+    H.INS_AuxInsType_DR->AUXIT_Desc as Plan,
+    C.MRADM_TotalWIESScore As WIES,
+    D.DRG_Code As DRGCode,
+    D.DRG_Desc As DRGDesc,
+    C.MRADM_CareType_DR->CareTyp_Code As CTCode,
+    C.MRADM_CareType_DR->CareTyp_Desc As CTDesc,
+    CASE WHEN A.PAADM_DischgDate is null THEN datediff("d",A.PAADM_AdmDate,getdate()) ELSE
+    (CASE WHEN datediff("d",A.PAADM_AdmDate,A.PAADM_DischgDate)=0 THEN 1 ELSE datediff("d",A.PAADM_AdmDate,A.PAADM_DischgDate) END) END as LOS,
+    A.PAADM_CurrentWard_DR->Ward_Code As LastWardCode,
+    A.PAADM_CurrentWard_DR->Ward_Desc As LastWardDesc,
+    --F.TRANS_Ward_DR->Ward_Code As AdmWardCode,
+    --F.TRANS_Ward_DR->Ward_Desc As AdmWardDesc,
+    E.VER_Version_DR->DRGVER_Code As DRGVERCode,
+    E.VER_Version_DR->DRGVER_Desc As DRGVERDesc,
+    E.VER_Version_DR->DRGVER_DateFrom As DRGVERDFrom,
+    E.VER_Version_DR->DRGVER_DateTo As DRGVERDTo,
+    G.TAR_DayHospitalTariff As StateLOS,
+    G.TAR_ReabilitaionLimitDay As OverNightWeight,
+    G.TAR_LimitDay AS SamedayWeight,
+    Left(D.DRG_Code,3) As DRGGroup,
+    To_Char(A.PAADM_DischgDate,'DD/MM/YYYY') As DchDate,
+    Cast(A.PAADM_DischgTime As VARCHAR(5)) As DchTime,
+    C.MRADM_DurationMechVent As MchVentHrs,
+    A.PAADM_DepCode_DR->CTLOC_Code As Speciality,
+    H.INS_instype_dr->INST_PayorGroup_DR->PGRP_desc as Patcat,
+    A.PAADM_AdmCateg_DR->ADMCAT_Desc as PlanStay,
+    PAADM_MainMRADM_DR->MRADM_IntentReadmit_DR->INTREA_Code,
+	PAADM_MainMRADM_DR->MRADM_IntentReadmit_DR->INTREA_Desc,
+	A.PAADM_PAPMI_DR->PAPMI_IndigStat_DR->INDST_Desc As IndigStatus
+
+ FROM SQLUser.PA_Adm A
+        LEFT OUTER JOIN SQLUser.PA_PatMas B ON A.PAADM_PAPMI_DR = B.PAPMI_RowId
+        LEFT OUTER JOIN SQLUser.MR_Adm C ON A.PAADM_MainMRADM_DR = C.MRADM_RowId
+        LEFT OUTER JOIN SQLUser.MRC_DRGCodes D ON C.MRADM_DRG_DR = D.DRG_RowID
+        LEFT OUTER JOIN SQLUser.MRC_DRGCodesVersion E ON D.DRG_RowId = E.VER_ParRef
+        --LEFT OUTER JOIN SQLUser.PA_AdmTransaction F ON A.PAADM_RowID = F.TRANS_ParRef
+        LEFT OUTER JOIN SQLUser.BLC_DRG_Tariff G ON D.DRG_RowID = G.TAR_DRG_DR
+        LEFT OUTER JOIN SQLUser.PA_AdmInsurance H ON A.PAADM_RowID = H.INS_ParRef
+
+ WHERE
+        A.PAADM_Hospital_DR = :Hospital
+        AND A.PAADM_AdmDate  BETWEEN :DateFrom AND :DateTo
+        AND A.PAADM_VisitStatus not in ('C','P')
+        AND A.PAADM_Type = 'I'
+        --AND F.TRANS_Ward_DR <> ''
+        --AND F.TRANS_Transtype_DR in(1,3)
+        AND H.INS_AuxInsType_DR <> ''
+        
+ )
+ }
+  If (DateType = 2) //Current Patients
+ {
+ &sql(declare CurrentPatients cursor for
+ SELECT DISTINCT
+	A.PAADM_RowId as AdmId,
+    B.PAPMI_No,
+    A.PAADM_ADMNo,
+    {fn UCASE(%EXACT(B.PAPMI_Name))},
+    UCASE(B.PAPMI_Name2),
+    UCASE(B.PAPMI_Name3),
+    DATEDIFF('yy',PAPMI_DOB,PAADM_AdmDate) As Age,
+    B.PAPMI_DOB As DOB,
+    B.PAPMI_Sex_DR->CTSEX_Code As SEX,
+    B.PAPMI_PAPER_DR->PAPER_ZIP_DR->CTZIP_Desc AS City,
+    B.PAPMI_PAPER_DR->PAPER_ZIP_DR->CTZIP_Code As PostCode,
+    B.PAPMI_Deceased As Deceased,
+    B.PAPMI_Deceased_Date As DeceasedDate,
+    B.PAPMI_CountryOfBirth_DR ->CTCOU_Desc As BirthPlace,
+    B.PAPMI_PAPER_DR->PAPER_PrefLanguage_DR->PREFL_Code As PreLanguage,
+    B.PAPMI_PAPER_DR->PAPER_InterpreterRequired As Interpreter,
+    A.PAADM_InPatAdmType_DR->IPat_Code as AdmType,
+    A.PAADM_AdmReason_dr->REA_Code as AdmCri,
+    A.PAADM_AdmDate,
+    A.PAADM_AdmTime,
+    A.PAADM_DischgDate,
+    A.PAADM_DischgTime,
+    A.PAADM_Hospital_DR,
+    A.PAADM_Hospital_DR->HOSP_Desc,
+    A.PAADM_TreatingDr_DR->CTPCP_Desc As TreatingDoc,
+    A.PAADM_AdmDocCodeDR->CTPCP_Desc As AdmDoc,
+    H.INS_InsType_DR->INST_Code AS Payor,
+    H.INS_AuxInsType_DR->AUXIT_Desc as Plan,
+    C.MRADM_TotalWIESScore As WIES,
+    D.DRG_Code As DRGCode,
+    D.DRG_Desc As DRGDesc,
+    C.MRADM_CareType_DR->CareTyp_Code As CTCode,
+    C.MRADM_CareType_DR->CareTyp_Desc As CTDesc,
+    CASE WHEN A.PAADM_DischgDate is null THEN datediff("d",A.PAADM_AdmDate,getdate()) ELSE
+    (CASE WHEN datediff("d",A.PAADM_AdmDate,A.PAADM_DischgDate)=0 THEN 1 ELSE datediff("d",A.PAADM_AdmDate,A.PAADM_DischgDate) END) END as LOS,
+    A.PAADM_CurrentWard_DR->Ward_Code As LastWardCode,
+    A.PAADM_CurrentWard_DR->Ward_Desc As LastWardDesc,
+    --F.TRANS_Ward_DR->Ward_Code As AdmWardCode,
+    --F.TRANS_Ward_DR->Ward_Desc As AdmWardDesc,
+    E.VER_Version_DR->DRGVER_Code As DRGVERCode,
+    E.VER_Version_DR->DRGVER_Desc As DRGVERDesc,
+    E.VER_Version_DR->DRGVER_DateFrom As DRGVERDFrom,
+    E.VER_Version_DR->DRGVER_DateTo As DRGVERDTo,
+    G.TAR_DayHospitalTariff As StateLOS,
+    G.TAR_ReabilitaionLimitDay As OverNightWeight,
+    G.TAR_LimitDay AS SamedayWeight,
+    Left(D.DRG_Code,3) As DRGGroup,
+    To_Char(A.PAADM_DischgDate,'DD/MM/YYYY') As DchDate,
+    Cast(A.PAADM_DischgTime As VARCHAR(5)) As DchTime,
+    C.MRADM_DurationMechVent As MchVentHrs,
+    A.PAADM_DepCode_DR->CTLOC_Code As Speciality,
+    H.INS_instype_dr->INST_PayorGroup_DR->PGRP_desc as Patcat,
+    A.PAADM_AdmCateg_DR->ADMCAT_Desc as PlanStay,
+    PAADM_MainMRADM_DR->MRADM_IntentReadmit_DR->INTREA_Code,
+	PAADM_MainMRADM_DR->MRADM_IntentReadmit_DR->INTREA_Desc,
+	A.PAADM_PAPMI_DR->PAPMI_IndigStat_DR->INDST_Desc As IndigStatus
+    
+
+ FROM SQLUser.PA_Adm A
+        LEFT OUTER JOIN SQLUser.PA_PatMas B ON A.PAADM_PAPMI_DR = B.PAPMI_RowId
+        LEFT OUTER JOIN SQLUser.MR_Adm C ON A.PAADM_MainMRADM_DR = C.MRADM_RowId
+        LEFT OUTER JOIN SQLUser.MRC_DRGCodes D ON C.MRADM_DRG_DR = D.DRG_RowID
+        LEFT OUTER JOIN SQLUser.MRC_DRGCodesVersion E ON D.DRG_RowId = E.VER_ParRef
+        --LEFT OUTER JOIN SQLUser.PA_AdmTransaction F ON A.PAADM_RowID = F.TRANS_ParRef
+        LEFT OUTER JOIN SQLUser.BLC_DRG_Tariff G ON D.DRG_RowID = G.TAR_DRG_DR
+        LEFT OUTER JOIN SQLUser.PA_AdmInsurance H ON A.PAADM_RowID = H.INS_ParRef
+
+ WHERE
+        A.PAADM_Hospital_DR = :Hospital
+        AND A.PAADM_AdmDate  <= :DateTo
+        AND	A.PAADM_DischgDate > :DateFrom
+        AND A.PAADM_VisitStatus not in ('C','P')
+        AND A.PAADM_Type = 'I'
+        --AND F.TRANS_Ward_DR <> ''
+        --AND F.TRANS_Transtype_DR in(1,3)
+        AND H.INS_AuxInsType_DR <> ''
+ )
+ }
+ 
+ If (DateType = 0) //Discharged Date
+ {
+ &sql(open Discharged)
+ 
+  //fetch first row
+ &sql(fetch Discharged into :AdmId,:PAPMINo,:PAADMADMNo,:PAPMIName,:PAPMIName2,:PAPMIName3,:Age,:DOB,:SEX,:City,:PostCode,:Deceased,:DeceasedDate,:BirthPlace,:PreLanguage,:Interpreter,
+ :AdmType,:AdmCri,:PAADMAdmDate,:PAADMAdmTime,:PAADMDischgDate,:PAADMDischgTime,:PAADMHospitalDR,:HOSPDesc,:TreatingDoc,:AdmDoc,:Payor,:Plan,:WIES,:DRGCode,:DRGDesc,:CTCode,:CTDesc,:LOS,
+ :LastWardCode,:LastWardDesc,:DRGVERCode,:DRGVERDesc,:DRGVERDFrom,:DRGVERDTo,:StateLOS,:OverNightWeight,:SamedayWeight,:DRGGroup,
+ :DchDate,:DchTime,:MchVentHrs,:Speciality,:Patcat,:PlanStay,:INTREACode,:INTREADesc,:IndigStatus)
+ 
+ while 'SQLCODE{
+ 
+ //s Patcat = GetPrimaryInsPayorGroupForEpisode(AdmId)
+ d FormatDates
+ d FormatTimes
+ d FindAdmissionWard
+  
+
+ // build the row
+ Set sort = ind	
+ 
+ Set ^CacheTemp(..#CACHETEMPSUBSCRIPT,repid,sort)=$LISTBUILD(AdmId,PAPMINo,PAADMADMNo,PAPMIName,PAPMIName2,PAPMIName3,Age,DOB,SEX,City,PostCode,Deceased,DeceasedDate,BirthPlace,PreLanguage,Interpreter,AdmType,AdmCri,PAADMAdmDate,
+ PAADMAdmTime,PAADMDischgDate,PAADMDischgTime,PAADMHospitalDR,HOSPDesc,TreatingDoc,AdmDoc,Payor,Plan,WIES,DRGCode,DRGDesc,CTCode,CTDesc,LOS,LastWardCode,LastWardDesc,AdmWardCode,
+ DRGVERCode,DRGVERDesc,DRGVERDFrom,DRGVERDTo,StateLOS,OverNightWeight,SamedayWeight,DRGGroup,DchDate,DchTime,MchVentHrs,Speciality,PatCat,PlanStay,INTREACode,INTREADesc,IndigStatus)
+ s ind=ind+1
+ //fetch rows
+ &sql(fetch Discharged into :AdmId,:PAPMINo,:PAADMADMNo,:PAPMIName,:PAPMIName2,:PAPMIName3,:Age,:DOB,:SEX,:City,:PostCode,:Deceased,:DeceasedDate,:BirthPlace,:PreLanguage,:Interpreter,
+ :AdmType,:AdmCri,:PAADMAdmDate,:PAADMAdmTime,:PAADMDischgDate,:PAADMDischgTime,:PAADMHospitalDR,:HOSPDesc,:TreatingDoc,:AdmDoc,:Payor,:Plan,:WIES,:DRGCode,:DRGDesc,:CTCode,:CTDesc,:LOS,:LastWardCode,
+ :LastWardDesc,:DRGVERCode,:DRGVERDesc,:DRGVERDFrom,:DRGVERDTo,:StateLOS,:OverNightWeight,:SamedayWeight,:DRGGroup,:DchDate,:DchTime,:MchVentHrs,:Speciality,:Patcat,:PlanStay,:INTREACode,:INTREADesc,:IndigStatus)
+ }
+ &sql(close Discharged)
+ }
+ 
+ If (DateType = 1) //Admission Date
+ {
+ &sql(open Admission)
+ 
+  //fetch first row
+ &sql(fetch Admission into :AdmId,:PAPMINo,:PAADMADMNo,:PAPMIName,:PAPMIName2,:PAPMIName3,:Age,:DOB,:SEX,:City,:PostCode,:Deceased,:DeceasedDate,:BirthPlace,:PreLanguage,:Interpreter,
+ :AdmType,:AdmCri,:PAADMAdmDate,:PAADMAdmTime,:PAADMDischgDate,:PAADMDischgTime,:PAADMHospitalDR,:HOSPDesc,:TreatingDoc,:AdmDoc,:Payor,:Plan,:WIES,:DRGCode,:DRGDesc,:CTCode,:CTDesc,:LOS,
+ :LastWardCode,:LastWardDesc,:DRGVERCode,:DRGVERDesc,:DRGVERDFrom,:DRGVERDTo,:StateLOS,:OverNightWeight,:SamedayWeight,:DRGGroup,
+ :DchDate,:DchTime,:MchVentHrs,:Speciality,:Patcat,:PlanStay,:INTREACode,:INTREADesc,:IndigStatus)
+ 
+ while 'SQLCODE{
+ 
+ //s Patcat = ..GetPrimaryInsPayorGroupForEpisode(AdmId)
+ d FormatDates
+ d FormatTimes
+ d FindAdmissionWard
+
+ // build the row
+ Set sort = ind	
+ 
+ Set ^CacheTemp(..#CACHETEMPSUBSCRIPT,repid,sort)=$LISTBUILD(AdmId,PAPMINo,PAADMADMNo,PAPMIName,PAPMIName2,PAPMIName3,Age,DOB,SEX,City,PostCode,Deceased,DeceasedDate,BirthPlace,PreLanguage,Interpreter,AdmType,AdmCri,PAADMAdmDate,
+ PAADMAdmTime,PAADMDischgDate,PAADMDischgTime,PAADMHospitalDR,HOSPDesc,TreatingDoc,AdmDoc,Payor,Plan,WIES,DRGCode,DRGDesc,CTCode,CTDesc,LOS,LastWardCode,LastWardDesc,AdmWardCode,
+ DRGVERCode,DRGVERDesc,DRGVERDFrom,DRGVERDTo,StateLOS,OverNightWeight,SamedayWeight,DRGGroup,DchDate,DchTime,MchVentHrs,Speciality,PatCat,PlanStay,INTREACode,INTREADesc,IndigStatus)
+ s ind=ind+1
+ //fetch rows
+ &sql(fetch Admission into :AdmId,:PAPMINo,:PAADMADMNo,:PAPMIName,:PAPMIName2,:PAPMIName3,:Age,:DOB,:SEX,:City,:PostCode,:Deceased,:DeceasedDate,:BirthPlace,:PreLanguage,:Interpreter,
+ :AdmType,:AdmCri,:PAADMAdmDate,:PAADMAdmTime,:PAADMDischgDate,:PAADMDischgTime,:PAADMHospitalDR,:HOSPDesc,:TreatingDoc,:AdmDoc,:Payor,:Plan,:WIES,:DRGCode,:DRGDesc,:CTCode,:CTDesc,:LOS,:LastWardCode,
+ :LastWardDesc,:DRGVERCode,:DRGVERDesc,:DRGVERDFrom,:DRGVERDTo,:StateLOS,:OverNightWeight,:SamedayWeight,:DRGGroup,:DchDate,:DchTime,:MchVentHrs,:Speciality,:Patcat,:PlanStay,:INTREACode,:INTREADesc,:IndigStatus)
+ }
+ &sql(close Admission)
+ }
+ 
+ If (DateType = 2) //Current Patient
+ {
+ &sql(open CurrentPatients)
+ 
+  //fetch first row 
+ &sql(fetch CurrentPatients into :AdmId,:PAPMINo,:PAADMADMNo,:PAPMIName,:PAPMIName2,:PAPMIName3,:Age,:DOB,:SEX,:City,:PostCode,:Deceased,:DeceasedDate,:BirthPlace,:PreLanguage,:Interpreter,
+ :AdmType,:AdmCri,:PAADMAdmDate,:PAADMAdmTime,:PAADMDischgDate,:PAADMDischgTime,:PAADMHospitalDR,:HOSPDesc,:TreatingDoc,:AdmDoc,:Payor,:Plan,:WIES,:DRGCode,:DRGDesc,:CTCode,:CTDesc,:LOS,
+ :LastWardCode,:LastWardDesc,:DRGVERCode,:DRGVERDesc,:DRGVERDFrom,:DRGVERDTo,:StateLOS,:OverNightWeight,:SamedayWeight,:DRGGroup,
+ :DchDate,:DchTime,:MchVentHrs,:Speciality,:Patcat,:PlanStay,:INTREACode,:INTREADesc,:IndigStatus)
+ 
+ while 'SQLCODE{
+ 
+ //s Patcat = ..GetPrimaryInsPayorGroupForEpisode(AdmId)
+ d FormatDates
+ d FormatTimes
+ d FindAdmissionWard
+
+ // build the row
+ Set sort = ind	
+ 
+ Set ^CacheTemp(..#CACHETEMPSUBSCRIPT,repid,sort)=$LISTBUILD(AdmId,PAPMINo,PAADMADMNo,PAPMIName,PAPMIName2,PAPMIName3,Age,DOB,SEX,City,PostCode,Deceased,DeceasedDate,BirthPlace,PreLanguage,Interpreter,AdmType,AdmCri,PAADMAdmDate,
+ PAADMAdmTime,PAADMDischgDate,PAADMDischgTime,PAADMHospitalDR,HOSPDesc,TreatingDoc,AdmDoc,Payor,Plan,WIES,DRGCode,DRGDesc,CTCode,CTDesc,LOS,LastWardCode,LastWardDesc,AdmWardCode,
+ DRGVERCode,DRGVERDesc,DRGVERDFrom,DRGVERDTo,StateLOS,OverNightWeight,SamedayWeight,DRGGroup,DchDate,DchTime,MchVentHrs,Speciality,PatCat,PlanStay,INTREACode,INTREADesc,IndigStatus)
+ s ind=ind+1
+ //fetch rows
+ &sql(fetch CurrentPatients into :AdmId,:PAPMINo,:PAADMADMNo,:PAPMIName,:PAPMIName2,:PAPMIName3,:Age,:DOB,:SEX,:City,:PostCode,:Deceased,:DeceasedDate,:BirthPlace,:PreLanguage,:Interpreter,
+ :AdmType,:AdmCri,:PAADMAdmDate,:PAADMAdmTime,:PAADMDischgDate,:PAADMDischgTime,:PAADMHospitalDR,:HOSPDesc,:TreatingDoc,:AdmDoc,:Payor,:Plan,:WIES,:DRGCode,:DRGDesc,:CTCode,:CTDesc,:LOS,:LastWardCode,
+ :LastWardDesc,:DRGVERCode,:DRGVERDesc,:DRGVERDFrom,:DRGVERDTo,:StateLOS,:OverNightWeight,:SamedayWeight,:DRGGroup,:DchDate,:DchTime,:MchVentHrs,:Speciality,:Patcat,:PlanStay,:INTREACode,:INTREADesc,:IndigStatus)
+ }
+ &sql(close CurrentPatients)
+ }
+
+ // Build QHandle (AtEnd,ReportID,Index)
+ Set QHandle=$lb(0,repid,0)
+
+ Quit $$$OK
+
+FormatDates
+ // Convert the dates to ODBC date format
+ If DOB Set DOB=$ZD(DOB,3)
+ If PAADMAdmDate Set PAADMAdmDate=$ZD(PAADMAdmDate,3)
+ If PAADMDischgDate Set PAADMDischgDate=$ZD(PAADMDischgDate,3)
+ If DeceasedDate Set DeceasedDate=$ZD(DeceasedDate,3)
+ If DRGVERDFrom Set DRGVERDFrom=$ZD(DRGVERDFrom,3)
+ If DRGVERDTo Set DRGVERDTo=$ZD(DRGVERDTo,3)
+ Quit
+
+FormatTimes
+ // Convert the times to ODBC time format
+ If PAADMAdmTime Set PAADMAdmTime=$ZT(PAADMAdmTime,1)
+ If PAADMDischgTime Set PAADMDischgTime=$ZT(PAADMDischgTime,1)
+ Quit
+ 
+ 
+FindAdmissionWard
+	// Get admission ward from admission
+	If AdmId s AdmWardCode=..GetAdmWardForEpisode(AdmId)
+
+	Quit
+]]></Implementation>
+</Method>
+
+<Method name="SWARHRATD1020Fetch">
+<Description>
+This is the Fetch component of the %Library.Query. 
+This should never have to change. It is designed to fetch the row for each subscript of the ^CacheTemp
+global and return this row to the Crystal Report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,&Row:%Library.List,&AtEnd:%Library.Integer=0]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+  // This fetch method should never have to change. 
+ // repid - Report ID
+ // ind   - sequence index which represents each row
+
+ New repid,ind
+
+ // Restore QHandle
+ Set AtEnd=$LIST(QHandle,1)
+ Set repid=$LIST(QHandle,2)
+ Set ind=$LIST(QHandle,3)
+
+ Set ind=$ORDER(^CacheTemp(..#CACHETEMPSUBSCRIPT,repid,ind))
+ If ind="" {	// if there are no more rows, finish fetching
+	 Set AtEnd=1
+	 Set Row=""
+ }
+ Else      {	// fetch row
+ 	Set Row=^CacheTemp(..#CACHETEMPSUBSCRIPT,repid,ind)
+ }
+
+ // Save QHandle
+ Set QHandle=$LISTBUILD(AtEnd,repid,ind)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="SWARHRATD1020Close">
+<Description>
+This is the Close component of the %Library.Query.
+This is standard code and should never have to change.
+This is where all the cleanup is performed, i.e. the purging of the temporary storage global ^CacheTemp.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>QHandle:%Library.Binary</FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Clean up by purging the temporary node in ^CacheTemp global
+ New repid,ind
+ Set repid=$LIST(QHandle,2)
+
+ Kill ^CacheTemp(..#CACHETEMPSUBSCRIPT,repid)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Query name="SWARHRATD1020">
+<Type>%Library.Query</Type>
+<FormalSpec>Hospital:%Integer,DateFrom:%Date,DateTo:%Date,DateType:%Integer</FormalSpec>
+<SqlProc>1</SqlProc>
+<Parameter name="CONTAINID" value="0"/>
+<Parameter name="ROWSPEC" value="AdmId:%Integer,PAPMINo:%String(MAXLEN=255),PAADMADMNo:%String(MAXLEN=255),PAPMIName:%String(MAXLEN=255),PAPMIName2:%String(MAXLEN=255),PAPMIName3:%String(MAXLEN=255),Age:%Integer,DOB:%Date,SEX:%String(MAXLEN=2),City:%String(MAXLEN=255),PostCode:%String(MAXLEN=255),Deceased:%String(MAXLEN=255),DeceasedDate:%String(MAXLEN=255),BirthPlace:%String(MAXLEN=255),PreLanguage:%String(MAXLEN=255),Interpreter:%String(MAXLEN=255),AdmType:%String(MAXLEN=255),AdmCri:%String(MAXLEN=255),PAADMAdmDate:%Date,PAADMAdmTime:%Time,PAADMDischgDate:%Date,PAADMDischgTime:%Time,PAADMHospitalDR:%Integer,HOSPDesc:%String(MAXLEN=255),TreatingDoc:%String(MAXLEN=255),AdmDoc:%String(MAXLEN=255),Payor:%String(MAXLEN=255),Plan:%String(MAXLEN=255),WIES:%Float,DRGCode:%String(MAXLEN=255),DRGDesc:%String(MAXLEN=255),CTCode:%String(MAXLEN=255),CTDesc:%String(MAXLEN=255),LOS:%Integer,LastWardCode:%String(MAXLEN=255),LastWardDesc:%String(MAXLEN=255),AdmWardCode:%String(MAXLEN=255),DRGVERCode:%String(MAXLEN=255),DRGVERDesc:%String(MAXLEN=255),DRGVERDFrom:%Date,DRGVERDTo:%Date,StateLOS:%Integer,OverNightWeight:%Integer,SamedayWeight:%Integer,DRGGroup:%String(MAXLEN=255),DchDate:%String(MAXLEN=255),DchTime:%String(MAXLEN=255),MchVentHrs:%String(MAXLEN=255),Speciality:%String(MAXLEN=255),Patcat:%String(MAXLEN=255),PlanStay:%String(MAXLEN=255),INTREACode:%String(MAXLEN=255),INTREADesc:%String(MAXLEN=255),IndigStatus:%String(MAXLEN=255)"/>
+<Parameter name="SELECTMODE" value="ODBC"/>
+</Query>
+</Class>
+</Export>

@@ -1,0 +1,148 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.AUXX.Report.ZEN.BedOccupancyByWard">
+<Super>Custom.AUXX.Report.ZEN.Abstract</Super>
+<TimeCreated>61639,52718.257694</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/AUXX/Report/ZEN/BedOccupancyByWard.xml#1 $</Default>
+</Parameter>
+
+<UDLText name="T">
+<Content><![CDATA[
+// Report Name: AUXX Current Ward Occupancy <br>
+
+]]></Content>
+</UDLText>
+
+<UDLText name="T">
+<Content><![CDATA[
+// Report Code: AUXX.ATD0022 <br>
+
+]]></Content>
+</UDLText>
+
+<Property name="HospitalId">
+<Type>%String</Type>
+<Parameter name="ZENURL" value="P1"/>
+</Property>
+
+<XData name="ReportDefinition">
+<XMLNamespace>http://www.intersystems.com/zen/report/definition</XMLNamespace>
+<Data><![CDATA[
+<report xmlns='http://www.intersystems.com/zen/report/definition'
+   queryClass='Custom.AUXX.Report.ZEN.StoredProc.BedOccupancyByWard' queryName='BedOccupancyByWard' name='BedOccupancyByWard' >
+  <parameter expression='..HospitalId'/>
+  <attribute name='facility' expression='..GetHospListDesc(..HospitalId)'/>
+  <attribute name='ReportTitle' expression='$$$Text("@CurrentWardOccupancy@Current Ward Occupancy")'/>
+  <attribute name='timestamp' expression='$ZDATETIME($H, 2, 2)'/>  
+  <attribute name='username' expression='..Username'/>
+  
+  <group name="facility" breakOnField="HOSPDesc">
+  <attribute name="description" field="HOSPDesc" />
+  <aggregate name='HospTot' type='SUM' field='TotalBeds'/>
+  <aggregate name='HospAct' type='SUM' field='ActiveBeds'/>
+  <aggregate name='HospOcc' type='SUM' field='OccupiedBeds'/>
+  <aggregate name='HospEmp' type='SUM' field='EmptyBeds'/>
+  <aggregate name='HospCls' type='SUM' field='ClosedBeds'/>
+  <aggregate name='HospLve' type='SUM' field='LeavePats'/>
+  <aggregate name='HospBkd' type='SUM' field='BookedBeds'/>
+  <aggregate name='HospDch' type='SUM' field='ExpDisch'/>
+  <aggregate name='HospOut' type='SUM' field='Outliers'/>
+
+       <group name='Detail'>
+       <attribute field='HOSPDesc' name='HOSPDesc'/>
+       <attribute field='WARDCode' name='WARDCode'/>
+       <attribute field='WARDDesc' name='WARDDesc'/>
+       <attribute field='TotalBeds' name='TotalBeds'/>
+       <attribute field='ActiveBeds' name='ActiveBeds'/>
+       <attribute field='OccupiedBeds' name='OccupiedBeds'/>
+       <attribute field='EmptyBeds' name='EmptyBeds'/>
+       <attribute field='ClosedBeds' name='ClosedBeds'/>
+       <attribute field='LeavePats' name='LeavePats'/>
+       <attribute field='BookedBeds' name='BookedBeds'/>
+       <attribute field='ExpDisch' name='ExpDisch'/>
+       <attribute field='Outliers' name='Outliers'/> 
+       </group>
+   </group>
+  </report>
+]]></Data>
+</XData>
+
+<XData name="ReportDisplay">
+<XMLNamespace>http://www.intersystems.com/zen/report/display</XMLNamespace>
+<Data><![CDATA[
+<report xmlns='http://www.intersystems.com/zen/report/display'
+xmlns:auxxstyle='http://www.intersystems.com/zen/report/display/auxx/style'
+xmlns:auxx='http://www.intersystems.com/zen/report/display/auxx'
+  name='BedOccupancyByWard'>
+ <document width= "#(..ReportWidth)#" height="#(..ReportHeight)#" marginLeft="#(..DocMarginLeft)#" marginRight="#(..DocMarginRight)#" 
+	marginTop="#(..DocMarginTop)#" marginBottom="#(..DocMarginBottom)#" footerHeight="#(..DocFooterHeight)#" headerHeight="#(..DocHeaderHeight)#" 
+	regionBeforeExtent="#(..DocHeaderHeight)#" regionAfterExtent="#(..DocFooterHeight)#">
+<auxxstyle:auxxgroupheader/>
+<auxxstyle:auxxgroupsummary/>
+<auxxstyle:auxxhospitalheader/>
+<auxxstyle:auxxpageheader/>
+<auxxstyle:auxxpagefooter/>
+<auxxstyle:auxxparameterheader/>
+<auxxstyle:auxxreporttitle/>
+<auxxstyle:auxxtablecolumn/>
+</document>
+<auxx:PageHeader pagetitle='@ReportTitle'/>
+<auxx:ReportFooter username='@username' timestamp='@timestamp'/>
+
+<body>
+<!-- REPORT HEADER -->
+<auxx:ReportHeader reporttitle='@ReportTitle'/>
+<auxx:ReportParameterHeader label='@Facility:@Facility:' field='@facility'  xcondition="string-length(@facility)>0"/>
+<auxx:ReportParameterHeader label='@Asat:@As at:' field='@timestamp' />
+
+<line pattern="solid" width="100%"/>
+<line pattern="empty" width="100%"></line> 
+<auxx:NoResults xcondition="not(facility)" />
+<group name='facility' pagebreak="true"> 
+<auxx:GroupHospitalHeader label="@Facility:@Facility:" field="@description" />
+<line pattern="empty" lineHeight="2mm" />
+     <table class='auxxtablecolumn' group='Detail' >
+        <item field='@WARDCode' width="5.5%" caption='@Ward@Ward'/>
+        <item field='@WARDDesc' width="25.5%" caption='@Description@Description'/>
+        <item field='@TotalBeds' width="5%" style="text-align:right" caption="@TotalBeds@Total   Beds" />
+        <item field='@OccupiedBeds div @TotalBeds' ifxpath='@TotalBeds!=0' width="8%" style="text-align:right" formatNumber="##0.00%" caption="@%OccupiedTotalBeds@% Occupied Total Beds" />
+        <item field='@ActiveBeds' width="6%" style="text-align:right" caption="@ActiveBeds@Active Beds" />
+        <item field='@OccupiedBeds div @ActiveBeds' ifxpath='@ActiveBeds!=0' width="8%" style="text-align:right" formatNumber="##0.00%" caption="@%OccupiedActiveBeds@% Occupied Active Beds" />
+        <item field='@OccupiedBeds' width="6%" style="text-align:right" caption="@OccupBeds@Occup Beds" />
+        <item field='@EmptyBeds' width="6%" style="text-align:right" caption="@EmptyBeds@Empty Beds" />
+        <item field='@ClosedBeds' width="6%" style="text-align:right" caption="@ClosedBeds@Closed Beds" />
+        <item field='@LeavePats' width="6%" style="text-align:right" caption="@PatientsonLeave@Patients on Leave" />
+        <item field='@BookedBeds' width="6%" style="text-align:right" caption="@BookedBeds@Booked Beds" />
+        <item field='@ExpDisch' width="6%" style="text-align:right" caption="@ExpectDisch@Expect Disch" />
+        <item field='@Outliers' width="6%" style="text-align:right" caption="@Outliers@Outliers" />
+     </table>  	 
+     <line pattern="solid" width="100%" /> 
+	  <table class='auxxgroupsummary' >
+	    <block width = "31%">
+       <item value='@Totalsfor@Totals for '/>
+       <item field='@description' />
+        </block>
+	    <item field='HospTot' width="5%" style="text-align:right" />
+	    <item field='HospOcc div HospTot' width="8%" style="text-align:right" formatNumber="##0.00%" />
+        <item field='HospAct' width="6%" style="text-align:right" />
+	    <item field='HospOcc div HospAct' width="8%" style="text-align:right" formatNumber="##0.00%" />
+        <item field='HospOcc' width="6%" style="text-align:right" />
+        <item field='HospEmp' width="6%" style="text-align:right" />
+        <item field='HospCls' width="6%" style="text-align:right" />
+        <item field='HospLve' width="6%" style="text-align:right" />
+        <item field='HospBkd' width="6%" style="text-align:right" />
+        <item field='HospDch' width="6%" style="text-align:right" />
+        <item field='HospOut' width="6%" style="text-align:right" />
+	 </table>  	 
+	 <line pattern="solid" width="100%" /> 
+   </group> 
+</body>
+</report>
+]]></Data>
+</XData>
+</Class>
+</Export>

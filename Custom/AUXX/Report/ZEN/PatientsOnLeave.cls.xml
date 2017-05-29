@@ -1,0 +1,186 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.AUXX.Report.ZEN.PatientsOnLeave">
+<Super>Custom.AUXX.Report.ZEN.Abstract</Super>
+<TimeCreated>61681,51256.037393</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/AUXX/Report/ZEN/PatientsOnLeave.xml#1 $</Default>
+</Parameter>
+
+<UDLText name="T">
+<Content><![CDATA[
+// Report Name: Patients on Leave <br>
+
+]]></Content>
+</UDLText>
+
+<UDLText name="T">
+<Content><![CDATA[
+// Report Code: AUXX.ATD0016 <br>
+
+]]></Content>
+</UDLText>
+
+<Property name="HospitalID">
+<Type>%String</Type>
+<Parameter name="ZENURL" value="P1"/>
+</Property>
+
+<Property name="Specialty">
+<Type>%String</Type>
+<Parameter name="ZENURL" value="P2"/>
+</Property>
+
+<Property name="WardID">
+<Type>%String</Type>
+<Parameter name="ZENURL" value="P3"/>
+</Property>
+
+<Property name="CareProvID">
+<Type>%String</Type>
+<Parameter name="ZENURL" value="P4"/>
+</Property>
+
+<Property name="LeaveCategory">
+<Type>%String</Type>
+<Parameter name="ZENURL" value="P5"/>
+</Property>
+
+<XData name="ReportDefinition">
+<XMLNamespace>http://www.intersystems.com/zen/report/definition</XMLNamespace>
+<Data><![CDATA[
+<report xmlns='http://www.intersystems.com/zen/report/definition'
+   queryClass='Custom.AUXX.Report.ZEN.StoredProc.PatientsOnLeave' queryName='PatientsOnLeave' name='PatientsOnLeave' >
+  <parameter expression='..HospitalID'/>
+  <parameter expression='..Specialty'/>
+  <parameter expression='..WardID'/>
+  <parameter expression='..CareProvID'/>
+  <parameter expression='..LeaveCategory'/>
+  <attribute name='facility' expression='..GetHospListDesc(..HospitalID)'/>  
+  <attribute name='specialty' expression='..GetSpecialtyListDesc(..Specialty)'/>
+  <attribute name='ward' expression='..GetWardListDesc(..WardID)'/>    
+  <attribute name="clinician" expression="..GetCareProvListDesc(..CareProvID)"/>
+  <attribute name='leavecategory' expression='..GetLeaveCatListDesc(..LeaveCategory)'/>
+  <attribute name='ReportTitle' expression='$$$Text("@PatientsOnLeave@Patients On Leave")'/>
+  <attribute name='timestamp' expression='$ZDATETIME($H, 2, 2)'/>  
+  <attribute name='username' expression='..Username'/>
+  
+  <group name="facility" breakOnField="HOSPDesc">
+  <attribute name="description" field="HOSPDesc" />  
+  <aggregate name='HospLeave' type='SUM' field='DaysOnLeave'/>
+  <aggregate name='HospEpisode' type='CUSTOM' field='PAADMADMNo' class='%ZEN.Report.Aggregate.CountDistinct'/>
+ <group name="ward" breakOnField="WARDDesc" >
+  <attribute name="description" field="WARDDesc" />  
+  <aggregate name='WardLeave' type='SUM' field='DaysOnLeave'/>
+  <aggregate name='WardEpisode' type='CUSTOM' field='PAADMADMNo' class='%ZEN.Report.Aggregate.CountDistinct'/>
+      <group name='Detail'>
+       <attribute field='PAPMINo' name='PAPMINo'/>
+       <attribute field='PAADMAdmNo' name='PAADMAdmNo'/>
+	   <attribute fields='PAPMIName,PAPMIName2,PAPMIName2,PAPMIName3' name='PatientName' expression='..DisplayName(%val("PAPMIName"),%val("PAPMIName2"),%val("PAPMIName3"))'/>
+       <attribute field='PAPERAge' name='PAPERAge'/>
+       <attribute field='CTSEXCode' name='CTSEXCode'/>
+       <attribute field='WARDCode' name='WARDCode'/>
+       <attribute field='CTLOCCode' name='CTLOCCode'/>
+       <attribute field='CTPCPDesc' name='CTPCPDesc'/>
+       <attribute field='ADMLGoingOutDate' name='ADMLGoingOutDate' expression='..DisplayDate(%val)'/>
+       <attribute field='ADMLGoingOutTime' name='ADMLGoingOutTime' expression='..DisplayTime(%val)'/>
+       <attribute field='LEACATDesc' name='LEACATDesc'/>
+       <attribute field='ADMLExpectedDateReturn' name='ADMLExpectedDateReturn' expression='..DisplayDate(%val)'/>
+       <attribute field='DaysOnLeave' name='DaysOnLeave'/>
+       <attribute field='ExceedFlag' name='ExceedFlag'/>
+       </group>     
+    </group> 
+ </group>
+ </report>
+]]></Data>
+</XData>
+
+<XData name="ReportDisplay">
+<XMLNamespace>http://www.intersystems.com/zen/report/display</XMLNamespace>
+<Data><![CDATA[
+<report xmlns='http://www.intersystems.com/zen/report/display'
+xmlns:auxxstyle='http://www.intersystems.com/zen/report/display/auxx/style'
+xmlns:auxx='http://www.intersystems.com/zen/report/display/auxx'
+  name='PatientsOnLeave'>
+ <document width= "#(..ReportWidth)#" height="#(..ReportHeight)#" marginLeft="#(..DocMarginLeft)#" marginRight="#(..DocMarginRight)#" 
+marginTop="#(..DocMarginTop)#" marginBottom="#(..DocMarginBottom)#" footerHeight="#(..DocFooterHeight)#" headerHeight="#(..DocHeaderHeight)#" 
+regionBeforeExtent="#(..DocHeaderHeight)#" regionAfterExtent="#(..DocFooterHeight)#" >
+<auxxstyle:auxxgroupheader/>
+<auxxstyle:auxxgroupsummary/>
+<auxxstyle:auxxhospitalheader/>
+<auxxstyle:auxxpageheader/>
+<auxxstyle:auxxpagefooter/>
+<auxxstyle:auxxparameterheader/>
+<auxxstyle:auxxreporttitle/>
+<auxxstyle:auxxtablecolumn/>
+</document>
+<auxx:PageHeader pagetitle='@ReportTitle' />
+<auxx:ReportFooter username='@username' timestamp='@timestamp' />
+
+<body>
+<!-- REPORT HEADER -->
+<auxx:ReportHeader reporttitle='@ReportTitle' />
+<auxx:ReportParameterHeader label='@Facility:@Facility:' field='@facility' xcondition="string-length(@facility)>0"/>
+<auxx:ReportParameterHeader label='@Specialty:@Specialty:' field='@specialty' xcondition="string-length(@specialty)>0"/>
+<auxx:ReportParameterHeader label='@Ward:@Ward:' field='@ward'  xcondition="string-length(@ward)>0"/>
+<auxx:ReportParameterHeader label='@Clinician:@Clinician:' field='@clinician' xcondition="string-length(@clinician)>0"/>
+<auxx:ReportParameterHeader label='@LeaveCategory:@Leave Category:' field='@leavecategory' xcondition="string-length(@leavecategory)>0"/>
+
+
+<line pattern="solid" width="100%"/>
+<line pattern="empty" width="100%"></line> 
+<auxx:NoResults xcondition="not(facility)" />
+<group name='facility' pagebreak="true">
+<auxx:GroupHospitalHeader label="@Facility:@Facility:" field="@description"/>
+ <group name='ward' >
+ <auxx:GroupHeader label="@Ward:@Ward:" field="@description"/>
+<line pattern="empty" lineHeight="1mm" />
+     <table class='auxxtablecolumn' group='Detail'>
+        <item field='@PAPMINo' width="10%" caption='@URN@URN'/>
+        <item field='@PAADMAdmNo' width="9%" caption='@EpisodeNo@Episode No'/>
+        <item field='@PatientName' width="16%" caption="@PatientName@Patient Name" /> 
+        <item field='@PAPERAge' width="3%" caption='@Age@Age'/>  
+        <item field='@CTSEXCode' width="4%" style='text-align:center' caption='@Sex@Sex'/>          
+        <item field='@CTLOCCode' width="7%" caption='@Specialty@Specialty'/>   
+        <item field='@CTPCPDesc' width="11.5%" caption='@Clinician@Clinician'/> 
+        <item field='@ADMLGoingOutDate' width="7.5%" caption='@LeaveDate/@Leave Date /'/>
+        <item field='@ADMLGoingOutTime' width="4%" caption='@LeaveTime@Time'/>
+        <item field='@LEACATDesc' width="8%" caption='@LeaveCategory@Leave Category'/>
+        <item field='@ADMLExpectedDateReturn' width="7.5%" caption='@ExpectedReturnDate@Expected Return Date'/>
+        <item field='@DaysOnLeave' width="8%" caption='@DaysOnLeave@Days On Leave' style='text-align:right'/> 
+        <item field='' width="1%" /> 
+        <item field='@ExceedFlag' width="4.5%" caption='@ExceedFlag@Exceed Flag' style='text-align:center'/>  
+     </table>  
+     <line pattern="empty" lineHeight="2mm" />
+  <table class='auxxgroupsummary' >
+	    <item value='@Totalsfor@Totals for '  width="9%" />
+        <item field='@description' width="26%" />
+	    <item value='@PatientsonLeave=@Patients on Leave =' width="13%" />
+	    <item value='' width="1%" />
+        <item field='WardEpisode' width="4%" />
+	    <item value='@LeaveDays=@Leave Days  =' width="10%" />
+        <item field='WardLeave' width="4.5%" />
+	    <item value='' width="32.5%" />
+ 	</table> 
+  <line pattern="empty" lineHeight="4mm" />
+  </group> 
+  <table class='auxxgroupsummary' >
+	    <item value='@Totalsfor@Totals for '  width="9%" />
+        <item field='@description' width="26%" />
+	    <item value='@PatientsonLeave=@Patients on Leave =' width="13%" />
+	    <item value='' width="1%" />
+        <item field='HospEpisode' width="4%" />
+	    <item value='@LeaveDays=@Leave Days  =' width="10%" />
+        <item field='HospLeave' width="4.5%" />
+	    <item value='' width="32.5%" />
+ 	</table>
+</group>
+</body>
+</report>
+]]></Data>
+</XData>
+</Class>
+</Export>

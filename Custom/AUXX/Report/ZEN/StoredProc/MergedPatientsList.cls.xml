@@ -1,0 +1,168 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.AUXX.Report.ZEN.StoredProc.MergedPatientsList">
+<ProcedureBlock>0</ProcedureBlock>
+<Super>Report.Abstract</Super>
+<TimeCreated>61179,62689.22635</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/AUXX/Report/ZEN/StoredProc/MergedPatientsList.xml#1 $</Default>
+</Parameter>
+
+<Method name="MergedPatientsListClose">
+<Description><![CDATA[
+Report Name: Merged Patients List <br>
+Report Code: Trak.MergedPatientsList <br>
+LOGTRAK Number: 72435 <br>
+Report Description: Report lists patients who have been merged.
+This is the Close component of the %Library.Query.
+This is standard code and should never have to change.
+This is where all the cleanup is performed, i.e. the purging of the temporary storage global ^CacheTemp.]]></Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>QHandle:%Library.Binary</FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Clean up by purging the temporary node in ^CacheTemp global
+ New repid
+ Set repid=$LIST(QHandle,2)
+ 
+ //Start Monitor (if configured to capture stats)
+ i mon Do ..MonitorEnd(mon)
+
+ Kill ^CacheTemp("TRAK",repid)
+ 
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="MergedPatientsListExecute">
+<Description>
+This is the Execute section for the %Library.Query. 
+All of the logic will be performed here.
+A new node for the ^CacheTemp global will be created and each subscript of this global will contain
+a row for the report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,DateFrom:%Date,DateTo:%Date,Hospital:%String]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ //Start Monitor (if configured to capture stats)
+ s mon=..MonitorBegin()
+  
+ // Get reportid i.e. use $INCREMENT to add another node to ^CacheTemp global. 
+ // We use ^CacheTemp global because it will always use memory before disk
+ n repid,ind,END1
+
+ s (ind,END1)=0
+
+ s DateFrom=..ConvertDateToCache(DateFrom)
+ s DateTo=..ConvertDateToCache(DateTo)
+
+  // Strip white space/control chars from blank variables
+ i $g(Hospital)'="" s Hospital=$ZSTRIP(Hospital,"*WC")
+
+ // Use $Increment to get the next node
+ Set repid=$I(^CacheTemp("TRAK"))
+ 
+ &SQL(DECLARE MERGE CURSOR FOR
+ SELECT
+	MRG_RowId,
+ 	MRG_Date,
+	MRG_Time,
+ 	MRG_User_DR->SSUSR_Initials,
+ 	MRG_PAPMI_From_DR->PAPMI_VIPFlag,
+ 	MRG_PAPMI_From_DR->PAPMI_No,
+ 	MRG_PAPMI_From_DR->PAPMI_Name,
+ 	MRG_PAPMI_From_DR->PAPMI_Name2,
+ 	MRG_PAPMI_From_DR->PAPMI_Name3,
+ 	MRG_PAPMI_To_DR->PAPMI_No,
+ 	MRG_PAPMI_To_DR->PAPMI_Name,
+ 	MRG_PAPMI_To_DR->PAPMI_Name2,
+ 	MRG_PAPMI_To_DR->PAPMI_Name3,
+ 	MRG_Hospital_DR->HOSP_RowId,
+ 	MRG_Hospital_DR->HOSP_Code,
+ 	MRG_Hospital_DR->HOSP_Desc 
+ FROM SQLUser.PA_MergePatient
+ WHERE MRG_Date BETWEEN :DateFrom AND :DateTo
+ AND (({fn CONCAT( ',', {fn CONCAT((:Hospital),',')})} [ {fn CONCAT( ',', {fn CONCAT((MRG_Hospital_DR->HOSP_RowId),',')})}) OR (:Hospital IS NULL))
+ ORDER BY MRG_Hospital_DR->HOSP_Desc, MRG_Date, MRG_Time)
+ 
+ &SQL(OPEN MERGE)
+ while END1'=1 {
+	 &SQL(Fetch MERGE INTO :MRGRowId,:MRGDate,:MRGTime,:SSUSRInitials,:FromVIP,:FromPAPMINo,:FromPAPMIName,:FromPAPMIName2,:FromPAPMIName3,:ToPAPMINo,:ToPAPMIName,:ToPAPMIName2,:ToPAPMIName3,:HOSPRowId,:HOSPCode,:HOSPDesc)
+	 i SQLCODE s END1=1
+	 i END1'=1 {
+		 d FormatDates
+		 d FormatTimes
+		 d BuildRow
+	 }
+ }
+ &SQL(CLOSE MERGE)
+ 
+ 
+ // Build QHandle (AtEnd,ReportID,Index)
+ Set QHandle=$lb(0,repid,0)
+ Quit $$$OK
+
+BuildRow
+ s ind=ind+1
+ s ^CacheTemp("TRAK",repid,ind)=$LB(MRGRowId,MRGDate,MRGTime,SSUSRInitials,FromVIP,FromPAPMINo,FromPAPMIName,FromPAPMIName2,FromPAPMIName3,ToPAPMINo,ToPAPMIName,ToPAPMIName2,ToPAPMIName3,HOSPRowId,HOSPCode,HOSPDesc)
+ q
+
+FormatDates
+ // Convert the dates to ODBC date format
+ i MRGDate s MRGDate=..ConvertDateToODBC(MRGDate)
+ q
+
+FormatTimes
+ // Convert the dates to ODBC date format
+ i MRGTime s MRGTime=..ConvertTimeToODBC(MRGTime)
+ q
+]]></Implementation>
+</Method>
+
+<Method name="MergedPatientsListFetch">
+<Description>
+This is the Fetch component of the %Library.Query. 
+This should never have to change. It is designed to fetch the row for each subscript of the ^CacheTemp
+global and return this row to the Crystal Report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,&Row:%Library.List,&AtEnd:%Library.Integer=0]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // This fetch method should never have to change. 
+
+ // repid - Report ID
+ // ind   - sequence index which represents each row
+
+ New repid,ind
+
+ // Restore QHandle
+ Set AtEnd=$LI(QHandle,1)
+ Set repid=$LI(QHandle,2)
+ Set ind=$LI(QHandle,3)
+
+ Set ind=$order(^CacheTemp("TRAK",repid,ind))
+ If ind="" {	// if there are no more rows, finish fetching
+ 	Set AtEnd=1
+ 	Set Row=""
+ }  Else  {	// fetch row
+ 	Set Row=^CacheTemp("TRAK",repid,ind)
+ }
+
+ // Save QHandle
+ Set QHandle=$lb(AtEnd,repid,ind)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Query name="MergedPatientsList">
+<Type>%Library.Query</Type>
+<FormalSpec>DateFrom:%Date,DateTo:%Date,Hospital:%String</FormalSpec>
+<SqlProc>1</SqlProc>
+<Parameter name="CONTAINID" value="0"/>
+<Parameter name="ROWSPEC" value="MRGRowId:%String(MAXLEN=255),MRGDate:%Date,MRGTime:%String(MAXLEN=255),SSUSRInitials:%String(MAXLEN=255),FromVIP:%String(MAXLEN=255),FromPAPMINo:%String(MAXLEN=255),FromPAPMIName:%String(MAXLEN=255),FromPAPMIName2:%String(MAXLEN=255),FromPAPMIName3:%String(MAXLEN=255),ToPAPMINo:%String(MAXLEN=255),ToPAPMIName:%String(MAXLEN=255),ToPAPMIName2:%String(MAXLEN=255),ToPAPMIName3:%String(MAXLEN=255),HOSPRowId:%String(MAXLEN=255),HOSPCode:%String(MAXLEN=255),HOSPDesc:%String(MAXLEN=255)"/>
+</Query>
+</Class>
+</Export>

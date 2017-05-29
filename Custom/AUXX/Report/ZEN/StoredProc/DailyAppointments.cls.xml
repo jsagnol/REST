@@ -1,0 +1,286 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.AUXX.Report.ZEN.StoredProc.DailyAppointments">
+<ProcedureBlock>0</ProcedureBlock>
+<Super>Report.Abstract</Super>
+<TimeCreated>59806,71923.413941</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/AUXX/Report/ZEN/StoredProc/DailyAppointments.xml#1 $</Default>
+</Parameter>
+
+<UDLText name="T">
+<Content><![CDATA[
+// Report Name: Daily Appointments
+
+]]></Content>
+</UDLText>
+
+<UDLText name="T">
+<Content><![CDATA[
+// Report Code: AUXX.BKG0003
+
+]]></Content>
+</UDLText>
+
+<UDLText name="T">
+<Content><![CDATA[
+// Log Number: 72217
+
+]]></Content>
+</UDLText>
+
+<Method name="GetApptsClose">
+<Description>
+This is the Close component of the %Library.Query.
+This is standard code and should never have to change.
+This is where all the cleanup is performed, i.e. the purging of the temporary storage global ^CacheTemp.</Description>
+<Final>0</Final>
+<ClassMethod>1</ClassMethod>
+<CodeMode>code</CodeMode>
+<FormalSpec>QHandle:%Library.Binary</FormalSpec>
+<Private>0</Private>
+<ReturnType>%Library.Status</ReturnType>
+<SqlProc>0</SqlProc>
+<Implementation><![CDATA[
+ // Clean up by purging the temporary node in ^CacheTemp global
+ New repid
+ Set repid=$li(QHandle,2)
+ 
+  //Start Monitor (if configured to capture stats)
+ i mon Do ..MonitorEnd(mon)
+ 
+ Kill ^CacheTemp("TRAK",repid)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="GetApptsExecute">
+<Description>
+This is the Execute section for the %Library.Query. 
+All of the logic will be performed here.
+A new node for the ^CacheTemp global will be created and each subscript of this global will contain
+a row for the report.</Description>
+<ClassMethod>1</ClassMethod>
+<CodeMode>code</CodeMode>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,DateFrom:%Date,Hospital:%String,Location:%String,CareProvider:%String,AppointmentStatus:%String]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Get reportid i.e. use $INCREMENT to add another node to ^CacheTemp global. 
+ // We use ^CacheTemp global because it will always use memory before disk
+ New repid,ind
+
+ // Use $Increment to get the next node and clean up
+ Set repid=$Increment(^CacheTemp("TRAK"))
+ Kill ^CacheTemp("TRAK",repid)
+ 
+ //Start Monitor (if configured to capture stats)
+ s mon=..MonitorBegin()
+ 
+ // Build data into ^CacheTemp("TRAK",ReportID)
+ // e.g. Set ^CacheTemp("TRAK",ReportID,Index)=$LB(f1,f2,f3)
+ New Number,String,Date,Time,c,n,URNDetails,StatusCodes,index,counter
+ n RESRowID,ASChildSub,APPTChildSub,PAPMIRowId,APPTADMDR,PAADMAdmNo,HOSPRowId,HOSPDesc,SESSROOMDR,ROOMCTLOCCode,CTLOCRowId,CTLOCCode,CTLOCDesc,RESRowId,RESCode,RESDesc,ASDate,APPTStatus,APPTRowId,PAPMIName,PAPMIName2,PAPMIName3,PAPERMobPhone,PAPMIVIPFlag,SERDesc,SERRowId,APPTDoctorLetterNotes,REFPRICode,CTSEXCode,ASSessionStartTime,PAPERTelH,INTERPCode,INTERPDesc,APPTInterpreterConfirmed,APTRDesc,APPTPatientLetterNotes,RTMASNo,UserLocDesc,APPTRemarks
+ n CurrInpatientIcon, ApptsSameDayIcon, BedRequestedIcon, BedAssignedIcon, AlertsIcon, AllergyIcon,HasAllergy,HasIndAllergy,HasTBCAllergy,HasAlert, HasTBCAlert
+ s (HOSPRowId,PAPMIRowId,SESSROOMDR,CTLOCRowId,SERRowId)=0
+ s (RESRowID,ASChildSub,APPTChildSub,APPTADMDR,PAADMAdmNo,HOSPDesc,ROOMCTLOCCode,CTLOCCode,CTLOCDesc,RESRowId,RESCode,RESDesc,ASDate,APPTStatus,APPTRowId,PAPMIName,PAPMIName2,PAPMIName3,PAPERMobPhone,PAPMIVIPFlag,SERDesc,APPTDoctorLetterNotes,REFPRICode,CTSEXCode,ASSessionStartTime,PAPERTelH,INTERPCode,INTERPDesc,APPTInterpreterConfirmed,APTRDesc,APPTPatientLetterNotes,RTMASNo,UserLocDesc,URNDetails,APPTRemarks)=""
+ 
+ s ind=0
+
+ //Convert ODBC dates to cache format
+ s DateFrom=..ConvertDateToCache(DateFrom)
+
+ // Strip white space/control chars from blank variables
+ i $g(Hospital)'="" s Hospital=$zstrip(Hospital,"*WC")
+ i $g(Location)'="" s Location=$zstrip(Location,"*WC")
+ i $g(CareProvider)'="" s CareProvider=$zstrip(CareProvider,"*WC")
+ i $g(AppointmentStatus)'="" s AppointmentStatus=$zstrip(AppointmentStatus,"*WC")
+ n RESRowID,Time,ASChildSub,APPTChildSub,APPTRowId
+ s (RESRowID,Time,ASChildSub,APPTChildSub,APPTRowId)=""
+ 
+ i $g(Resource)="" {
+	 f  s RESRowID=$o(^RBAS(RESRowID)) q:RESRowID=""  d
+	 . f  s Time=$o(^RBAS(RESRowID,0,"DateSTime",DateFrom,Time)) q:Time=""  d
+	 . . f  s ASChildSub=$o(^RBAS(RESRowID,0,"DateSTime",DateFrom,Time,ASChildSub)) q:ASChildSub=""  d
+	 . . . f  s APPTChildSub=$o(^RBAS(RESRowID,ASChildSub,"APPT",APPTChildSub)) q:APPTChildSub=""  d
+	 . . . . s APPTRowId=RESRowID_"||"_ASChildSub_"||"_APPTChildSub
+	 . . . . d GetData
+ }else {
+	 s RESRowID=Resource
+	 f  s Time=$o(^RBAS(RESRowID,0,"DateSTime",DateFrom,Time)) q:Time=""  d
+	 . f  s ASChildSub=$o(^RBAS(RESRowID,0,"DateSTime",DateFrom,Time,ASChildSub)) q:ASChildSub=""  d
+	 . . f  s APPTChildSub=$o(^RBAS(RESRowID,ASChildSub,"APPT",APPTChildSub)) q:APPTChildSub=""  d
+	 . . . s APPTRowId=RESRowID_"||"_ASChildSub_"||"_APPTChildSub
+	 . . . d GetData
+ }
+ 
+ // Build QHandle (AtEnd,ReportID,Index)
+ Set QHandle=$lb(0,repid,0)
+
+ Quit $$$OK
+
+GetData
+ &SQL(DECLARE APPT CURSOR FOR
+ SELECT 
+ APPT_PAPMI_DR,
+ APPT_ADM_DR,
+ APPT_ADM_DR->PAADM_AdmNo,
+  APPT_AS_ParRef->AS_RES_ParRef->RES_CTLOC_DR->CTLOC_Hospital_DR,
+ APPT_AS_ParRef->AS_RES_ParRef->RES_CTLOC_DR->CTLOC_Hospital_DR->HOSP_Desc,
+ APPT_AS_ParRef->AS_RBEffDateSession_DR->SESS_Room_DR,
+ APPT_AS_ParRef->AS_RBEffDateSession_DR->SESS_Room_DR->CTLOC_Code as ROOMCTLOCCode,
+ APPT_AS_ParRef->AS_RES_ParRef->RES_CTLOC_DR,
+ APPT_AS_ParRef->AS_RES_ParRef->RES_CTLOC_DR->CTLOC_Code,
+ APPT_AS_ParRef->AS_RES_ParRef->RES_CTLOC_DR->CTLOC_Desc,
+ APPT_AS_ParRef->AS_RES_ParRef->RES_CTPCP_DR,
+ APPT_AS_ParRef->AS_RES_ParRef->RES_CTPCP_DR->CTPCP_Code,
+ APPT_AS_ParRef->AS_RES_ParRef->RES_CTPCP_DR->CTPCP_Desc,
+ APPT_AS_ParRef->AS_Date,
+ APPT_Status,
+ APPT_RowId,
+ APPT_PAPMI_DR->PAPMI_No,
+ APPT_PAPMI_DR->PAPMI_Name,
+ APPT_PAPMI_DR->PAPMI_Name2,
+ APPT_PAPMI_DR->PAPMI_Name3,
+ APPT_PAPMI_DR->PAPMI_PAPER_DR->PAPER_MobPhone,
+ APPT_PAPMI_DR->PAPMI_VIPFlag,
+ APPT_RBCServ_DR->SER_Desc,
+ APPT_RBCServ_DR->SER_RowId,
+ APPT_ADM_DR->PAADM_ReferralPriority_DR->REFPRI_Desc,
+ APPT_PAPMI_DR->PAPMI_PAPER_DR->PAPER_SEX_DR->CTSEX_Code,
+ APPT_AS_ParRef->AS_SessStartTime,
+ APPT_PAPMI_DR->PAPMI_PAPER_DR->PAPER_TelH,
+ APPT_Interpreter_DR->INTERP_Code,
+ APPT_Interpreter_DR->INTERP_Desc,
+ APPT_InterpreterConfirmed,
+ APPT_Transport_DR->APTR_Desc,
+ APPT_Remarks
+ INTO :PAPMIRowId,:APPTADMDR,:PAADMAdmNo,:HOSPRowId,:HOSPDesc,:SESSROOMDR,:ROOMCTLOCCode,:CTLOCRowId,:CTLOCCode,:CTLOCDesc,:RESRowId,:RESCode,:RESDesc,:ASDate,:APPTStatus,:APPTRowId,:RTMASNo,:PAPMIName,:PAPMIName2,:PAPMIName3,:PAPERMobPhone,:PAPMIVIPFlag,:SERDesc,:SERRowId,:REFPRICode,:CTSEXCode,:ASSessionStartTime,:PAPERTelH,:INTERPCode,:INTERPDesc,:APPTInterpreterConfirmed,:APTRDesc,:APPTRemarks
+ FROM SQLUser.RB_Appointment
+ WHERE APPT_RowId=:APPTRowId
+ AND  APPT_STATUS IN ('P','A')
+ AND (({fn CONCAT( ',', {fn CONCAT((:AppointmentStatus),',')})} [ {fn CONCAT( ',', {fn CONCAT((APPT_Status),',')})}) OR (:AppointmentStatus IS NULL))
+ AND (({fn CONCAT( ',', {fn CONCAT((:Hospital),',')})} [ {fn CONCAT( ',', {fn CONCAT((APPT_AS_ParRef->AS_RES_ParRef->RES_CTLOC_DR->CTLOC_Hospital_DR->HOSP_RowId),',')})}) OR (:Hospital IS NULL))
+ AND (({fn CONCAT( ',', {fn CONCAT((:Location),',')})} [ {fn CONCAT( ',', {fn CONCAT((APPT_AS_ParRef->AS_RES_ParRef->RES_CTLOC_DR->CTLOC_RowId),',')})}) OR (:Location IS NULL))
+ AND (({fn CONCAT( ',', {fn CONCAT((:CareProvider),',')})} [ {fn CONCAT( ',', {fn CONCAT((APPT_AS_ParRef->AS_RES_ParRef->RES_CTPCP_DR->CTPCP_RowId),',')})}) OR (:CareProvider IS NULL)))
+ 
+ &SQL(OPEN APPT)
+ f  &SQL(FETCH APPT) q:SQLCODE'=0  d
+ . d GetDoctorNotes
+ . d GetPatientInfo
+ . d GetIcons
+ . d FormatDates
+ . d FormatTimes
+ . s APPTStatus=##class(websys.StandardTypeItem).GetDescriptionFromCode("RBApptStatus",APPTStatus)
+ . s ind=ind+1
+ . Set ^CacheTemp("TRAK",repid,$ZCVT(HOSPDesc,"U")_" "_$ZCVT(CTLOCDesc,"U")_" "_$ZCVT(RESDesc,"U")_" "_ASSessionStartTime_ind)=$LB(PAPMIRowId,HOSPRowId,HOSPDesc,SESSROOMDR,ROOMCTLOCCode,CTLOCRowId,CTLOCCode,CTLOCDesc,RESRowId,RESCode,RESDesc,ASDate,APPTADMDR,APPTStatus,APPTRowId,PAPMIName,PAPMIName2,PAPMIName3,PAPERMobPhone,PAPMIVIPFlag,SERDesc,SERRowId,APPTDoctorLetterNotes,REFPRICode,CTSEXCode,ASSessionStartTime,PAPERTelH,INTERPCode,INTERPDesc,APPTInterpreterConfirmed,APTRDesc,APPTPatientLetterNotes,RTMASNo,UserLocDesc,CurrInpatientIcon,ApptsSameDayIcon,BedRequestedIcon,BedAssignedIcon,AlertsIcon,AllergyIcon,APPTRemarks)
+ 
+ &SQL(CLOSE APPT)
+ q
+
+GetDoctorNotes
+ s index=1,counter=0
+ s APPTDoctorLetterNotes=""
+ s counter=$g(^RBAS(RESRowID,ASChildSub,"APPT",APPTChildSub,"DL",0))
+ 
+ f index=1:1:counter {
+	 s APPTDoctorLetterNotes=APPTDoctorLetterNotes_$g(^RBAS(RESRowID,ASChildSub,"APPT",APPTChildSub,"DL",index))
+ }
+ s APPTDoctorLetterNotes=$zstrip(APPTDoctorLetterNotes,"*C")
+ s APPTRemarks=##class(websys.Conversions).ListLogicalToHtml(APPTRemarks)
+ q
+ 
+GetPatientInfo
+ s index=1,counter=0
+ s APPTPatientLetterNotes=""
+ s counter=$g(^RBAS(RESRowID,ASChildSub,"APPT",APPTChildSub,"PL",0))
+ 
+ f index=1:1:counter {
+	 s APPTPatientLetterNotes=APPTPatientLetterNotes_$g(^RBAS(RESRowID,ASChildSub,"APPT",APPTChildSub,"PL",index))
+ }
+ s APPTPatientLetterNotes=$zstrip(APPTPatientLetterNotes,"*C")
+
+ q
+
+GetIcons
+ s (CurrInpatientIcon, ApptsSameDayIcon, BedRequestedIcon, BedAssignedIcon, AlertsIcon, AllergyIcon, HasAllergy, HasIndAllergy, HasTBCAllergy, HasAlert, HasTBCAlert)=""
+
+ i PAPMIRowId'="",APPTRowId'=""  s ApptsSameDayIcon=##Class(web.RBAppointment).otherApptsSameDay(PAPMIRowId,APPTRowId)
+ i PAPMIRowId'="" s CurrInpatientIcon=##Class(web.PAAdm).IsCurrentInpatient(PAPMIRowId)
+ i $p(##Class(web.PACBedAdm).GetCurrBedStatus(PAPMIRowId,PAADMAdmNo),"^",2)="R" s BedRequestedIcon=1
+ i $p(##Class(web.PACBedAdm).GetCurrBedStatus(PAPMIRowId,PAADMAdmNo),"^",2)="B" s BedAssignedIcon=1
+ i PAPMIRowId'="" s HasAllergy=##Class(web.PAAllergy).FindIfPatientHasAllergy(PAPMIRowId)
+ i PAPMIRowId'="" s HasIndAllergy=##Class(web.PAAllergy).FindIfPatientHasIndAllergy(PAPMIRowId)
+ i PAPMIRowId'="" s HasTBCAllergy=##Class(web.PAAllergy).GotTBCAllergy(PAPMIRowId)
+ i HasAllergy=1,HasIndAllergy=0,HasTBCAllergy=0 s AllergyIcon=1
+ i PAPMIRowId'="" s HasAlert=##Class(web.PAAlertMsg).GotActiveAlerts(PAPMIRowId)
+ i PAPMIRowId'="" s HasTBCAlert=##Class(web.PAAlertMsg).GotTBCAlerts(PAPMIRowId)
+ i HasTBCAlert=0,HasAlert=1 s AlertsIcon=1
+ 
+ Quit
+
+FormatDates
+ // Convert the dates to ODBC date format
+ Set ASDate=..ConvertDateToODBC(ASDate)
+
+ Quit
+
+FormatTimes
+ // Convert the times to ODBC time format
+ Set ASSessionStartTime=..ConvertTimeToODBC(ASSessionStartTime)
+
+ Quit
+]]></Implementation>
+</Method>
+
+<Method name="GetApptsFetch">
+<Description>
+This is the Fetch component of the %Library.Query. 
+This should never have to change. It is designed to fetch the row for each subscript of the ^CacheTemp
+global and return this row to the Crystal Report.</Description>
+<Final>0</Final>
+<ClassMethod>1</ClassMethod>
+<CodeMode>code</CodeMode>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,&Row:%Library.List,&AtEnd:%Library.Integer=0]]></FormalSpec>
+<Private>0</Private>
+<ReturnType>%Library.Status</ReturnType>
+<SqlProc>0</SqlProc>
+<Implementation><![CDATA[
+ // This fetch method should never have to change. 
+
+ // repid - Report ID
+ // ind   - sequence index which represents each row
+
+ New repid,ind
+
+ // Restore QHandle
+ Set AtEnd=$li(QHandle,1)
+ Set repid=$li(QHandle,2)
+ Set ind=$li(QHandle,3)
+
+ Set ind=$o(^CacheTemp("TRAK",repid,ind))
+ If ind="" {	// if there are no more rows, finish fetching
+ Set AtEnd=1
+ Set Row=""
+ }
+ Else      {	// fetch row
+ Set Row=^CacheTemp("TRAK",repid,ind)
+ }
+
+ // Save QHandle
+ s QHandle=$lb(AtEnd,repid,ind)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Query name="GetAppts">
+<Type>%Library.Query</Type>
+<FormalSpec>DateFrom:%Date,Hospital:%String,Location:%String,CareProvider:%String,AppointmentStatus:%String</FormalSpec>
+<SqlProc>1</SqlProc>
+<Parameter name="CONTAINID" value="0"/>
+<Parameter name="ROWSPEC" value="PAPMIRowId:%Integer,HOSPRowId:%Integer,HOSPDesc:%String(MAXLEN=255),SESSROOMDR:%Integer,ROOMCTLOCCode:%String(MAXLEN=255),CTLOCRowId:%Integer,CTLOCCode:%String(MAXLEN=255),CTLOCDesc:%String(MAXLEN=255),RESRowId:%String(MAXLEN=255),RESCode:%String(MAXLEN=255),RESDesc:%String(MAXLEN=255),ASDate:%Date,APPTADMDR:%String,APPTStatus:%String(MAXLEN=255),APPTRowId:%String(MAXLEN=255),PAPMIName:%String(MAXLEN=255),PAPMIName2:%String(MAXLEN=255),PAPMIName3:%String(MAXLEN=255),PAPERMobPhone:%String(MAXLEN=255),PAPMIVIPFlag:%String(MAXLEN=255),SERDesc:%String(MAXLEN=255),SERRowId:%Integer,APPTDoctorLetterNotes:%String(MAXLEN=255),REFPRICode:%String(MAXLEN=255),CTSEXCode:%String(MAXLEN=255),ASSessionStartTime:%String,PAPERTelH:%String(MAXLEN=255),INTERPCode:%String(MAXLEN=255),INTERPDesc:%String(MAXLEN=255),APPTInterpreterConfirmed:%String(MAXLEN=255),APTRDesc:%String(MAXLEN=255),APPTPatientLetterNotes:%String(MAXLEN=255),RTMASNo:%String(MAXLEN=255),UserLocDesc:%String(MAXLEN=255),CurrInpatientIcon:%Integer,ApptsSameDayIcon:%Integer,BedRequestedIcon:%Integer,BedAssignedIcon:%Integer,AlertsIcon:%Integer,AllergyIcon:%Integer,APPTRemarks:%String"/>
+</Query>
+</Class>
+</Export>

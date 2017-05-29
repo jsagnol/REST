@@ -1,0 +1,159 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.AUXX.Report.ZEN.SurgicalPreferences">
+<Super>Custom.AUXX.Report.ZEN.Abstract</Super>
+<TimeCreated>61543,54550.041409</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/AUXX/Report/ZEN/SurgicalPreferences.xml#1 $</Default>
+</Parameter>
+
+<UDLText name="T">
+<Content><![CDATA[
+// Report Name: Surgical Preference List <br>
+
+]]></Content>
+</UDLText>
+
+<UDLText name="T">
+<Content><![CDATA[
+// Report Code: AUXX.OPT0005 <br>
+
+]]></Content>
+</UDLText>
+
+<Property name="Clinician">
+<Description>
+Clinician</Description>
+<Type>%String</Type>
+<Parameter name="ZENURL" value="P1"/>
+</Property>
+
+<Property name="oper">
+<Description>
+Procedure</Description>
+<Type>%String</Type>
+<Parameter name="ZENURL" value="P2"/>
+</Property>
+
+<Property name="anaes">
+<Description>
+Anaesthetic Method</Description>
+<Type>%String</Type>
+<Parameter name="ZENURL" value="P3"/>
+</Property>
+
+<Property name="recoper">
+<Description>
+RecoveryProcedure</Description>
+<Type>%String</Type>
+<Parameter name="ZENURL" value="P4"/>
+</Property>
+
+<XData name="ReportDefinition">
+<XMLNamespace>http://www.intersystems.com/zen/report/definition</XMLNamespace>
+<Data><![CDATA[
+<report xmlns='http://www.intersystems.com/zen/report/definition'
+   queryClass='Custom.AUXX.Report.ZEN.StoredProc.SurgicalPreferences' queryName='GetList' name='SurgicalPreferences'>
+  <parameter expression='..Clinician'/>
+  <parameter expression='..oper'/>
+  <parameter expression='..anaes'/>
+  <parameter expression='..recoper'/>
+  
+  
+  <!-- Report section -->
+  <attribute name='ReportTitle' expression='$$$Text("@SurgicalPreferences@Surgical Preferences")'/>
+  <attribute name='timestamp' expression='$ZDATETIME($H, 2, 2)'/>
+  <attribute name='username' expression='..Username'/>
+  <attribute name="Clinician" expression="..GetCareProvListDesc(..Clinician)"/>
+  <attribute name="Procedure" expression="..GetSPPPListDesc(..oper)"/>
+  <attribute name="AnaesMethod" expression="..GetAnaesListDesc(..anaes)"/>
+  <attribute name="RecovProcedure" expression="..GetSPPPListDesc(..recoper)"/>
+ 
+  	<group name="Procedure" breakOnField="SPPPCode">
+ 	<attribute name="description" field="SPPPCode" />
+ 	<group name="ProdDesc" breakOnField="ProductDesc">
+ 	<attribute name="description" field="ProductDesc" />
+    <group name='Detail'>
+  	 <attribute field='Type' name='Type'/> 
+  	 <attribute field='EQSequenceNo' name='EQSequenceNo'/>
+     <attribute field='OrderCode' name='OrderCode'/>
+     <attribute field='OrderDescription' name='Description'/>
+     <attribute field='EQQty' name='Qty'/>
+     <attribute field='OrderCategory' name='SubCategory'/>
+     
+    </group>  
+    </group>
+   </group>     
+  </report>
+]]></Data>
+</XData>
+
+<XData name="ReportDisplay">
+<XMLNamespace>http://www.intersystems.com/zen/report/display</XMLNamespace>
+<Data><![CDATA[
+<report xmlns='http://www.intersystems.com/zen/report/display'
+xmlns:auxxstyle='http://www.intersystems.com/zen/report/display/auxx/style'
+xmlns:auxx='http://www.intersystems.com/zen/report/display/auxx'
+  name='SurgicalPreferences'>
+<document width= "#(..ReportWidth)#" height="#(..ReportHeight)#" marginLeft="#(..DocMarginLeft)#" marginRight="#(..DocMarginRight)#" 
+marginTop="#(..DocMarginTop)#" marginBottom="#(..DocMarginBottom)#" footerHeight="#(..DocFooterHeight)#" headerHeight="#(..DocHeaderHeight)#" 
+regionBeforeExtent="#(..DocHeaderHeight)#" regionAfterExtent="#(..DocFooterHeight)#" >
+<auxxstyle:auxxgroupheader/>
+<auxxstyle:auxxgroupsummary/>
+<auxxstyle:auxxhospitalheader/>
+<auxxstyle:auxxpagefooter/>
+<auxxstyle:auxxpageheader/>
+<auxxstyle:auxxparameterheader/>
+<auxxstyle:auxxreporttitle/>
+<auxxstyle:auxxtablecolumn/>
+</document>
+<auxx:PageHeader pagetitle='@ReportTitle'/>
+<auxx:ReportFooter username='@username' timestamp='@timestamp'/>
+
+<body>
+<!-- REPORT HEADER -->
+<auxx:ReportHeader reporttitle='@ReportTitle'/>
+<auxx:ReportParameterHeader label='@Clinician:@Clinician:' field='@Clinician' class="auxxparameterheader" />
+<auxx:ReportParameterHeader label='@Procedure:@Procedure:' field='@Procedure' xcondition="string-length(@Procedure)>0"/>
+<auxx:ReportParameterHeader label='@AnaestheticMethod:@Anaesthetic Method:' field='@AnaesMethod' xcondition="string-length(@AnaesMethod)>0"/>
+<auxx:ReportParameterHeader label='@RecoveryProcedure:@Recovery Procedure:' field='@RecovProcedure' xcondition="string-length(@RecovProcedure)>0"/>
+<line pattern="solid" width="100%"/>
+<line pattern="empty" width="100%"/>
+
+<!-- No Results -->
+<auxx:NoResults xcondition="not(Procedure)" />
+
+<group name='Procedure'>
+
+<auxx:GroupHospitalHeader field="@description" />
+	<line pattern="empty" lineHeight="1mm" />
+	 <table class='auxxtablecolumn' orient='col' >
+        <item field='' width="15%" value=" " literalSpaces='true' />
+        <item field='' width="15%" caption="@OrderItemCode@Order Item Code" />
+        <item field='' width="40%" caption='@Description@Description'/> 
+        <item field='' width="10%" caption='@Quantity@Quantity'/> 
+        <item field='' width="20%" caption='@SubCategory/CareProviderType@SubCategory/Care Provider Type'/>
+        </table>
+      
+<group name='ProdDesc'>
+<auxx:GroupHeader field="@description"  />
+	 <table class='auxxtablecolumn' orient='col' group='Detail' >
+        <item value=" " width="15%" literalSpaces='true'  />
+        <item field='@OrderCode' width="15%"  />
+        <item field='@Description' width="40%" /> 
+        <item field='@Qty' width="10%" /> 
+        <item field='@SubCategory' width="20%" />
+        </table>
+	<line pattern="empty" width="100%" lineHeight="2mm"/>
+   </group>
+     <line pattern="empty" width="100%" lineHeight="4mm"/>
+   </group>
+</body>
+</report>
+]]></Data>
+</XData>
+</Class>
+</Export>

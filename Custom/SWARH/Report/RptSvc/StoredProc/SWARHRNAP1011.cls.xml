@@ -1,0 +1,222 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.SWARH.Report.RptSvc.StoredProc.SWARHRNAP1011">
+<Description><![CDATA[
+<pre>
+***************************************************************************************************************************************
+* Report Code: SWARHRNAP1011
+* Report Description: Time Spect on procedures
+* Menu Caption: Procedures
+* Initial release: 
+* Developer: David Cottrill
+* Report shows:Specialty, Procedure, Patient Name, Clinicains Name, Contact Time, Indirect Time, Travel Time.
+* Fields:PAPERName2, PAPERName, PAPERDob, CTSEXDesc, ARCIMDesc, ARCIMRowId, ENQContactInterventions, ENQRowId, ENQDuration, ENQIndirectTime, ENQTravelTime, CTSPCDesc, Intervention, OEORISttDat, OEORISttTim, OEORITimeExecuted, ARCIMMinutes, CTLOCDesc, CTLOCRowid, DEPcode, DEPDesc, CTPCPdesc
+* Modified: 2015-09-17 - rpgladman - Added support for multiple specialties & programs
+*           2016-02-23 - rpgladman - Contacts count now excluding contacts where duration=0
+***************************************************************************************************************************************
+</pre>
+Class for SWARHRNAP1011 Report]]></Description>
+<ProcedureBlock>0</ProcedureBlock>
+<Super>Custom.SWARH.Report.RptSvc.StoredProc.Abstract</Super>
+<TimeCreated>60905,54849</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/SWARH/Report/RptSvc/StoredProc/SWARHRNAP1011.xml#1 $</Default>
+</Parameter>
+
+<Method name="SWARHRNAP1011Close">
+<Description>
+This is the Close component of the %Library.Query.
+This is standard code and should never have to change.
+This is where all the cleanup is performed, i.e. the purging of the temporary storage global ^CacheTemp.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>QHandle:%Library.Binary</FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Clean up by purging the temporary node in ^CacheTemp global
+ New repid,ind
+ Set repid=$li(QHandle,2)
+
+ //Start Monitor (if configured to capture stats)
+ i mon Do ..MonitorEnd(mon)
+
+ Kill ^CacheTemp("TRAK",repid)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="SWARHRNAP1011Execute">
+<Description>
+This is the Execute section for the %Library.Query. 
+All of the logic will be performed here.
+A new node for the ^CacheTemp global will be created and each subscript of this global will contain
+a row for the report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,Hospital:%Library.Integer,DateFrom:%Library.Date,DateTo:%Library.Date,Specialty:%Library.String,Program:%Library.String,Clinician:%Library.String]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<ImplementationBase64>IC8vIEdldCByZXBvcnRpZCBpLmUuIHVzZSAkSU5DUkVNRU5UIHRvIGFkZCBhbm90aGVyIG5vZGUg
+dG8gXkNhY2hlVGVtcCBnbG9iYWwuIAogLy8gV2UgdXNlIF5DYWNoZVRlbXAgZ2xvYmFsIGJlY2F1
+c2UgaXQgd2lsbCBhbHdheXMgdXNlIG1lbW9yeSBiZWZvcmUgZGlzawogTmV3IHJlcGlkLGluZAoK
+ICAvLyBVc2UgJEluY3JlbWVudCB0byBnZXQgdGhlIG5leHQgbm9kZQogU2V0IHJlcGlkPSRJKF5D
+YWNoZVRlbXAoIlRSQUsiKSkKIAogTmV3IFBBUE1JTm8sUEFQRVJOYW1lMiwgUEFQRVJOYW1lLCBQ
+QVBFUkRvYiwgQ1RTRVhEZXNjLCBBUkNJTURlc2MsIEFSQ0lNUm93SWQsIE9yZGVyQVJDSU1EZXNj
+LCBFTlFDb250YWN0SW50ZXJ2ZW50aW9ucywgRU5RUm93SWQsIEVOUUR1cmF0aW9uLCBFTlFJbmRp
+cmVjdFRpbWUsIEVOUVRyYXZlbFRpbWUKIE5ldyBDVFNQQ0Rlc2MsIE9FT1JJU3R0RGF0LCBPRU9S
+SVN0dFRpbSwgT0VPUklUaW1lRXhlY3V0ZWQsIEFSQ0lNTWludXRlcywgQ1RMT0NEZXNjLCBDVExP
+Q1Jvd2lkLCBERVBjb2RlLCBDVFBDUGRlc2MsIEludGVydmVudGlvbgogU2V0IChQQVBNSU5vLFBB
+UEVSTmFtZTIsIFBBUEVSTmFtZSwgUEFQRVJEb2IsIENUU0VYRGVzYywgQVJDSU1Sb3dJZCwgQVJD
+SU1EZXNjLCBPcmRlckFSQ0lNRGVzYywgRU5RQ29udGFjdEludGVydmVudGlvbnMsIEVOUUR1cmF0
+aW9uLCBFTlFJbmRpcmVjdFRpbWUsIEVOUVRyYXZlbFRpbWUpID0gIiIKIFNldCAoQ1RTUENEZXNj
+LCBPRU9SSVN0dERhdCwgT0VPUklTdHRUaW0sIE9FT1JJVGltZUV4ZWN1dGVkLCBBUkNJTU1pbnV0
+ZXMsIENUTE9DRGVzYywgREVQY29kZSwgQ1RQQ1BkZXNjLCBERVBEZXNjKSA9ICIiCiBTZXQgKEVO
+UVJvd0lkLCBDVExPQ1Jvd2lkKSA9IDAgCiBzIHJvd3R5cGU9IiIKCiBzIGluZD0xLCBFTkQ9MAoK
+IC8vU3RhcnQgTW9uaXRvciAoaWYgY29uZmlndXJlZCB0byBjYXB0dXJlIHN0YXRzKQogcyBtb249
+Li5Nb25pdG9yQmVnaW4oKQogCiAvL0NvbnZlcnQgT0RCQyBkYXRlcyB0byBjYWNoZSBmb3JtYXQK
+IHMgRGF0ZUZyb209Li5Db252ZXJ0RGF0ZVRvQ2FjaGUoRGF0ZUZyb20pCiBzIERhdGVUbz0uLkNv
+bnZlcnREYXRlVG9DYWNoZShEYXRlVG8pCiAKICZTUUwoREVDTEFSRSBJTlRTV0FSSFJOQVAxMDEx
+IENVUlNPUiBGT1IKIAkJU0VMRUNUCgkgCQlBUkNJTV9EZXNjIGFzIEFSQ0lNRGVzYywKCSAJCUFS
+Q0lNX01pbnV0ZXMKCQlJTlRPCgkJCTpBUkNJTURlc2MsCgkJCTpBUkNJTU1pbnV0ZXMKIAkJRlJP
+TSAKIAkJCVNRTFVzZXIuQVJDX0l0bU1hc3QgCiAJCVdIRVJFCiAJIAkJKEFSQ0lNX1Jvd0lkID0g
+OkludGVydmVudGlvbikpCgogJlNRTChERUNMQVJFIFNXQVJIUk5BUDEwMTEgQ1VSU09SIEZPUiAK
+CSBTRUxFQ1QKCSAJQy5FTlFfUEFQRVJfRFItPlBBUEVSX1BBUE1JX0RSLT5QQVBNSV9ObywKCQlD
+LkVOUV9QQVBFUl9EUi0+UEFQRVJfTmFtZTIgQXMgUEFQRVJOYW1lMiwKCQlDLkVOUV9QQVBFUl9E
+Ui0+UEFQRVJfTmFtZSBhcyBQQVBFUk5hbWUsCgkJQy5FTlFfUEFQRVJfRFItPlBBUEVSX0RvYiBh
+cyBQQVBFUkRvYiwKCQlDLkVOUV9QQVBFUl9EUi0+UEFQRVJfU2V4X0RSLT5DVFNFWF9EZXNjIGFz
+IENUU0VYRGVzYywKCQlDLkVOUV9PRU9yZEl0ZW1fRFItPk9FT1JJX0l0bU1hc3RfRFItPkFSQ0lN
+X3Jvd2lkIGFzIEFSQ0lNUm93SWQsCgkJYy5FTlFfT0VPcmRJdGVtX0RSLT5PRU9SSV9JdG1NYXN0
+X0RSLT5BUkNJTV9EZXNjIGFzIE9yZGVyQVJDSU1EZXNjLAoJCUMuRU5RX0NvbnRhY3RJbnRlcnZl
+bnRpb25zIGFzIEVOUUNvbnRhY3RJbnRlcnZlbnRpb25zLAoJCUMuRU5RX1Jvd0lkIGFzIEVOUVJv
+d0lkLAoJCUMuRU5RX0R1cmF0aW9uIGFzIEVOUUR1cmF0aW9uLAoJCUMuRU5RX0luZGlyZWN0VGlt
+ZSBhcyBFTlFJbmRpcmVjdFRpbWUsCgkJQy5FTlFfVHJhdmVsVGltZSBhcyBFTlFUcmF2ZWxUaW1l
+LAoJCUMuRU5RX0xvY2F0aW9uX0RSLT5DVExPQ19EZXNjIGFzIENUTE9DRGVzYywKCQlDLkVOUV9M
+b2NhdGlvbl9EUi0+Q1RMT0NfUm93aWQgYXMgQ1RMT0NSb3dpZCwKCQlDLkVOUV9Hb3Zlcm5EZXBh
+cnRfRFIgYXMgREVQY29kZSwKCQlDLkVOUV9Hb3Zlcm5EZXBhcnRfRFItPkRFUF9EZXNjIGFzIERF
+UERlc2MsCgkJQy5FTlFfQ1RDUF9EUi0+Q1RQQ1BfRGVzYyBhcyBDVFBDUGRlc2MKCUlOVE8KCQk6
+UEFQTUlObywKCQk6UEFQRVJOYW1lMiwKCQk6UEFQRVJOYW1lLCAKCQk6UEFQRVJEb2IsIAoJCTpD
+VFNFWERlc2MsCgkJOkFSQ0lNUm93SWQsCgkJOk9yZGVyQVJDSU1EZXNjLAoJCTpFTlFDb250YWN0
+SW50ZXJ2ZW50aW9ucywgCgkJOkVOUVJvd0lkLCAKCQk6RU5RRHVyYXRpb24sIAoJCTpFTlFJbmRp
+cmVjdFRpbWUsIAoJCTpFTlFUcmF2ZWxUaW1lLCAKCQk6Q1RMT0NEZXNjLCAKCQk6Q1RMT0NSb3dp
+ZCwgCgkJOkRFUGNvZGUsIAoJCTpERVBEZXNjLCAKCQk6Q1RQQ1BkZXNjCgkKCSBGUk9NICAgIFNR
+TFVzZXIuUEFfRW5xdWlyeUNvbnRhY3QgQwoJIAoJIFdIRVJFIChFTlFfSG9zcGl0YWxfRFIgPSA6
+SG9zcGl0YWwpCgkgCS0tQU5EIEMuRU5RX09FT3JkSXRlbV9EUi0+T0VPUklfSXRtTWFzdF9EUi0+
+QVJDSU1fcm93aWQgSVMgTk9UIE5VTEwKCSAJLS1BTkQgQy5FTlFfQ29udGFjdEludGVydmVudGlv
+bnMgSVMgTk9UIE5VTEwKCQlBTkQgYy5FTlFfZGF0ZSBCRVRXRUVOIDpEYXRlRnJvbSBBTkQgOkRh
+dGVUbwoJCQoJCS0tIEFORCAoQy5FTlFfTG9jYXRpb25fRFIgPSA6U3BlY2lhbHR5IE9SICg6U3Bl
+Y2lhbHR5IElTIE5VTEwpKSAtLSBTaW5nbGUgU3BlY2lhbHR5IE9ubHkKICAgICAgICBBTkQgKCh7
+Zm4gQ09OQ0FUKCAnLCcsIHtmbiBDT05DQVQoKDpTcGVjaWFsdHkpLCcsJyl9KX0gWyB7Zm4gQ09O
+Q0FUKCAnLCcsIHtmbiBDT05DQVQoKEMuRU5RX0xvY2F0aW9uX0RSKSwnLCcpfSl9KSBPUiAoOlNw
+ZWNpYWx0eSBJUyBOVUxMKSkgIC0tIE11bHRpcGxlIFNwZWNpYWx0aWVzCiAgICAgICAgCgkJLS1B
+TkQgKEMuRU5RX0dvdmVybkRlcGFydF9EUiA9IDpQcm9ncmFtIE9SICg6UHJvZ3JhbSBJUyBOVUxM
+KSkgLS0gU2luZ2xlIFByb2dyYW0gT25seQoJCUFORCAoKHtmbiBDT05DQVQoICcsJywge2ZuIENP
+TkNBVCgoOlByb2dyYW0pLCcsJyl9KX0gWyB7Zm4gQ09OQ0FUKCAnLCcsIHtmbiBDT05DQVQoKEMu
+RU5RX0dvdmVybkRlcGFydF9EUiksJywnKX0pfSkgT1IgKDpQcm9ncmFtIElTIE5VTEwpKSAtLSBN
+dWx0aXBsZSBQcm9ncmFtcwoJCQoJCUFORCBFTlFfRHVyYXRpb24gPiAwCgkJQU5EIChDLkVOUV9D
+VENQX0RSID0gOkNsaW5pY2lhbiBPUiAoOkNsaW5pY2lhbiBJUyBOVUxMKSkKCQlBTkQgYy5FTlFf
+Q29udGFjdFR5cGUgSU4gKCdJJywnRkUnKQoJCUFORCBFTlFfUmVxdWVzdFN0YXR1c19EUiBJTiAo
+Miw4KQoJKQogJlNRTChPUEVOIFNXQVJIUk5BUDEwMTEpCiAKIC8vRkVUQ0ggRklSU1QgUk9XCiBk
+IEZldGNoUm93CiAgCiB3aGlsZSBFTkQ9MCB7CiAgCSAKICAJICBkIEZvcm1hdGVucWNvZGUKICAJ
+ICAKCSAvL3Mgc29ydCA9IGluZAkJLy8gZG9uJ3Qgc29ydCAtIHVuY29tbWVudCB0aGlzIGxpbmUg
+aWYgeW91J3ZlIHNvcnRlZCBpbiB0aGUgcXVlcnkKCSAKIAkgcyByb3d0eXBlPSJPIgogCSBkIEJ1
+aWxkUm93CgkgLy9zIF5DYWNoZVRlbXAoIlRSQUsiLHJlcGlkLHNvcnQpPSRMQihQQVBFUk5hbWUy
+LCBQQVBFUk5hbWUsIFBBUEVSRG9iLCBDVFNFWERlc2MsIEFSQ0lNRGVzYywgQVJDSU1Sb3dJZCwg
+RU5RQ29udGFjdEludGVydmVudGlvbnMsIEVOUVJvd0lkLCBFTlFEdXJhdGlvbiwgRU5RSW5kaXJl
+Y3RUaW1lLCBFTlFUcmF2ZWxUaW1lLCBDVFNQQ0Rlc2MsIE9FT1JJU3R0RGF0LCBPRU9SSVN0dFRp
+bSwgT0VPUklUaW1lRXhlY3V0ZWQsIEFSQ0lNTWludXRlcywgQ1RMT0NEZXNjLCBDVExPQ1Jvd2lk
+LCBERVBjb2RlLCBERVBEZXNjLCBDVFBDUGRlc2MpCgkgLy9zIGluZD1pbmQrMQoJIFNldCBFTlFD
+b250YWN0SW50ZXJUZW1wID0gRU5RQ29udGFjdEludGVydmVudGlvbnMKIAkgZm9yIGk9MToxOigk
+TGVuZ3RoKEVOUUNvbnRhY3RJbnRlclRlbXAsIiwiKS0xKQogCSB7CiAJIAlzZXQgSW50ZXJ2ZW50
+aW9uPSRQaWVjZShFTlFDb250YWN0SW50ZXJUZW1wLCIsIixpKQogCSAJCiAJIAkvL0NyZWF0ZSBl
+eHRyYSByZWNvcmQgZm9yIGVhY2ggaW50ZXJ2ZW50aW9uCiAJIAkKIAkgCSZTUUwoT1BFTiBJTlRT
+V0FSSFJOQVAxMDExKQogCSAJJlNRTChGRVRDSCBJTlRTV0FSSFJOQVAxMDExKSAgCSAgICAKCQkm
+U1FMKENMT1NFIElOVFNXQVJIUk5BUDEwMTEpCgkJCgkJcyByb3d0eXBlPSJJIgoJCWQgRm9ybWF0
+U3RyaW5nCgkJZCBCdWlsZFJvdwkJCiAJIH0KCSAvL2ZldGNoIHJvd3MKCSBkIEZldGNoUm93CiB9
+CiAmU1FMKENMT1NFIFNXQVJIUk5BUDEwMTEpCiAKIC8vIEJ1aWxkIFFIYW5kbGUgKEF0RW5kLFJl
+cG9ydElELEluZGV4KQogU2V0IFFIYW5kbGU9JGxiKDAscmVwaWQsMCkKCiBRdWl0ICQkJE9LCgpC
+dWlsZFJvdwogZCBGb3JtYXREYXRlcwogZCBGb3JtYXRUaW1lcwogCiAgCSAgICAKIAkgCS8qIFRF
+TVBMQVRFIE1PRElGWTogQnVpbGQgdGhlIHNvcnQgc3RyaW5nIGhlcmUgZnJvbSBjb2x1bW4gdmFy
+aWFibGVzLiBDb252ZXJ0IHN0cmluZ3MgdG8gdXBwZXJjYXNlICgkWkNWVCg8ZmllbGQ+LCJVIikg
+YW5kIHNlcGFyYXRlIHdpdGggc3BhY2VzICovCgkgCS8vcyBzb3J0ID0gaW5kCQkvLyBkb24ndCBz
+b3J0IC0gdW5jb21tZW50IHRoaXMgbGluZSBpZiB5b3UndmUgc29ydGVkIGluIHRoZSBxdWVyeQog
+cyBzb3J0ID0gJFpDVlQoQ1RMT0NEZXNjLCJVIilfaW5kCiAKCSAJLyogVEVNUExBVEUgTU9ESUZZ
+OiBCdWlsZCB0aGUgbGlzdCBvZiBmaWVsZHMgYnkgcGxhY2luZyBjb3JyZWN0IGNvbHVtbiB2YXJp
+YWJsZSBuYW1lcyBpbiB0aGUgJExCKCkgaGVyZS4gKi8KIHMgXkNhY2hlVGVtcCgiVFJBSyIscmVw
+aWQsc29ydCk9JExCKFBBUE1JTm8sUEFQRVJOYW1lMiwgUEFQRVJOYW1lLCBQQVBFUkRvYiwgQ1RT
+RVhEZXNjLCBBUkNJTURlc2MsIEFSQ0lNUm93SWQsIE9yZGVyQVJDSU1EZXNjLCBFTlFDb250YWN0
+SW50ZXJ2ZW50aW9ucywgRU5RUm93SWQsIEVOUUR1cmF0aW9uLCBFTlFJbmRpcmVjdFRpbWUsIEVO
+UVRyYXZlbFRpbWUsIENUU1BDRGVzYywgSW50ZXJ2ZW50aW9uLCBPRU9SSVN0dERhdCwgT0VPUklT
+dHRUaW0sIE9FT1JJVGltZUV4ZWN1dGVkLCBBUkNJTU1pbnV0ZXMsIENUTE9DRGVzYywgQ1RMT0NS
+b3dpZCwgREVQY29kZSwgREVQRGVzYywgQ1RQQ1BkZXNjLHJvd3R5cGUpCiBzIGluZD1pbmQrMQog
+cyByb3d0eXBlPSIiCQogcQoKRmV0Y2hSb3cKICZzcWwoRkVUQ0ggU1dBUkhSTkFQMTAxMSkgLypJ
+TlRPIDpQQVBFUk5hbWUyLCA6UEFQRVJOYW1lLCA6UEFQRVJEb2IsIDpDVFNFWERlc2MsIDpBUkNJ
+TURlc2MsIDpBUkNJTVJvd0lkLCA6RU5RQ29udGFjdEludGVydmVudGlvbnMsIDpFTlFSb3dJZCwg
+OkVOUUR1cmF0aW9uLCA6RU5RSW5kaXJlY3RUaW1lLCA6RU5RVHJhdmVsVGltZSwgOkNUU1BDRGVz
+YywgOk9FT1JJU3R0RGF0LCA6T0VPUklTdHRUaW0sIDpPRU9SSVRpbWVFeGVjdXRlZCwgOkFSQ0lN
+TWludXRlcywgOkNUTE9DRGVzYywgOkNUTE9DUm93aWQsIDpERVBjb2RlLCA6REVQRGVzYywgOkNU
+UENQZGVzYykqLwogaWYgU1FMQ09ERSAnPSAwIHNldCBFTkQgPSAxCiBxCgogCkZvcm1hdERhdGVz
+CiAvLyBDb252ZXJ0IHRoZSBkYXRlcyB0byBPREJDIHRpbWUgZm9ybWF0CiBJRiBQQVBFUkRvYiBT
+ZXQgUEFQRVJEb2I9Li5Db252ZXJ0RGF0ZVRvT0RCQyhQQVBFUkRvYikKIElGIE9FT1JJU3R0RGF0
+IFNldCBPRU9SSVN0dERhdD0uLkNvbnZlcnREYXRlVG9PREJDKE9FT1JJU3R0RGF0KQogCiAKIHEK
+IApGb3JtYXRUaW1lcwogLy8gQ29udmVydCB0aGUgdGltZXMgdG8gT0RCQyB0aW1lIGZvcm1hdAog
+SUYgT0VPUklTdHRUaW0gU2V0IE9FT1JJU3R0VGltPS4uQ29udmVydFRpbWVUb09EQkMoT0VPUklT
+dHRUaW0pCiBJRiBPRU9SSVRpbWVFeGVjdXRlZCBTZXQgT0VPUklUaW1lRXhlY3V0ZWQ9Li5Db252
+ZXJ0VGltZVRvT0RCQyhPRU9SSVRpbWVFeGVjdXRlZCkKIHEKRm9ybWF0ZW5xY29kZQogLy9TdHJp
+cCBvdXQgY29udHJvbCBjaGFyIGFuIHJlcGxhY2Ugd2l0aCBhIGNvbW1hCiBzIEVOUUNvbnRhY3RJ
+bnRlcnZlbnRpb25zPSRSRVBMQUNFKEVOUUNvbnRhY3RJbnRlcnZlbnRpb25zLCIEIiwiLCIpCiBx
+CkZvcm1hdFN0cmluZwogLy9Gb3JtYXQgU3RyaW5nIHRvIGJlIHBhc3NlZCB0byByZXBvcnQKIHMg
+RU5RQ29udGFjdEludGVydmVudGlvbnM9JFpTVFJJUChFTlFDb250YWN0SW50ZXJ2ZW50aW9ucywi
+KkMiKQogcyBBUkNJTVJvd0lkPSRaU1RSSVAoQVJDSU1Sb3dJZCwiKkMiKQogcyBJbnRlcnZlbnRp
+b249JFpTVFJJUChJbnRlcnZlbnRpb24sIipDIikKIHMgRU5RQ29udGFjdEludGVydmVudGlvbnM9
+JFJFUExBQ0UoRU5RQ29udGFjdEludGVydmVudGlvbnMsInx8IiwiLSIpCiBzIEFSQ0lNUm93SWQ9
+JFJFUExBQ0UoQVJDSU1Sb3dJZCwifHwiLCItIikKIHMgSW50ZXJ2ZW50aW9uPSRSRVBMQUNFKElu
+dGVydmVudGlvbiwifHwiLCItIikKIDtzIENUTE9DRGVzYyA9ICRQKENUTE9DRGVzYywiLSIsMSkK
+IHE=
+</ImplementationBase64></Method>
+
+<Method name="SWARHRNAP1011Fetch">
+<Description>
+This is the Fetch component of the %Library.Query. 
+This should never have to change. It is designed to fetch the row for each subscript of the ^CacheTemp
+global and return this row to the Crystal Report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,&Row:%Library.List,&AtEnd:%Library.Integer=0]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // This fetch method should never have to change. 
+
+ // repid - Report ID
+ // ind   - sequence index which represents each row
+
+ New repid,ind
+
+ // Restore QHandle
+ Set AtEnd=$li(QHandle,1)
+ Set repid=$li(QHandle,2)
+ Set ind=$li(QHandle,3)
+
+ Set ind=$o(^CacheTemp("TRAK",repid,ind))
+ If ind="" {	// if there are no more rows, finish fetching
+	 Set AtEnd=1
+	 Set Row=""
+ }
+ Else      {	// fetch row
+ 	Set Row=^CacheTemp("TRAK",repid,ind)
+ }
+
+ // Save QHandle
+ s QHandle=$lb(AtEnd,repid,ind)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Query name="SWARHRNAP1011">
+<Type>%Library.Query</Type>
+<FormalSpec>Hospital:%Library.Integer,DateFrom:%Library.Date,DateTo:%Library.Date,Specialty:%Library.String,Program:%Library.String,Clinician:%Library.String</FormalSpec>
+<SqlProc>1</SqlProc>
+<Parameter name="CONTAINID" value="0"/>
+<Parameter name="ROWSPEC" value="PAPMINo:%Library.String,PAPERName2:%Library.String, PAPERName:%Library.String, PAPERDob:%Library.Date, CTSEXDesc:%Library.String, ARCIMDesc:%Library.String, ARCIMRowId:%Library.String, OrderARCIMDesc:%Library.String, ENQContactInterventions:%Library.String, ENQRowId:%Library.Integer, ENQDuration:%Library.Integer, ENQIndirectTime:%Library.Integer, ENQTravelTime:%Library.Integer, CTSPCDesc:%Library.String, Intervention:%Library.String, OEORISttDat:%Library.String, OEORISttTim:%Library.String, OEORITimeExecuted:%Library.String, ARCIMMinutes:%Library.Integer, CTLOCDesc:%Library.String, CTLOCRowid:%Library.Integer, DEPcode:%Library.String, DEPDesc:%Library.String, CTPCPdesc:%Library.String, rowtype:%String"/>
+<Parameter name="SELECTMODE" value="ODBC"/>
+</Query>
+</Class>
+</Export>

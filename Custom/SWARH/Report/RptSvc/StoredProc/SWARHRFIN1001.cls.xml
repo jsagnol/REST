@@ -1,0 +1,348 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.SWARH.Report.RptSvc.StoredProc.SWARHRFIN1001">
+<Description><![CDATA[
+<pre>
+***************************************************************************************************************************************
+* Report Code: SWARHZFIN1001
+* Report Description: Invoices List (Copyied from Custom.AUXX.Report.ZEN.StoredProc.InvoiceList)
+* Menu Caption: Invoices List
+* Initial release: 
+* Developer: Intersystems
+* Modified:	Michael Welsh
+***************************************************************************************************************************************
+</pre>]]></Description>
+<ProcedureBlock>0</ProcedureBlock>
+<Super>Custom.SWARH.Report.RptSvc.StoredProc.Abstract</Super>
+<TimeCreated>59968,40117.421121</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/SWARH/Report/RptSvc/StoredProc/SWARHRFIN1001.xml#1 $</Default>
+</Parameter>
+
+<Method name="GetInvoiceListExecute">
+<Description>
+This is the Execute section for the %Library.Query. 
+All of the logic will be performed here.
+A new node for the ^CacheTemp global will be created and each subscript of this global will contain
+a row for the report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,Hospital:%Integer,DateFrom:%Date,DateTo:%Date,AdmType:%String,Specialty:%String,Exclusion:%String]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+  
+ // Get reportid i.e. use $INCREMENT to add another node to ^CacheTemp global. 
+ // We use ^CacheTemp global because it will always use memory before disk
+ New repid,ind
+
+ // Use $Increment to get the next node
+ Set repid=$INCREMENT(^CacheTemp(..#CACHETEMPSUBSCRIPT))
+ 
+ // Build data into ^CacheTemp("TRAK",ReportID)
+ // e.g. Set ^CacheTemp("TRAK",ReportID,Index)=$LB(f1,f2,f3)
+ New Number,String,Date,Time,c,n,Print,Invoice
+ New ARPBLRowId,PAPMINo,PAADMADMNo,PAPMIName,ARPBLDateFrom,ARPBLDateTo,ARPBLBillNo,ARPBLDatePrinted,ARPBLAmountToPay,PAPMIName2,PAPMIName3
+ 	,INSTCode,INSTDesc,INSTRowId,PatientName,HOSPRowId,HOSPCode,HOSPDesc,InvoiceNo,DatePrinted,PAADMTypeDesc,SortDate
+ 	,PAADMType,CTLOCRowID,CTLOCCode,CTLOCDesc,rpttpye,PGRPCode,PGRPDesc,EPISODEPAYOROFFICE,EPISODEPAYOR,EPISODEINSURANCECONTACTNAME
+ Set (ARPBLRowId,ARPBLAmountToPay,INSTRowId,CTLOCRowID)=0
+ Set (PAPMINo,PAADMADMNo,PAPMIName,ARPBLDateFrom,ARPBLDateTo,ARPBLBillNo,ARPBLDatePrinted,PAPMIName2,PAPMIName3
+ 	,INSTCode,INSTDesc,PatientName,HOSPRowId,HOSPCode,HOSPDesc,InvoiceNo,DatePrinted,SortDate
+ 	,PAADMType,CTLOCCode,CTLOCDesc,rpttpye,PGRPCode,PGRPDesc,EPISODEPAYOROFFICE,EPISODEPAYOR,EPISODEINSURANCECONTACTNAME)=""
+
+ Set ind=1, END=0
+ 
+ //Start Monitor (if configured to capture stats)
+ s mon=..MonitorBegin()
+ 
+ //i $g(Hospital)'="" s Hospital=$zstrip(Hospital,"*WC")
+ i $g(Specialty)'="" s Location=$ZSTRIP(Specialty,"*WC")
+ i $g(Exclusion)'="" s Exclusion=$ZCONVERT($ZSTRIP(Exclusion,"*WC"),"U")
+
+ Set DateFrom=..ConvertDateToCache(DateFrom)
+ Set DateTo=..ConvertDateToCache(DateTo)
+  
+ If (Specialty = "") //All Specialties
+ {
+	&SQL(DECLARE InvoicesAll CURSOR FOR
+ 	SELECT
+ 		ARPBL_RowId,
+ 		ARPBL_PAADM_DR->PAADM_PAPMI_DR->PAPMI_No,
+ 		ARPBL_PAADM_DR->PAADM_ADMNo,
+ 		ARPBL_PAADM_DR->PAADM_PAPMI_DR->PAPMI_Name,
+ 		ARPBL_DateFrom,
+ 		ARPBL_DateTo,
+ 		ARPBL_BillNo,
+ 		ARPBL_DatePrinted,
+ 		ARPBL_TotalAllowed,
+ 		ARPBL_PAADM_DR->PAADM_PAPMI_DR->PAPMI_Name2,
+ 		ARPBL_PAADM_DR->PAADM_PAPMI_DR->PAPMI_Name3,
+ 		ARPBL_InsuranceType_DR->INST_Code,
+ 		ARPBL_InsuranceType_DR->INST_Desc,
+ 		ARPBL_InsuranceType_DR,
+ 		ARPBL_PAADM_DR->PAADM_Epissubtype_DR->SUBT_Desc,
+ 		ARPBL_Hospital_DR->HOSP_RowId,
+ 		ARPBL_Hospital_DR->HOSP_Code,
+ 		ARPBL_Hospital_DR->HOSP_Desc,
+ 		ARPBL_DatePrinted,
+ 		ARPBL_PAADM_DR->PAADM_Type,
+ 		ARPBL_PAADM_DR->PAADM_DepCode_DR->CTLOC_RowID,
+ 		ARPBL_PAADM_DR->PAADM_DepCode_DR->CTLOC_Code,
+ 		ARPBL_PAADM_DR->PAADM_DepCode_DR->CTLOC_Desc,
+ 		ARPBL_InsuranceType_DR->INST_PayorGroup_DR->PGRP_Code,
+        ARPBL_InsuranceType_DR->INST_PayorGroup_DR->PGRP_Desc,
+  	    r.INS_INSASSOC_DR->INSAS_DESC AS EPISODEPAYOROFFICE,
+        r.INS_INSTYPE_DR->INST_DESC AS EPISODEPAYOR,
+        CONTACT_NAME AS EPISODEINSURANCECONTACTNAME
+	FROM SQLUser.AR_PatientBill
+		LEFT OUTER JOIN (
+			SELECT INS_PARREF,INS_INSASSOC_DR,INS_INSTYPE_DR,INS_ROWID
+			FROM SQLUser.PA_ADMINSURANCE
+			WHERE INS_DateTypeTo IS NULL
+			) AS r
+			ON r.INS_PARREF = ARPBL_PAADM_DR
+		LEFT OUTER JOIN SQLUser.PA_ADMINSURANCECONTACTS ON r.INS_ROWID = CONTACT_PARREF
+ 	WHERE ARPBL_Hospital_DR = :Hospital
+ 	AND ARPBL_DatePrinted BETWEEN :DateFrom AND :DateTo
+ 	AND ARPBL_PAADM_DR->PAADM_Type = :AdmType
+  	AND ARPBL_TotalAllowed <> 0
+  	)
+ 	
+ &SQL(OPEN InvoicesAll)
+	
+ //FETCH FIRST ROW
+ Do FetchInvoicesAll
+ While END=0 {
+ 	
+ 	Do FormatDates
+ 	Set sort=$G(HOSPDesc)_" "_$G(PAADMSubType)_" "_$G(SortDate)_" "_ind
+ 	Set ^CacheTemp(..#CACHETEMPSUBSCRIPT,repid,sort)=$LB(ARPBLRowId,PAPMINo,PAADMADMNo,PAPMIName,ARPBLDateFrom,ARPBLDateTo,ARPBLBillNo,ARPBLDatePrinted,ARPBLAmountToPay,PAPMIName2,PAPMIName3,INSTCode,INSTDesc,INSTRowId,PAADMSubType,HOSPRowId,HOSPCode,HOSPDesc,PAADMType,CTLOCRowID,CTLOCCode,CTLOCDesc,PGRPCode,PGRPDesc,EPISODEPAYOROFFICE,EPISODEPAYOR,EPISODEINSURANCECONTACTNAME)
+ 	Set ind=ind+1
+ 
+	 //fetch rows
+	Do FetchInvoicesAll
+ }
+ &SQL(CLOSE InvoicesAll)
+ }
+ 
+ If ((Specialty '= "") && (Exclusion = "Y")) //Excludes selected Specialty
+ {
+	&SQL(DECLARE InvoicesExc CURSOR FOR
+ 	SELECT
+ 		ARPBL_RowId,
+ 		ARPBL_PAADM_DR->PAADM_PAPMI_DR->PAPMI_No,
+ 		ARPBL_PAADM_DR->PAADM_ADMNo,
+ 		ARPBL_PAADM_DR->PAADM_PAPMI_DR->PAPMI_Name,
+ 		ARPBL_DateFrom,
+ 		ARPBL_DateTo,
+ 		ARPBL_BillNo,
+ 		ARPBL_DatePrinted,
+ 		ARPBL_TotalAllowed,
+ 		ARPBL_PAADM_DR->PAADM_PAPMI_DR->PAPMI_Name2,
+ 		ARPBL_PAADM_DR->PAADM_PAPMI_DR->PAPMI_Name3,
+ 		ARPBL_InsuranceType_DR->INST_Code,
+ 		ARPBL_InsuranceType_DR->INST_Desc,
+ 		ARPBL_InsuranceType_DR,
+ 		ARPBL_PAADM_DR->PAADM_Epissubtype_DR->SUBT_Desc,
+ 		ARPBL_Hospital_DR->HOSP_RowId,
+ 		ARPBL_Hospital_DR->HOSP_Code,
+ 		ARPBL_Hospital_DR->HOSP_Desc,
+ 		ARPBL_DatePrinted,
+ 		ARPBL_PAADM_DR->PAADM_Type,
+ 		ARPBL_PAADM_DR->PAADM_DepCode_DR->CTLOC_RowID,
+ 		ARPBL_PAADM_DR->PAADM_DepCode_DR->CTLOC_Code,
+ 		ARPBL_PAADM_DR->PAADM_DepCode_DR->CTLOC_Desc,
+ 		ARPBL_InsuranceType_DR->INST_PayorGroup_DR->PGRP_Code,
+        ARPBL_InsuranceType_DR->INST_PayorGroup_DR->PGRP_Desc,
+        r.INS_INSASSOC_DR->INSAS_DESC AS EPISODEPAYOROFFICE,
+        r.INS_INSTYPE_DR->INST_DESC AS EPISODEPAYOR,
+        CONTACT_NAME AS EPISODEINSURANCECONTACTNAME
+	FROM SQLUser.AR_PatientBill
+		LEFT OUTER JOIN (
+			SELECT INS_PARREF,INS_INSASSOC_DR,INS_INSTYPE_DR,INS_ROWID
+			FROM SQLUser.PA_ADMINSURANCE
+			WHERE INS_DateTypeTo IS NULL
+			) AS r
+			ON r.INS_PARREF = ARPBL_PAADM_DR
+		LEFT OUTER JOIN SQLUser.PA_ADMINSURANCECONTACTS ON r.INS_ROWID = CONTACT_PARREF
+ 	WHERE ARPBL_Hospital_DR = :Hospital
+ 	AND ARPBL_DatePrinted BETWEEN :DateFrom AND :DateTo
+ 	AND ARPBL_PAADM_DR->PAADM_Type = :AdmType
+ 	AND ARPBL_TotalAllowed <> 0
+ 	AND NOT (({fn CONCAT( ',', {fn CONCAT((:Specialty),',')})} [ {fn CONCAT( ',', {fn CONCAT((ARPBL_PAADM_DR->PAADM_DepCode_DR->CTLOC_RowID),',')})}) OR (:Specialty IS NULL)))
+ 	
+ &SQL(OPEN InvoicesExc)
+ 	
+	
+ //FETCH FIRST ROW
+ Do FetchInvoicesExc
+ While END=0 {
+ 	
+ 	Do FormatDates
+ 	Set sort=$G(HOSPDesc)_" "_$G(PAADMSubType)_" "_$G(SortDate)_" "_ind
+ 	Set ^CacheTemp(..#CACHETEMPSUBSCRIPT,repid,sort)=$LB(ARPBLRowId,PAPMINo,PAADMADMNo,PAPMIName,ARPBLDateFrom,ARPBLDateTo,ARPBLBillNo,ARPBLDatePrinted,ARPBLAmountToPay,PAPMIName2,PAPMIName3,INSTCode,INSTDesc,INSTRowId,PAADMSubType,HOSPRowId,HOSPCode,HOSPDesc,PAADMType,CTLOCRowID,CTLOCCode,CTLOCDesc,PGRPCode,PGRPDesc,EPISODEPAYOROFFICE,EPISODEPAYOR,EPISODEINSURANCECONTACTNAME)
+ 	Set ind=ind+1
+ 
+	 //fetch rows
+	Do FetchInvoicesExc
+ }
+ &SQL(CLOSE InvoicesExc)
+ }
+ 
+  If ((Specialty '= "") && (Exclusion = "")) //Includes only selected Specialty
+ {
+	&SQL(DECLARE InvoicesInc CURSOR FOR
+ 	SELECT
+ 		ARPBL_RowId,
+ 		ARPBL_PAADM_DR->PAADM_PAPMI_DR->PAPMI_No,
+ 		ARPBL_PAADM_DR->PAADM_ADMNo,
+ 		ARPBL_PAADM_DR->PAADM_PAPMI_DR->PAPMI_Name,
+ 		ARPBL_DateFrom,
+ 		ARPBL_DateTo,
+ 		ARPBL_BillNo,
+ 		ARPBL_DatePrinted,
+ 		ARPBL_TotalAllowed,
+ 		ARPBL_PAADM_DR->PAADM_PAPMI_DR->PAPMI_Name2,
+ 		ARPBL_PAADM_DR->PAADM_PAPMI_DR->PAPMI_Name3,
+ 		ARPBL_InsuranceType_DR->INST_Code,
+ 		ARPBL_InsuranceType_DR->INST_Desc,
+ 		ARPBL_InsuranceType_DR,
+ 		ARPBL_PAADM_DR->PAADM_Epissubtype_DR->SUBT_Desc,
+ 		ARPBL_Hospital_DR->HOSP_RowId,
+ 		ARPBL_Hospital_DR->HOSP_Code,
+ 		ARPBL_Hospital_DR->HOSP_Desc,
+ 		ARPBL_DatePrinted,
+ 		ARPBL_PAADM_DR->PAADM_Type,
+ 		ARPBL_PAADM_DR->PAADM_DepCode_DR->CTLOC_RowID,
+ 		ARPBL_PAADM_DR->PAADM_DepCode_DR->CTLOC_Code,
+ 		ARPBL_PAADM_DR->PAADM_DepCode_DR->CTLOC_Desc,
+ 		ARPBL_InsuranceType_DR->INST_PayorGroup_DR->PGRP_Code,
+        ARPBL_InsuranceType_DR->INST_PayorGroup_DR->PGRP_Desc,
+        r.INS_INSASSOC_DR->INSAS_DESC AS EPISODEPAYOROFFICE,
+        r.INS_INSTYPE_DR->INST_DESC AS EPISODEPAYOR,
+        CONTACT_NAME AS EPISODEINSURANCECONTACTNAME
+	FROM SQLUser.AR_PatientBill
+		LEFT OUTER JOIN (
+			SELECT INS_PARREF,INS_INSASSOC_DR,INS_INSTYPE_DR,INS_ROWID
+			FROM SQLUser.PA_ADMINSURANCE
+			WHERE INS_DateTypeTo IS NULL
+			) AS r
+			ON r.INS_PARREF = ARPBL_PAADM_DR
+		LEFT OUTER JOIN SQLUser.PA_ADMINSURANCECONTACTS ON r.INS_ROWID = CONTACT_PARREF
+ 	WHERE ARPBL_Hospital_DR = :Hospital
+ 	AND ARPBL_DatePrinted BETWEEN :DateFrom AND :DateTo
+ 	AND ARPBL_PAADM_DR->PAADM_Type = :AdmType
+ 	AND ARPBL_TotalAllowed <> 0
+ 	AND (({fn CONCAT( ',', {fn CONCAT((:Specialty),',')})} [ {fn CONCAT( ',', {fn CONCAT((ARPBL_PAADM_DR->PAADM_DepCode_DR->CTLOC_RowID),',')})}) OR (:Specialty IS NULL)))
+ 	
+ &SQL(OPEN InvoicesInc)
+ 	
+ //FETCH FIRST ROW
+ Do FetchInvoicesInc
+ While END=0 {
+ 	
+ 	Do FormatDates
+ 	Set sort=$G(HOSPDesc)_" "_$G(PAADMSubType)_" "_$G(SortDate)_" "_ind
+ 	Set ^CacheTemp(..#CACHETEMPSUBSCRIPT,repid,sort)=$LB(ARPBLRowId,PAPMINo,PAADMADMNo,PAPMIName,ARPBLDateFrom,ARPBLDateTo,ARPBLBillNo,ARPBLDatePrinted,ARPBLAmountToPay,PAPMIName2,PAPMIName3,INSTCode,INSTDesc,INSTRowId,PAADMSubType,HOSPRowId,HOSPCode,HOSPDesc,PAADMType,CTLOCRowID,CTLOCCode,CTLOCDesc,PGRPCode,PGRPDesc,EPISODEPAYOROFFICE,EPISODEPAYOR,EPISODEINSURANCECONTACTNAME)
+ 	Set ind=ind+1
+ 
+	 //fetch rows
+	Do FetchInvoicesInc
+ }
+ &SQL(CLOSE InvoicesInc)
+ }
+
+ // Build QHandle (AtEnd,ReportID,Index)
+ Set QHandle=$listbuild(0,repid,0)
+ Quit $$$OK
+ 
+FetchInvoicesInc
+ &sql(FETCH InvoicesInc INTO :ARPBLRowId,:PAPMINo,:PAADMADMNo,:PAPMIName,:ARPBLDateFrom,:ARPBLDateTo,:ARPBLBillNo,:ARPBLDatePrinted,:ARPBLAmountToPay,:PAPMIName2,
+ 		:PAPMIName3,:INSTCode,:INSTDesc,:INSTRowId,:PAADMSubType,:HOSPRowId,:HOSPCode,:HOSPDesc,:SortDate,:PAADMType,:CTLOCRowID,:CTLOCCode,:CTLOCDesc,
+ 		:PGRPCode,:PGRPDesc,:EPISODEPAYOROFFICE,:EPISODEPAYOR,:EPISODEINSURANCECONTACTNAME)
+ If SQLCODE '= 0 Set END = 1
+ Quit
+ 
+FetchInvoicesExc
+ &sql(FETCH InvoicesExc INTO :ARPBLRowId,:PAPMINo,:PAADMADMNo,:PAPMIName,:ARPBLDateFrom,:ARPBLDateTo,:ARPBLBillNo,:ARPBLDatePrinted,:ARPBLAmountToPay,:PAPMIName2,
+ 		:PAPMIName3,:INSTCode,:INSTDesc,:INSTRowId,:PAADMSubType,:HOSPRowId,:HOSPCode,:HOSPDesc,:SortDate,:PAADMType,:CTLOCRowID,:CTLOCCode,:CTLOCDesc,
+ 		:PGRPCode,:PGRPDesc,:EPISODEPAYOROFFICE,:EPISODEPAYOR,:EPISODEINSURANCECONTACTNAME)
+ If SQLCODE '= 0 Set END = 1
+ Quit
+ 
+FetchInvoicesAll
+ &sql(FETCH InvoicesAll INTO :ARPBLRowId,:PAPMINo,:PAADMADMNo,:PAPMIName,:ARPBLDateFrom,:ARPBLDateTo,:ARPBLBillNo,:ARPBLDatePrinted,:ARPBLAmountToPay,:PAPMIName2,
+ 		:PAPMIName3,:INSTCode,:INSTDesc,:INSTRowId,:PAADMSubType,:HOSPRowId,:HOSPCode,:HOSPDesc,:SortDate,:PAADMType,:CTLOCRowID,:CTLOCCode,:CTLOCDesc,
+ 		:PGRPCode,:PGRPDesc,:EPISODEPAYOROFFICE,:EPISODEPAYOR,:EPISODEINSURANCECONTACTNAME)
+ If SQLCODE '= 0 Set END = 1
+ Quit
+
+ // Convert the dates to ODBC date format
+FormatDates
+ Set ARPBLDateTo=..ConvertDateToODBC(ARPBLDateTo)
+ Set ARPBLDateFrom=..ConvertDateToODBC(ARPBLDateFrom)
+ Set ARPBLDatePrinted=..ConvertDateToODBC(ARPBLDatePrinted)
+ Quit
+]]></Implementation>
+</Method>
+
+<Method name="GetInvoiceListFetch">
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,&Row:%Library.List,&AtEnd:%Library.Integer=0]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // This fetch method should never have to change.
+ // repid - Report ID
+ // ind   - sequence index which represents each row
+
+ New repid,ind
+
+ // Restore QHandle
+ Set AtEnd=$LIST(QHandle,1)
+ Set repid=$LIST(QHandle,2)
+ Set ind=$LIST(QHandle,3)
+
+ Set ind=$ORDER(^CacheTemp(..#CACHETEMPSUBSCRIPT,repid,ind))
+ If ind="" {	// if there are no more rows, finish fetching
+	 Set AtEnd=1
+	 Set Row=""
+ }
+ Else      {	// fetch row
+ 	Set Row=^CacheTemp(..#CACHETEMPSUBSCRIPT,repid,ind)
+ }
+
+ // Save QHandle
+ Set QHandle=$LISTBUILD(AtEnd,repid,ind)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="GetInvoiceListClose">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>QHandle:%Library.Binary</FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Clean up by purging the temporary node in ^CacheTemp global
+ New repid
+ Set repid=$LIST(QHandle,2)
+ 
+ //Start Monitor (if configured to capture stats)
+ i mon Do ..MonitorEnd(mon)
+
+  Kill ^CacheTemp(..#CACHETEMPSUBSCRIPT,repid)
+ 
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Query name="GetInvoiceList">
+<Type>%Library.Query</Type>
+<FormalSpec>Hospital:%Integer,DateFrom:%Date,DateTo:%Date,AdmType:%String,Specialty:%String,Exclusion:%String</FormalSpec>
+<SqlProc>1</SqlProc>
+<Parameter name="CONTAINID" value="0"/>
+<Parameter name="ROWSPEC" value="ARPBLRowId:%Integer,PAPMINo:%String(MAXLEN=255),PAADMADMNo:%String(MAXLEN=255),PAPMIName:%String(MAXLEN=255),ARPBLDateFrom:%Date,ARPBLDateTo:%Date,ARPBLBillNo:%String(MAXLEN=255),ARPBLDatePrinted:%Date,ARPBLAmountToPay:%Float,PAPMIName2:%String(MAXLEN=255),PAPMIName3:%String(MAXLEN=255),INSTCode:%String(MAXLEN=255),INSTDesc:%String(MAXLEN=255),INSTRowId:%Integer,PAADMSubType:%String(MAXLEN=255),HOSPRowId:%Integer,HOSPCode:%String(MAXLEN=255),HOSPDesc:%String(MAXLEN=255),PAADMType:%String(MAXLEN=255),CTLOCRowID:%Integer,CTLOCCode:%String(MAXLEN=255),CTLOCDesc:%String(MAXLEN=255),PGRPCode:%String(MAXLEN=255),PGRPDesc:%String(MAXLEN=255),EPISODEPAYOROFFICE:%String(MAXLEN=255),EPISODEPAYOR:%String(MAXLEN=255),EPISODEINSURANCECONTACTNAME:%String(MAXLEN=255)"/>
+<Parameter name="SELECTMODE" value="ODBC"/>
+</Query>
+</Class>
+</Export>

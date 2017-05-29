@@ -1,0 +1,211 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.AUXX.Report.ZEN.StoredProc.SCTTHealthBehaviours">
+<Description>
+Report Name: Confidential Referral Coversheet
+Report Code: AUXX.SCTT0001
+TRC Number: 152012</Description>
+<ProcedureBlock>0</ProcedureBlock>
+<Super>Report.Abstract</Super>
+<TimeCreated>62970,48071.923811</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/AUXX/Report/ZEN/StoredProc/SCTTHealthBehaviours.xml#1 $</Default>
+</Parameter>
+
+<Method name="HBClose">
+<Description>
+This is the Close component of the %Library.Query.
+This is standard code and should never have to change.
+This is where all the cleanup is performed, i.e. the purging of the temporary storage global ^CacheTemp.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>QHandle:%Library.Binary</FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+	// Clean up by purging the temporary node in ^CacheTemp global
+	New repid
+	Set repid=$LIST(QHandle,2)
+
+	//Start Monitor (if configured to capture stats)
+	i mon Do ..MonitorEnd(mon)
+
+	Kill ^CacheTemp("TRAK",repid)
+
+	Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="HBExecute">
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,EpisodeID:%Library.String,ReferralID:%Library.String,ID:%Library.String]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+	// Get reportid i.e. use $INCREMENT to add another node to ^CacheTemp("TRAK") global. 
+	// We use ^CacheTemp global because CACHETEMP is a memory resident database
+	New repid,ind
+
+	// Use $Increment to get the next node and clean up
+	Set repid=$Increment(^CacheTemp("TRAK"))
+	
+	//Start Monitor (if configured to capture stats)
+	s mon=..MonitorBegin()
+	
+	
+	s (ClientName,DOB,Sex,UR,qid,Under,Loss,Appetite,Mouth,Diet,Shop,Prepare,Feed,Over,Gain,Risk,Outcome,When,YesWhen,QuitWhen,SmokeNever,SmokeQuit,SmokeNow,Checkup,Drink,Gamble,Physical,VeryHeavy,Heavy,Moderate,Light,VeryLight,EstDate,Comments,ReferralTo)=""
+	
+	s adm=EpisodeID
+
+	s PageTitle="Profile: Health Behaviours"
+	s PageDesc="To assist workers/practitioners to screen for harmful health behaviours."_$c(13,10)_$c(13,10)_$c(13,10)
+	s PageSideText="Health Behaviours" 
+	i adm {
+		s pat=$p($g(^PAADM(adm)),"^")
+
+		s patobj=##class(User.PAPatMas).%OpenId(pat)
+		i patobj {
+			s ClientName=patobj.PAPMIName_", "_patobj.PAPMIName2
+			s DOB=patobj.PAPMIDOB
+			i DOB s DOB=$zd(DOB,4,,4)
+			s Sex=patobj.PAPMISexDR.CTSEXDesc
+			s UR=patobj.PAPMINo
+			k patobj
+		}
+		
+		i ReferralID'="" {
+			s quescode=0
+			f {
+				s quescode=$o(^PA("DISSUM",ReferralID,"DET",0,"QuestCode1",quescode))
+				q:quescode=""
+				s quesid=0
+				f {
+					s quesid=$o(^PA("DISSUM",ReferralID,"DET",0,"QuestCode1",quescode,quesid))
+					q:quesid=""
+					i quescode="QAUXXSCTTHB" s qid=quesid
+				}
+			}
+		} else {
+			s qid=ID
+		}
+		s qobj=##class(questionnaire.QAUXXSCTTHB).%OpenId(qid)
+		i qobj {
+			s Under=qobj.Q02a
+			s Loss=qobj.Q02b
+			s Appetite=qobj.Q02c
+			s Mouth=qobj.Q02d
+			s Diet=qobj.Q02e
+			s Shop=qobj.Q02f
+			s Prepare=qobj.Q02g
+			s Feed=qobj.Q02h
+			s Over=qobj.Q02i
+			s Gain=qobj.Q02j
+			s Risk=qobj.Q02k
+			s Outcome=..GetTextArea(qobj,"03")
+			i Outcome="" s Outcome=" "
+			s When=qobj.Q12
+			s YesWhen=qobj.Q04
+			i YesWhen { s YesWhen=$zd(YesWhen,4,,4) } else { s YesWhen=" " }
+			s QuitWhen=qobj.Q05
+			i QuitWhen { s QuitWhen=$zd(QuitWhen,4,,4) } else { s QuitWhen=" " }
+			s SmokeNever=qobj.Q13
+			s SmokeQuit=qobj.Q14
+			s SmokeNow=qobj.Q15
+			s Checkup=qobj.Q16
+			s Drink=qobj.Q17
+			i Drink="" s Drink=" "
+			s Gamble=qobj.Q18
+			s Physical=qobj.Q19
+			s VeryHeavy=qobj.Q20
+			s Heavy=qobj.Q21
+			s Moderate=qobj.Q22
+			s Light=qobj.Q29
+			s VeryLight=qobj.Q23
+			s EstDate=qobj.Q28
+			i EstDate { s EstDate=$zd(EstDate,4,,4) } else { s EstDate=" " }
+			s Comments=..GetTextArea(qobj,"26")
+			s Comments="Comments, including other relevant issues: "_$c(13,10)_Comments
+			f y=1:1:10 {
+				i y>$l(Comments,$c(13,10)) s Comments=Comments_$c(13,10)
+			}
+			s ReferralTo=..GetTextArea(qobj,"27")
+			s ReferralTo="Referral Recommended To: "_$c(13,10)_ReferralTo
+			f y=1:1:2 {
+				i y>$l(ReferralTo,$c(13,10)) s ReferralTo=ReferralTo_$c(13,10)
+			}
+			k qobj
+			
+			s ind=$i(ind)
+			s ^CacheTemp("TRAK",repid,ind)=$lb("HB",PageTitle,PageDesc,PageSideText,ClientName,DOB,Sex,UR,qid,Under,Loss,Appetite,Mouth,Diet,Shop,Prepare,Feed,Over,Gain,Risk,Outcome,When,YesWhen,QuitWhen,SmokeNever,SmokeQuit,SmokeNow,Checkup,Drink,Gamble,Physical,VeryHeavy,Heavy,Moderate,Light,VeryLight,EstDate,Comments,ReferralTo)
+		}
+	}
+
+	// Build QHandle (AtEnd,ReportID,Index)
+	Set QHandle=$LISTBUILD(0,repid,0)
+	Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="HBFetch">
+<Description>
+This is the Fetch component of the %Library.Query. 
+This should never have to change. It is designed to fetch the row for each subscript of the 
+^CacheTemp("TRAK" global and return this row to the Report writer</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,&Row:%Library.List,&AtEnd:%Library.Integer=0]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+	// This fetch method should never have to change. 
+	// repid - Report ID
+	// ind   - sequence index which represents each row
+	New repid,ind
+
+	// Restore QHandle
+	Set AtEnd=$LI(QHandle,1)
+	Set repid=$LI(QHandle,2)
+	Set ind=$LI(QHandle,3)
+
+	Set ind=$order(^CacheTemp("TRAK",repid,ind))
+	If ind="" {	// if there are no more rows, finish fetching
+		Set AtEnd=1
+		Set Row=""
+	} else {	// fetch row
+		Set Row=^CacheTemp("TRAK",repid,ind)
+	}
+
+	// Save QHandle
+	Set QHandle=$lb(AtEnd,repid,ind)
+	Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Query name="HB">
+<Description>
+This is the Stored Procedure Template. For Sample use only.
+It expects one parameter of type integer and will return 4 fields:
+Field1 - Integer
+Field2 - String
+Field3 - Date
+Field4 - Time</Description>
+<Type>%Library.Query</Type>
+<FormalSpec>EpisodeID:%Library.String,ReferralID:%Library.String,ID:%Library.String</FormalSpec>
+<SqlProc>1</SqlProc>
+<Parameter name="CONTAINID" value="0"/>
+<Parameter name="ROWSPEC" value="FormCode:%String,PageTitle:%String,PageDesc:%String,PageSideText:%String,ClientName:%String,DOB:%String,Sex:%String,UR:%String,qid:%String,Under:%String,Loss:%String,Appetite:%String,Mouth:%String,Diet:%String,Shop:%String,Prepare:%String,Feed:%String,Over:%String,Gain:%String,Risk:%String,Outcome:%String,When:%String,YesWhen:%String,QuitWhen:%String,SmokeNever:%String,SmokeQuit:%String,SmokeNow:%String,Checkup:%String,Drink:%String,Gamble:%String,Physical:%String,VeryHeavy:%String,Heavy:%String,Moderate:%String,Light:%String,VeryLight:%String,EstDate:%String,Comments:%String,ReferralTo:%String"/>
+</Query>
+
+<Method name="GetTextArea">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>obj:%CacheObject,num:%String</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	s text=""
+	f z=1:1:$METHOD($PROPERTY(obj,"Q"_num),"Count") {
+		i text'="" s text=text_$c(13,10)_$METHOD($PROPERTY(obj,"Q"_num),"GetAt",z)
+		i text="" s text=$METHOD($PROPERTY(obj,"Q"_num),"GetAt",z)
+	}
+	q text
+]]></Implementation>
+</Method>
+</Class>
+</Export>

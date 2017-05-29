@@ -1,0 +1,234 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.AUXX.Report.ZEN.MonthlyLeaveDays">
+<Super>Custom.AUXX.Report.ZEN.Abstract</Super>
+<TimeCreated>61577,60015.353795</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/AUXX/Report/ZEN/MonthlyLeaveDays.xml#1 $</Default>
+</Parameter>
+
+<UDLText name="T">
+<Content><![CDATA[
+// Report Name: Monthly Leave Days
+
+]]></Content>
+</UDLText>
+
+<UDLText name="T">
+<Content><![CDATA[
+// Report Code: AUXX.ATD0014
+
+]]></Content>
+</UDLText>
+
+<Property name="Month">
+<Type>%String</Type>
+<Parameter name="ZENURL" value="P1"/>
+</Property>
+
+<Property name="Year">
+<Type>%String</Type>
+<Parameter name="ZENURL" value="P2"/>
+</Property>
+
+<Property name="Facility">
+<Type>%String</Type>
+<Parameter name="ZENURL" value="P3"/>
+</Property>
+
+<Property name="Specialty">
+<Type>%String</Type>
+<Parameter name="ZENURL" value="P4"/>
+</Property>
+
+<Property name="Ward">
+<Type>%String</Type>
+<Parameter name="ZENURL" value="P5"/>
+</Property>
+
+<Property name="LeaveCategory">
+<Type>%String</Type>
+<Parameter name="ZENURL" value="P6"/>
+</Property>
+
+<XData name="ReportDefinition">
+<XMLNamespace>http://www.intersystems.com/zen/report/definition</XMLNamespace>
+<Data><![CDATA[
+<report xmlns='http://www.intersystems.com/zen/report/definition'
+   queryClass='Custom.AUXX.Report.ZEN.StoredProc.MonthlyLeaveDays' queryName='MonthlyLeaveDays' name='MonthlyLeaveDays'>
+  <parameter expression='..Month'/>
+  <parameter expression='..Year'/>
+  <parameter expression='..Facility'/>
+  <parameter expression='..Specialty'/> 
+  <parameter expression='..Ward'/>
+  <parameter expression='..LeaveCategory'/>
+  <attribute name='month' expression='..Month'/>
+  <attribute name='year' expression='..Year'/> 
+  <attribute name='runperiod' expression='..Month_" "_..Year'/>
+  <attribute name='facility' expression='..GetHospListDesc(..Facility)'/>
+  <attribute name='specialty' expression='..GetSpecialtyListDesc(..Specialty)'/>
+  <attribute name='ward' expression='..GetWardListDesc(..Ward)'/>
+  <attribute name='leavecategory' expression='..GetLeaveCatListDesc(..LeaveCategory)'/>
+  <attribute name='ReportTitle' expression='$$$Text("@MonthlyLeaveDays@Monthly Leave Days")'/>
+  <attribute name='timestamp' expression='$ZDATETIME($H, 2, 2)'/>  
+  <attribute name='username' expression='..Username'/>
+  
+  <group name="facility" breakOnField="HOSPDesc">
+ <attribute name="description" field="HOSPDesc" />
+   <aggregate name='TotalEpisodes' type='CUSTOM' field='PAADMAdmNo' class='%ZEN.Report.Aggregate.CountDistinct'/>
+   <aggregate name='TotalCurrent' type='SUM' field='CurrentMonthLeaveDays'/>
+   <aggregate name='TotalPrevious' type='SUM' field='PreviousMonthLeaveDays'/>
+   <aggregate name='TotalLeave' type='SUM' field='TotalLeaveDays'/>
+   <group name="specialty" breakOnField="CTLOCDesc">
+ <attribute name="description" field="CTLOCDesc" />
+   <aggregate name='TotalEpisodes' type='CUSTOM' field='PAADMAdmNo' class='%ZEN.Report.Aggregate.CountDistinct'/>
+   <aggregate name='TotalCurrent' type='SUM' field='CurrentMonthLeaveDays'/>
+   <aggregate name='TotalPrevious' type='SUM' field='PreviousMonthLeaveDays'/>
+   <aggregate name='TotalLeave' type='SUM' field='TotalLeaveDays'/>
+   <element name='CaptionOne' expression='"Expected"_$C(13,10)_"Return"_$C(13,10)_"Date"' />
+   <element name='CaptionTwo' expression='"Actual"_$C(13,10)_"Return"_$C(13,10)_"Date"' />
+      <group name='Detail'>
+       <attribute field='PAPMINo' name='PAPMINo'/>
+       <attribute field='PAADMAdmNo' name='PAADMAdmNo'/>
+       <attribute fields='PAPMIName,PAPMIName2,PAPMIName3' name='PatientName' expression='..DisplayName(%val("PAPMIName"),%val("PAPMIName2"),%val("PAPMIName3"))'/>
+       <attribute field='CTSEXCode' name='CTSEXCode'/>
+       <attribute field='PAPERAge' name='PAPERAge'/>
+       <attribute field='WARDCode' name='WARDCode'/> 
+       <attribute field='CTLOCCode' name='CTLOCCode'/>
+       <attribute field='ADMLGoingOutDate' name='ADMLGoingOutDate' expression='..DisplayDate(%val)'/>
+       <attribute field='ADMLGoingOutTime' name='ADMLGoingOutTime' expression='..DisplayTime(%val)'/>
+       <attribute field='LEACATCode' name='LEACATCode'/> 
+       <attribute field='ADMLExpectedDateReturn' name='ADMLExpectedDateReturn' expression='..DisplayDate(%val)'/>
+       <attribute field='ADMLActualDateReturn' name='ADMLActualDateReturn' expression='..DisplayDate(%val)'/>
+       <attribute field='CurrentMonthLeaveDays' name='CurrentMonthLeaveDays'/>
+       <attribute field='PreviousMonthLeaveDays' name='PreviousMonthLeaveDays'/>
+       <attribute field='TotalLeaveDays' name='TotalLeaveDays'/>
+       <attribute field='SSUSRInitials' name='SSUSRInitials'/>
+      </group>  
+      </group>
+   </group>
+ </report>
+]]></Data>
+</XData>
+
+<XData name="ReportDisplay">
+<XMLNamespace>http://www.intersystems.com/zen/report/display</XMLNamespace>
+<Data><![CDATA[
+<report xmlns='http://www.intersystems.com/zen/report/display'
+xmlns:auxxstyle='http://www.intersystems.com/zen/report/display/auxx/style'
+xmlns:auxx='http://www.intersystems.com/zen/report/display/auxx'
+  name='MonthlyLeaveDays'>
+<document width= "#(..ReportWidth)#" height="#(..ReportHeight)#" marginLeft="#(..DocMarginLeft)#" marginRight="#(..DocMarginRight)#" 
+marginTop="#(..DocMarginTop)#" marginBottom="#(..DocMarginBottom)#" footerHeight="#(..DocFooterHeight)#" headerHeight="#(..DocHeaderHeight)#" 
+regionBeforeExtent="#(..DocHeaderHeight)#" regionAfterExtent="#(..DocFooterHeight)#">
+<auxxstyle:auxxgroupheader/>
+<auxxstyle:auxxgroupsummary/>
+<auxxstyle:auxxhospitalheader/>
+<auxxstyle:auxxpageheader/>
+<auxxstyle:auxxpagefooter/>
+<auxxstyle:auxxparameterheader/>
+<auxxstyle:auxxreporttitle/>
+<auxxstyle:auxxtablecolumn/>
+</document>
+<auxx:PageHeader pagetitle='@ReportTitle'/>
+<auxx:ReportFooter username='@username' timestamp='@timestamp'/>
+
+<body>
+<!-- REPORT HEADER -->
+<auxx:ReportHeader reporttitle='@ReportTitle'/>
+<auxx:ReportParameterHeader label='@Facility:@Facility:' field='@facility' xcondition="string-length(@facility)>0"/>
+<auxx:ReportParameterHeader label='@Specialty:@Specialty:' field='@specialty' xcondition="string-length(@specialty)>0"/>
+<auxx:ReportParameterHeader label='@Ward:@Ward:' field='@ward' xcondition="string-length(@ward)>0"/>
+<auxx:ReportParameterHeader label='@LeaveCategory:@Leave Category:' field='@leavecategory'  xcondition="string-length(@leavecategory)>0"/>
+<auxx:ReportParameterHeader label='@Period:@Period:' field='@runperiod'  xcondition="string-length(@runperiod)>0"/>
+
+<line pattern="solid" width="100%"/>
+<line pattern="empty" width="100%"></line> 
+<auxx:NoResults xcondition="not(facility)" />
+<group name='facility' pagebreak="true">
+<auxx:GroupHospitalHeader label="@Facility:@Facility:" field="@description" />
+<line pattern="empty" lineHeight="1mm" />
+<group name='specialty'>
+<auxx:GroupHeader label="@Specialty:@Specialty:" field="@description" />
+<line pattern="empty" lineHeight="2mm" />
+     <table class='auxxtablecolumn' group='Detail' >
+        <item field='@PAPMINo' width="11%" caption='@URN@URN'/>
+        <item field='@PAADMAdmNo' width="10%" caption='@EpisodeNo@Episode No'/>
+        <item field='@PatientName' width="14%" caption="@PatientName@Patient Name" />
+        <item field='@CTSEXCode' width="3%" style="text-align:center" caption='@Sex@Sex'/>
+        <item field='@PAPERAge' width="3%" caption="@Age@Age" />
+        <item field='@WARDCode' width="5%" caption='@Ward@Ward'/>
+        <item field='@ADMLGoingOutDate' width="8%" caption='@LeaveDate@Leave Date'/>
+        <item field='@ADMLGoingOutTime' width="4%" caption='@Time@Time'/>
+        <item field='@LEACATCode' width="4%" style="text-align:center" caption='@Cat@Cat'/>     
+        
+        <item field='@ADMLExpectedDateReturn' width="8%" displayCaption="true"> 
+        <caption field ='CaptionOne' breakOnLineFeed="true"/>
+        </item> 
+        <item field='@ADMLActualDateReturn' width="8%" displayCaption="true"> 
+        <caption field ='CaptionTwo' breakOnLineFeed="true"/>
+        </item> 
+        <item field='@CurrentMonthLeaveDays' width="5%" style="text-align:right" caption='@LeaveThisMonth@Leave This Month'/> 
+        <item field='@PreviousMonthLeaveDays' width="5%" style="text-align:right" caption='@LeavePrevMonth@Leave Prev Month'/> 
+        <item field='@TotalLeaveDays' width="5%" style="text-align:right" caption='@TotalLeaveDays@Total Leave Days'/> 
+        <item field='@SSUSRInitials' width="7%" style="text-align:center" caption='@User@User'/> 
+     </table>
+<line pattern="empty" width="100%"></line> 
+ <table class='auxxgroupsummary' > 
+  <block width = "68%">
+<item value='@Totalnumberofpatientswithleavedaysfor@Total number of patients with leave days for'/>
+<item field='@description' />
+<item value=" = "/>
+<item field="TotalEpisodes"/>
+</block>
+<block width = "10%">
+<item value='@OtherTotals:@Other Totals:'/>
+</block>
+<block width = "5%" style='text-align:right'>
+<item field='TotalCurrent' />
+</block>
+<block width = "5%" style='text-align:right'>
+<item field='TotalPrevious'  />
+</block>
+<block width = "5%" style='text-align:right'>
+<item field='TotalLeave'  />
+</block>
+<block width = "7%">
+</block>
+  </table>
+  <line pattern="empty" lineHeight="4mm" />
+</group>
+<line pattern="empty" width="100%"></line>  
+ <table class='auxxgroupsummary' > 
+  <block width = "68%">
+<item value='@Totalnumberofpatientswithleavedaysfor@Total number of patients with leave days for'/>
+<item field='@description' />
+<item value=" = "/>
+<item field="TotalEpisodes"/>
+</block>
+<block width = "10%">
+<item value='@OtherTotals:@Other Totals:'/>
+</block>
+<block width = "5%" style='text-align:right'>
+<item field='TotalCurrent' />
+</block>
+<block width = "5%" style='text-align:right'>
+<item field='TotalPrevious'  />
+</block>
+<block width = "5%" style='text-align:right'>
+<item field='TotalLeave'  />
+</block>
+<block width = "7%">
+</block>
+  </table>
+
+</group>
+</body>
+</report>
+]]></Data>
+</XData>
+</Class>
+</Export>

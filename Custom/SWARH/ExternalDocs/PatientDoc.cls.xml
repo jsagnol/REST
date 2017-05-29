@@ -1,0 +1,766 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.SWARH.ExternalDocs.PatientDoc">
+<Super>%Persistent</Super>
+<TimeCreated>64083,39129.167956</TimeCreated>
+
+<Property name="PAAdmHospitalDR">
+<Description>
+PAAdm Hospital DR for the default episode (value defaults to SWARH hospital) </Description>
+<Type>%String</Type>
+<InitialExpression>710</InitialExpression>
+</Property>
+
+<Property name="CTLOCDesc">
+<Description>
+CTLOCDesc (Code Table Location Description) (value defaults to default SWARH location used for attaching unsolicited results/documents)</Description>
+<Type>%String</Type>
+<InitialExpression>"Non Electronic orders/results"</InitialExpression>
+</Property>
+
+<Property name="HOSPDesc">
+<Description>
+HOSPDesc (Hospital Description) (value defaults to "SWARH")</Description>
+<Type>%String</Type>
+<InitialExpression>"SWARH"</InitialExpression>
+</Property>
+
+<Property name="PACRefDoctorID">
+<Description>
+PACRefDoctorID - direct reference to SQLUser.PAC_RefDoctor table (value defaults to 2026, 'PATH REFERRAL DOCTOR' - default referral doctor for "Non Electronic orders/results" location)</Description>
+<Type>%String</Type>
+<InitialExpression>2026</InitialExpression>
+</Property>
+
+<Method name="Add">
+<Description><![CDATA[
+This is the main method which should be called to add patient document to TrakCare. Method accepts the following arguments:</br>
+<ol>
+<li><b>sFilename</b> should contain a name of the file which should be added to TrakCare.</li>
+<li><b>sAPIuser</b> and <b>sAPIpassword</b> are credentials of the TrakCare user which has rights to use API.</li>
+<li><b>sEpisode</b> is optional. It can contain an episode ID to be used to add document. If sEpisode is empty, then sUR, sFirstName, sLastName, sDOB and sGender are used to find or create a default SWARH episode.</li>
+<li><b>sUR</b> is optional, but must be supplied if <b>sEpisode</b> is empty. After validation, it is used to create a default episode to attach document to.</li>
+<li><b>sFirstName</b> is optional.</li>
+</ol>
+]]></Description>
+<FormalSpec>sFileName:%String,sAPIuser:%String,sAPIpassword:%String,sEpisode:%String="",sUR:%String="",sDateCreated:%String="",sTimeCreated:%String="",sDocumentDescription:%String="",sDocType:%String="",sDocSubType:%String=""</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	Set MRADMRowID=""
+	Set LocalErr00 = "Fail to add document to the websys table"
+	Set LocalErr01 = "Fail retrieving/creating default episode"
+	
+	TRY
+	{	
+		Set doc=##class(websys.Document).%New() 
+		Set targetDocID=doc.add(sFileName)									//"\\SA-2ZX78W1\tmpShare\Desert.jpg"
+		if (targetDocID = 0)
+		{
+			THROW LocalErr00
+		}
+		else
+		{
+			//Delete temporary file now, as it has been added to DB
+			Set file = ##class(%Library.File).%New()
+			Do file.Delete(sFileName)
+		}
+	}
+	CATCH err
+	{
+		WRITE !,"Error = ",LocalErr00
+		WRITE !,"Error code=",err.Code
+        WRITE !,"Error name=",$ZCVT(err.Name,"O","HTML")	//$ZCVT converts err.Name into HTML friendly string, in case it contains special HTML characters (like < >, for example)
+        WRITE !,"Error data=",err.Data
+        Quit
+	}
+	
+	Set apiMRpic=##class(TC.api.MRPictures.New).%New()
+	Set apiMRpic.TUSERNAME=sAPIuser											//"SWARHapiUser"
+	Set apiMRpic.TPASSWORD=sAPIpassword										//"May@2016"
+	Set apiMRpic.TENCRYPTPASSWORD=0
+	if (sEpisode '= "")													//If Episode is given
+	{
+		Set apiMRpic.PARREF=..GetMRADMRowIDfromEpisode(sEpisode)			//MRADMRowID=1768884
+	}
+	else
+	{
+		TRY
+		{
+			Set MRADMRowID = ..CheckDefaultEpisode(sUR,sAPIuser,sAPIpassword)
+			if (MRADMRowID = "")
+			{
+				Set MRADMRowID = ..CreateDefaultEpisode(sUR,sAPIuser,sAPIpassword)
+			}
+			if (MRADMRowID = "")
+			{
+				THROW LocalErr01
+			}
+		}
+		CATCH err
+		{
+			WRITE !,"Error = ",LocalErr01
+			WRITE !,"Error code=",err.Code
+        	WRITE !,"Error name=",$ZCVT(err.Name,"O","HTML")	//$ZCVT converts err.Name into HTML friendly string, in case it contains special HTML characters (like < >, for example)
+        	WRITE !,"Error data=",err.Data
+        	Quit
+		}
+		
+		Set apiMRpic.PARREF = MRADMRowID
+	}
+	Set apiMRpic.websysDocument=targetDocID
+	Set apiMRpic.AttachFile=1
+	if (sDateCreated = "")
+	{
+		Set apiMRpic.PICDateCreated=$zdate($horolog,4)
+	}
+	else
+	{
+		Set apiMRpic.PICDateCreated=sDateCreated	//"14/06/2016"
+	}
+	if (sTimeCreated = "")
+	{
+		Set apiMRpic.PICTimeCreated=$ztime($piece($horolog,",",2),1)
+	}
+	else
+	{
+		Set apiMRpic.PICTimeCreated=sTimeCreated	//"09:00"
+	}
+	Set apiMRpic.PICDesc=sDocumentDescription	//220 chars max. Some description, for example: "A test from custom method"
+	Set apiMRpic.PICDocSubTypeDR=sDocSubType	//Description (NOT Direct reference!!) from SQLUser.PAC_ScanAdminDocSubType. (1)
+	Set apiMRpic.PICDocTypeDR=sDocType			//Description (NOT Direct reference!!) from SQLUser.PAC_DocumentType (13) 
+	Set apiMRpic.PICType="S"
+	
+	Set rtn = apiMRpic.Save()
+	
+	
+	//This is not longer required as PICDocTypeDR and PICDocSubTypeDR are descriptions and not Direct References, so above code actually works
+	/*
+	if ((sDocType '= "") || (sDocSubType '= ""))
+	{
+		Set PICRowId = ..GetPICRowIDforCurDoc(apiMRpic.PARREF, targetDocID)
+		Set rtn1 = ..UpdateDocTypeAndSubtype(apiMRpic.PICDocTypeDR, apiMRpic.PICDocSubTypeDR, PICRowId)
+		if (rtn1 '= $$$OK)
+		{
+			WRITE !,"WARNING: Could not modify document type or subtype"
+		}
+	}
+	*/
+	Quit rtn
+]]></Implementation>
+</Method>
+
+<Method name="CheckDefaultEpisode">
+<FormalSpec>sUR:%String,sAPIuser:%String,sAPIpassword:%String</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	///Checks if default episode for results and documents for a given user UR does exist
+	///Returns an empty string if sUR argument is empty, not found, or some error has occured.
+	// Returns MRADM_RowID if successful
+	
+	//First get PAPMI_RowId
+	set PAPMIRowID=""
+	set MRADMRowID=""
+	set HospDR = ..PAAdmHospitalDR
+	TRY
+	{
+		if (sUR '= "")
+		{
+			&SQL(select PAPMI_RowId1 INTO :PAPMIRowID from SQLUser.PA_PatMas where PAPMI_No=:sUR)
+			//WRITE !,"PAPMIRowID=",PAPMIRowID
+			if (SQLCODE '= 0 )
+			{
+				THROW SQLCODE
+			}
+		}
+		else
+		{
+			set PAPMIRowID=""
+		}		
+	}
+	CATCH err
+	{
+		WRITE !,"SQLCODE=",SQLCODE
+		WRITE !,"Error code=",err.Code
+        WRITE !,"Error name=",$ZCVT(err.Name,"O","HTML")	//$ZCVT converts err.Name into HTML friendly string, in case it contains special HTML characters (like < >, for example)
+        WRITE !,"Error data=",err.Data
+        Quit
+	}
+	
+	if (PAPMIRowID '= "")
+	{
+		TRY
+		{
+			&SQL(select PAADM_MainMRADM_DR INTO :MRADMRowID from SQLUser.PA_Adm where PAADM_PAPMI_DR=:PAPMIRowID AND PAADM_Hospital_DR=:HospDR AND PAADM_Current='Y' )
+			if (SQLCODE = 100)
+			{
+				set MRADMRowID = ""
+			}
+			elseif (SQLCODE '= 0)
+			{
+				THROW SQLCODE
+			}
+		}
+		CATCH err
+		{
+			WRITE !,"SQLCODE=",SQLCODE
+			WRITE !,"Error code=",err.Code
+        	WRITE !,"Error name=",$ZCVT(err.Name,"O","HTML")	//$ZCVT converts err.Name into HTML friendly string, in case it contains special HTML characters (like < >, for example)
+        	WRITE !,"Error data=",err.Data
+        	Quit
+		}
+		
+	}
+	else
+	{
+		set MRADMRowID = ""
+	}
+	
+	Quit MRADMRowID
+]]></Implementation>
+</Method>
+
+<Method name="CreateAlert">
+<FormalSpec>sUR:%String,sAPIuser:%String,sAPIpassword:%String,sAlert:%String,sAlertCategory:%String,sAlertMessage:%String</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	//Checks if active Alert of this type and of this category already exists for the patient with the specified UR.
+	//If so, existing Alert is updated. If Alert doesn't exist, it is created first. Then it's ExternalID is updated
+	//First get PAPMI_RowId
+	set PAPMIRowID=""
+	set MRADMRowID=""
+	
+	TRY
+	{
+		if (sUR '= "")
+		{
+			&SQL(select PAPMI_RowId1 INTO :PAPMIRowID from SQLUser.PA_PatMas where PAPMI_No=:sUR)
+			//WRITE !,"PAPMIRowID=",PAPMIRowID
+			if (SQLCODE '= 0)
+			{
+				THROW SQLCODE
+			}
+		}
+		else
+		{
+			set PAPMIRowID=""
+		}		
+	}
+	CATCH err
+	{
+		WRITE !,"SQLCODE=",SQLCODE
+		WRITE !,"Error code=",err.Code
+        WRITE !,"Error name=",$ZCVT(err.Name,"O","HTML") //$ZCVT converts err.Name into HTML friendly string, in case it contains special HTML characters (like < >, for example)
+        WRITE !,"Error data=",err.Data
+        Quit
+	}
+	
+	set AlertQry = ##class(TC.api.PAAlertMsg.List).%New()
+	set AlertPar = ##class(TC.api.PAAlertMsg.List.Params).%New()
+	
+	set AlertQry.TUSERNAME = sAPIuser
+	set AlertQry.TPASSWORD = sAPIpassword
+	
+	set AlertPar.TUSERNAME = sAPIuser
+	set AlertPar.TPASSWORD = sAPIpassword
+	set AlertPar.PatientID = PAPMIRowID
+	
+	set AlertID = ""
+	
+	//We can either use token, or supply username/password to the object properties (i.e. set AlertPar.TUSERNAME = sAPIuser, set AlertPar.TPASSWORD = sAPIpassword)
+	//set token = ##class(TC.api.Logon).Request(sAPIuser,sAPIpassword)
+	//set sResult = AlertQry.Execute(token,AlertPar)
+	
+	
+	TRY
+	{
+		set sResult = AlertQry.Execute(,AlertPar)
+	
+		if ((sResult = $$$OK) && (AlertQry.%ROWCOUNT > 0))
+		{
+			While (AlertQry.Next() = 1)
+			{
+				//WRITE !,"AlertQry.Next()..RowId=",AlertQry.Data("RowId")
+				//WRITE !,"ClosedFlag=",AlertQry.Data("ClosedFlag")
+				//WRITE !,"AlertStatusDesc=",AlertQry.Data("AlertStatusDesc")
+				//WRITE !,"ALERTDesc=",AlertQry.Data("ALERTDesc")
+				//WRITE !,"ALERTCATDesc=",AlertQry.Data("ALERTCATDesc")
+				//WRITE !,""
+				if ((AlertQry.Data("ClosedFlag") = "N") && (AlertQry.Data("AlertStatusDesc") = "Active") && (AlertQry.Data("ALERTDesc") = sAlert) && (AlertQry.Data("ALERTCATDesc") = sAlertCategory))
+				{
+					set AlertID = AlertQry.Data("RowId")
+					//WRITE !,"Found RowId=",AlertQry.Data("RowId")
+					Quit		//Alert is found - get out of loop
+				}
+			}
+		}
+	
+		set Alert = ##class(TC.api.PAAlertMsg.EditNew).%New()
+		set Alert.TUSERNAME = sAPIuser
+		set Alert.TPASSWORD = sAPIpassword
+	
+		if (AlertID = "") 	//Create new alert
+		{
+			set Alert.PARREF = PAPMIRowID
+			set Alert.PatientID = PAPMIRowID
+			set Alert.ALMStatus = "Active"
+			set Alert.AlertCat = sAlertCategory
+			set Alert.ALMAlertDR = sAlert
+			set Alert.ALMMessage = sAlertMessage
+				
+		}
+		else				//Update existing alert
+		{
+			set sResult = Alert.Open(,AlertID)
+			set Alert.ALMMessage = sAlertMessage
+		}
+	
+		set sResult = Alert.Save()
+	}
+	CATCH err
+	{
+		WRITE !,"Error code=",err.Code
+        WRITE !,"Error name=",$ZCVT(err.Name,"O","HTML") //$ZCVT converts err.Name into HTML friendly string, in case it contains special HTML characters (like < >, for example)
+        WRITE !,"Error data=",err.Data
+        Quit
+	}
+	
+	return sResult
+]]></Implementation>
+</Method>
+
+<Method name="CreateDefaultEpisode">
+<FormalSpec>sUR:%String,sAPIuser:%String,sAPIpassword:%String</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	///Creates a default episode for results and documents for a given user UR 
+	///Returns an empty string if sUR argument is empty, not found, or some error occured.
+	// Returns MRADM_RowID if successful
+	
+	//First get PAPMI_RowId
+	set PAPMIRowID=""
+	set MRADMRowID=""
+	
+	TRY
+	{
+		if (sUR '= "")
+		{
+			&SQL(select PAPMI_RowId1 INTO :PAPMIRowID from SQLUser.PA_PatMas where PAPMI_No=:sUR)
+			//WRITE !,"PAPMIRowID=",PAPMIRowID
+			if (SQLCODE '= 0)
+			{
+				THROW SQLCODE
+			}
+		}
+		else
+		{
+			set PAPMIRowID=""
+		}		
+	}
+	CATCH err
+	{
+		WRITE !,"SQLCODE=",SQLCODE
+		WRITE !,"Error code=",err.Code
+        WRITE !,"Error name=",$ZCVT(err.Name,"O","HTML")	//$ZCVT converts err.Name into HTML friendly string, in case it contains special HTML characters (like < >, for example)
+        WRITE !,"Error data=",err.Data
+        Quit
+	}
+	
+	if (PAPMIRowID '= "")
+	{
+		WRITE !,"PAPMIRowID=",PAPMIRowID
+		//To create a new episode, set minimum necessary properties on the object first
+		//After episode is created, we can update episode with more properties. Otherwise error occurs
+		set NewEpisode = ##class(TC.api.PAAdm.Edit).%New()
+		set NewEpisode.PatientID = PAPMIRowID
+		set NewEpisode.CTLOCDesc = ..CTLOCDesc		//default: "Non Electronic orders/results"
+		
+		set NewEpisode.CARETYPDesc = 10	//CARETYPDesc and QUALDesc are validated in USWARHPAAdm.mac. 
+										//From the logic in code these values (CARETYPDesc = 10 and QUALDesc = "X") will be successfully validated for all ages…
+		set NewEpisode.QUALDesc = "X"  	//…otherwise error “E^ Invalid combination of Qualification Status, Age and Care Type” occurs on save
+		set NewEpisode.TUSERNAME = sAPIuser
+		set NewEpisode.TPASSWORD = sAPIpassword
+		
+		TRY
+		{
+			set EpisodeCreationResult = NewEpisode.Save()
+		}
+		CATCH
+		{
+			WRITE !,"Episode Creation Result =",EpisodeCreationResult
+		}
+		
+		if (EpisodeCreationResult = 1)
+		{
+			//Now update episode with other properties
+			set NewEpisode.PAADMType = "O"
+			set NewEpisode.PAADMAdmDate = $zdate($horolog,4)
+			set NewEpisode.PAADMAdmTime = $ztime($piece($horolog,",",2),1)
+			set NewEpisode.HOSPDesc = ..HOSPDesc  				//default "SWARH"
+			set NewEpisode.HospID = ..PAAdmHospitalDR  			//default 710 -> DR to SWARH
+			//set NewEpisode.LocID = 63
+			set NewEpisode.PAADMVerified = "N"
+			set NewEpisode.PAADMVisitStatus = "Current"
+			//set NewEpisode.PACRefDoctorID = ..PACRefDoctorID	//Used to be .PACRefDoctorID in T2014!!!! default value is 2026 (PATH REF DOCTOR)
+			set NewEpisode.PACRefDoctorAPIID = ..PACRefDoctorID	//default 2026
+			
+			TRY
+			{
+				set EpisodeCreationResult = NewEpisode.Save()
+			}
+			CATCH
+			{
+				WRITE !,"Episode Update Result =",EpisodeCreationResult
+			}
+			if (EpisodeCreationResult = 1)
+			{
+				TRY
+				{
+					if (sUR '= "")
+					{
+						//WRITE !,"NewEpisode.ID=",NewEpisode.ID
+						&SQL(select PAADM_MainMRADM_DR INTO :MRADMRowID from SQLUser.PA_Adm where PAADM_RowID=:NewEpisode.ID)
+						if (SQLCODE '= 0)
+						{
+							THROW SQLCODE
+						}
+					}
+					else
+					{
+						set MRADMRowID=""
+					}		
+				}
+				CATCH err
+				{
+					WRITE !,"SQLCODE=",SQLCODE
+					WRITE !,"Error code=",err.Code
+        			WRITE !,"Error name=",$ZCVT(err.Name,"O","HTML")	//$ZCVT converts err.Name into HTML friendly string, in case it contains special HTML characters (like < >, for example)
+        			WRITE !,"Error data=",err.Data
+        			Quit
+				}
+			}
+			else
+			{
+				//WRITE !,"Episode Update Result =",EpisodeCreationResult
+				set MRADMRowID=""
+			}
+		}
+		else
+		{
+			//WRITE !,"Episode Update Result =",EpisodeCreationResult
+			set MRADMRowID=""
+		}
+	}
+	else
+	{
+		//WRITE !,"PAPMIRowID=",PAPMIRowID
+		set MRADMRowID = ""
+	}
+	
+	Quit MRADMRowID
+]]></Implementation>
+</Method>
+
+<Method name="ValidatePerson">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>sUR:%String,sFirstName:%String="",sLastName:%String="",sDOB:%String="",sGender:%String="",Validation:%Integer=15</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	//Validates UR with combination of FirstName, LastName, DOB and Gender, depending on Validation bits
+	//
+	//Validation bits: (default ALL = 15)
+	// bit
+	//	0 - First Name
+	//  1 - Last Name
+	//  2 - DOB - (needs to be in format yyyy-mm-dd)
+	//	3 - Gender
+	//
+	//For example, if Validation=11, then UR will be validated against FirstName, LastName and Gender. (bit 2 = 0)
+	//If Validation is set to 0, it simply validates existence of UR
+	//
+	//sUR must be supplied!
+	
+	Set CTSEXRowID = ""
+	Set Cnt = ""
+	//If sFirstName or sLastName contain apostrophe, replace it with double apostrophe so SQL can handle the query
+	Set sFirstName = $replace(sFirstName,"'","''")
+	Set sLastName = $replace(sLastName,"'","''")
+	
+	
+	Set ValidationQuery = "Select Count(*) from SQLUser.PA_PatMas where PAPMI_No='"_sUR_"'"
+	
+	if ($ZBOOLEAN(Validation,1,1)=1)	//If First Name needs to be validated
+	{
+		Set ValidationQuery = ValidationQuery_" AND PAPMI_Name2='"_sFirstName_"'"
+	}
+	
+	if ($ZBOOLEAN(Validation,2,1)=2)	//If Last Name needs to be validated
+	{
+		Set ValidationQuery = ValidationQuery_" AND PAPMI_Name='"_sLastName_"'"
+	}
+	
+	if ($ZBOOLEAN(Validation,4,1)=4)	//If DOB needs to be validated
+	{
+		//set internalDOB = $zdateh(sDOB,3)
+		//WRITE !,"internalDOB=",internalDOB
+		//Set ValidationQuery = ValidationQuery_" AND PAPMI_DOB="_internalDOB
+		Set ValidationQuery = ValidationQuery_" AND %ODBCOUT(PAPMI_DOB)='"_sDOB_"'"
+	}
+	
+	if ($ZBOOLEAN(Validation,8,1)=8)	//If Gender needs to be validated
+	{
+		//Get DR from SQLUser.CT_Sex table
+		TRY
+		{
+			if (sGender '= "")
+			{
+				&SQL(select CTSEX_RowId INTO :CTSEXRowID from SQLUser.CT_Sex where CTSEX_HL7Code=:sGender)
+				if (SQLCODE = 100)
+				{
+					Set CTSEXRowID = ""
+				}
+				elseif (SQLCODE '= 0)
+				{
+					THROW SQLCODE
+				}
+			}
+			else
+			{
+				set CTSEXRowID = ""
+			}		
+		}
+		CATCH err
+		{
+			WRITE !,"SQLCODE=",SQLCODE
+			WRITE !,"Error code=",err.Code
+        	WRITE !,"Error name=",$ZCVT(err.Name,"O","HTML")	//$ZCVT converts err.Name into HTML friendly string, in case it contains special HTML characters (like < >, for example)
+        	WRITE !,"Error data=",err.Data
+        	Quit
+		}
+		Set ValidationQuery = ValidationQuery_" AND PAPMI_Sex_DR="_CTSEXRowID
+	}
+	
+	//WRITE !,"ValidationQuery = ",ValidationQuery
+	//WRITE !," "," " 
+	Set rset = ##class(%SQL.Statement).%ExecDirect(,ValidationQuery)
+	
+	//zw rset
+	
+	Set res = 0
+	while rset.%Next()
+	{
+		set res = rset.%Get("Aggregate_1")
+	}
+	
+	Quit res
+]]></Implementation>
+</Method>
+
+<Method name="GetPAPMIRowID">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>sUR:%String</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	///Retrieves Row ID from the SQLUser.PA_PatMas table for a given UR number
+	///Returns an empty string if sUR argument is empty or not found. If UR is not found, exception is also thrown.
+	
+	set PAPMIRowID=""
+	TRY
+	{
+		if (sUR '= "")
+		{
+			&SQL(select PAPMI_RowId1 INTO :PAPMIRowID from SQLUser.PA_PatMas where PAPMI_No=:sUR)
+			if (SQLCODE '= 0)
+			{
+				THROW SQLCODE
+			}
+		}
+		else
+		{
+			set PAPMIRowID=""
+		}		
+	}
+	CATCH err
+	{
+		WRITE !,"SQLCODE=",SQLCODE
+		WRITE !,"Error code=",err.Code
+        WRITE !,"Error name=",$ZCVT(err.Name,"O","HTML")	//$ZCVT converts err.Name into HTML friendly string, in case it contains special HTML characters (like < >, for example)
+        WRITE !,"Error data=",err.Data
+        Quit
+	}
+	Quit PAPMIRowID
+]]></Implementation>
+</Method>
+
+<Method name="GetPAADMRowIDfromEpisode">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>sEpisode:%String</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	///Retrieves Row ID from the SQLUser.PA_Adm table for a given Episode number
+	///Returns an empty string if sEpisode argument is empty or not found. If sEpisode is not found, exception is also thrown.
+	Set PAADMRowID = ""
+	TRY
+	{
+		if (sEpisode '= "")
+		{
+			&SQL(select PAADM_RowId INTO :PAADMRowID from SQLUser.PA_Adm where PAADM_ADMNo=:sEpisode)
+			if (SQLCODE '= 0)
+			{
+				THROW SQLCODE
+			}
+		}
+		else
+		{
+			Set PAADMRowID = ""
+		}
+	}
+	CATCH err
+	{
+		WRITE !,"SQLCODE=",SQLCODE
+		WRITE !,"Error code=",err.Code
+        WRITE !,"Error name=",$ZCVT(err.Name,"O","HTML")	//$ZCVT converts err.Name into HTML friendly string, in case it contains special HTML characters (like < >, for example)
+        WRITE !,"Error data=",err.Data
+        Quit
+	}
+	Quit PAADMRowID
+]]></Implementation>
+</Method>
+
+<Method name="GetMRADMRowIDfromEpisode">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>sEpisode:%String</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	///Retrieves Row ID from the SQLUser.MR_Adm table for a given Episode number
+	///Returns an empty string if sEpisode argument is empty or not found. If sEpisode is not found, exception is also thrown.
+	
+	Set MRADMRowID = ""
+	TRY
+	{
+		if (sEpisode '= "")
+		{
+			&SQL(select PAADM_MainMRADM_DR INTO :MRADMRowID from SQLUser.PA_Adm where PAADM_ADMNo=:sEpisode)
+			if (SQLCODE '= 0)
+			{
+				THROW SQLCODE
+			}
+		}
+		else
+		{
+			Set MRADMRowID = ""
+		}
+	}
+	CATCH err
+	{
+		WRITE !,"SQLCODE=",SQLCODE
+		WRITE !,"Error code=",err.Code
+        WRITE !,"Error name=",$ZCVT(err.Name,"O","HTML")	//$ZCVT converts err.Name into HTML friendly string, in case it contains special HTML characters (like < >, for example)
+        WRITE !,"Error data=",err.Data
+        Quit
+	}
+	Quit MRADMRowID
+]]></Implementation>
+</Method>
+
+<Method name="GetPICRowIDforCurDoc">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>sMRADMRowID:%String,sWebsysDocID:%String</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	Set sPICRowId = ""
+	TRY
+	{
+		if ((sMRADMRowID '= "") && (sWebsysDocID '= ""))
+		{
+			&SQL(select PIC_RowId INTO :sPICRowId from SQLUser.MR_Pictures where PIC_ParRef=:sMRADMRowID AND PIC_websysDocument=:sWebsysDocID )
+			if (SQLCODE '= 0)
+			{
+				THROW SQLCODE
+			}
+		}
+		else
+		{
+			Set sPICRowId = ""
+		}
+	}
+	CATCH err
+	{
+		WRITE !,"SQLCODE=",SQLCODE
+		WRITE !,"Error code=",err.Code
+        WRITE !,"Error name=",$ZCVT(err.Name,"O","HTML")	//$ZCVT converts err.Name into HTML friendly string, in case it contains special HTML characters (like < >, for example)
+        WRITE !,"Error data=",err.Data
+        Quit
+	}
+	Quit sPICRowId
+]]></Implementation>
+</Method>
+
+<Method name="UpdateDocTypeAndSubtype">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>sDocType:%String,sDocSubType:%String,sPICRowId:%String</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	
+	TRY
+	{
+		if (sPICRowId '= "")
+		{
+			&SQL(update SQLUser.MR_Pictures Set PIC_DocType_DR = :sDocType, PIC_DocSubType_DR = :sDocSubType where PIC_RowId = :sPICRowId)
+			if (SQLCODE '= 0)
+			{
+				THROW SQLCODE
+			}
+		}
+		else
+		{
+			WRITE !,"sPICRowId can't be empty!"
+			Quit
+		}
+	}
+	CATCH err
+	{
+		WRITE !,"SQLCODE=",SQLCODE
+		WRITE !,"Error code=",err.Code
+        WRITE !,"Error name=",$ZCVT(err.Name,"O","HTML")	//$ZCVT converts err.Name into HTML friendly string, in case it contains special HTML characters (like < >, for example)
+        WRITE !,"Error data=",err.Data
+        Quit
+	}
+	
+	Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Parameter name="SrcVer">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2014/LIVE/cls/Custom/SWARH/ExternalDocs/PatientDoc.xml#1 $</Default>
+</Parameter>
+
+<Storage name="Default">
+<Type>%Library.CacheStorage</Type>
+<DataLocation>^Custom.SWARH.Ex2CDF.PatientDocD</DataLocation>
+<DefaultData>PatientDocDefaultData</DefaultData>
+<IdLocation>^Custom.SWARH.Ex2CDF.PatientDocD</IdLocation>
+<IndexLocation>^Custom.SWARH.Ex2CDF.PatientDocI</IndexLocation>
+<StreamLocation>^Custom.SWARH.Ex2CDF.PatientDocS</StreamLocation>
+<ExtentSize>100000</ExtentSize>
+<Data name="PatientDocDefaultData">
+<Value name="1">
+<Value>%%CLASSNAME</Value>
+</Value>
+<Value name="2">
+<Value>PAAdmHospitalDR</Value>
+</Value>
+<Value name="3">
+<Value>CTLOCDesc</Value>
+</Value>
+<Value name="4">
+<Value>HOSPDesc</Value>
+</Value>
+<Value name="5">
+<Value>PACRefDoctorID</Value>
+</Value>
+</Data>
+</Storage>
+</Class>
+</Export>

@@ -1,0 +1,243 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.AUXX.Report.ZEN.StoredProc.WLStandBy">
+<ProcedureBlock>0</ProcedureBlock>
+<Super>Report.Abstract</Super>
+<TimeCreated>59388,55236.125</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/AUXX/Report/ZEN/StoredProc/WLStandBy.xml#1 $</Default>
+</Parameter>
+
+<UDLText name="T">
+<Content><![CDATA[
+// Report Name: Trak Waiting Standby <br>
+
+]]></Content>
+</UDLText>
+
+<UDLText name="T">
+<Content><![CDATA[
+// Report Code: Trak.WLT0008 <br>
+
+]]></Content>
+</UDLText>
+
+<UDLText name="T">
+<Content><![CDATA[
+// LOGTRAK Number: 72462 <br>
+
+]]></Content>
+</UDLText>
+
+<Method name="StandbyClose">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>QHandle:%Library.Binary</FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Clean up by purging the temporary node in ^CacheTemp global
+ New repid
+ Set repid=$LIST(QHandle,2)
+ 
+ //Start Monitor (if configured to capture stats)
+ i mon Do ..MonitorEnd(mon)
+
+ Kill ^CacheTemp("TRAK",repid)
+ 
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="StandbyExecute">
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,DateFrom:%Date,DateTo:%Date,Hospital:%String,Unit:%String,Consultant:%String,Category:%String,Standby:%String,Status:%String]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Get reportid i.e. use $INCREMENT to add another node to ^CacheTemp("TRAK") global. 
+ // We use ^CacheTemp global because CACHETEMP is a memory resident database
+ New repid,ind
+
+ // Use $Increment to get the next node and clean up
+ Set repid=$Increment(^CacheTemp("TRAK"))
+ 
+ //Start Monitor (if configured to capture stats)
+ s mon=..MonitorBegin()
+   
+ n WLRowId,WLDate,ADMOperDate,HOSPDesc,WLTCode,WLPCode,WLSCode,WLPRowId,STANDSTRowId,STANDSTCode,STANDSTDesc,CTLOCRowId,CTLOCDesc,CTPCPRowId,CTPCPDesc,HOSPRowId,PAPMIName,PAPMIName2,PAPMIName3,PAPERTelH,WLRowId,PAPERMobphone,OPERDesc,PAPMINo,PAADMPreAdmitDate,SPPP,RBDateOper
+ s (WLRowId,WLDate,ADMOperDate,HOSPDesc,WLTCode,WLPCode,WLSCode,WLPRowId,STANDSTRowId,STANDSTCode,STANDSTDesc,CTLOCRowId,CTLOCDesc,CTPCPRowId,CTPCPDesc,HOSPRowId,PAPMIName,PAPMIName2,PAPMIName3,PAPERTelH,WLRowId,PAPERMobphone,OPERDesc,PAPMINo,PAADMPreAdmitDate,SPPP,RBDateOper)=""
+ 
+ i $g(Hospital)'="" s Hospital=$zstrip(Hospital,"*WC")
+ i $g(Unit)'="" s Unit=$zstrip(Unit,"*WC")
+ i $g(Consultant)'="" s Consultant=$zstrip(Consultant,"*WC")
+ i $g(Category)'="" s Category=$zstrip(Category,"*WC")
+ i $g(Standby)'="" s Standby=$zstrip(Standby,"*WC")
+ i $g(Status)'="" s Status=$zstrip(Status,"*WC")
+  
+  //Convert ODBC dates to cache format
+ s DateFrom=..ConvertDateToCache(DateFrom)
+ s DateTo=..ConvertDateToCache(DateTo)
+ 
+ s ind=1
+
+ &SQL(DECLARE Standby CURSOR FOR
+ SELECT DISTINCT
+ %EXACT(WL_Date), 
+ WL_Hospital_DR->HOSP_Desc,
+ WL_WaitListType_DR->WLT_Code,
+ WL_WaitListPrior_DR->WLP_Code,
+ WL_WaitListStatus_DR->WLS_Code,
+ WL_StandbyStatus_DR->STANDST_RowId,
+ WL_StandbyStatus_DR->STANDST_Code,
+ WL_StandbyStatus_DR->STANDST_Desc,
+ WL_ctloc_dr->CTLOC_RowId,
+ WL_ctloc_dr->CTLOC_Desc,
+ WL_Doctor_dr->CTPCP_RowId,
+ WL_Doctor_dr->CTPCP_Desc,
+ WL_Hospital_DR->HOSP_RowId,
+ WL_PAPMI_DR->PAPMI_No,
+ WL_PAPMI_DR->PAPMI_Name,
+ WL_PAPMI_DR->PAPMI_Name2,
+ WL_PAPMI_DR->PAPMI_Name3,
+ WL_PAPMI_DR->PAPMI_PAPER_DR->PAPER_TelH,
+ WL_RowId,
+ WL_PAPMI_DR->PAPMI_PAPER_DR->PAPER_MobPhone,
+ WL_Operation_DR->OPER_Desc,
+ WL_PreAdmission_DR->PAADM_AdmDate,
+ WL_StateProc_DR->SPPP_Desc,
+ WL_RBOP_DR->RBOP_DateOper
+ FROM SQLUser.PA_WaitingList
+ WHERE  WL_Date between :DateFrom and :DateTo and  WL_DateMinusExcludeDays=WL_DateMinusExcludeDays
+ AND WL_WaitListStatus_DR->WLS_Code in ('I', 'PRE', 'A')
+ AND (({fn CONCAT( ',', {fn CONCAT((:Hospital),',')})} [ {fn CONCAT( ',', {fn CONCAT((WL_Hospital_DR->HOSP_RowId),',')})}) OR (:Hospital IS NULL))
+ AND (({fn CONCAT( ',', {fn CONCAT((:Standby),',')})} [ {fn CONCAT( ',', {fn CONCAT((WL_StandbyStatus_DR->STANDST_RowId),',')})}) OR (:Standby IS NULL))
+ AND (({fn CONCAT( ',', {fn CONCAT((:Unit),',')})} [ {fn CONCAT( ',', {fn CONCAT((WL_CTLOC_DR->CTLOC_RowId),',')})}) OR (:Unit IS NULL))
+ AND (({fn CONCAT( ',', {fn CONCAT((:Consultant),',')})} [ {fn CONCAT( ',', {fn CONCAT((WL_Doctor_dr->CTPCP_RowId),',')})}) OR (:Consultant IS NULL))
+ AND (({fn CONCAT( ',', {fn CONCAT((:Status),',')})} [ {fn CONCAT( ',', {fn CONCAT((WL_WaitListStatus_DR->WLS_RowId),',')})}) OR (:Status IS NULL))
+ AND (({fn CONCAT( ',', {fn CONCAT((:Category),',')})} [ {fn CONCAT( ',', {fn CONCAT((WL_WaitListPrior_DR->WLP_RowId),',')})}) OR (:Category IS NULL))
+ )
+ &SQL(OPEN Standby)
+ 
+ &SQL(FETCH Standby INTO :WLDate,:HOSPDesc,:WLTCode,:WLPCode,:WLSCode,:STANDSTRowId,:STANDSTCode,:STANDSTDesc,:CTLOCRowId,:CTLOCDesc,:CTPCPRowId,:CTPCPDesc,:HOSPRowId,:PAPMINo,:PAPMIName,:PAPMIName2,:PAPMIName3,:PAPERTelH,:WLRowId,:PAPERMobphone,:OPERDesc,:PAADMPreAdmitDate,:SPPP,:RBDateOper)
+
+ while 'SQLCODE{
+	 
+ d FormatDates
+ d GetADMOperDate
+ Set ^CacheTemp("TRAK",repid,$ZCVT(HOSPDesc,"U")_" "_$ZCVT(CTLOCDesc,"U")_" "_$ZCVT(CTPCPDesc,"U")_"  "_$ZCVT(WLPCode,"U")_" "_$ZCVT(WLSCode,"U")_" "_$ZCVT(STANDSTDesc,"U"))=$LISTBUILD(WLDate,HOSPDesc,WLTCode,WLPCode,WLSCode,STANDSTRowId,STANDSTCode,STANDSTDesc,CTLOCRowId,CTLOCDesc,CTPCPRowId,CTPCPDesc,HOSPRowId,PAPMINo,PAPMIName,PAPMIName2,PAPMIName3,PAPERTelH,WLRowId,PAPERMobphone,OPERDesc,PAADMPreAdmitDate,ADMOperDate,SPPP,RBDateOper)
+ s ind=ind+1
+	 
+ &SQL(FETCH Standby INTO :WLDate,:HOSPDesc,:WLTCode,:WLPCode,:WLSCode,:STANDSTRowId,:STANDSTCode,:STANDSTDesc,:CTLOCRowId,:CTLOCDesc,:CTPCPRowId,:CTPCPDesc,:HOSPRowId,:PAPMINo,:PAPMIName,:PAPMIName2,:PAPMIName3,:PAPERTelH,:WLRowId,:PAPERMobphone,:OPERDesc,:PAADMPreAdmitDate,:SPPP,:RBDateOper)}
+
+ &SQL(close Standby)
+
+ // Build QHandle (AtEnd,ReportID,Index)
+ Set QHandle=$lb(0,repid,0)
+
+  Quit $$$OK
+  
+GetADMOperDate
+ s ADMOperDate=##class(Custom.AUXX.Report.ZEN.StoredProc.WLStandBy).GetADMOperDate(WLRowId)
+ IF ADMOperDate Set ADMOperDate=..ConvertDateToODBC(ADMOperDate)
+ IF RBDateOper Set RBDateOper=..ConvertDateToODBC(RBDateOper) 
+ Quit
+ 
+FormatDates
+ IF WLDate Set WLDate=..ConvertDateToODBC(WLDate)
+ IF PAADMPreAdmitDate Set PAADMPreAdmitDate=..ConvertDateToODBC(PAADMPreAdmitDate)
+ Quit
+]]></Implementation>
+</Method>
+
+<Method name="StandbyFetch">
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,&Row:%Library.List,&AtEnd:%Library.Integer=0]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // This fetch method should never have to change. 
+ New repid,ind
+
+ // Restore QHandle
+ Set AtEnd=$LI(QHandle,1)
+ Set repid=$LI(QHandle,2)
+ Set ind=$LI(QHandle,3)
+
+ Set ind=$order(^CacheTemp("TRAK",repid,ind))
+ If ind="" {	// if there are no more rows, finish fetching
+ 	Set AtEnd=1
+ 	Set Row=""
+ }  Else  {	// fetch row
+ 	Set Row=^CacheTemp("TRAK",repid,ind)
+ }
+
+ // Save QHandle
+ Set QHandle=$lb(AtEnd,repid,ind)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Query name="Standby">
+<Type>%Library.Query</Type>
+<FormalSpec>DateFrom:%Date,DateTo:%Date,Hospital:%String,Unit:%String,Consultant:%String,Category:%String,Standby:%String,Status:%String</FormalSpec>
+<SqlProc>1</SqlProc>
+<Parameter name="CONTAINID" value="0"/>
+<Parameter name="ROWSPEC" value="WLDate:%Date,HOSPDesc:%String(MAXLEN=255),WLTCode:%String(MAXLEN=255),WLPCode:%String(MAXLEN=255),WLSCode:%String(MAXLEN=255),STANDSTRowId:%String,STANDSTCode:%String(MAXLEN=255),STANDSTDesc:%String(MAXLEN=255),CTLOCRowId:%Integer,CTLOCDesc:%String(MAXLEN=255),CTPCPRowId:%String(MAXLEN=255),CTPCPDesc:%String(MAXLEN=255),HOSPRowId:%String(MAXLEN=255),PAPMINo:%String(MAXLEN=255),PAPMIName:%String(MAXLEN=255),PAPMIName2:%String(MAXLEN=255),PAPMIName3:%String(MAXLEN=255),PAPERTelH:%String(MAXLEN=255),WLRowId:%Integer,PAPERMobphone:%String(MAXLEN=255),OPERDesc:%String(MAXLEN=255),PAADMPreAdmitDate:%Library.Date,ADMOperDate:%Date,SPPP:%String,RBDateOper:%Date"/>
+</Query>
+
+<Method name="GetADMOperDate">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>WLRowId:%Integer</FormalSpec>
+<ReturnType>%Integer</ReturnType>
+<Implementation><![CDATA[
+	New ADMOperDate
+	Set ADMOperDate=""
+	
+	&sql(SELECT
+	ADM_OperDate
+	INTO :ADMOperDate
+	FROM SQLUser.PA_WaitingListAdm
+	WHERE ADM_ParRef=:WLRowId 
+	AND ADM_CancelDate is null
+	ORDER BY ADM_OperDate desc)
+	quit ADMOperDate
+]]></Implementation>
+</Method>
+
+<Query name="LookUpStatus">
+<Type>%Library.SQLQuery</Type>
+<FormalSpec>Status:%String</FormalSpec>
+<SqlQuery>SELECT WLS_Desc,WLS_Code
+FROM sqluser.PAC_WaitingListStatus
+WHERE WLS_Code in ('I','PRE','A') and
+((%ALPHAUP WLS_Desc %STARTSWITH %ALPHAUP :Status) OR (%ALPHAUP WLS_Code %STARTSWITH %ALPHAUP :Status))
+ORDER BY WLS_RowId</SqlQuery>
+<Parameter name="CONTAINID" value="2"/>
+<Parameter name="ROWSPEC" value="Description:%String,Code:%String"/>
+</Query>
+
+<Method name="LookUpBrokerStatus">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>itmjs:%Library.String="",itmjsex:%Library.String="",Status:%Library.String=""</FormalSpec>
+<Implementation><![CDATA[
+ n desc,code
+
+ s (desc,code)=""
+
+ ; Try and find a matching code
+ &sql(SELECT  WLS_Desc,WLS_Code
+ INTO   :desc,   :code
+ FROM   sqluser.PAC_WaitingListStatus
+ WHERE  WLS_Code in ('I','PRE','A') and
+ ((%ALPHAUP WLS_Desc = %ALPHAUP :Status) OR (%ALPHAUP WLS_Code = %ALPHAUP :Status))
+ )
+ ;
+ i SQLCODE s desc=Status q 0
+ s retval=itmjs_"('"_$ZCVT(desc,"O","JS")_"');"
+ i itmjsex'="""" s retval=retval_itmjsex_"('"_$ZCVT(desc,"O","JS")_"^"_$ZCVT(code,"O","JS")_"');"
+ &javascript<#(retval)#>
+ q 1
+]]></Implementation>
+</Method>
+</Class>
+</Export>

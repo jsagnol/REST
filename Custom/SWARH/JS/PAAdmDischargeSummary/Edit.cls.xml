@@ -1,0 +1,327 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.SWARH.JS.PAAdmDischargeSummary.Edit">
+<Description>
+Component JavaScript for: PAAdmDischargeSummary.Edit</Description>
+<Modified>0</Modified>
+<Super>websys.AbstractJavaScript</Super>
+<TimeCreated>63537,10517.856716</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+This Parameter is updated by Perforce</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/SWARH/JS/PAAdmDischargeSummary/Edit.xml#1 $</Default>
+</Parameter>
+
+<Method name="JSContent">
+<Description>
+ </Description>
+<Language>javascript</Language>
+<ClientMethod>1</ClientMethod>
+<Implementation><![CDATA[
+var objdoctype=document.getElementById("doctype");
+if (objdoctype) {
+	var doctype=objdoctype.value;
+	if (doctype!="SCTT Referral") { 
+	var previewCheckbox = document.getElementById("preview1");
+	if (previewCheckbox) previewCheckbox.checked = true;
+	}
+}
+
+var contactClin=document.getElementById("CTPCPDesc");
+var StatusCode=document.getElementById("StatusCode");
+//alert(StatusCode.value);
+if (StatusCode.value=="") {
+	contactClin.value="";
+}
+
+// Section below commented due to Trakcare upgrade to 2010
+/*var status=document.getElementById("DISStatus");
+if (status.value.toLowerCase()=="authorised" || status.value.toLowerCase()=="a") {
+	var UpdatePreview=document.getElementById("UpdatePreview");
+	UpdatePreview.disabled=true;
+	var UpdatePreviewAuthorise=document.getElementById("UpdatePreview_authorise");
+	if (UpdatePreviewAuthorise) UpdatePreviewAuthorise.disabled=true;
+}
+
+
+var statusChangeHandler=status.onchange;
+
+status.onchange = function() {
+	var UpdatePreview=document.getElementById("UpdatePreview");
+	var UpdatePreviewAuthorise=document.getElementById("UpdatePreview_authorise");
+	if (status.value.toLowerCase()=="authorised" || status.value.toLowerCase()=="a") {
+		UpdatePreview.disabled=true;
+		if (UpdatePreviewAuthorise) UpdatePreviewAuthorise.disabled=true;
+	}
+	else {
+		UpdatePreview.disabled=false;
+		if (UpdatePreviewAuthorise) UpdatePreviewAuthorise.disabled=false;
+	}
+	statusChangeHandler();
+}*/
+
+// tknollmiller (SWARH) 2009-03 added onload handler to populate distribute to: list with medical records copy
+
+function insertMedicalRecordsCopy() {
+    // Raw data from StoredDistList: 3^2125^|||MEDICAL RECORDS COPY^^||||||
+    var dstr = '^2125^|||MEDICAL RECORDS COPY^^||||||P^';
+    var code = '2125';
+    var desc = 'MEDICAL RECORDS COPY';
+    var sdl = frmDSEdit.elements('StoredDistList');
+
+    var storedDistList = sdl.value;
+    var dl = storedDistList.split('*');
+
+    var mrcOpt, maxOpt = -1, nextOpt;
+    for (var i = 0; i < dl.length; i++) {
+        var di = dl[i].split('^');
+        if (di[1] == code) {
+            // Found item; stop processing
+            mrcOpt = di[0];
+            break;
+        }
+        if (maxOpt < parseInt(di[0])) {
+            maxOpt = parseInt(di[0]);
+        } else if (parseInt(di[0]) == NaN) {
+            //alert("NaN found in option list: " + di[0]);
+            // Probably not the best thing to do...
+            maxOpt++;
+        }
+    }
+    
+    if (!mrcOpt) {
+        //alert('maxOpt = ' & maxOpt);
+        sdl.value += (maxOpt < 0 ? '' : '*') + (maxOpt + 1) + dstr;
+    }
+    /*
+    var mrcOpt, ;
+    if (lstItems) {
+        var i;
+        for (i = 0; i < lstItems.length; i++) {
+            var li = lstItems[i];
+            var lu = li.value.split('^');
+            if (lu[1] == code) {
+                mrcOpt = li;
+                alert('Found MRC at ' + lu[0]);
+                break;
+            }
+            alert('Process option ' + lu[1] + ' at ' + lu[0]);
+            if (!maxOpt || lu[0] > maxOpt)
+                maxOpt = lu[0];
+        }
+        if (!mrcOpt) {
+            var idx = parseInt(maxOpt) + 1;
+            distAry[idx] = new distRecord(1, 2125, '|||MEDICAL RECORDS COPY', '', '||||||');
+            code = idx + "^" + code + "^";
+            lstItems[lstItems.length] = mrcOpt = new Option(desc, code);
+        }
+    }*/
+	//Make medical records readonly
+
+	/*if (mrcOpt) {
+		mrcOpt.valonfocus=DoNotAllow;
+		mrcOpt.selectedonkeydown=DoNotAllow;
+		mrcOpt.style.color="gray";
+	}*/
+}
+if (doctype=="Discharge Summary") { 
+insertMedicalRecordsCopy();
+}
+
+function setupMRCClickHandler() {
+    var code = '2125';
+
+    var delBtn = document.getElementById('deletedist1');
+    if (lstItems) {
+        if (delBtn) {
+            /* Disable the delete button if the MEDICAL RECORDS COPY
+            * option is selected */
+            var lstItemsChangeHandler = lstItems.onchange;
+            lstItems.onchange = function() {
+                if (lstItemsChangeHandler && typeof (lstItemsChangeHandler) == 'function')
+                    lstItemsChangeHandler();
+                if (lstItems.selectedIndex >= 0 && lstItems.selectedIndex < lstItems.options.length) {
+                    var o = lstItems.options[lstItems.selectedIndex];
+                    if (o && o.value)
+                        var a = o.value.split('^');
+                }
+                if (a && a.length >= 2 && a[1] == code) {
+                    delBtn.disabled = true;
+                } else
+                    delBtn.disabled = false;
+            }
+            /* Fire the handler for initial setup of button */
+            lstItems.onchange();
+            websys_addListener('click', 'onclick', function() {
+//            var delBtnClickHandler = delBtn.onclick;
+//            delBtn.onclick = function() {
+//                if (delBtnClickHandler && typeof (delBtnClickHandler) == 'function')
+//                    delBtnClickHandler();
+				if (DeleteDistClickHandler && typeof (DeleteDistClickHandler) == 'function')
+					DeleteDistClickHandler();
+                if (lstItems.onchange && typeof (lstItems.onchange) == 'function')
+                    lstItems.onchange();
+            }, delBtn);
+        }
+        var mrcOpt;
+        /* Find the option and grey it out */
+        var i;
+        for (i = 0; i < lstItems.length; i++) {
+            var li = lstItems[i];
+            var a = li.value.split('^');
+            if (a[1] == code) {
+                mrcOpt = li;
+                break;
+            }
+        }
+        if (mrcOpt) {
+            mrcOpt.style.color = "gray";
+            mrcOpt.readOnly = true;
+            mrcOpt.className = 'clsReadOnly';
+        }
+    }
+	
+	var delDistListAllBtn = document.getElementById("deleteDistListAll");
+	if (DistListAll) {
+		if (delDistListAllBtn) {
+			var DistListAllChangeHandler = DistListAll.onchange;
+            DistListAll.onchange = function() {
+                if (DistListAllChangeHandler && typeof (DistListAllChangeHandler) == 'function')
+                    DistListAllChangeHandler();
+                if (DistListAll.selectedIndex >= 0 && DistListAll.selectedIndex < DistListAll.options.length) {
+                    var o = DistListAll.options[DistListAll.selectedIndex];
+                    if (o && o.value) {
+                        var a = o.value.split('^');
+					}
+                }
+                if (a && a.length >= 2 && a[1] == code) {
+                    delDistListAllBtn.disabled = true;
+                } else {
+				
+                    delDistListAllBtn.disabled = false;
+					}
+            }
+            // Fire the handler for initial setup of button //
+            //var delDistListAllBtn = delDistListAllBtn.onclick;
+			//delete delDistListAllBtn.onclick;
+            /*websys_addListener('click', 'onclick', function() {
+            //    if (delBtnClickHandler && typeof (delBtnClickHandler) == 'function')
+            //        delBtnClickHandler();
+                 if (DistListAll.onchange && typeof (DistListAll.onchange) == 'function')
+                    DistListAll.onchange();
+            }, delDistListAllBtn);*/
+			DistListAll.onchange();
+            var delDistListAllClickHandler = delDistListAllBtn.onclick;
+            websys_addListener('click', 'onclick', function(e) {
+				e = e || window.event;
+				btn = e.target || e.srcElement;
+				if (btn && !btn.disabled) {
+					if (delDistListAllClickHandler && typeof (delDistListAllClickHandler) == 'function')
+						delDistListAllClickHandler();
+					if (DistListAll.onchange && typeof (DistListAll.onchange) == 'function')
+						DistListAll.onchange();
+				}
+            }, delDistListAllBtn);
+			
+		}
+		var mrcOptDistListAll;
+        /* Find the option and grey it out */
+        var i;
+        for (i = 0; i < DistListAll.length; i++) {
+            var liDistListAll = DistListAll[i];
+            var aDistListAll = liDistListAll.value.split('^');
+            if (aDistListAll[1] == code) {
+                mrcOptDistListAll = liDistListAll;
+                break;
+            }
+        }
+        if (mrcOptDistListAll) {
+            mrcOptDistListAll.style.color = "gray";
+            mrcOptDistListAll.readOnly = true;
+            mrcOptDistListAll.className = 'clsReadOnly';
+        }
+	}
+    /*
+    var luFld = document.getElementById('REFDoctorClinic');
+    if (luFld) {
+        var nextHandler = luFld.onchange;
+        luFld.onchange = function() {
+            alert('Fired onchange event: passing to ' + nextHandler);
+            if (nextHandler && typeof (nextHandler) == 'function')
+                nextHandler();
+            lstItems.onchange();
+        }
+    }*/
+}
+
+// On PAAdmDischargeSummary.Edit, there is a hard-coded call to PAAdmDischargeSummaryEdit_BodyLoad at the bottom of the CSP HTML.
+// Rename the function ...
+var realPAAdmDischargeSummaryEdit_BodyLoad = PAAdmDischargeSummaryEdit_BodyLoad;
+var PAAdmDischargeSummaryEdit_BodyLoad = function() {
+	realPAAdmDischargeSummaryEdit_BodyLoad();
+	setupMRCClickHandler();
+	//insertMedicalRecordsCopy();
+	var clinician = document.getElementById('CTPCPDesc');
+	if ((doctype == "NA Referral Acknowledgement") || (doctype == "NA Client Feedback") || (doctype == "NA Client Discharge Management Plan")) {
+		if (clinician) { 
+			clinician.value = "";
+		}
+	}
+};
+
+/* NOTE: Unlike the standard script, the discharge summary requires using window.attachEvent('onload', ...)
+ * rather than document.body.onload, as the latter is overwritten in a script embedded at the end of the
+ * discharge summary HTML page (from epr.Chart.csp) */
+/* Scope all local variables in function() block to prevent tainting global namespace */
+// (function () {
+    // /* Use window.attachEvent to work around document.body.onload being overwritten later
+	 // * 2010-09-08: TK: using the window.attachEvent method is NO LONGER NECESSARY; as the
+	 // * epr.Chart inline javascript now uses websys_addListener, creating a whole different set of problems! Yay! */
+
+    // websys_addListener('load', 'onload', function() {
+		// var objUpdate=document.getElementById("PAAdmDischargeSummaryEdit_Update");
+		// websys_removeListener("load","onload",eprLoadHandler);
+		// //alert('Removed listener eprLoadHandler');
+		// if (!objUpdate || objUpdate.onclick != PAAdmDischargeSummaryEdit_UpdateClickHandler) {
+			// alert('objUpdate: ' + objUpdate + '; onclick: ' + objUpdate.onclick);
+			// eprLoadHandler();
+			// //alert('eprLoadRemoved listener eprLoadHandler');
+		// }
+        // setupMRCClickHandler();
+        // //insertMedicalRecordsCopy();
+    // });
+// })();
+
+// end tknollmiller (SWARH) 2009-03 added onload handler to populate distribute to: list with medical records copy
+
+
+//tknoll-miller (SWARH) 2009-11-11 Load authorise script
+var authcfg = {
+   'buttons': [
+      'PAAdmDischargeSummaryEdit_Update','UpdatePreview','Save','preview'
+   ],
+   'fields': {
+      'username': 'UserCode',
+      'password': 'PIN'
+   }
+};
+
+(function() {
+   var loadScript = function(type, src) {
+      var head = document.getElementsByTagName('head')[0];
+      var script = document.createElement('script');
+      script.type = type;
+      script.src = src;
+      head.appendChild(script);
+      websys_addListener('load', 'onload', function(){document.isLoaded=true});
+      return script;
+   };
+
+   loadScript('text/javascript', '../custom/SWARH/scripts/authorise4.js');
+})();
+//end tknoll-miller (SWARH) 2009-11-11 Load authorise script
+]]></Implementation>
+</Method>
+</Class>
+</Export>

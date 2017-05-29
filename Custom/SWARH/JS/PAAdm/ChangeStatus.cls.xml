@@ -1,0 +1,108 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.SWARH.JS.PAAdm.ChangeStatus">
+<Description>
+Component JavaScript for: PAAdm.ChangeStatus</Description>
+<Modified>0</Modified>
+<Super>websys.AbstractJavaScript</Super>
+<TimeCreated>63537,10516.800633</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+This Parameter is updated by Perforce</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/SWARH/JS/PAAdm/ChangeStatus.xml#1 $</Default>
+</Parameter>
+
+<Method name="JSContent">
+<Description>
+ </Description>
+<Language>javascript</Language>
+<ClientMethod>1</ClientMethod>
+<Implementation><![CDATA[
+/*********************************************************************
+$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/SWARH/JS/PAAdm/ChangeStatus.xml#1 $
+
+- General custom field validation for paadm.changestatus component
+
+REMEMBER to update the versions with initials, date and description for each modification...
+//tknoll-miller (SWARH) 2009-09-16 Load authorise script
+IF		30/04/2014			- TRC174239 - If cancelling the episode and it is linked to a waiting list then also cancel waiting list entry
+///Update 24072014
+
+**********************************************************************/
+
+SWARH.loadSNAP();
+
+function CustombodyLoadHandler() {
+	bodyLoadHandler();
+	var obj=document.getElementById('update1');
+	if (obj) obj.onclick=CustomupdateHandler;
+
+}
+
+function CustomupdateHandler() {
+	var objStat=document.getElementById("Status");
+	if ((objStat)&&(objStat.value=="Cancel")) {
+		var err=tkMakeServerCall("Region.AUXX.Utility.Utilities","CancelWLEntry",document.getElementById('EpisodeID').value,"I")
+	}
+	updateHandler();
+}
+
+websys_removeListener("load","onload",bodyLoadHandler);
+websys_addListener("load","onload",CustombodyLoadHandler);
+
+var authcfg = {
+   'buttons': [
+      'update1'
+   ],
+   'fields': {
+      'username': 'UserCode',
+      'password': 'PIN'
+   }
+};
+
+//tknoll-miller (SWARH) 2009-09-16 Load authorise script
+//also load SNAP.js script
+// Scope variables
+(function() {
+   var loadScript = function(type, src) {
+      var head = document.getElementsByTagName('head')[0];
+      var script = document.createElement('script');
+      script.type = type;
+      script.src = src;
+      websys_addListener('load', 'onload', function(){document.isLoaded=true;});
+      head.appendChild(script);
+      return script;
+   };
+
+   loadScript('text/javascript', '../custom/SWARH/scripts/authorise4.js');
+})();
+
+//end tknoll-miller (SWARH) 2009-09-16 Load authorise script
+
+websys_addListener('load', 'onload', function() {
+	var TWKFL=document.getElementById('WKFL').value;
+	if (TWKFL=="SWARH.SNAP.EpisodeChangeStatus") {
+		var obj=document.getElementById("Status");
+		OpenSNAPAppt();
+	}
+
+	function OpenSNAPAppt() {
+		var patEl=document.getElementById("BANNERPatientID");
+		var PatientID;
+		if (patEl) PatientID=patEl.value;
+		var epiEl=document.getElementById("BANNERPAADMADMNo");
+		var EpisodeNo;
+		if (epiEl) EpisodeNo=epiEl.value;
+		var logonUserId=session['LOGON.USERID'];
+		var logonLocId=session['LOGON.CTLOCID'];
+		var logonGroupId=session['LOGON.GROUPID'];
+		//alert('Not opening SNAP as script may not yet have loaded');
+		var win = SNAP.openSWARHSNAP('ClientAppointmentList.aspx?'+'LogonUserId='+logonUserId+'&LogonLocId='+logonLocId+'&PatientID='+PatientID+'&EpisodeNo='+EpisodeNo+'&LogonGroupId='+logonGroupId+'&OPCancel=true','AppointmentListCancel');
+		if ('focus' in win) setTimeout(win.focus, 500);
+	}
+});
+]]></Implementation>
+</Method>
+</Class>
+</Export>

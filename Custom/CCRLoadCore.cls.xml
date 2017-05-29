@@ -1,0 +1,1173 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.CCRLoadCore">
+<Abstract>1</Abstract>
+<IncludeCode>%occInclude,XML.Element</IncludeCode>
+<Super>%RegisteredObject,XML.Element</Super>
+<TimeCreated>62605,51394.714</TimeCreated>
+
+<Method name="LoadDir">
+<Description>
+Load all elements from XML files in a directory.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[dir:%String="",qspec:%String="",&errorlog:%String,recurse:%Boolean=1,&loaded:%String,listonly:%Boolean=0,&selectedlist:%String,header:%Boolean=1]]></FormalSpec>
+<ReturnType>%Status</ReturnType>
+<Implementation><![CDATA[
+	s loaded=##class(%GlobalCharacterStream).%New()
+	If dir = "" Quit $$$OK
+	Set dir = ##class(%File).NormalizeDirectory(dir)
+	Set sc=..qualifierParse("Element",.qspec,.qstruct) If $$$ISERR(sc) Do DecomposeStatus^%occSystem(sc,.errorlog,.qstruct) Quit sc
+	Set displaylog=$$$qualifierGetValue(qstruct,"displaylog")
+	Set displayerror=$$$qualifierGetValue(qstruct,"displayerror")
+	If header {
+		$$$InitErrorNums
+		Set zh=$ZHorolog
+		If displaylog Write !,$$$GetSimpleMessage("%Compiler","LoadDir")_$ZDateTime($Horolog)
+		$$$xmlListKill("dir")
+		$$$xmlListKill("file")
+	}
+	
+	If $$$xmlMemberDefined("dir",dir) $$$xmlMemberKill("dir",dir)
+	Set resultset=##class(%ResultSet).%New("%File:FileSet")
+	Set sc=resultset.%Execute(dir,"*.xml","",1)
+	If $$$ISERR(sc) Do $System.Status.DecomposeStatus(sc,.errorlog) Quit sc
+	While resultset.Next() {
+		If resultset.Data("Type")="D" {
+			If recurse {
+				Set directory = ##class(%File).NormalizeDirectory(resultset.Data("Name"))
+				If displaylog Write !,"Load of directory "_directory
+				Set rc = ..LoadDir(directory,.qspec,.errorlog,1,.loaded,.listonly,.selectedlist,0)
+				If $$$ISERR(rc) {
+					Set sc=$$$ADDSC(sc,rc)
+				}
+			}
+		} Else {
+			$$$xmlMemberSet("file",resultset.Data("Name"))
+			s ^zLoadFile(##class(%File).GetDirectory(resultset.Data("Name")),$i(^zLoadFile(##class(%File).GetDirectory(resultset.Data("Name")))))=resultset.Data("Name")
+			If $$$qualifierGetValue(qstruct,"onlyfirst") Quit
+		}
+	}
+	#; Do not quit after error to allow further directories to be processed.
+	If $$$ISERR(sc) Do $System.Status.DecomposeStatus(sc,.errorlog)
+	
+	If header {
+		#; Load all files together
+		Set rc=..Load(,.qspec,.errorlog,.loaded,.listonly,.selectedlist,,0)
+		
+		#; Error ignored to allow other objects to be loaded.
+		If $$$ISERR(rc) {
+			Set sc=$$$ADDSC(sc,rc)
+			If displayerror Do $System.OBJ.DisplayError(rc)
+		}
+		
+		$$$xmlListKill("dir")
+		$$$xmlListKill("file")
+		If displaylog {
+			Set zh=$zh-zh,zh=$fnumber(zh,"",$select(zh>100:1,zh>10:2,1:3))
+			If $$$ErrorNum=0 {
+				Write $char(13,10)_$$$FormatMessage(,"%Compiler","LoadOk",,zh)
+			} Else {
+				Write $char(13,10)_$$$FormatMessage(,"%Compiler","LoadErrors",,$$$ErrorNum,zh)
+			}
+		}
+	}
+	Quit sc
+]]></Implementation>
+</Method>
+
+<Method name="Load">
+<Description><![CDATA[
+Load a file from disk into Cache.
+<p>Load elements from the file <var>file</var>. Returns an stream of elements it loaded in <var>loaded</var>, 
+You may give it a list of files to load
+via a single subscripted array. If you pass <var>listonly</var> as true then it will not
+load anything but just list the elements that exist in the files that you supply it.<br>
+If <var>selecteditems</var> is defined then this will contain a single subscripted array
+of items to load. It will only load items that are in this list from the file/s
+provided, so this provides a way to limit which items get loaded.<br>
+<var>qspec</var> is a list of qualifiers which can be displayed with 'Do ##class(XML.Element).ShowQualifiers()']]></Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&filename:%String="",qspec:%String="",&errorlog:%String,&loaded:%String,listonly:%Boolean,&selecteditems:%String,displayname:%String,header:%Boolean=1,charset:%String=""]]></FormalSpec>
+<ReturnType>%Status</ReturnType>
+<Implementation><![CDATA[
+	
+	s loaded=##class(%GlobalCharacterStream).%New()
+	#; %xmlconfigitem used to track objects being loaded via XML.Element.
+	#; During this process ChangeControl events will not be passed on
+	#; by the standard TC.ChangeControl.Base class.
+	#; % variable name used so that it is available during object events
+	#; and classes can act appropriately for element exchange.
+	#;
+	#; %objlasterror keeps the most recent object error encountered during
+	#; the load process.
+	
+	#; xmlFile is the list of files to be parsed.
+	#; xmlOid is the list of objects to be loaded from the files.
+	#; xmlGuid is a list of objects in progress of being loaded.
+	New %xmlExchangeItem, %objlasterror
+	Set returnStatus=$$$OK,fileStatus=$$$OK,objStatus=$$$OK,listonly=+$Get(listonly)
+	If header {
+		$$$InitErrorNums
+		$$$xmlListKill("file")
+	}
+	#; If we are just listing the items in here then ignore the selected items list
+	If 'listonly Do ..normalizeItems("selected",.selecteditems)
+	Set returnStatus=..qualifierParse("Element",.qspec,.qstruct) If $$$ISERR(returnStatus) Do DecomposeStatus^%occSystem(returnStatus,.errorlog,.qstruct) Quit returnStatus
+	
+	Do ..normalizeItems("file",.filename)
+	Set key = ""
+	$$$xmlMemberNext("file",key,file)
+	If key="" Set returnStatus=$$$ERROR($$$FileNameRequired) Do DecomposeStatus^%occSystem(returnStatus,.errorlog,.qstruct) Quit returnStatus
+	Set force=$$$qualifierGetValue(qstruct,"force")
+	Set display=$$$qualifierGetValue(qstruct,"displaylog")
+	Set loadguids=$$$qualifierGetValue(qstruct,"loadguids")
+	Set quitonerror=$$$qualifierGetValue(qstruct,"quitonerror")
+	Set validateregistered=$$$qualifierGetValue(qstruct,"validateregistered")
+	Set %xmlExchangeItem=$$$qualifierGetValue(qstruct,"bypassccr")
+	Set zh=$zh
+	If display,header Write !,$$$GetSimpleMessage("%Compiler","LoadStart")_$zdt($horolog)
+	#; Unless the 'force' qualifier is used the load will be treated as a single transaction.
+	#; If there is an error during the load then the whole transaction will be rolled back.
+	If 'listonly,'force TStart
+	Set reader=##class(Custom.Reader).%New()
+	;Set tempFile = ##class(%File).TempFilename()
+	;Set xdata=##class(%Dictionary.CompiledXData).%OpenId($ClassName()_"||StyleSheet",0)
+	;If '$IsObject(xdata) Quit $$$ERROR($$$GeneralError,"Missing StyleSheet XData")
+	;Set returnStatus = ##class(%XML.XSLT.CompiledStyleSheet).CreateFromStream(xdata.Data, .xslStyleSheet)
+	;If $$$ISERR(returnStatus) Quit $$$EMBEDSC($$$ERROR($$$GeneralError,"Unable to create CompiledStyleSheet from XData"), returnStatus)
+	;Kill xdata
+	;Set xslErrorHandler=##class(%XML.XSLT.ErrorHandler).%New()
+	
+	#; Support multiple passes to ensure references between objects are maintained.
+	For pass=1:1 {
+		If pass>1,display Write !, "Pass "_pass_" started "_$ZDateTime($H)
+		Set key = "", continue = 0
+		For {
+			Kill file
+			Set fileStatus = $$$OK
+			$$$xmlMemberNext("file",key,file)
+			If key = "" Quit
+			#; Catch errors per file and continue processing.
+			Try {
+				If '##class(%File).Exists(file) {
+					Set fileStatus=$$$ERROR($$$FileDoesNotExist,file)
+				} Else {
+					If display Write !,"Load of file "_file
+					
+					#; Transform file to current patch level.
+					;Set returnStatus = $$$ADDSC(returnStatus, ##class(%XML.XSLT.Transformer).TransformFileWithCompiledXSL(file, .xslStyleSheet, tempFile, .xslErrorHandler))
+					
+					#; Reset the list of GUIDs that do not exist.
+					;$$$xmlSubListKill("file",file,"unknown")
+					;Set fileStatus=$$$ADDSC(fileStatus,reader.OpenFile(tempFile)), reader.Filename = file
+					
+					Set xmlStream = ##Class(%Stream.FileCharacter).%New()
+					Set xmlStream.Filename = file
+					
+					Set fileStatus = $$$ADDSC(fileStatus, ..OnBeforeLoad(.xmlStream))
+					
+					#; Reset the list of GUIDs that do not exist.
+					$$$xmlSubListKill("file",file,"unknown")
+					Set fileStatus=$$$ADDSC(fileStatus,reader.OpenStream(xmlStream)), reader.Filename = file
+
+					
+					
+					While reader.Next(.obj,.objStatus,,.qstruct) {
+						If '$IsObject(obj) Quit
+						If obj.%Extends("%Library.Persistent") {
+							Set oid=obj.%Oid()
+							
+							#; During ListOnly new items do not have an ObjectIdentity.  They may be identified by their GUID instead of id.
+							#; Note: Both the GUID and id are checked in case the item was referenced by GUID for the first pass because an
+							#;        id did not exist.  During the second pass an id may exist but the id is not included in selecteditems.
+							Set item = $$$oidCompose(obj.GUID,$ClassName(obj))
+							If '$$$xmlListDefined("selected")||(oid'=""&&($$$xmlMemberDefined("selected",oid)))||(item'=""&&($$$xmlMemberDefined("selected",item))) {
+								If obj.GUID'="" {
+									#; Track element objects being loaded.
+									#; Objects are removed once they have been saved.
+									$$$xmlMemberSet("guid",obj.GUID)
+									$$$xmlSubMemberKill("file",file,"unknown",obj.GUID)
+								}
+								If 'listonly {
+									#; Check for orphaned GUID if Change Control is not enabled
+									#; This is due existing GUID not deleted if CCR is not enabled.
+									;i $g(^SYS("ChangeControlClass"))="" {
+									;	d ..KillOrphanedGUID(obj)
+									;}
+									If loadguids {
+										If obj.%Id()'="" {
+											Set oid = obj.%Oid()
+											#; The GUID will not be updated if there is an existing GUID assigned.
+											#; The force qualifier indicates the GUID from the XML should override an existing GUID.
+											If force,$d(^OBJ.GUID(1,oid),guid) {
+												Kill ^OBJ.GUID(0,guid)
+												Kill ^OBJ.GUID(1,oid)
+											}
+											If '$d(^OBJ.GUID(1,oid)) {
+												Set guid = obj.%GUIDSet(oid, obj.GUID)
+												If display Write !, "Loaded GUID: ", $$$oidClassName(oid), $c(9), $$$oidPrimary(oid), $c(9), ..GetName(oid, obj.%GUID(oid), .qstruct)
+											}
+										}
+									} Else {
+										#; Do not proceed with unresolved references unless the force qualifier is used.
+										#; Note: When a set of elements both define and referece the same GUID it must be correlated twice.
+										#;       The first pass will save the object with it's GUID and the second will match the GUID
+										#;       reference in the child elements or properties.
+										If 'force {
+											#; Compare the GUIDs that defined by this element against the list of
+											#; GUIDs that are referenced but do not exist on this system.
+											#; The %Save will not proceed if there are any missing references.
+											Set status = ..GetContentGUIDs(file, obj)
+											Set objStatus = $$$ADDSC(status, objStatus)
+											
+											#; A missing GUID has been found.
+											#; The object will not be saved until the reference can be resolved.
+											If $$$xmlSubListDefined("file",file,"unknown") Quit
+										}
+										#; Log 85575
+										If obj.%ClassName(1)="User.SSUserDefWindow" {
+											Set status=..ValidateQuestionnaire(obj)
+											Set objStatus=$$$ADDSC(status,objStatus)
+											If $$$ISERR(objStatus) Quit
+										}
+										;w !,obj.%Id()
+										
+										s ^||Err($j)=$$$ErrorNum
+										;w !,obj.GUID
+										Set objStatus=obj.%Save()
+										i objStatus $$$SetErrorNum(^||Err($j))
+
+	                                    s namespace=$NAMESPACE
+	                                    zn "%SYS"
+	                                    d ##class(SYS.Lock).DeleteAllLocks($j)
+	                                    zn namespace
+
+										Set oid=obj.%Oid()
+										If oid'="" Set ^||SavedObj(oid)=""
+
+										If $$$ISERR(objStatus) {
+											If '$$$xmlSubListDefined("file",file,"unknown") {
+												Set status=$$$ERROR($$$GeneralError,"Unable to save item $lb("_$Select(obj.%Oid()'="":$ListToString(obj.%Oid()),1:""""","""_$ClassName(obj)_"""")_"), "_obj.GUID)
+												Set objStatus=$$$ADDSC(status,objStatus)
+												Set fileStatus=$$$ADDSC(fileStatus,objStatus)
+												Set (objStatus, status) = $$$OK
+											} Else {
+												#; Incomplete element could not be saved.  The save can fail if the missing reference is a required property.
+												#; This is not treated as an error.  Subsequent passes may be able to load the element since the missing
+												#; reference is defined in one of the files being processed.
+												If display {
+													Write !, "WARNING: Initial load failed.  ", $ClassName(obj), $Char(9), $$$oidPrimary(oid), $Char(9), ..GetName(oid, obj.GUID, .qstruct)
+													Write !, $Char(9), $System.Status.GetOneStatusText(objStatus)
+												}
+												Set objStatus = $$$OK
+												$$$DecErrorNum
+											}
+											Quit
+										}
+										If obj.GUID'="" {
+											#; Remove item that has been saved.
+											$$$xmlMemberKill("guid",obj.GUID)
+										}
+										
+										#; When there are still unknown GUIDs display an alternate
+										#; message indicating another pass will be performed
+										#; to resolve GUID references included in this element. (Primed element ...)
+										#; Note: This scenario only occurs when a set of files both
+										#;       define and reference the same GUID and thus two
+										#;       passes are required for the correlation to work.
+										If display Write !, $Select('$$$xmlSubListDefined("file",file,"unknown"):"Loaded",1:"Primed")_" item: ", $$$oidClassName(oid), $Char(9), $$$oidPrimary(oid), $Char(9), ..GetName(oid, obj.%GUID(oid), .qstruct)
+										s ^zLoadedFile(##class(%File).GetDirectory(file),$i(^zLoadedFile(##class(%File).GetDirectory(file))))=file
+									}
+								} Else {
+									#; When running list only, instead of relying upon the object
+									#; load to match GUIDs we need to check for GUIDs that would
+									#; have been loaded.
+									Set status = ..GetContentGUIDs(file, obj)
+									Set objStatus = $$$ADDSC(status, objStatus)
+									
+									#; If there are any unresolved references remaining the object
+									#; would not be saved unless the force qualifier is used.
+									If 'force,$$$xmlSubListDefined("file",file,"unknown") Quit
+									#; No save performed but display details if available.
+									If display {
+										Write !, "Listed element: "
+										If oid = "" {
+											Write $ClassName(obj), $Char(9), "%New()", $Char(9), ..GetName(oid, obj.GUID, .qstruct)
+										} Else {
+											Write $$$oidClassName(oid), $c(9), $$$oidPrimary(oid), $c(9), ..GetName(oid, obj.GUID, .qstruct)
+										}
+									}
+								}
+								#; During ListOnly new items do not have an ObjectIdentity.
+								#; Instead they are identified by their GUID.
+								Set item = $Select(oid'="":oid,1:$$$oidCompose(obj.GUID,$ClassName(obj)))
+								If item'="" {
+									Do loaded.WriteLine($lb(item,file))
+								}
+							}
+						} Else {
+							If (validateregistered)&&('force) {
+								#; Validate non-persistent classes.
+								#; XML.Information uses this process to confirm class version information.
+								Set objStatus=$System.Status.AppendStatus(obj.%ValidateObject(),objStatus)
+							}
+						}
+						Set fileStatus=$$$ADDSC(fileStatus,objStatus)
+						Set objStatus=$$$OK
+					}
+					
+					#; At this point the return code (objStatus) is from XML.Reader:Next Loop.
+					If $$$ISERR(objStatus) {
+						#; Increment the error count for errors returned from XML.Reader:Next.
+						$$$IncErrorNum
+						Set fileStatus=$$$ADDSC(fileStatus,objStatus)
+						If display Do $System.Status.DisplayError(objStatus)
+						Quit
+					}
+					
+					#; If all GUID references were resolved the file is complete.
+					If '$$$xmlSubListDefined("file",file,"unknown") {
+						$$$xmlMemberKill("file",file)
+						#; An item has successfully been loaded during this pass.
+						#; Therefore subsequent passes of other files may refer to GUIDs defined by this item.
+						
+						#; Disregard missing GUID details because another pass will be performed.
+						Set continue = 1
+					}
+				}
+			} Catch ex  {
+				#Dim ex As %Exception.AbstractException
+				Set fileStatus = ex.AsStatus()
+			}
+
+			If $$$ISERR(fileStatus) {
+				#; Add an error including the file name to identify which file has encountered the problem.
+				Set fileStatus=$$$EMBEDSC($$$ERROR($$$GeneralError, "Unable to load file "_file),fileStatus)
+				Do DecomposeStatus^%occSystem(fileStatus,.errorlog,.qstruct)
+				Set returnStatus=$$$ADDSC(returnStatus,fileStatus)
+				Set fileStatus=$$$OK
+				If quitonerror,$$$ISERR(returnStatus) Quit
+			}
+		}
+		
+		#; Check to see whether another pass is required.
+		If '$$$xmlListDefined("file") Quit
+		
+		#; After the second pass check to see whether another pass will help.
+		If pass > 1 {
+			
+			If 'continue {
+				#; All files from this pass are marked for inclusion in the next pass and
+				#; therefore the next pass will have the same results as this pass.
+				#;
+				#; Build a list of the missing GUIDs per file and stop processing.
+				Set key = ""
+				For  {
+					Set fileStatus = $$$OK
+					Kill file
+					$$$xmlMemberNext("file",key,file)
+					If key = "" Quit
+					
+					#; Note: Maximum %Status description length is 1023 and GUIDs are 36 characters.
+					#;       When there are too many GUIDs to be included in a status an ellipse of
+					#;       3 characters is used.
+					#Define DisplayMaximum ##expression(1023 - 36 - 3)
+					Set subKey = "", guid = "", errorText = ""
+					For {
+						$$$xmlSubMemberNext("file",file,"unknown",subKey,guid)
+						If subKey = "" Quit
+						
+						#; If the error text does not have space for another GUID append an ellipse.
+						If $Length(errorText) > $$$DisplayMaximum {
+							Set errorText = errorText_"..."
+							Quit
+						}
+						If errorText = "" {
+							Set errorText = "GUID reference(s) missing from "_file_"; "_guid
+						} Else {
+							Set errorText = errorText_", "_guid
+						}
+					}
+					#; Note: $$$ERROR will increment the error count.
+					Set fileStatus = $$$ADDSC(fileStatus, $$$ERROR($$$GeneralError,errorText))
+					Do DecomposeStatus^%occSystem(fileStatus,.errorlog,.qstruct)
+					Set returnStatus=$$$ADDSC(returnStatus,fileStatus)
+				}
+				Quit
+			}
+		}
+		If $$$ISERR(returnStatus) Quit
+	}
+	;Do ##class(%File).Delete(tempFile)
+	
+	If $$$ISERR(returnStatus),$$$ErrorNum=0 $$$IncErrorNum
+	If header {
+		If $$$ISOK(returnStatus),$$$ErrorNum'=0 {
+			If $get(%objlasterror)'="",$$$ISERR(%objlasterror) {
+				Set returnStatus=$$$EMBEDERROR(%objlasterror,$$$ErrorDetected)
+			} Else {
+				Set returnStatus=$$$ERROR($$$ErrorDetected)
+			}
+			Do DecomposeStatus^%occSystem(returnStatus,.errorlog,.qstruct)
+		}
+		If display {
+			Set zh=$zh-zh,zh=$fnumber(zh,"",$select(zh>100:1,zh>10:2,1:3))
+			If $$$ErrorNum=0 {
+				Write $char(13,10)_$$$FormatMessage(,"%Compiler","LoadOk",,zh)
+			} Else {
+				Write $char(13,10)_$$$FormatMessage(,"%Compiler","LoadErrors",,$$$ErrorNum,zh)
+			}
+		}
+	}
+	
+	If 'listonly,'force {
+		If $$$ISOK(returnStatus), $$$ErrorNum=0 {
+			TCommit
+		} Else {
+			b
+			TRollBack 1
+			d ..KillOrphanedGlobal()
+			If display Write !, "Transaction rolled back"
+		}
+	}
+	$$$xmlListKill("guid")
+	Quit returnStatus
+]]></Implementation>
+</Method>
+
+<Method name="OnBeforeLoad">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>xmlStream:%AbstractStream</FormalSpec>
+<ReturnType>%Status</ReturnType>
+<Implementation><![CDATA[
+	$$$SuspendErrorCount
+	
+	Set xmlConversion = ""
+	Set xmlToClassName = ##class(%Dictionary.CompiledXData).%OpenId($ClassName()_"||XMLToClassName",0)
+	
+	;Set outStream = ##class(%BinaryStream).%New()
+	
+	Set status = ##class(%XML.XSLT.Transformer).TransformStream(.xmlStream, xmlToClassName.Data, .outStream)
+	If $$$ISERR(status) Quit $$$EMBEDSC($$$ERROR($$$GeneralError, "Error identifying target class"), status)
+	Set targetClassName = outStream.Read()
+	
+	If targetClassName'=""	Set xmlConversion = ##class(%Dictionary.CompiledXData).%OpenId(targetClassName_"||XMLConversion",0)
+	If '$IsObject(xmlConversion) {
+		Set xmlConversion = ##class(%Dictionary.CompiledXData).%OpenId($ClassName()_"||XMLConversion",0)
+	}
+	If $IsObject(xmlConversion) {
+		Do outStream.Clear()
+		#; Transform file to current patch level.
+		Do xmlStream.Rewind()
+		Set status = ##class(%XML.XSLT.Transformer).TransformStream(.xmlStream, xmlConversion.Data, .outStream)
+		If $$$ISERR(status) Quit status
+		Set xmlStream = outStream
+	}
+	
+	Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="normalizeItems">
+<Description>
+Oids potentially contain any character.  Therefore no delimited strings are supported.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[list:%String,&items:%String]]></FormalSpec>
+<Private>1</Private>
+<ReturnType>%Status</ReturnType>
+<Implementation><![CDATA[
+	If $Data(items)#10 {
+		If items'="" $$$xmlMemberSet(list, items)
+		ZKill items
+	}
+	Set key = ""
+	For {
+		Set key = $o(items(key))
+		If key = "" Quit
+		$$$xmlMemberSet(list, key)
+	}
+	Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="ValidateQuestionnaire">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>obj:User.SSUserDefWindow</FormalSpec>
+<Private>1</Private>
+<Implementation><![CDATA[
+	If (obj="")||(obj.%Id()="") Quit $$$OK
+	Set QID=obj.%Id()
+	Set (QCode,CurrentQ,CurrentQCon,CurrentQConResp,CCRCon,CCRConID,CCRConResp,CCRConRespID)=""
+	Set retval=$$$OK
+	Set CurrentQ=$g(^SSU("WIN",QID))
+	If CurrentQ'="" s QCode=$p(CurrentQ,"^",1)
+	If QCode'="",##class(web.SSUserDefWindow).QuestAnswered(QCode){
+		If QCode'=obj.WINCode {
+			Set retval = $System.Status.AppendStatus($$$ERROR($$$GeneralError,"Questionnaire code can't be changed after it's been answered. $lb("_$s(obj.%Oid()'="":$lts(obj.%Oid()),1:""""","""_obj.%ClassName(1)_"""")_"), "_obj.GUID),retval)
+		}
+		If $$$ISOK(retval) {
+			For ConCnt=1:1:obj.ChildSSUserDefWindowControls.Count() {
+				Set (CCRCon,CCRConID,CurrentQCon)=""
+				Set CCRCon=obj.ChildSSUserDefWindowControls.GetAt(ConCnt)
+				If CCRCon'="" Set CCRConID=CCRCon.%Id()
+				If (CCRConID'="")&&($p(CCRConID,"||",2)'="") {
+					Set CurrentQCon=$g(^SSU("WIN",$p(CCRConID,"||",1),"CON",$p(CCRConID,"||",2)))
+					If (CurrentQCon'="") Set QControlArr($p(CCRConID,"||",2))=""
+				}
+				//Validate Questionnaire Control
+				If (CurrentQCon'="")&&($p(CurrentQCon,"^",13)="Y") {
+					If (($p(CurrentQCon,"^",7)'=CCRCon.CONCode)||($p(CurrentQCon,"^",1)'=CCRCon.CONControlType)||($p(CurrentQCon,"^",3)'=CCRCon.CONScore)||($p(CurrentQCon,"^",9)'=CCRCon.CONCodeTable)||($p(CurrentQCon,"^",14)'=$s(CCRCon.CONObsItemDR'="":CCRCon.CONObsItemDR.%Id(),1:""))||
+						($p(CurrentQCon,"^",3)'=CCRCon.CONScore)||($p(CurrentQCon,"^",18)'=$s(CCRCon.CONImageDR'="":CCRCon.CONImageDR.%Id(),1:""))||($p(CurrentQCon,"^",20)'=CCRCon.CONCustomType)||($p(CurrentQCon,"^",22)'=CCRCon.CONMaxValue)||($p(CurrentQCon,"^",23)'=CCRCon.CONMinValue)||
+						($p(CurrentQCon,"^",24)'=CCRCon.CONSingleOption)||($p(CurrentQCon,"^",25)'=CCRCon.CONDBField)||($p(CurrentQCon,"^",28)'=$s(CCRCon.CONUserDefControlDR'="":CCRCon.CONUserDefControlDR.%Id(),1:""))||
+						((CCRCon.CONControlType="CalcField")&&($p(CurrentQCon,"^",17)'=CCRCon.CONDecPlaces))) {
+						Set retval = $System.Status.AppendStatus($$$ERROR($$$GeneralError,"Questionnaire Control changes are not allowed because it's been answered. $lb("_CCRCon.%Id()_","_CCRCon.%ClassName(1)_"), "_CCRCon.GUID),retval)
+					}
+				}
+				If ($$$ISOK(retval))&&(CurrentQCon'="") {
+					For RespCnt=1:1:CCRCon.ChildSSUserDefWinContResp.Count() {
+						Set (CCRConResp,CCRConRespID,CurrentQConResp)=""
+						Set CCRConResp=CCRCon.ChildSSUserDefWinContResp.GetAt(RespCnt)
+						If CCRConResp'="" Set CCRConRespID=CCRConResp.%Id()
+						If (CCRConRespID'="")&&($p(CCRConRespID,"||",2)'="")&&($p(CCRConRespID,"||",3)'="") {
+							Set CurrentQConResp=$g(^SSU("WIN",$p(CCRConRespID,"||",1),"CON",$p(CCRConRespID,"||",2),"RESP",$p(CCRConRespID,"||",3)))
+							If (CurrentQConResp'="") Set QRespArr($p(CCRConRespID,"||",3))=""
+						}
+						//Validate Questionnaire Control Responses
+						If (CurrentQConResp'="")&&($p(CurrentQConResp,"^",7)="Y") {
+							If ($p(CurrentQConResp,"^",1)'=CCRConResp.RESPCode)||($p(CurrentQConResp,"^",5)'=CCRConResp.RESPScore ) {
+								Set retval = $System.Status.AppendStatus($$$ERROR($$$GeneralError,"Questionnaire Control Response changes are not allowed because it's been answered. $lb("_CCRConResp.%Id()_","_CCRConResp.%ClassName(1)_"), "_CCRConResp.GUID),retval)
+								Quit
+							}
+						}
+					}
+					
+					// Check if any responses were deleted
+					If ($$$ISOK(retval))&&($d(QRespArr)) {
+						Set RespID=0
+						For  {
+							Set RespID=$o(^SSU("WIN",$p(CCRConID,"||",1),"CON",$p(CCRConID,"||",2),"RESP",RespID),1,Data)
+							Quit:RespID=""
+							If (Data'="")&&($p(Data,"^",7)="Y")&&('$d(QRespArr(RespID))) {
+								Set retval = $System.Status.AppendStatus($$$ERROR($$$GeneralError,"Questionnaire Control Response "_CCRConID_"||"_RespID_" can't be deleted after it's been answered."),retval)
+								Quit
+							}
+						}
+					}
+					If $d(QRespArr) k QRespArr
+					
+				}
+				Quit:$$$ISERR(retval)
+			}
+			
+			//Check if any controls were deleted
+			If ($$$ISOK(retval))&&($d(QControlArr)) {
+				Set ControlID=0
+				For  {
+					Set ControlID=$o(^SSU("WIN",QID,"CON",ControlID),1,Data)
+					Quit:ControlID=""
+					If (Data'="")&&($p(Data,"^",13)="Y")&&('$d(QControlArr(ControlID))) {
+						Set retval = $System.Status.AppendStatus($$$ERROR($$$GeneralError,"Questionnaire Control "_QID_"||"_ControlID_" can't be deleted after it's been answered."),retval)
+						Quit
+					}
+				}
+			}
+			If $d(QControlArr) k QControlArr
+		}
+	}
+	If $d(QRespArr) k QRespArr
+	If $d(QControlArr) k QControlArr
+	Quit retval
+]]></Implementation>
+</Method>
+
+<Method name="GetContentGUIDs">
+<Description>
+Remove contents from the list of unknown GUIDs.</Description>
+<Internal>1</Internal>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>file:%String,obj:%RegisteredObject</FormalSpec>
+<ReturnType>%Status</ReturnType>
+<Implementation><![CDATA[
+	#Define cardinality(%classname,%propertyname) $$$defMemberKeyGet(%classname,$$$cCLASSproperty,%propertyname,$$$cPROPcardinality)
+	
+	Set status = $$$OK
+	If obj.GUID'="" $$$xmlSubMemberKill("file", file, "unknown", obj.GUID)
+
+	Set className=$ClassName(obj)
+	Set propertyName=""
+	For	{
+		Set propertyName=$$$defMemberNext(className,$$$cCLASSproperty,propertyName)
+		If propertyName="" Quit
+		
+		If $$$cardinality(className,propertyName)=$$$cPROPCARDINALITYCHILDREN	{
+			Set relationship=$Property(obj,propertyName)
+			If relationship	{
+				For i=1:1:relationship.Count() {
+					Set child=relationship.GetAt(i)
+					Set status=..GetContentGUIDs(file, child)
+					If $$$ISERR(status) Quit
+				}
+			}
+		}
+		If $$$ISERR(status) Quit
+	}
+	Quit status
+]]></Implementation>
+</Method>
+
+<Method name="FindGUID">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>obj:%RegisteredObject,guid:%String</FormalSpec>
+<ReturnType>%Boolean</ReturnType>
+<Implementation><![CDATA[
+    #Define cardinality(%classname,%propertyname) $$$defMemberKeyGet(%classname,$$$cCLASSproperty,%propertyname,$$$cPROPcardinality)
+    s found=0
+    
+    if obj.GUID'="",obj.GUID=guid
+	{
+		s found=1
+	}
+	
+	if 'found {
+    	s classname=obj.%ClassName(1)
+    	s propertyname=""
+    	For
+    	{
+	        s propertyname=$$$defMemberNext(classname,$$$cCLASSproperty,propertyname)
+        	q:propertyname=""
+        	if $$$cardinality(classname,propertyname)=$$$cPROPCARDINALITYCHILDREN
+        	{
+		        x ("(obj,relObj) s relObj=obj."_propertyname,obj,.relChildObj)
+	        	if relChildObj
+	        	{
+			        for i=1:1:relChildObj.Count()
+		        	{
+				        s childObj=relChildObj.GetAt(i)
+			        	s found=..FindGUID(childObj,guid)
+			      		q:found
+		        	}
+	        	}
+        	}
+        	q:found
+    	}
+	}    
+    q found
+]]></Implementation>
+</Method>
+
+<Method name="initQualifier">
+<Description>
+Initialise Qualifier details</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[group:%String,&qtable:%String]]></FormalSpec>
+<Private>1</Private>
+<Implementation><![CDATA[
+	#Define QualifierGroup "Element"
+	#; XML.Exchange additions in ^%qCacheObjectQualifier format.
+	i group = $$$QualifierGroup {
+		s qtable($$$QualifierGroup,"loadguids")=""
+		s qtable($$$QualifierGroup,"loadguids","default")=0
+		s qtable($$$QualifierGroup,"loadguids","description")="Use unique indices to assign GUIDs from XML." _ $c(13,10) _
+		"If the class definition of an element contains one or more unique indices and all the properties from the XML match an existing element the GUID from the XML will be assigned to the existing element."
+		s qtable($$$QualifierGroup,"loadguids","enumlist")="0,1"
+		s qtable($$$QualifierGroup,"loadguids","negated")=0
+		s qtable($$$QualifierGroup,"loadguids","present")=1
+		s qtable($$$QualifierGroup,"loadguids","type")="logical"
+		
+		s qtable($$$QualifierGroup,"exportcomment")=""
+		s qtable($$$QualifierGroup,"exportcomment","default")=""
+		s qtable($$$QualifierGroup,"exportcomment","description")=" When exporting items include this value as an XML comment in each file."
+		s qtable($$$QualifierGroup,"exportcomment","type")="string"
+		
+		s qtable($$$QualifierGroup,"display")=""
+		s qtable($$$QualifierGroup,"display","alias","error")="displayerror"
+		s qtable($$$QualifierGroup,"display","alias","log")="displaylog"
+		s qtable($$$QualifierGroup,"display","aliaslist")="displayerror,displaylog"
+		s qtable($$$QualifierGroup,"display","all")="all"
+		s qtable($$$QualifierGroup,"display","description")="Alias qualifier for /displaylog and displayerror."
+		s qtable($$$QualifierGroup,"display","enumlist")="error,log"
+		s qtable($$$QualifierGroup,"display","negated")="none"
+		s qtable($$$QualifierGroup,"display","none")="none"
+		s qtable($$$QualifierGroup,"display","present")="all"
+		s qtable($$$QualifierGroup,"display","type")="alias"
+		
+		s qtable($$$QualifierGroup,"displayerror")=""
+		s qtable($$$QualifierGroup,"displayerror","default")=1
+		s qtable($$$QualifierGroup,"displayerror","description")="Display error information."
+		s qtable($$$QualifierGroup,"displayerror","enumlist")="0,1"
+		s qtable($$$QualifierGroup,"displayerror","flag",0)="-d"
+		s qtable($$$QualifierGroup,"displayerror","flag",1)="+d"
+		s qtable($$$QualifierGroup,"displayerror","negated")=0
+		s qtable($$$QualifierGroup,"displayerror","present")=1
+		s qtable($$$QualifierGroup,"displayerror","type")="logical"
+
+		s qtable($$$QualifierGroup,"displaylog")=""
+		s qtable($$$QualifierGroup,"displaylog","default")=1
+		s qtable($$$QualifierGroup,"displaylog","description")="Display log information."
+		s qtable($$$QualifierGroup,"displaylog","enumlist")="0,1"
+		s qtable($$$QualifierGroup,"displaylog","flag",0)="-d"
+		s qtable($$$QualifierGroup,"displaylog","flag",1)="+d"
+		s qtable($$$QualifierGroup,"displaylog","negated")=0
+		s qtable($$$QualifierGroup,"displaylog","present")=1
+		s qtable($$$QualifierGroup,"displaylog","type")="logical"
+		
+		s qtable($$$QualifierGroup,"name")=""
+		s qtable($$$QualifierGroup,"name","default")="descandguid"
+		s qtable($$$QualifierGroup,"name","description")="The name can be the description, GUID or the description concatenated by the GUID." _ $c(13,10) _
+		"The name is used as the file name when exporting and by the display log output."
+		s qtable($$$QualifierGroup,"name","enumlist")="desc,guid,descandguid"
+		s qtable($$$QualifierGroup,"name","negated")="guid"
+		s qtable($$$QualifierGroup,"name","present")="descandguid"
+		s qtable($$$QualifierGroup,"name","type")="enum"
+		
+		s qtable($$$QualifierGroup,"force")=""
+		s qtable($$$QualifierGroup,"force","default")=0
+		s qtable($$$QualifierGroup,"force","description")="Load elements that contain unresolved GUID references or replace existing GUID when used in conjunction with /loadguids."
+		s qtable($$$QualifierGroup,"force","enumlist")="0,1"
+		s qtable($$$QualifierGroup,"force","negated")=0
+		s qtable($$$QualifierGroup,"force","present")=1
+		s qtable($$$QualifierGroup,"force","type")="logical"
+		
+		s qtable($$$QualifierGroup,"references")=""
+		s qtable($$$QualifierGroup,"references","default")=1
+		s qtable($$$QualifierGroup,"references","description")="Recursively include referenced elements.  The value is the maximum number of steps that will be made from the specified elements."
+		s qtable($$$QualifierGroup,"references","type")="string"
+		
+		s qtable($$$QualifierGroup,"onlyfirst")=""
+		s qtable($$$QualifierGroup,"onlyfirst","default")=0
+		s qtable($$$QualifierGroup,"onlyfirst","description")="Export just one element from each table.  This qualifier can be used with the ExportAllDir or ExportTableDir methods."
+		s qtable($$$QualifierGroup,"onlyfirst","enumlist")="0,1"
+		s qtable($$$QualifierGroup,"onlyfirst","negated")=0
+		s qtable($$$QualifierGroup,"onlyfirst","present")=1
+		s qtable($$$QualifierGroup,"onlyfirst","type")="logical"
+		
+		s qtable($$$QualifierGroup,"overwrite")=""
+		s qtable($$$QualifierGroup,"overwrite","default")=0
+		s qtable($$$QualifierGroup,"overwrite","description")="Replace existing files with exported elements."
+		s qtable($$$QualifierGroup,"overwrite","enumlist")="0,1"
+		s qtable($$$QualifierGroup,"overwrite","negated")=0
+		s qtable($$$QualifierGroup,"overwrite","present")=1
+		s qtable($$$QualifierGroup,"overwrite","type")="logical"
+		
+		s qtable($$$QualifierGroup,"quitonerror")=""
+		s qtable($$$QualifierGroup,"quitonerror","default")=0
+		s qtable($$$QualifierGroup,"quitonerror","description")="If an error is encountered whilst loading a file do not attempt to load any more files."
+		s qtable($$$QualifierGroup,"quitonerror","enumlist")="0,1"
+		s qtable($$$QualifierGroup,"quitonerror","negated")=0
+		s qtable($$$QualifierGroup,"quitonerror","present")=1
+		s qtable($$$QualifierGroup,"quitonerror","type")="logical"
+		
+		s qtable($$$QualifierGroup,"update")=""
+		s qtable($$$QualifierGroup,"update","default")=0
+		s qtable($$$QualifierGroup,"update","description")="Only update properties specified in the XML.  Properties not specified in the element XML will not be modified."
+		s qtable($$$QualifierGroup,"update","enumlist")="0,1"
+		s qtable($$$QualifierGroup,"update","negated")=0
+		s qtable($$$QualifierGroup,"update","present")=1
+		s qtable($$$QualifierGroup,"update","type")="logical"
+		
+		s qtable($$$QualifierGroup,"validate")=""
+		s qtable($$$QualifierGroup,"validate","default")=0
+		s qtable($$$QualifierGroup,"validate","description")="Check exported elements can be loaded."
+		s qtable($$$QualifierGroup,"validate","enumlist")="0,1"
+		s qtable($$$QualifierGroup,"validate","negated")=0
+		s qtable($$$QualifierGroup,"validate","present")=1
+		s qtable($$$QualifierGroup,"validate","type")="logical"
+		
+		s qtable($$$QualifierGroup,"validateregistered")=""
+		s qtable($$$QualifierGroup,"validateregistered","default")=0
+		s qtable($$$QualifierGroup,"validateregistered","description")="Check that registered objects pass validation."
+		s qtable($$$QualifierGroup,"validateregistered","enumlist")="0,1"
+		s qtable($$$QualifierGroup,"validateregistered","negated")=0
+		s qtable($$$QualifierGroup,"validateregistered","present")=1
+		s qtable($$$QualifierGroup,"validateregistered","type")="logical"
+		
+		s qtable($$$QualifierGroup,"bypassccr")=""
+		s qtable($$$QualifierGroup,"bypassccr","default")=1
+		s qtable($$$QualifierGroup,"bypassccr","description")="Bypass CCR."
+		s qtable($$$QualifierGroup,"bypassccr","enumlist")="0,1"
+		s qtable($$$QualifierGroup,"bypassccr","negated")=0
+		s qtable($$$QualifierGroup,"bypassccr","present")=1
+		s qtable($$$QualifierGroup,"bypassccr","type")="logical"
+		
+		s qtable($$$QualifierGroup,"bypassexclusion")=""
+		s qtable($$$QualifierGroup,"bypassexclusion","default")=0
+		s qtable($$$QualifierGroup,"bypassexclusion","description")="Export not to include classes on CCR exclusion list,  This qualifier can be used with the ExportAllDir."
+		s qtable($$$QualifierGroup,"bypassexclusion","enumlist")="0,1"
+		s qtable($$$QualifierGroup,"bypassexclusion","negated")=0
+		s qtable($$$QualifierGroup,"bypassexclusion","present")=1
+		s qtable($$$QualifierGroup,"bypassexclusion","type")="logical"
+		
+		#; Use system wide defaults when available
+		i $d(^%qCacheObjectQualifier($$$QualifierGroup)) {
+			m qtable($$$QualifierGroup) = ^%qCacheObjectQualifier($$$QualifierGroup)
+		}
+	}
+]]></Implementation>
+</Method>
+
+<XData name="XMLToClassName">
+<Description>
+XSL used to transform the item prior to load.</Description>
+<Data><![CDATA[
+<?xml version="1.0"?>
+<xsl:stylesheet xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+xmlns:xsl="http://www.w3.org/1999/XSL/Transform"
+version="2.0">
+<xsl:output method="text" omit-xml-declaration="yes"/>
+<!-- Get the ClassName from metadata -->
+<xsl:template match="Export/Information"><xsl:value-of select="ClassName"/>
+</xsl:template>
+
+<xsl:template match="@*|node()">
+<xsl:apply-templates select="@*|node()"/>
+</xsl:template>
+</xsl:stylesheet>
+]]></Data>
+</XData>
+
+<XData name="XMLConversion">
+<Description>
+XSL used to strip xml declaration.</Description>
+<Data><![CDATA[
+<?xml version="1.0"?>
+<xsl:stylesheet xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+xmlns:xsl="http://www.w3.org/1999/XSL/Transform"
+version="2.0">
+<xsl:output method="xml" omit-xml-declaration="yes"/>
+
+<xsl:template match="@*|node()">
+<xsl:copy>
+<xsl:apply-templates select="@*|node()"/>
+</xsl:copy>
+</xsl:template>
+</xsl:stylesheet>
+]]></Data>
+</XData>
+
+<Method name="RemoveDeletes">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>check:%String</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	i $g(check)="" s check=0
+	;s del="873C4179-F373-4018-A11D-4DC88163E12E,COMP||1||982W50136,websys.TranslationType"
+	;s del=del_"^F6AD0CC5-7C57-4429-A13B-2509595CCDB8,COMP||1||407W543PO,websys.TranslationType"
+	;s del=del_"^15A35D7F-61DC-48D6-80BF-B8F7FFF09B6B,COMP||1||1163W50061,websys.TranslationType"
+	;s del=del_"^70738B40-83D4-4F68-9997-2A3485387268,COMP||1||469W50082,websys.TranslationType"
+	;s del=del_"^BA8905D6-14EB-4FE4-A120-51FF778413D0,COMP||1||469W50070,websys.TranslationType"
+	;s del=del_"^FAB7EA6B-EC00-4A27-8C62-50B3042E6156,COMP||1||469W50116,websys.TranslationType"
+	;s del=del_"^C1FE0E6A-9EC7-4E69-A9EE-95EEC8719D76,COMP||1||265W50105,websys.TranslationType"
+	;s del=del_"^B93008FE-B771-4F19-A7CF-355A29C17F1D,COMP||1||585W50063,websys.TranslationType"
+	;s del=del_"^D44A40C3-1F26-4304-A3B7-D1804CAC8F2F,COMP||1||585W714,websys.TranslationType"
+	;s del=del_"^BA271F83-C411-44D6-8AF8-53C3797C7A15,COMP||1||277W50110,websys.TranslationType"
+	;s del=del_"^4B7FA9A6-668C-4E1D-AC26-E29841A716F5,COMP||1||1895LXFTSA1,websys.TranslationType"
+	;s del=del_"^F82D88B0-7970-4EBB-A8EF-DFCC1D4A7E2E,COMP||1||1895L21XFTSA1,websys.TranslationType"
+	;s del=del_"^ADE96400-BE31-4BDD-937A-764416CB4759,COMP||1||128W50135,websys.TranslationType"
+	;s del=del_"^6C01FB5A-4BD3-4C58-9EB5-1B2C2F300F81,COMP||1||51W,websys.TranslationType"
+	;s del=del_"^C5C743F4-5927-4969-859B-72286BE98F2D,COMP||1||256W50132,websys.TranslationType"
+	;s del=del_"^E96D20E3-652A-4063-AE55-C020F8C9AD2E,COMP||1||256W50131,websys.TranslationType"
+	;s del=del_"^89789893-BB73-4AC7-8C43-90FDF0978DD6,COMP||1||1758C91AL142,websys.TranslationType"
+	s del="EB14802C-2031-4646-8789-34E9D6037725,699,websys.Preferences"
+	s del=del_"^759C65C8-B9A5-48DA-884C-886F2A7ED961,700,websys.Preferences"
+	;s del=del_"^CDD9B39C-F0F7-437A-843F-D80089280E55,8,epr.CTDischargeSummaryType"
+	s del=del_"^759C65C8-B9A5-48DA-884C-886F2A7ED961,2241,websys.Preferences"
+	s del=del_"^EB14802C-2031-4646-8789-34E9D6037725,2246,websys.Preferences"
+	s del=del_"^DB178660-0A4B-4EDA-B3DD-A26C55915F15,44,epr.FPView"
+	s del=del_"^E31A1416-7069-4E7D-99C3-3918E3F1D4B6,14,User.ARCBillBodyParts"
+	s del=del_"^F1FDE12C-C06C-485E-8DEB-54F1C583F97C,2218,websys.Preferences"
+	s del=del_"^3BD0090E-5B15-42D1-AF4B-02C600C76425,786,websys.Preferences"
+	s del=del_"^2C2F9BB5-D958-4052-8EF6-9815B6BBF5FA,_COMPONENT||Kweb.RBResource:LookUpByLocation||ListUDF,websys.TranslationLookup"
+	s del=del_"^7B0D7567-2BB2-4410-B073-D276BBED9A5C,_COMPONENT||Kweb.RBResource:LookUpByLocation||ListRowClass,websys.TranslationLookup"
+	s del=del_"^45D90828-0038-4F3C-A93D-4C3DD91BC13E,_COMPONENT||Kweb.RBResource:LookUpOpRes||ListUDF,websys.TranslationLookup"
+	s del=del_"^12EE86C0-A58D-421B-8E8B-6C6541A29823,_COMPONENT||Kweb.RBResource:LookUpOpRes||ListRowClass,websys.TranslationLookup"
+	s del=del_"^72DDCCF9-820A-4A2F-B4CA-1135B00B35C1,_COMPONENT||Kweb.ORCEquipment:LookUpEquipWithChildT||ListUDF,websys.TranslationLookup"
+	s del=del_"^A1E08F7C-7D72-4EF5-8258-68C5433F37D0,_COMPONENT||Kweb.ORCEquipment:LookUpEquipWithChildT||ListRowClass,websys.TranslationLookup"
+	s del=del_"^7CAA41F0-EBF0-4F25-8E55-15319DEB88B2,34,epr.WorklistItemParams"
+	s del=del_"^624EA753-239F-4FFB-BF09-F9C2110BCFB3,33,epr.WorklistItemParams"
+	s del=del_"^B76E86FF-4578-4731-AD7D-0E647FC6A548,_COMPONENT||Kweb.CTLoc:LookUpLoc||ListUDF,websys.TranslationLookup"
+	s del=del_"^872F161F-9FAB-419F-9B3B-FABD70D7BEC3,_COMPONENT||Kweb.CTLoc:LookUpLoc||ListRowClass,websys.TranslationLookup"
+	s del=del_"^AA379837-C383-4819-A8BF-6FE07BAD8560,2248,websys.Preferences"
+	s del=del_"^AA2563DB-2505-498A-9945-A9E3CD41DF5B,1||Kweb.CTLoc:LookUpLoc||1,websys.TranslationLookup"
+	s del=del_"^88BA2064-636F-4732-8498-930E3A2426D8,1||Kweb.CTLoc:LookUpLoc||3,websys.TranslationLookup"
+	s del=del_"^85AAE011-95B1-4544-A06D-FE87388535EB,1||Kweb.CTLoc:LookUpLoc||5,websys.TranslationLookup"
+	s del=del_"^66A3A619-A34F-43BE-BEA0-C7513BEA1773,1||Kweb.CTLoc:LookUpLoc||5,websys.TranslationLookup"
+	s del=del_"^8B099A98-003C-48B4-B4A7-7899FEE1FE11,_COMPONENT||Kweb.CTLoc:LookUpLoc||ListUDF,websys.TranslationLookup"
+	s del=del_"^BD509DC5-F3DE-460B-AF00-683285F72F7F,_COMPONENT||Kweb.ORCEquipment:LookUpEquipment||ListUDF,websys.TranslationLookup"
+	s del=del_"^8DE4F614-60ED-4DE9-A830-D158C58E2053,_COMPONENT||Kweb.ORCEquipment:LookUpEquipment||ListRowClass,websys.TranslationLookup"
+	s del=del_"^1865BCD0-DF97-4984-BFD8-BB92D2846666,CONTEXTREGION1||251W50134POA,websys.TranslationContext"
+	s del=del_"^705646BC-7A9F-4872-83D0-A7BA408AEE98,1730,websys.Preferences"
+	s del=del_"^7619C410-0548-4AFF-9DD3-0331DE8845A6,CONTEXTREGION1||48W50103,websys.TranslationContext"
+	s del=del_"^2386B863-4C7E-4DB7-9759-D082E06F051E,1893,websys.Preferences"
+	;s del=del_"^897C8928-ADB8-475A-8DE8-BBF01A90AEE3,484,websys.Preferences"
+	s del=del_"^B2914A9F-CA08-40AA-98A6-3914053280DD,763,websys.Preferences"
+	s del=del_"^4DB84FEB-9A65-4E11-A968-5F894B1F1B95,762,websys.Preferences"
+	s del=del_"^813CE817-F7DC-426E-A138-F706C8E45633,623,websys.Preferences"
+	s del=del_"^EFE8CAD7-5EAB-481E-813C-E961476D7045,60,websys.Preferences"
+	s del=del_"^16EACA59-9F35-4AD8-ADE7-9CE92933BD02,61,websys.Preferences"
+	;s del=del_"^E6102C45-C414-4039-B302-33EE14C562C1,6,websys.UserDefinedFunctions"
+	s del=del_"^80827895-E756-4D9B-A642-179C330CA6EB,2288,websys.Preferences"
+	s del=del_"^0E514415-6015-448E-86E4-C507637629E5,2292,websys.Preferences"
+	s del=del_"^4C274435-6307-4A09-916A-73918391F816,CONTEXT||1027,websys.TranslationContext"
+	s del=del_"^2D301450-87BF-43FA-9CF9-E853B3A46867,CONTEXT1||1027,websys.TranslationContext"
+	s del=del_"^73E883EF-6E96-48A6-8ACC-F26DDD6C9D4E,2290,websys.Preferences"
+	s del=del_"^9F57A029-75C2-4ADF-BE4A-9AA55FAA4AE9,2291,websys.Preferences"
+	s del=del_"^E609D381-0A7A-458D-AFDD-436948C692EB,2379,websys.Preferences"
+	s del=del_"^6F400A47-DADE-49BA-AE1F-217726D0492E,CONTEXTREGION||1906R340,websys.TranslationContext"
+	s del=del_"^F220BE38-8C81-4D8A-9A9D-59DE2D495CB2,CONTEXTREGION1||1906R340,websys.TranslationContext"
+	s del=del_"^8D2D9ABE-8B6C-4F98-8A82-AABDB6F07813,657,websys.Preferences"
+	s del=del_"^D46B48D1-5B85-42D6-B602-E457965098CB,CONTEXT||398R318,websys.TranslationContext"
+	s del=del_"^27366F5F-84A5-4186-BE97-6AEE40B6926B,CONTEXT1||398R318,websys.TranslationContext"
+	s del=del_"^FAA24F93-90BF-44BC-A6FE-1E0F62976248,1510,websys.Preferences"
+	s del=del_"^4272830E-E4DC-44FB-AB37-582509B1D881,807,websys.Preferences"
+	s del=del_"^9967E5C0-EDD6-4667-B0EC-BE93178C518C,1007,websys.Preferences"
+	s del=del_"^64C1E8DE-B00C-436F-AD4E-19245DCEC432,337,websys.Report"
+	s del=del_"^4027642A-5593-4DCF-BFD6-A7F4BCFF65B3,334,websys.Report"
+	s del=del_"^4F6DD01F-13A7-4713-AF17-98734562FA14,332,websys.Report"
+	s del=del_"^375B6F13-A00E-49AC-BA64-5E946620681B,336,websys.Report"
+	s del=del_"^93FB7D98-0BD5-42CF-8F67-56F43EC79DF5,344,websys.Report"
+	s del=del_"^E79775BF-F2D4-4D9A-8819-2D794A70A103,341,websys.Report"
+	s del=del_"^0BE207DA-0997-4D6D-BD7B-C70AA02401B6,339,websys.Report"
+	s del=del_"^22AC1717-A971-47FF-A26D-583A15DAABA4,345,websys.Report"
+	s del=del_"^18475917-34F8-4814-95A1-009D81077AC6,343,websys.Report"
+	s del=del_"^E144C198-1EA1-4BF4-AEA5-5A6C5476E501,335,websys.Report"
+	s del=del_"^351820BC-4465-49D7-8A06-6801DB5123D8,333,websys.Report"
+	s del=del_"^349CFFD9-E243-46BD-B62A-49C5A9B901F0,371,websys.Report"
+	s del=del_"^0DDEA503-0410-42E1-AA30-E81190EF416D,331,websys.Report"
+	s del=del_"^3DB0BCA1-4EB4-4BE0-BF45-C4AE55B55BEC,CONTEXTREGION||1906R337,websys.TranslationContext"
+	s del=del_"^6274C26F-0AD3-4082-B4DA-317F24055D19,CONTEXTREGION1||1906R337,websys.TranslationContext"
+	s del=del_"^8273D6F9-0997-4BCD-8400-299F1D7D6F46,2376,websys.Preferences"
+	s del=del_"^A4861DA6-BEE7-4F9B-B341-A14C9DCB226C,CONTEXTREGION||1906R334,websys.TranslationContext"
+	s del=del_"^77CE0596-A664-418A-AC00-0C1F1F270FA5,CONTEXTREGION1||1906R334,websys.TranslationContext"
+	s del=del_"^2CEBDF0D-8138-48A1-82C9-45BE3F96DF96,2373,websys.Preferences"
+	s del=del_"^3EC04DB5-892B-42C2-B794-0AA248C5B084,CONTEXTREGION||1906R332,websys.TranslationContext"
+	s del=del_"^F48C6C45-8E5D-4E5C-A166-D8E8C5DE3EF7,CONTEXTREGION1||1906R332,websys.TranslationContext"
+	s del=del_"^84D5AE50-A5F0-4134-8B51-7ADB2108471F,2371,websys.Preferences"
+	s del=del_"^025AB7A1-D19D-4B8C-9343-5E2FC901CED8,CONTEXTREGION||1906R336,websys.TranslationContext"
+	s del=del_"^F9FD7B02-9DBE-44D2-BFCF-5DF3F47F094D,CONTEXTREGION1||1906R336,websys.TranslationContext"
+	s del=del_"^7F2229A9-F01C-4FF6-91B5-3E83959EBBA4,2375,websys.Preferences"
+	s del=del_"^FEBCEEC4-F071-4571-82AD-5010A4745EF6,CONTEXTREGION||1906R340,websys.TranslationContext"
+	s del=del_"^23099676-4A9D-4FD4-881A-64E144D4CA5F,CONTEXTREGION1||1906R340,websys.TranslationContext"
+	s del=del_"^AB9C56D8-2CA3-4FC6-B66C-ACAA40DAF220,2482,websys.Preferences"
+	s del=del_"^A1AF9B4B-1B0A-4EE9-9ADA-BAD2DCF5ABD8,CONTEXTREGION||1906R344,websys.TranslationContext"
+	s del=del_"^97737EFD-F098-4B22-A935-6B15FD76F58D,CONTEXTREGION1||1906R344,websys.TranslationContext"
+	s del=del_"^C93465CF-F2EF-4591-BA46-7636FD8C52D7,2383,websys.Preferences"
+	s del=del_"^C9568D7B-69A5-4659-8F49-051D4BF3A7FD,CONTEXTREGION||1906R341,websys.TranslationContext"
+	s del=del_"^0E29CE76-1507-458D-8EFA-C7B9F97AB166,CONTEXTREGION1||1906R341,websys.TranslationContext"
+	s del=del_"^97C70039-1648-41F6-B2BE-BCBEAF5A4F39,2380,websys.Preferences"
+	s del=del_"^D8CC2A4F-E142-44CB-987F-93CACD877E39,CONTEXTREGION||1906R339,websys.TranslationContext"
+	s del=del_"^29D7AAFF-B697-4DD9-A6C0-107F025DCC79,CONTEXTREGION1||1906R339,websys.TranslationContext"
+	s del=del_"^6D9CDC51-D3A8-4061-9CAA-0C57E93FDFB0,2378,websys.Preferences"
+	s del=del_"^5A52985D-7E2E-443D-B237-DC218C5F2BB6,CONTEXTREGION||1906R345,websys.TranslationContext"
+	s del=del_"^1B2B0AD7-25A5-4BF1-AF22-6B50FDB8A03C,CONTEXTREGION1||1906R345,websys.TranslationContext"
+	;s del=del_"^16E37B70-3BD4-492C-8707-BF9A9279CF77,2384,websys.Preferences"
+	s del=del_"^35A12280-4028-40B9-BAE8-F3D8D89E541B,CONTEXTREGION||1906R343,websys.TranslationContext"
+	s del=del_"^6A383F43-6DDC-40BA-8775-DBE110C45B1D,CONTEXTREGION1||1906R343,websys.TranslationContext"
+	s del=del_"^6CEA7D33-97BE-4C7D-A95B-727F89462BF8,2382,websys.Preferences"
+	s del=del_"^B2BA9F67-1AB5-4240-AD6D-EE1353143212,CONTEXTREGION||1906R335,websys.TranslationContext"
+	s del=del_"^F76D366C-3F2E-472A-A271-F0123A7602BB,CONTEXTREGION1||1906R335,websys.TranslationContext"
+	s del=del_"^6BD1663C-2D7A-4A7C-8FBB-94F601AD70B6,2374,websys.Preferences"
+	s del=del_"^48AAA28E-BDA8-41BA-A568-52CD7E076F59,CONTEXTREGION||1906R333,websys.TranslationContext"
+	s del=del_"^0914DE47-279B-4A2D-9E67-B67F8786AC59,CONTEXTREGION1||1906R333,websys.TranslationContext"
+	s del=del_"^7BC00884-E5CD-48B5-931E-7494D78BEF61,2372,websys.Preferences"
+	s del=del_"^4C735629-7DF7-4656-B0D6-CF016207C662,CONTEXTREGION||1906R331,websys.TranslationContext"
+	s del=del_"^16221D25-6C80-4879-841C-7A3E9A6BBF8C,CONTEXTREGION1||1906R331,websys.TranslationContext"
+	s del=del_"^58E7FCCC-5F31-4ECE-A045-9C1F665CE8AE,2370,websys.Preferences"
+	s del=del_"^736A84A7-DD52-4FA6-90A6-409914B3147B,CONTEXTREGION||1906R371,websys.TranslationContext"
+	s del=del_"^205B7041-44DF-44DF-814D-C6648099B263,CONTEXTREGION1||1906R371,websys.TranslationContext"
+	s del=del_"^71FFFAD3-2E00-413F-9A07-45F1B6286F0D,2413,websys.Preferences"
+	s del=del_"^6EB370B1-3EE2-4B6C-A2F2-B781FD14D977,796,websys.Preferences"
+	;s del=del_"^78CAEE67-84D7-425A-93E3-DBBEA145F157,50424,websys.Menu"
+	;s del=del_"^470393F5-D443-4402-8313-82754FD77DAA,50411,websys.Menu"
+	;s del=del_"^6DE04672-8AF2-42D7-9E6C-8BEE84656035,50412,websys.Menu"
+	;s del=del_"^922796E2-04B1-4B48-A7F2-29DBBCD6A6BA,50413,websys.Menu"
+	;s del=del_"^FB177538-B5F5-4099-8067-532CB2003762,50414,websys.Menu"
+	;s del=del_"^D57EF737-C931-4279-AB80-8BC207A1573E,50415,websys.Menu"
+	;s del=del_"^12B05103-8342-4E00-9DCE-3673B71E1810,50416,websys.Menu"
+	;s del=del_"^CF383BD0-09CC-41E4-924A-34E97184466E,50417,websys.Menu"
+	;s del=del_"^F4BDBC5D-C248-4E20-A4C0-F843754F9AD1,50419,websys.Menu"
+	;s del=del_"^1FC44F83-B8A7-406F-B17B-D140A6493ADA,50420,websys.Menu"
+	;s del=del_"^49FF9917-3BC1-4457-8182-EF71ADABDECB,50421,websys.Menu"
+	;s del=del_"^1EDD5A1C-BCCB-4178-9815-1C85F3CCB0F0,50423,websys.Menu"
+	;s del=del_"^FB6740DF-61B1-49D1-910E-9877BF951A3D,50425,websys.Menu"
+	;s del=del_"^D66BD26C-AA3B-4A1E-8AB8-246F5DFCFB5A,50457,websys.Menu"
+	s del=del_"^99B118CB-38A1-408C-A76B-BC7ECC6AD16E,CONTEXT||1906,websys.TranslationContext"
+	s del=del_"^176A10B8-691A-4386-AB9F-AE1954A2350A,CONTEXT1||1906,websys.TranslationContext"
+	s del=del_"^4A0E5F1E-E314-4F54-A1CD-F11EC9B199F5,2520,websys.Preferences"
+	s del=del_"^8B099A98-003C-48B4-B4A7-7899FEE1FE11,_COMPONENT||Kweb.CTLoc:LookUpLoc||ListUDF,websys.TranslationLookup"
+	s del=del_"^2DF627E4-EF34-44A4-9E64-2113C170EE79,_COMPONENT||Kweb.CTLoc:LookUpLoc||ListRowClass,websys.TranslationLookup"
+	;s del=del_"^2D0A2092-7CE8-4018-95E3-39A63B253B49,145,User.CTLoc"
+	s del=del_"^770F81BD-5302-4B6F-AEEE-94705525779B,_COMPONENT||Kweb.CTLoc:LookUpLoc||ListUDF,websys.TranslationLookup"
+	s del=del_"^384EBF9A-86E8-4983-9177-307A735E4F2F,875,websys.Preferences"
+	s del=del_"^C7085A20-6F3D-4001-B7BF-AD6A9B5E6BFE,CONTEXT||398R317,websys.TranslationContext"
+	s del=del_"^EDE56FD1-ABC2-457A-B3B3-4E4BF1F8F663,CONTEXT1||398R317,websys.TranslationContext"
+	s del=del_"^5A305CA5-E78F-4D77-BEA5-071561F59E45,1509,websys.Preferences"
+	s del=del_"^2A26CC72-3463-4C13-AD3B-2285B663B71B,2335,websys.Preferences"
+	s del=del_"^7435FCE9-33BB-44D8-94AC-79356EDBC358,_COMPONENT||Kweb.RBResource:LookUpByPartialCareProv||ListUDF,websys.TranslationLookup"
+	s del=del_"^B09AB1EA-4E8D-4B75-B46E-A4F45C4B5046,_COMPONENT||Kweb.RBResource:LookUpByPartialCareProv||ListRowClass,websys.TranslationLookup"
+	s del=del_"^9D90C0C0-6B8D-471C-BB66-717BCB8A73ED,_COMPONENT||Kweb.RBResource:LookUpByPartialCareProv||ListRowClass,websys.TranslationLookup"
+	s del=del_"^9D90C0C0-6B8D-471C-BB66-717BCB8A73ED,_COMPONENT||Kweb.RBResource:LookUpByPartialCareProv||ListRowClass,websys.TranslationLookup"
+	s del=del_"^1A111583-DDAA-4BE0-965A-543E038CB370,865,User.CTLoc"
+	;s del=del_"^87E0B4F8-0769-4541-AA58-7823A8C14363,866,User.CTLoc"
+	s del=del_"^770F81BD-5302-4B6F-AEEE-94705525779B,_COMPONENT||Kweb.CTLoc:LookUpLoc||ListUDF,websys.TranslationLookup"
+	s del=del_"^538FB08D-1768-48BB-A5C8-B82CD40B96C1,_COMPONENT||Kweb.RBResource:LookUpOpRes||ListUDF,websys.TranslationLookup"
+	s del=del_"^531D838F-FE9D-4D05-94F9-6C8BAB49AF24,_COMPONENT||Kweb.RBResource:LookUpOpRes||ListRowClass,websys.TranslationLookup"
+	s del=del_"^76715EFA-10A3-4FEB-B64A-FCC5258BF510,872,User.CTLoc"
+	;s del=del_"^52BE33B2-A3BB-4F84-B887-EE26517F5875,878,User.CTLoc"
+	s del=del_"^49D3EA1E-68FD-43F1-936C-006EBB4CD500,_COMPONENT||Kweb.CTLoc:LookUpLoc||ListRowClass,websys.TranslationLookup"
+	s del=del_"^49D3EA1E-68FD-43F1-936C-006EBB4CD500,_COMPONENT||Kweb.CTLoc:LookUpLoc||ListRowClass,websys.TranslationLookup"
+	s del=del_"^5880FB0B-BE67-41AF-B882-3BBC82A77BFE,_COMPONENT||Kweb.CTLoc:LookUpLoc||ListRowClass,websys.TranslationLookup"
+	s del=del_"^5880FB0B-BE67-41AF-B882-3BBC82A77BFE,_COMPONENT||Kweb.CTLoc:LookUpLoc||ListRowClass,websys.TranslationLookup"
+	s del=del_"^250B6138-4358-433A-BDB0-28AE102F6F3A,_COMPONENT||Kweb.CTLoc:LookUpLoc||ListRowClass,websys.TranslationLookup"
+	s del=del_"^250B6138-4358-433A-BDB0-28AE102F6F3A,_COMPONENT||Kweb.CTLoc:LookUpLoc||ListRowClass,websys.TranslationLookup"
+	s del=del_"^B6B7E615-28DF-4BEC-B409-AD8B4706B889,_COMPONENT||Kweb.CTLoc:LookUpLoc||ListRowClass,websys.TranslationLookup"
+	s del=del_"^C1D191BC-E50C-4CAD-A66D-206748EA7A26,_COMPONENT||Kweb.RBResource:LookUpOpRes||ListUDF,websys.TranslationLookup"
+	s del=del_"^C1D191BC-E50C-4CAD-A66D-206748EA7A26,_COMPONENT||Kweb.RBResource:LookUpOpRes||ListUDF,websys.TranslationLookup"
+	s del=del_"^52A608B6-707A-4BA9-A759-D0A32B9E118B,_COMPONENT||Kweb.RBResource:LookUpOpRes||ListUDF,websys.TranslationLookup"
+	s del=del_"^52A608B6-707A-4BA9-A759-D0A32B9E118B,_COMPONENT||Kweb.RBResource:LookUpOpRes||ListUDF,websys.TranslationLookup"
+	s del=del_"^83153B28-FF6A-4763-885B-60B5DFC63C4A,_COMPONENT||Kweb.RBResource:LookUpOpRes||ListUDF,websys.TranslationLookup"
+	s del=del_"^53C3F802-E477-4EA5-A13D-E208BC03C591,_COMPONENT||Kweb.RBResource:LookUpOpRes||ListRowClass,websys.TranslationLookup"
+	s del=del_"^9C7E7E85-AA35-412C-9CF6-58AFC7D99F3E,_COMPONENT||Kweb.RBResource:LookUpByPartialCareProv||ListUDF,websys.TranslationLookup"
+	s del=del_"^0E028730-8464-4B32-8598-8AB9780C9C70,_COMPONENT||Kweb.RBResource:LookUpByPartialCareProv||ListRowClass,websys.TranslationLookup"
+	s del=del_"^CAC9EAE7-69A3-4396-B669-ACCAA94CFE19,2571,websys.Preferences"
+	s del=del_"^83153B28-FF6A-4763-885B-60B5DFC63C4A,_COMPONENT||Kweb.RBResource:LookUpOpRes||ListUDF,websys.TranslationLookup"
+	s del=del_"^53C3F802-E477-4EA5-A13D-E208BC03C591,_COMPONENT||Kweb.RBResource:LookUpOpRes||ListRowClass,websys.TranslationLookup"
+	s del=del_"^35ECCF09-F463-4470-B338-4D3B2E3C4E42,441,websys.Report"
+	s del=del_"^3A4D1CE0-DB2F-4123-BB84-9C7DD03034EC,453,websys.Report"
+	s del=del_"^73F62293-3009-47E7-9447-F84525AA16F1,442,websys.Report"
+	s del=del_"^49A19A6A-022C-4E94-B5C7-CA4CC38902D9,443,websys.Report"
+	s del=del_"^C2D776E8-11B0-4DCC-8CDA-2213BE0D564D,444,websys.Report"
+	s del=del_"^09D2DE2C-82D1-486C-BFC2-B75B341ED4C7,445,websys.Report"
+	s del=del_"^5B7B058F-2B0C-4DCA-A8FB-3CEE7D4E6DD0,454,websys.Report"
+	s del=del_"^D84FD7E0-09B0-480B-9254-669CF2A011AF,450,websys.Report"
+	s del=del_"^AB7FAACA-9990-4B3D-92E9-BF03F1E13FE4,451,websys.Report"
+	s del=del_"^43979F02-0FB5-405B-BD4B-8827454EEEFA,452,websys.Report"
+	s del=del_"^6C9E435D-310C-4828-927F-D77D1147EF85,449,websys.Report"
+	s del=del_"^887C4A93-0952-49E0-A0E0-601B12E6F6AA,2535,websys.Preferences"
+	s del=del_"^5764D308-106D-4A51-83A7-A1CC50C84FEC,2536,websys.Preferences"
+	s del=del_"^6BB7A90A-4E47-4BF3-BA40-8380F0D09B31,2621,websys.Preferences"
+	s del=del_"^3DAD30E9-27FC-4340-9B96-6C08ECCD8F4A,CONTEXT||1906R382,websys.TranslationContext"
+	s del=del_"^924CE277-723E-4E4E-ACD3-F6292979F9C7,CONTEXT1||1906R382,websys.TranslationContext"
+	s del=del_"^37EE28F3-8B76-4F0F-BC2D-500F57844911,2423,websys.Preferences"
+	s del=del_"^08C0D9D6-61F0-40CE-ABEE-0C140FB4FF1E,CONTEXTREGION||1906R382,websys.TranslationContext"
+	s del=del_"^D4DD041C-A88F-43B3-9ECC-BB28EC761787,CONTEXTREGION1||1906R382,websys.TranslationContext"
+	s del=del_"^514B9645-B17B-435C-86E3-F26C11A61B35,2567,websys.Preferences"
+	s del=del_"^DC70BC67-B86E-402B-B2DF-89363C1E2DE6,CONTEXT||1906R440,websys.TranslationContext"
+	s del=del_"^406A13CB-54F0-475C-93E2-726B5EE70686,CONTEXT1||1906R440,websys.TranslationContext"
+	s del=del_"^16A4FC7F-1A4A-4CD2-ABBA-86D9FCE66963,2527,websys.Preferences"
+	s del=del_"^7993DEEF-52FA-4E6E-AE7F-8F1F36355A57,CONTEXT||1906R394,websys.TranslationContext"
+	s del=del_"^51BD9827-D7F8-4535-8BE2-02AF1D4ACAE9,CONTEXT1||1906R394,websys.TranslationContext"
+	s del=del_"^E5FE405C-2D72-4F10-9100-9A7E1C181020,2529,websys.Preferences"
+	s del=del_"^72FEADD7-8B23-4D7B-91A6-B78763254930,CONTEXT||1906R398,websys.TranslationContext"
+	s del=del_"^A1A65442-6430-4552-B378-3D539B471993,CONTEXT1||1906R398,websys.TranslationContext"
+	s del=del_"^B125EB46-1AA0-48CC-A09B-A3173C6940C8,2591,websys.Preferences"
+	s del=del_"^A020EBAC-8FFC-4788-BB82-B6B333B06B3E,CONTEXTREGION||1906R457,websys.TranslationContext"
+	s del=del_"^15B49C62-AE0C-4A31-8C61-CAA6A2048E78,CONTEXTREGION1||1906R457,websys.TranslationContext"
+	s del=del_"^C3ED8384-CCFC-4952-AA90-46CAD04DE337,2592,websys.Preferences"
+	s del=del_"^CA201C54-C3DC-4C43-803F-326A49C26835,CONTEXTREGION||1906R455,websys.TranslationContext"
+	s del=del_"^DB8898D8-D35F-4F1F-860C-33DB991FA704,CONTEXTREGION1||1906R455,websys.TranslationContext"
+	s del=del_"^AC5C85E3-E9CE-4E28-93DE-0944BC6166D2,2594,websys.Preferences"
+	s del=del_"^EB71B7CF-2E0B-4110-90E0-C67100D9A0A5,CONTEXTREGION||1906R456,websys.TranslationContext"
+	s del=del_"^CD6519EE-8E45-418F-9C41-D8074F5C804C,CONTEXTREGION1||1906R456,websys.TranslationContext"
+	;s del=del_"^6C070108-16B2-4346-8DB8-1C73539CE16E,2623,websys.Preferences"
+	s del=del_"^06F80746-762D-4F76-98A2-24B2CBDBA095,CONTEXTREGION||1906R382,websys.TranslationContext"
+	;s del=del_"^2AEF036F-8BD9-4E88-99A6-27A90FA4F963,CONTEXTREGION1||1906R382,websys.TranslationContext"
+	s del=del_"^69FFC022-8F9F-433B-A72F-003AA16E41C6,693,User.CTLoc"
+	s del=del_"^069993E7-F989-4904-B9E2-1C5E7A9B4D20,CONTEXT||1906R338,websys.TranslationContext"
+	s del=del_"^FCC1A865-A4DB-46BF-BCCE-FBE7D95C3C86,CONTEXT1||1906R338,websys.TranslationContext"
+	s del=del_"^50D56CC7-030D-4B25-A8A5-532450B164F5,2531,websys.Preferences"
+	s del=del_"^7034FC30-3E46-4724-8DDB-82DCC6FC8B70,CONTEXT||251W50145PI,websys.TranslationContext"
+	s del=del_"^AC4B58E8-1309-4DC7-ABE6-ECAFE1018002,CONTEXT1||251W50145PI,websys.TranslationContext"
+	s del=del_"^37F62DC2-9496-4058-99CC-3170A25DBFF1,2269,websys.Preferences"
+	s del=del_"^872C97DA-31F9-4505-82E5-78A2B0F58FF4,_COMPONENT||Kweb.CTLoc:LookUpLoc||ListUDF,websys.TranslationLookup"
+	s del=del_"^B6B7E615-28DF-4BEC-B409-AD8B4706B889,_COMPONENT||Kweb.CTLoc:LookUpLoc||ListRowClass,websys.TranslationLookup"
+	;s del=del_"^24A037EC-F492-47F5-BF97-A18C05C4E927,2690,websys.Preferences"
+	s del=del_"^B06E9E2C-867D-4647-B457-E9D51BE05D32,_COMPONENT||Kweb.CTLoc:LookUpLoc||ListUDF,websys.TranslationLookup"
+	s del=del_"^3E84F3C2-1F13-47B3-934C-993C4DAE2072,75,websys.Preferences"
+	;s del=del_"^6A3905C3-846E-4848-9414-E68C9C646897,1064,websys.Preferences"
+	s del=del_"^9F199645-FF58-41CA-993B-0201F6B92651,_COMPONENT||Kweb.RTCMRecordType:LookUpMRType||ListUDF,websys.TranslationLookup"
+	s del=del_"^88DC6449-0C7D-4654-9517-7770AF1DEBCE,_COMPONENT||Kweb.RTCMRecordType:LookUpMRType||ListRowClass,websys.TranslationLookup"
+	s del=del_"^93F973A4-6F69-4C5B-9624-01BEBBA8571B,_COMPONENT||Kweb.RTCMRecordType:LookUpMRType||ListRowClass,websys.TranslationLookup"
+	s del=del_"^93F973A4-6F69-4C5B-9624-01BEBBA8571B,_COMPONENT||Kweb.RTCMRecordType:LookUpMRType||ListRowClass,websys.TranslationLookup"
+	s del=del_"^B06E9E2C-867D-4647-B457-E9D51BE05D32,_COMPONENT||Kweb.CTLoc:LookUpLoc||ListUDF,websys.TranslationLookup"
+	s del=del_"^41D5635D-F410-4C14-AE6B-4DFEA27C8CD7,_COMPONENT||Kweb.CTLoc:LookUpLoc||ListRowClass,websys.TranslationLookup"
+	s del=del_"^20B0A835-F110-44B1-B6CD-847828690AC8,_COMPONENT||Kweb.CTLoc:LookUpLoc||ListRowClass,websys.TranslationLookup"
+	s del=del_"^20B0A835-F110-44B1-B6CD-847828690AC8,_COMPONENT||Kweb.CTLoc:LookUpLoc||ListRowClass,websys.TranslationLookup"
+	s del=del_"^8F0A3408-76E8-479A-B790-034C8160F953,1384,websys.Preferences"
+	s del=del_"^659E8263-B2E5-484E-93DD-BAC72D1A5A81,1162,websys.Preferences"
+	s del=del_"^240FA92E-3895-4EFC-8CED-D1A6BF3365BA,1385,websys.Preferences"
+	s del=del_"^887CA54C-4105-4D23-9E71-20E0D497956C,1115,websys.Preferences"
+	s del=del_"^C6DB5586-B840-4B8C-9D5E-917AEC63ED73,1386,websys.Preferences"
+	s del=del_"^D70A1AA9-0920-4F7A-8A88-ACCB92C53FBD,1388,websys.Preferences"
+	s del=del_"^7218EB12-40FD-4126-8055-E22B73D4C4A4,1387,websys.Preferences"
+	s del=del_"^F3368761-7AF5-4FE5-9990-C56D72E6E0E1,1441,websys.Preferences"
+	s del=del_"^7BE8C911-C6BD-47C6-9322-914A67B85F1F,974,websys.Preferences"
+	s del=del_"^7707F87F-7736-4EF3-AA07-470C1BA3AC57,744,websys.Preferences"
+	s del=del_"^698157F9-DA0B-4EE5-8FDA-8DFA9EDB8F3F,1160,websys.Preferences"
+	s del=del_"^78B4E632-99EC-469B-B9D7-4BC00E71D246,743,websys.Preferences"
+	s del=del_"^DDD09E4D-4AEF-43D4-B687-399FAFD19223,CONTEXT||1767L26XFBSA2,websys.TranslationContext"
+	s del=del_"^21D59E70-19D3-41EA-B72F-AF905680B10F,2668,websys.Preferences"
+	s del=del_"^45D9E09E-0C53-4267-8A14-E16A3B078A08,_COMPONENT||Kweb.CTLoc:LookUpLoc||ListUDF,websys.TranslationLookup"
+	s del=del_"^C6FE0070-EE45-4758-A8B0-EFA5D0A3DA71,_COMPONENT||Kweb.CTLoc:LookUpLoc||ListRowClass,websys.TranslationLookup"
+	s del=del_"^3885D8DF-DA0E-4040-BC42-D00130ACD915,_COMPONENT||Kweb.RBResource:LookUpLocationByRes||ListUDF,websys.TranslationLookup"
+	s del=del_"^EA209985-9156-4D70-917E-E49A5F3ACBA0,_COMPONENT||Kweb.RBResource:LookUpLocationByRes||ListRowClass,websys.TranslationLookup"
+	s del=del_"^9C7E7E85-AA35-412C-9CF6-58AFC7D99F3E,_COMPONENT||Kweb.RBResource:LookUpByPartialCareProv||ListUDF,websys.TranslationLookup"
+	s del=del_"^0E028730-8464-4B32-8598-8AB9780C9C70,_COMPONENT||Kweb.RBResource:LookUpByPartialCareProv||ListRowClass,websys.TranslationLookup"
+	;Item reinstated		s del=del_"^1F131D8C-C393-42B6-97AE-B99783BC9D7D,1128,User.CTLoc"
+	s del=del_"^450B1E21-451F-4E8D-AE67-F3349B54596E,_COMPONENT||Kweb.CTLoc:LookUpLoc||ListUDF,websys.TranslationLookup"
+	s del=del_"^450B1E21-451F-4E8D-AE67-F3349B54596E,_COMPONENT||Kweb.CTLoc:LookUpLoc||ListUDF,websys.TranslationLookup"
+	s del=del_"^DD6F3100-E52C-43FC-BE2C-4903DC192881,_COMPONENT||Kweb.CTLoc:LookUpLoc||ListRowClass,websys.TranslationLookup"
+	s del=del_"^56EEE4DE-3F73-4574-B962-7A5468B86AB3,_COMPONENT||Kweb.CTLoc:LookUpLoc||ListRowClass,websys.TranslationLookup"
+	;s del=del_"^24A037EC-F492-47F5-BF97-A18C05C4E927,2690,websys.Preferences"
+	s del=del_"^BCF20509-E126-4B59-A11F-099028496585,1||Kweb.CTLoc:LookUpLoc||5,websys.TranslationLookup"
+	s del=del_"^9A87ED17-2D1B-4DD9-903D-C4130CFA2B08,_COMPONENT||Kweb.CTLoc:LookUpLoc||ListUDF,websys.TranslationLookup"
+	s del=del_"^15AA8DBE-460A-432C-A347-08A8A4D2D6A0,_COMPONENT||Kweb.CTLoc:LookUpLoc||ListUDF,websys.TranslationLookup"
+	s del=del_"^8B39DE36-DA63-4ACE-990B-7F870C426190,_COMPONENT||Kweb.CTLoc:LookUpLoc||ListUDF,websys.TranslationLookup"
+	s del=del_"^098F286B-425F-4009-8BD8-B97959EEE5D1,_COMPONENT||Kweb.CTLoc:LookUpLoc||ListUDF,websys.TranslationLookup"
+	s del=del_"^A47B7F94-7CFF-4EDC-9F9B-3E47E8272176,_COMPONENT||Kweb.CTLoc:LookUpLoc||ListRowClass,websys.TranslationLookup"
+	s del=del_"^12907D94-6B6A-47C6-A5DD-55578F962580,_COMPONENT||Kweb.ORCEquipment:LookUpEquipWithChildT||ListRowClass,websys.TranslationLookup"
+	s del=del_"^6863D293-A403-41DB-9964-382DFC360850,_COMPONENT||Kweb.ORCEquipment:LookUpIndivEquipPieces||ListRowClass,websys.TranslationLookup"
+	s del=del_"^F72F0D9E-6785-4E64-964E-209F23896C1F,_COMPONENT||Kweb.RBResource:LookUpByPartialCareProv||ListUDF,websys.TranslationLookup"
+	s del=del_"^A896C240-FEA3-4E37-98ED-1F8010839B5F,_COMPONENT||Kweb.RBResource:LookUpByPartialCareProv||ListRowClass,websys.TranslationLookup"
+	s del=del_"^B9789D3D-AF31-4BAC-9FE9-6E9C656F3A94,_COMPONENT||Kweb.RBResource:LookUpLocationByRes||ListUDF,websys.TranslationLookup"
+	s del=del_"^D832C5F9-A99A-4685-AD83-1DC969F68F92,_COMPONENT||Kweb.RBResource:LookUpLocationByRes||ListRowClass,websys.TranslationLookup"
+	s del=del_"^C21E00C9-A0D4-4E6A-BBEB-C949E122124F,_COMPONENT||Kweb.RBResource:LookUpLocationByRes||ListRowClass,websys.TranslationLookup"
+	s del=del_"^C21E00C9-A0D4-4E6A-BBEB-C949E122124F,_COMPONENT||Kweb.RBResource:LookUpLocationByRes||ListRowClass,websys.TranslationLookup"
+	s del=del_"^879A08CA-4FA0-4030-96AF-8AD5742A5ADB,1895L16XFTSA1_Medication||User.SSGroup||25,websys.TranslationContextPlus"
+	s del=del_"^22A84672-C21B-46EF-B8DB-EEFE3752F5CF,1549,websys.Preferences"
+	s del=del_"^D07E9D81-BD6F-49A3-B363-BF15CE6DC88C,2530,websys.Preferences"
+	s del=del_"^0839F587-B8F6-44C6-873F-923A4F6D5DA0,CONTEXT||1906R400,websys.TranslationContext"
+	s del=del_"^432474B8-DEBF-4C3D-BD77-2CBC96B20E2C,CONTEXT1||1906R400,websys.TranslationContext"
+	s del=del_"^D07E9D81-BD6F-49A3-B363-BF15CE6DC88C,2776,websys.Preferences"
+	s del=del_"^0839F587-B8F6-44C6-873F-923A4F6D5DA0,CONTEXT||1906R400,websys.TranslationContext"
+	s del=del_"^432474B8-DEBF-4C3D-BD77-2CBC96B20E2C,CONTEXT1||1906R400,websys.TranslationContext"
+	s del=del_"^06DFF0A3-90A6-4347-8269-2ACADD1AC86A,2704,websys.Preferences"
+	s del=del_"^1BF508A7-98F7-4A47-BC69-D2B12A17A442,CONTEXT||1906R440,websys.TranslationContext"
+	s del=del_"^21A9CC86-77EB-4AC9-94AA-C3C74FB210BB,CONTEXT1||1906R440,websys.TranslationContext"
+	s del=del_"^260EB54C-DEDE-423D-A1A7-8D63C756F7B3,1056,websys.Preferences"
+	s del=del_"^0592E7E5-2A0D-445D-93A3-EC50FF1096EA,50823,websys.Menu"
+	
+	f x=1:1:$l(del,"^") {
+		s element=$p(del,"^",x)
+		i $g(element)'="" {
+			s guid=$p(element,",")
+			s id=$p(element,",",2)
+			s table=$p(element,",",3)
+			; If guid exists then delete item
+			i $d(^OBJ.GUID(0,guid)) {
+				s id=$lg(^OBJ.GUID(0,guid),2)
+				i check=1 {
+					s rs=##class(%ResultSet).%New()
+					d rs.Prepare("DELETE FROM "_table_" WHERE ID='"_id_"'")
+					s sc=rs.Execute()
+					w !,"Deleted: "_guid_" Status: "_$system.OBJ.DisplayError(sc)
+					d rs.Close()
+				}
+				i check=0 w !,guid_":"_id_":"_table
+			}
+		}
+	}
+	q 1
+]]></Implementation>
+</Method>
+</Class>
+</Export>

@@ -1,0 +1,148 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.AUXX.Report.ZEN.ErrorDRG">
+<Super>Custom.AUXX.Report.ZEN.Abstract</Super>
+<TimeCreated>61772,35100.501042</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+This Parameter should be updated when synced from Perforce</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/AUXX/Report/ZEN/ErrorDRG.xml#1 $</Default>
+</Parameter>
+
+<UDLText name="T">
+<Content><![CDATA[
+// Report Name: Trak Episode ErrorDRG <br>
+
+]]></Content>
+</UDLText>
+
+<UDLText name="T">
+<Content><![CDATA[
+// Report Code: Trak.CDG0003 <br>
+
+]]></Content>
+</UDLText>
+
+<UDLText name="T">
+<Content><![CDATA[
+// LOGTRAK Number: 72412 <br>
+
+]]></Content>
+</UDLText>
+
+<Property name="dfrom">
+<Type>%String</Type>
+<Parameter name="ZENURL" value="P1"/>
+</Property>
+
+<Property name="dto">
+<Type>%String</Type>
+<Parameter name="ZENURL" value="P2"/>
+</Property>
+
+<Property name="Facility">
+<Type>%String</Type>
+<Parameter name="ZENURL" value="P3"/>
+</Property>
+
+<XData name="ReportDefinition">
+<XMLNamespace>http://www.intersystems.com/zen/report/definition</XMLNamespace>
+<Data><![CDATA[
+<report xmlns='http://www.intersystems.com/zen/report/definition'
+   queryClass='Custom.AUXX.Report.ZEN.StoredProc.ErrorDRG' queryName='ErrorDRGRpt' name='ErrorDRG'>
+  <parameter expression='..dfrom'/>
+  <parameter expression='..dto'/>
+  <parameter expression='..Facility'/>  
+  <attribute name='ReportTitle' expression='$$$Text("@ErrorDRG@Error DRG")'/>
+  <attribute name='timestamp' expression='$ZDATETIME($H, 2, 2)'/>
+  <attribute name='username' expression='..Username'/>
+  <attribute name='facility' expression='..GetHospListDesc(..Facility)'/>
+  <attribute name="DateFrom" expression="..DisplayDate(..dfrom)"/>
+  <attribute name="DateTo" expression="..DisplayDate(..dto)"/>
+
+   <group name="facility" breakOnField="HOSPDesc">
+  <attribute name="description" field="HOSPDesc" />
+  <aggregate name='HospitalTotal' type='CUSTOM' field='PAADMAdmNo' class='%ZEN.Report.Aggregate.CountDistinct'/>
+
+  <group name="DRG" breakOnField="DRGCode">
+  <attribute name="description" field="DRGCode" />
+  <aggregate name='DRGTotal' type='CUSTOM' field='PAADMAdmNo' class='%ZEN.Report.Aggregate.CountDistinct'/>
+           <group name='Detail'>
+            <attribute field='PAPMINo' name='PAPMINo'/>	    
+            <attribute field='PAADMAdmNo' name='PAADMAdmNo'/>
+	    	<attribute fields='PAPMIName,PAPMIName2,PAPMIName3' name='PatientName' expression='..DisplayName(%val("PAPMIName"),%val("PAPMIName2"),%val("PAPMIName3"))'/>
+            <attribute field='CTLOCCode' name='CTLOCCode'/>                  
+ 	     	<attribute field='PAADMAdmDate' name='PAADMAdmDate' expression='..DisplayDate(%val)'/>
+ 	     	<attribute field='PAADMDischgDate' name='PAADMDischgDate' expression='..DisplayDate(%val)'/>   
+ 	        <attribute field='DischgWard' name='WardCode'/>	        
+ 	    	<element field='DIAGDesc' name='Diagnosis' />
+            <element field='OPERDesc' name='Procedure' />
+			</group>
+           	 </group>
+			  </group>
+  </report>
+]]></Data>
+</XData>
+
+<XData name="ReportDisplay">
+<XMLNamespace>http://www.intersystems.com/zen/report/display</XMLNamespace>
+<Data><![CDATA[
+<report xmlns='http://www.intersystems.com/zen/report/display'
+xmlns:auxxstyle='http://www.intersystems.com/zen/report/display/auxx/style'
+xmlns:auxx='http://www.intersystems.com/zen/report/display/auxx'
+   name='ErrorDRG'>
+ <document width= "#(..ReportWidth)#" height="#(..ReportHeight)#" marginLeft="#(..DocMarginLeft)#" marginRight="#(..DocMarginRight)#" 
+marginTop="#(..DocMarginTop)#" marginBottom="#(..DocMarginBottom)#" footerHeight="#(..DocFooterHeight)#" headerHeight="#(..DocHeaderHeight)#" 
+regionBeforeExtent="#(..DocHeaderHeight)#" regionAfterExtent="#(..DocFooterHeight)#">
+<auxxstyle:auxxgroupheader/>
+<auxxstyle:auxxgroupsummary/>
+<auxxstyle:auxxhospitalheader/>
+<auxxstyle:auxxpagefooter/>
+<auxxstyle:auxxpageheader/>
+<auxxstyle:auxxparameterheader/>
+<auxxstyle:auxxreporttitle/>
+<auxxstyle:auxxtablecolumn/>
+</document>
+<auxx:PageHeader pagetitle='@ReportTitle'/>
+<auxx:ReportFooter username='@username' timestamp='@timestamp'/>
+<body>
+<!-- REPORT HEADER -->
+<auxx:ReportHeader reporttitle='@ReportTitle'/>
+<auxx:ReportParameterHeader label='@Facility:@Facility:' field='@facility' xcondition="string-length(@facility)>0"/>
+<auxx:ReportDateHeader datefrom="@DateFrom" dateto="@DateTo" />
+
+<line pattern="solid" width="100%"/>
+<line pattern="empty" width="100%"></line> 
+<auxx:NoResults xcondition="not(facility)" />
+<group name='facility' pagebreak="true">
+<auxx:GroupHospitalHeader label="@Facility:@Facility:" field="@description" />
+<group name='DRG'>
+<line pattern="empty" lineHeight="1mm" />
+<auxx:GroupHeader label="@DRG:@DRG:" field="@description" />
+<line pattern="empty" lineHeight="2mm" />
+     <table class='auxxtablecolumn' group='Detail' >
+        <item field='@PAPMINo' width="11%" caption='@URN@URN' />
+		<item field='@PAADMAdmNo' width="10%" caption='@EpisodeNo@Episode No'/>
+        <item field='@PatientName' width="20%" caption='@PatientName@Patient Name' />
+        <item field='@CTLOCCode' width='7%' caption='@DischargeLocation@Discharge Specialty' />
+        <item field='@WardCode' width='7%' caption='@DischargeWard@Discharge Ward'/>
+        <item field='@PAADMAdmDate' width='8%' caption='@AdmissionDate@Admission Date' />
+        <item field='@PAADMDischgDate' width='8%' caption='@DischargeDate@Discharge Date' />
+        <item field='Diagnosis' width="14%" breakOnLineFeed="true" wrap-option="wrap"  caption='@Principal Diagnosis@Principal Diagnosis'/>
+        <item field='' width="1%"/>
+        <item field='Procedure' width='14%' breakOnLineFeed="true" wrap-option="wrap"  caption='@Principal Procedure@Principal Procedure'/>
+       </table>
+       
+<line pattern="empty" width="100%"></line> 
+<auxx:GroupSummary label="@Totalnumberofepisodesfor@Total number of episodes for" group="@description" summaryvalue="DRGTotal" />
+<line pattern="empty" lineHeight="4mm" />
+  </group>
+  	<auxx:GroupSummary label="@Totalnumberofepisodesfor@Total number of episodes for" group="@description" summaryvalue="HospitalTotal" />	
+     </group>    
+     </body>
+   </report>
+]]></Data>
+</XData>
+</Class>
+</Export>

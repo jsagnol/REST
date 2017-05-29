@@ -1,0 +1,189 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.SWARH.Report.RptSvc.StoredProc.SWARHRNAP1025">
+<Description><![CDATA[
+<pre>
+**************************************************************************************************************************************
+* Report Code: SWARHRNAP1025
+* Report Description: Services By Specialty
+* Menu Caption: Services By Specialty
+* Initial release: 16/07/2015
+* Developer: Ross Gladman
+* Modified: 29/09/15 - rpgladman - Added filter to remove all data migration services
+* 
+**************************************************************************************************************************************
+</pre>]]></Description>
+<ProcedureBlock>0</ProcedureBlock>
+<Super>Custom.SWARH.Report.RptSvc.StoredProc.Abstract</Super>
+<TimeCreated>60905,54849</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/SWARH/Report/RptSvc/StoredProc/SWARHRNAP1025.xml#1 $</Default>
+</Parameter>
+
+<Method name="SWARHRNAP1025Close">
+<Description>
+This is the Close component of the %Library.Query.
+This is standard code and should never have to change.
+This is where all the cleanup is performed, i.e. the purging of the temporary storage global ^CacheTemp.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>QHandle:%Library.Binary</FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Clean up by purging the temporary node in ^CacheTemp global
+ New repid,ind
+ Set repid=$li(QHandle,2)
+
+ //Start Monitor (if configured to capture stats)
+ i mon Do ..MonitorEnd(mon)
+
+ Kill ^CacheTemp("TRAK",repid)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="SWARHRNAP1025Execute">
+<Description>
+This is the Execute section for the %Library.Query. 
+All of the logic will be performed here.
+A new node for the ^CacheTemp global will be created and each subscript of this global will contain
+a row for the report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,Hospital:%Library.Integer,Location:%Library.Integer]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Get reportid i.e. use $INCREMENT to add another node to ^CacheTemp global. 
+ // We use ^CacheTemp global because it will always use memory before disk
+ New repid,ind
+
+  // Use $Increment to get the next node
+ Set repid=$I(^CacheTemp("TRAK"))
+ 
+ // Define and initialise appropriate column variables to describe output rowset columns
+ New LocationCode,LocationDesc,SpecialtyCode,SpecialtyDesc,BillingGroupCode,BillingGroupDesc,BillingSubGroupCode,BillingSubGroupDesc,OrderSubCategoryCode,OrderSubCategoryDesc,ServiceGroupCode,ServiceGroupDesc,UnitOfMeasureReadable,UnitOfMeasureCode,UnitOfMeasureDesc,TimeInMinutesService,TimeInMinutesItem,PFB
+ Set (LocationCode,LocationDesc,SpecialtyCode,SpecialtyDesc,BillingGroupCode,BillingGroupDesc,BillingSubGroupCode,BillingSubGroupDesc,OrderSubCategoryCode,OrderSubCategoryDesc,ServiceGroupCode,ServiceGroupDesc,UnitOfMeasureReadable,UnitOfMeasureCode,UnitOfMeasureDesc,TimeInMinutesService,TimeInMinutesItem,PFB)=""
+
+ Set ind=1, END=0
+
+ //Start Monitor (if configured to capture stats)
+ Set mon=..MonitorBegin()
+ 
+ //Clean up parameter variables - $zstrip(<variable>,"*CW") strips all control characters and whitespace, "<>W" just strips leading/trailing whitespace
+ Set Location=$ZStrip(Location,"*CW")
+ 
+	&SQL(DECLARE SpecialtyCursor CURSOR FOR
+    SELECT
+            SER_CTLOC_DR->CTLOC_Hospital_DR                             		As Hospital
+        ,   SER_CTLOC_DR->CTLOC_Code                                    		As LocationCode
+        ,   SER_CTLOC_DR->CTLOC_Desc                                    		As LocationDesc
+        ,   TRIM(SER_ARCIM_DR->ARCIM_Code)                              		As SpecialtyCode
+        ,   TRIM(SER_ARCIM_DR->ARCIM_Desc)                              		As SpecialtyDesc
+        ,   SER_ARCIM_DR->ARCIM_BillSub_DR->ARCSG_ARCBG_ParRef->ARCBG_Code		As BillingGroupCode
+		,	SER_ARCIM_DR->ARCIM_BillSub_DR->ARCSG_ARCBG_ParRef->ARCBG_Desc  	As BillingGroupDesc
+        ,   SER_ARCIM_DR->ARCIM_BillSub_DR->ARCSG_Code							As BillingSubGroupCode
+        ,   SER_ARCIM_DR->ARCIM_BillSub_DR->ARCSG_Desc							As BillingSubGroupDesc
+        ,   SER_ARCIM_DR->ARCIM_ItemCat_DR->ARCIC_Code							As OrderSubCategoryCode
+		,	SER_ARCIM_DR->ARCIM_ItemCat_DR->ARCIC_Desc							As OrderSubCategoryDesc
+        ,   SER_ARCIM_DR->ARCIM_ServiceGroup_DR->SG_Code						As ServiceGroupCode
+		,	SER_ARCIM_DR->ARCIM_ServiceGroup_DR->SG_Desc						As ServiceGroupDesc
+        ,   DECODE(SER_ARCIM_DR->ARCIM_UOM_DR->CTUOM_Type,'V','Volume','M','Mass','T','Temperature','L','Length','P','Pressure','Q','Time','A','Amount Of Substance','S','Strength','')
+        																		As UnitOfMeasureReadable
+		,	SER_ARCIM_DR->ARCIM_UOM_DR->CTUOM_Code								As UnitOfMeasureCode
+		,	SER_ARCIM_DR->ARCIM_UOM_DR->CTUOM_Desc								As UnitOfMeasureDesc
+        ,   NVL(SER_NoOfSlots,'0')												As TimeInMinutesService -- Could be SER_NoOfSlots *OR* SER_ARCIM_DR->ARCIM_Minutes, some are set in either or both fields....  I think it checks the resource, if null then check service, if null then item, otherwise 0
+        ,   NVL(SER_ARCIM_DR->ARCIM_Minutes,'0')								As TimeInMinutesItem
+        ,   SER_PFB                                                     		As PFB                              
+    FROM
+            SQLUser.RBC_Services
+    WHERE
+            SER_Active = 'Y'
+    AND
+			((SER_CTLOC_DR->CTLOC_Hospital_DR=:Hospital) OR (:Hospital IS NULL))
+    
+--    				SER_CTLOC_DR->CTLOC_Hospital_DR=:Hospital
+	AND
+            ((SER_CTLOC_DR->CTLOC_RowId=:Location) OR (:Location IS NULL))
+    AND                                                                     -- Removes the now redundant 'Data Migration' services as per user request (29/09/15 - rpgladman)
+            $FIND(UCASE(SER_ARCIM_DR->ARCIM_Desc),'DATA MIGRATION') = 0
+    ORDER BY
+            SER_CTLOC_DR->CTLOC_Hospital_DR
+        ,   SER_CTLOC_DR->CTLOC_Code
+	)
+ &SQL(OPEN SpecialtyCursor)
+ 
+ //FETCH FIRST ROW
+ Do FetchRow
+  
+ While END=0 {
+  
+	 Set sort = ind		// don't sort
+ 
+	 Set ^CacheTemp("TRAK",repid,sort)=$ListBuild(Hospital,LocationCode,LocationDesc,SpecialtyCode,SpecialtyDesc,BillingGroupCode,BillingGroupDesc,BillingSubGroupCode,BillingSubGroupDesc,OrderSubCategoryCode,OrderSubCategoryDesc,ServiceGroupCode,ServiceGroupDesc,UnitOfMeasureReadable,UnitOfMeasureCode,UnitOfMeasureDesc,TimeInMinutesService,TimeInMinutesItem,PFB)
+	 Set ind=ind+1
+ 
+	 //fetch rows
+	 Do FetchRow
+ }
+
+ &SQL(CLOSE SpecialtyCursor)
+ 
+ // Build QHandle (AtEnd,ReportID,Index)
+ Set QHandle=$ListBuild(0,repid,0)
+
+ Quit $$$OK
+
+FetchRow
+ &SQL(FETCH SpecialtyCursor INTO :Hospital,:LocationCode,:LocationDesc,:SpecialtyCode,:SpecialtyDesc,:BillingGroupCode,:BillingGroupDesc,:BillingSubGroupCode,:BillingSubGroupDesc,:OrderSubCategoryCode,:OrderSubCategoryDesc,:ServiceGroupCode,:ServiceGroupDesc,:UnitOfMeasureReadable,:UnitOfMeasureCode,:UnitOfMeasureDesc,:TimeInMinutesService,:TimeInMinutesItem,:PFB)
+ If SQLCODE '= 0 Set END = 1
+ Quit
+]]></Implementation>
+</Method>
+
+<Method name="SWARHRNAP1025Fetch">
+<Description>
+This is the Fetch component of the %Library.Query. 
+This should never have to change. It is designed to fetch the row for each subscript of the ^CacheTemp
+global and return this row to the Crystal Report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,&Row:%Library.List,&AtEnd:%Library.Integer=0]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // This fetch method should never have to change. 
+
+ // repid - Report ID
+ // ind   - sequence index which represents each row
+
+ New repid,ind
+
+ // Restore QHandle
+ Set AtEnd=$li(QHandle,1)
+ Set repid=$li(QHandle,2)
+ Set ind=$li(QHandle,3)
+
+ Set ind=$o(^CacheTemp("TRAK",repid,ind))
+ If ind="" {	// if there are no more rows, finish fetching
+	 Set AtEnd=1
+	 Set Row=""
+ }
+ Else      {	// fetch row
+ 	Set Row=^CacheTemp("TRAK",repid,ind)
+ }
+
+ // Save QHandle
+ Set QHandle=$ListBuild(AtEnd,repid,ind)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Query name="SWARHRNAP1025">
+<Type>%Library.Query</Type>
+<FormalSpec>Hospital:%Library.Integer,Location:%Library.Integer</FormalSpec>
+<SqlProc>1</SqlProc>
+<Parameter name="CONTAINID" value="0"/>
+<Parameter name="ROWSPEC" value="Hospital:%Library.String,LocationCode:%Library.String,LocationDesc:%Library.String,SpecialtyCode:%Library.String,SpecialtyDesc:%Library.String,BillingGroupCode:%Library.String,BillingGroupDesc:%Library.String,BillingSubGroupCode:%Library.String,BillingSubGroupDesc:%Library.String,OrderSubCategoryCode:%Library.String,OrderSubCategoryDesc:%Library.String,ServiceGroupCode:%Library.String,ServiceGroupDesc:%Library.String,UnitOfMeasureReadable:%Library.String,UnitOfMeasureCode:%Library.String,UnitOfMeasureDesc:%Library.String,TimeInMinutesService:%Library.String,TimeInMinutesItem:%Library.String,PFB:%Library.String"/>
+<Parameter name="SELECTMODE" value="ODBC"/>
+</Query>
+</Class>
+</Export>

@@ -1,0 +1,836 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.SWARH.JS.PAWaitingList.Edit">
+<Description>
+Component JavaScript for: PAWaitingList.Edit</Description>
+<Modified>0</Modified>
+<Super>websys.AbstractJavaScript</Super>
+<TimeCreated>63537,10518.826807</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+This Parameter is updated by Perforce</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/SWARH/JS/PAWaitingList/Edit.xml#1 $</Default>
+</Parameter>
+
+<Method name="JSContent">
+<Description>
+ </Description>
+<Language>javascript</Language>
+<ClientMethod>1</ClientMethod>
+<Implementation><![CDATA[
+/*********************************************************************
+$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/SWARH/JS/PAWaitingList/Edit.xml#1 $
+Version 1.1
+
+- General custom field validation for pawaitinglist.edit component
+
+REMEMBER to update the versions with initials, date and description for each modification...
+IF	05/07/2011		- Added restrictions on the WLReferralUniqueID field
+IF  05/08/2011		- Added calculation on referral expiry date based on referral period
+IF  17/11/2011		- TRC90728
+IF	18/11/2011		- Fix issue with Triage Outcome turning blank
+MH	27/12/2011		- Added SWARH Context numbers
+IF	07/02/2012		- Removed old code and duplicate core code
+IF	27/03/2012		- TRC103417 updated referral period code to keep predictive text working
+IF	08/01/2013		- TRC132642/116888 added disableform/disablebuttons to allow the user to add a resubmission date if the waiting list entry is removed/done
+IF	02/07/2013		- TRC150333 removed references to workflow ids to use workflow name, requires expression in layout to return workflow description
+						i $g(%request.Data("TWKFL",1))'="" w "<INPUT id='TWKFLDesc' type='hidden' name='TWKFLDesc' value='"_$lg(^websys.WorkFlowD(%request.Data("TWKFL",1)),1)_"'>"
+FD	26/08/2013		- TRC157043/TRC90728 - SERDesc not mandatory when WLTRODesc="Request review"
+FD	06/02/2014		- TRC169360 - Resolve Community function issues
+IF	03/04/2014		- TRC172998 - mandatory field validation on AddBooking
+BS	01/05/2014		- TRC174737 - Added a single function to check whether to add Triage Outcome events rather than replicating the hardcoded list of workflow names
+				- Added additional IF statement around checking the value of "objtro=document.getElementById('WLTRODesc');" to make sure we can use it
+				  were only using the .value property at the moment, but if this changed in the future it could cause a problem.
+IF	01/05/2014		- TRC174815 - If Waiting list triage outcome is "Add to Wait List" Set episode referral status to "Wait List"
+BS	30/05/2014		- TRC????? - Added SWARH.SNAP.ReferralTriage.Link to CheckIfAddTriageOutcomeEvents Function
+IF	07/07/2014		- TRC178013 - added toUpperCase() call to force case check
+IF	07/07/2014		- TRC174424 - Added "Triage On Hold"
+DJB 30/05/2015		- TRC191738 -VINAH 2015 July 1 changes, general cleanup
+AR  03/03/2016		- TRC 204708 - Implement Date Check so Date Referral <= Date Referral Received
+DJB	18/03/2016		- TRC I199088 - Enforce VINAH checks for WLRefStatusReasonDR on CLNFMICategDepart updates
+DJB 15/05/2016		- TRC 204705 - Limit ATTENDDEsc lookup results on WLNFMICategDepart value
+BZ	06/06/2016		- TRC 204730 - the ESIS 1st July 2016 changes for SWARH --add this to avoid the conflict
+BS	17/08/2016		- CCR AUSW3139 - Add SWARH.ReferralTriage.Link and SWARH.IntakeReferralNew to CheckIfAddTriageOutcomeEvents function
+**********************************************************************/
+/*
+Date Added to List (WLDate)
+Date Referral  (WLDateRefLetter)
+*/
+//var NFMIClearVar=tkMakeServerCall("Custom.SWARH.JS.PAWaitingList.Edit","ClearNFMISelectValue","");
+websys_removeListener("load","onload",BodyLoadHandler);
+websys_addListener("load","onload",CustInit);
+
+function CheckIfAddTriageOutcomeEvents(TWKFL) {
+	if (TWKFL) {
+		if (TWKFL.value=="AUXX.WaitingListTriageLink") return 1;
+		if (TWKFL.value=="AUXX.ReferralTriage.Link") return 1;
+		if (TWKFL.value=="SWARH.ReferralTriage.Link") return 1;
+		if (TWKFL.value=="SWARH.SNAP.ReferralTriage.Link") return 1;
+		if (TWKFL.value=="AUXX.IntakeReferralNew") return 1;
+		if (TWKFL.value=="SWARH.IntakeReferralNew") return 1;
+		if (TWKFL.value=="SWARH.SNAP.IntakeReferralNew") return 1;
+	}
+	return 0;
+}
+
+function CustInit() {
+	BodyLoadHandler();
+	var objSADDDesc=document.getElementById('SADDDesc');
+	var objTS=document.getElementById('TransSource');
+	
+	if ((objSADDDesc)&&(objTS)) {
+		websys_addListener("blur","onblur",CustomSADDDesc,objSADDDesc);
+		CustomSADDDesc();
+	}
+	var objTRO=document.getElementById("WLTRODesc");
+	if (objTRO) {
+		websys_addListener("blur","onblur",WLTRODescCustomHandler,objTRO);
+		WLTRODescCustomHandler();
+	}
+	var objATTENDDesc=document.getElementById("ATTENDDesc"); 
+	if (objATTENDDesc) {
+		websys_addListener("blur","onblur",ATTENDDescCustomHandler,objATTENDDesc);
+		ATTENDDescCustomHandler();
+	}
+	var objWLNFMICategDepart=document.getElementById("WLNFMICategDepart"); 
+	if (objWLNFMICategDepart) {
+		websys_addListener("blur","onblur",WLNFMICategDepartCustomHandler,objWLNFMICategDepart);
+		WLNFMICategDepartCustomHandler();
+	}
+
+	//KK 3/June/2002 Log 24443
+	var objTCIDetails=document.getElementById('TCIDateandTime')
+	if ((objTCIDetails) && (objTCIDetails.value!="")) {
+		SetEstOperDateandTime();
+	}
+	var objTS=document.getElementById('TransSource');
+	if ((objTS)&&(objSADDDesc)) {
+		websys_addListener("blur","onblur",TransSourceCustomHandler,objTS);
+		TransSourceCustomHandler();
+	}
+	
+	var obj=document.getElementById('WLReferralPeriodDR');
+	if (obj) {
+		ReferralPeriod();
+		websys_addListener("blur","onblur",ReferralPeriod,obj);
+	}
+	
+	var obj=document.getElementById('SPPPDesc');
+	if (obj) {
+		websys_addListener("blur","onblur",CheckNPPP,obj);
+		if (obj.value!="") CheckNPPP();
+	}
+    objUpdate=document.getElementById('update1');
+    if (objUpdate) objUpdate.onclick=CustomUpdateAll;
+
+    objUpdateAddBooking=document.getElementById('UpdateAddBooking');
+    if (objUpdateAddBooking) objUpdateAddBooking.onclick=CustomUpdateAddBooking;
+    
+    //kong add TRC 204708
+    var obj=document.getElementById("WLDateRefLetter");
+    if (obj) {
+	    websys_addListener("blur","onblur",CheckValidDate,obj);
+	    CheckValidDate();
+    }
+}
+
+
+//kong add TRC 204708
+function CheckValidDate() {
+	var refRecDate=document.getElementById("WLDateReceivedBack");
+	var refDate=document.getElementById("WLDateRefLetter");
+	if ((refRecDate)&&(refDate)) {
+		if (DateStringCompare(refDate.value,refRecDate.value)==1) {
+			alert('Referral Date cannot be later than Date Referral Received');
+			refDate.className='clsInvalid';
+			websys_setfocus("WLDateRefLetter");
+			return;
+		}
+	}
+}
+//
+// kong modify TRC 204708
+function CustomUpdateAll() {
+	//add
+	CheckValidDate();
+	if (CheckInvalid()) UpdateAll();
+}
+//
+function CustomUpdateAddBooking() {
+	if (CheckInvalid()) UpdateAddBooking();
+}
+
+SPPPDesc_lookupsel = (function (value) {
+	if (typeof SPPPDesc_lookupsel=="function") {
+		var cached_SPPPDesclookupsel=SPPPDesc_lookupsel;
+		return function (value) {
+			cached_SPPPDesclookupsel(value);
+			CheckNPPP();
+		}
+	}
+}())
+
+function CheckNPPP() {
+	var obj=document.getElementById('SPPPDesc');
+	if ((obj)&&(obj.value!="")) {
+		var flag=tkMakeServerCall("Custom.AUXXUtilities","CheckNPPP",obj.value);
+		if (flag==1) {
+			labelMandatoryTRC('WLProcedureFreeText');
+		}
+	} else {
+		labelNormalTRC('WLProcedureFreeText');
+	}
+}
+
+
+WLReferralPeriodDR_lookuphandler = (function (e) {
+	if (typeof WLReferralPeriodDR_lookuphandler=="function") {
+		var cached_WLReferralPeriodDRlookuphandler=WLReferralPeriodDR_lookuphandler;
+		return function (e) {
+			cached_WLReferralPeriodDRlookuphandler(e);
+			ReferralPeriod();
+		}
+	}
+}())
+
+function ReferralPeriod() {
+	var refDate=document.getElementById("WLDateRefLetter");
+	var period=document.getElementById('WLReferralPeriodDR');
+	var factor=tkMakeServerCall("Region.AUXX.Utility.Utilities","Factor",period.value);
+	if ((refDate)&&(refDate.value!="")&&(factor!="")) {
+		obj=document.getElementById("WLRefExpiryDate");
+		if (obj) {
+			obj.value=AddToDateStrGetDateStr(refDate.value,"D",factor);
+		}
+	}
+}
+
+/*function ReferralPeriod() {
+	var refDate=document.getElementById("WLDateRefLetter");
+	
+	var period=document.getElementById('WLReferralPeriodDR');
+	var factor=tkMakeServerCall("Custom.AUXXUtilities","Factor",period.value);
+
+	if ((refDate)&&(refDate.value!="")&&(factor!="")) {
+		
+		var oneDay=60*1000*60*24
+		var strDate=SplitDateStr(refDate.value);
+		var targetDate=new Date(strDate["yr"],strDate["mn"]-1,strDate["dy"])
+		var dateinMS = targetDate.getTime()
+		dateinMS += oneDay*factor
+		targetDate.setTime(dateinMS)
+		
+		mn=targetDate.getMonth()
+		dy=targetDate.getDate()
+		yr=targetDate.getYear()
+		
+		switch (dtformat) {
+			case "YMD":
+			temp = "" + yr + dtseparator + (mn+1) + dtseparator + dy;
+			break;
+			case "MDY":
+			temp = "" + (mn+1) + dtseparator + yr + dtseparator + dy;
+			break;
+			case "DMY":
+			temp = "" + dy + dtseparator + (mn+1) + dtseparator + yr;
+			break;
+		}
+		obj=document.getElementById("WLRefExpiryDate");
+		if (obj) obj.value=temp;
+	}
+}*/
+
+//KK 3/June/2002 Log 24443
+function SetEstOperDateandTime(){
+	var objTCIDetails=document.getElementById('TCIDateandTime')
+	if ((objTCIDetails) && (objTCIDetails.value!="")) {
+		var str=objTCIDetails.value
+		var lu = str.split("^");
+		var obj;
+		objED=document.getElementById("WLEstOperDate")
+		if ((objED)&&(lu[0])) objED.value = lu[0];
+		objET=document.getElementById("WLEstOperTime")
+		if ((objET)&&(lu[1])) objET.value = lu[1];
+	}
+}
+
+WLTypeLookUpHandler = (function(str) {
+	if (typeof WLTypeLookUpHandler=="function") {
+		var cached_WLTypeLookUpHandler=WLTypeLookUpHandler;
+		return function (str) {
+			cached_WLTypeLookUpHandler(str);
+			 WLTypeChangeHandlerCustom();
+		}
+	}
+}())
+
+
+WLTDesc_lookupsel = (function (value) {
+	if (typeof WLTDesc_lookupsel=="function") {
+		var cached_WLTDesclookupsel=WLTDesc_lookupsel;
+		return function (value) {
+			cached_WLTDesclookupsel(value);
+			WLTypeChangeHandlerCustom();
+		}
+	}
+}())
+
+
+function WLTypeChangeHandlerCustom() {
+	var objWLTCode=document.getElementById("WLTCode");
+	var objWLTDesc=document.getElementById("WLTDesc");
+	var TWKFL=document.getElementById("TWKFLDesc");
+	if (((TWKFL)&&(TWKFL.value=="Trak.WaitingListAddUpdateQH"))&&(((objWLTCode)&&(objWLTCode.value=="OPWL"))||((objWLTDesc)&&(objWLTDesc.value=="OP Waiting List")))) {
+		labelMandatoryTRC('SERDesc');
+	} else {
+		labelNormalTRC('SERDesc');
+	}
+}
+
+WLPDesc_lookupsel = (function(value) {
+	if (typeof WLPDesc_lookupsel=="function") {
+		var cached_WLPDesclookupsel=WLPDesc_lookupsel;
+		return function (value) {
+			cached_WLPDesclookupsel(value);
+	   		CustomWLPDescChangeHandler();
+		}
+	}
+}())
+
+function CustomWLPDescChangeHandler() {
+	var TWKFL=document.getElementById('TWKFLDesc');
+	var obj=document.getElementById('WLPDesc');
+	if ((obj)&&(TWKFL)&&(TWKFL.value=="AUXX.WaitingListTriageLink")) {
+		if ((obj.value=="Not Triaged")||(obj.value=="Declined")) {
+			labelNormalTRC('SERDesc');
+		} else {
+			labelMandatoryTRC('SERDesc');
+		}
+	}
+}
+
+SADDDescLookUpHandler = (function(str) {
+	if (typeof SADDDescLookUpHandler=="function") {
+		var cached_SADDDescLookUpHandler=SADDDescLookUpHandler;
+		return function (str) {
+			cached_SADDDescLookUpHandler(str);
+	   		CustomSADDDesc();
+		}
+	}
+}())
+
+function CustomSADDDesc() {
+	var objSADDDesc=document.getElementById('SADDDesc')
+	var objTS=document.getElementById('TransSource')
+	var objPDW = document.getElementById('WLPreviousDaysWaiting')
+	if ((objSADDDesc)&&(objTS)) {
+		if (objSADDDesc.value=="2"||objSADDDesc.value=="Referred from waiting list at other ESIS campus/health service") {
+			EnableFieldTRC('WLReferralUniqueID');
+			EnableFieldTRC('TransSource');
+			labelMandatoryTRC('WLReferralUniqueID');
+			labelMandatoryTRC('TransSource');
+			if (objPDW)
+			{
+				EnableFieldTRC('WLPreviousDaysWaiting');
+				labelMandatoryTRC('WLPreviousDaysWaiting')	
+			}
+		} else {
+			labelNormalTRC('WLPreviousDaysWaiting')
+			labelNormalTRC('WLReferralUniqueID')
+			labelNormalTRC('TransSource')
+			DisableFieldTRC('WLPreviousDaysWaiting')
+			DisableFieldTRC('WLReferralUniqueID');
+			DisableFieldTRC('TransSource');
+		}
+	}
+}
+
+WLTRODesc_lookupsel = (function (value) {
+	if (typeof WLTRODesc_lookupsel=="function") {
+		var cached_WLTRODesclookupsel= WLTRODesc_lookupsel;
+		return function (value) {
+			cached_WLTRODesclookupsel(value);
+			WLTRODescCustomHandler();
+		}
+	}
+}())
+
+ATTENDDesc_lookupsel = (function (value) {
+	if (typeof ATTENDDesc_lookupsel=="function") {
+		var cached_ATTENDDesclookupsel=ATTENDDesc_lookupsel;
+		return function (value) {
+			cached_ATTENDDesclookupsel(value);
+			ATTENDDescCustomHandler();
+		}
+	}
+}())
+
+function ATTENDDescCustomHandler() {
+	var objATTENDDesc=document.getElementById("ATTENDDesc");
+	var objCONTEXT=document.getElementById("CONTEXT");
+	if ((objATTENDDesc)&&(objATTENDDesc.value)&&(objCONTEXT))	{
+		var ATTENDDescValue=objATTENDDesc.value;
+		var CONTEXTValue="na";
+		if (objCONTEXT.value) CONTEXTValue=objCONTEXT.value;
+		var ATTENDDesc=tkMakeServerCall("Custom.SWARH.JS.PAWaitingList.Edit","FlagATTENDDescSelectValue",CONTEXTValue,ATTENDDescValue);
+	} else if (objATTENDDesc.value=="") {
+		var NFMIClearVar=tkMakeServerCall("Custom.SWARH.JS.PAWaitingList.Edit","ClearNFMISelectValue","ATTENDDesc");
+	}
+}
+
+WLNFMICategDepart_lookupsel = (function (value) {
+	if (typeof WLNFMICategDepart_lookupsel=="function") {
+		var cached_WLNFMICategDepartlookupsel=WLNFMICategDepart_lookupsel;
+		return function (value) {
+			cached_WLNFMICategDepartlookupsel(value);
+			WLNFMICategDepartCustomHandler();
+		}
+	}
+}())
+
+function WLNFMICategDepartCustomHandler() {
+	var objWLNFMICategDepart=document.getElementById("WLNFMICategDepart");
+	var objCONTEXT=document.getElementById("CONTEXT");
+	if ((objWLNFMICategDepart)&&(objWLNFMICategDepart.value)&&(objCONTEXT))	{
+		var WLNFMICategDepartValue=objWLNFMICategDepart.value;
+		var CONTEXTValue="na";
+		if (objCONTEXT.value) CONTEXTValue=objCONTEXT.value;
+		var WLNFMICategDepart=tkMakeServerCall("Custom.SWARH.JS.PAWaitingList.Edit","FlagNFMISelectValue",CONTEXTValue,WLNFMICategDepartValue);
+	} else if (objWLNFMICategDepart.value=="") {
+		var NFMIClearVar=tkMakeServerCall("Custom.SWARH.JS.PAWaitingList.Edit","ClearNFMISelectValue","WLNFMICategDepart");
+	}	
+	VINAHStatusReasonCheck();
+}
+
+function WLTRODescCustomHandler() {
+	var passworkflow=0
+	var TWKFL=document.getElementById('TWKFLDesc');
+	var passworkflow = CheckIfAddTriageOutcomeEvents(TWKFL);
+	if (passworkflow) {
+		var rodesc="";
+		var rodesc=document.getElementById('WLTRODesc');
+		if (rodesc) {
+			if ((rodesc.value.toUpperCase()=='BACK TO REFERRER')||(rodesc.value=='001')) {
+				var objwlpdesc=document.getElementById('WLPDesc');
+				if (objwlpdesc) {
+					objwlpdesc.value="Declined";
+		            objwlpdesc.readOnly=false;
+		            EnableFieldTRC('WLPDesc');
+				}
+				var objrstdesc=document.getElementById('RSTDesc');
+				if (objrstdesc) objrstdesc.value="Declined";
+				labelMandatoryTRC('WLRefStatusReasonDR');
+				EnableFieldTRC('PrintGPLetter');
+				EnableFieldTRC('EditLetter');
+				labelNormalTRC('SERDesc');
+				DisableFieldTRC('GenEpis');
+				DisableFieldTRC('UpdateAddBooking');
+				EnableFieldTRC('update1');
+				labelNormalTRC('SERDesc');
+				if (document.getElementById('GenEpis')) document.getElementById('GenEpis').checked="False";
+			} else if ((rodesc.value.toUpperCase()=="ADD TO WAIT LIST")||(rodesc.value=='008')) {
+				var objwlpdesc=document.getElementById('WLPDesc');
+				if (objwlpdesc) {
+					objwlpdesc.value="";
+		            objwlpdesc.readOnly=false;
+		            EnableFieldTRC('WLPDesc');
+				}
+				var objrstdesc=document.getElementById('RSTDesc');
+				if (objrstdesc) objrstdesc.value="Waiting List";
+				//DisableField('RSTDesc');
+				DisableFieldTRC('GenEpis');
+				DisableFieldTRC('UpdateAddBooking');
+				EnableFieldTRC('update1');
+				labelNormalTRC('SERDesc');
+				labelNormalTRC('WLRefStatusReasonDR');
+				if (document.getElementById('GenEpis')) document.getElementById('GenEpis').checked="True";
+			} else if ((rodesc.value.toUpperCase()=="APPOINTMENT")||(rodesc.value=='003')) {
+				var objwlpdesc=document.getElementById('WLPDesc');
+				if (objwlpdesc) {
+					objwlpdesc.value="";
+		            objwlpdesc.readOnly=false;
+		            EnableFieldTRC('WLPDesc');
+				}
+				var objrstdesc=document.getElementById('RSTDesc');
+				if (objrstdesc) objrstdesc.value="Accepted";
+				var objgenepis=document.getElementById('GenEpis');
+				if (objgenepis) objgenepis.checked="True";
+				DisableFieldTRC('update1');
+				EnableFieldTRC('UpdateAddBooking');
+				labelMandatoryTRC('SERDesc');
+				labelNormalTRC('WLRefStatusReasonDR');
+				if (document.getElementById('GenEpis')) document.getElementById('GenEpis').checked="False";
+			} else if ((rodesc.value.toUpperCase()=="REQUEST REVIEW")||(rodesc.value=='004')) {
+				var objwlpdesc=document.getElementById('WLPDesc');
+				if (objwlpdesc) {
+					objwlpdesc.value="";
+		            objwlpdesc.readOnly=false;
+		            EnableFieldTRC('WLPDesc');
+				}
+				var objrstdesc=document.getElementById('RSTDesc');
+				if (objrstdesc) objrstdesc.value="Requested";
+				var objgenepis=document.getElementById('GenEpis');
+				if (objgenepis) objgenepis.checked="True";
+				labelNormalTRC('SERDesc');
+				labelNormalTRC('WLRefStatusReasonDR');
+				EnableFieldTRC('update1');
+				DisableFieldTRC('UpdateAddBooking');
+				if (document.getElementById('GenEpis')) document.getElementById('GenEpis').checked="False";
+			} else if (rodesc.value==""){
+				var objwlpdesc=document.getElementById('WLPDesc');
+				if (objwlpdesc) {
+					objwlpdesc.value="";
+		            objwlpdesc.readOnly=false;
+		            EnableFieldTRC('WLPDesc');
+				}
+				DisableFieldTRC('PrintGPLetter');
+				DisableFieldTRC('EditLetter');
+				labelMandatoryTRC('SERDesc');
+				labelNormalTRC('WLRefStatusReasonDR');
+				EnableFieldTRC('RSTDesc');
+				EnableFieldTRC('GenEpis');
+				EnableFieldTRC('UpdateAddBooking');
+				EnableFieldTRC('update1');
+				if (document.getElementById('GenEpis')) document.getElementById('GenEpis').checked="False";
+			} else if ((rodesc.value.toUpperCase()=="ACCEPTED")||(rodesc.value=='009')) {
+				var objwlpdesc=document.getElementById('WLPDesc');
+				if (objwlpdesc) {
+					objwlpdesc.value="";
+		            objwlpdesc.readOnly=false;
+		            EnableFieldTRC('WLPDesc');
+				}
+	            var objrstdesc=document.getElementById('RSTDesc');
+	            if (objrstdesc) objrstdesc.value="Accepted";
+	            var objgenepis=document.getElementById('GenEpis');
+	            if (objgenepis) objgenepis.checked="True";
+	            EnableFieldTRC('update1');
+	            DisableFieldTRC('UpdateAddBooking');
+				labelNormalTRC('WLRefStatusReasonDR');
+				labelNormalTRC('SERDesc');
+			} else if (rodesc.value.toUpperCase()=="TRIAGE ON HOLD") {
+	            var objwlpdesc=document.getElementById('WLPDesc');
+	            if (objwlpdesc) {
+		            objwlpdesc.value="Triage On Hold";
+		            objwlpdesc.readOnly=true;
+	            }
+	            var objrstdesc=document.getElementById('RSTDesc');
+	            if (objrstdesc) objrstdesc.value="Referral awaiting additional information from referrer";
+				labelNormalTRC('SERDesc');
+	            DisableFieldTRC('UpdateAddBooking');
+				DisableFieldTRC('WLRefStatusReasonDR');
+			}
+		}
+	}
+	VINAHStatusReasonCheck();
+}
+
+function VINAHStatusReasonCheck() {
+	var NFMIValue="";
+	var TROobj=document.getElementById('WLTRODesc');
+	var NFMIobj=document.getElementById('WLNFMICategDepart');
+	var WLTRODescArry=",Accepted,Appointment,Add to Wait List,Request Review,";
+	var NFMIStr="V OP";
+	if (NFMIobj) var NFMIValue=NFMIobj.value.toUpperCase();
+	if ((TROobj)&&(NFMIValue!="")&&(WLTRODescArry.indexOf(","+TROobj.value+",")>"-1")&&(NFMIValue.indexOf(NFMIStr)>"-1")) {
+		labelMandatoryTRC('WLRefStatusReasonDR');
+	}else if ((TROobj)&&(TROobj.value=="Back to Referrer")){
+		labelMandatoryTRC('WLRefStatusReasonDR');
+	}else{
+		labelNormalTRC('WLRefStatusReasonDR');
+	}
+}
+
+TransSource_lookupsel = (function (value) {
+	if (typeof TransSource_lookupsel=="function") {
+		var cached_TransSourcelookupsel=TransSource_lookupsel;
+		return function (value) {
+			cached_TransSourcelookupsel(value);
+			TransSourceCustomHandler();
+		}
+	}
+}())
+
+function TransSourceCustomHandler() {
+	var objTS=document.getElementById('TransSource');
+	var objSADDDesc=document.getElementById('SADDDesc');
+	if ((objTS)&&(objTS.value!="")) {
+		if ((objSADDDesc)&&(objSADDDesc.value=="2"||objSADDDesc.value=="Referred from waiting list at other ESIS campus/health service")) {
+			var esis=tkMakeServerCall("Custom.AUXXUtilities","ESISHospital",objTS.value)
+			labelMandatoryTRC('TransSource');
+			if (esis=="0") {
+				alert('Invalid Entry: Referring Hospital must be an ESIS reporting Hospital')
+				objTS.className='clsInvalid';
+			}
+		}
+	}
+}
+
+disableform = (function() {
+	if (typeof disableform=="function") {
+	    var cached_disableform=disableform;
+	    return function () {
+	            cached_disableform();
+	            customdisableform();
+	    }
+	}
+}())
+
+function customdisableform () {
+    var ESISResubmissionArry=new Array("WLESISResubmissionDate","UserCode","PIN","update1")
+    var i=0;
+    while (ESISResubmissionArry[i]) {
+        EnableFieldTRC(ESISResubmissionArry[i]);
+    	i++;
+    }
+    
+}
+
+function CheckInvalid() {
+	var msg=""
+	var frm = document.forms['fPAWaitingList_Edit'];
+	for (i=0; i<frm.elements.length; i++) {
+		var el = frm.elements[i];
+		if (document.getElementById(el.name).className=='clsInvalid') {
+			if (el) {
+				EnableFieldTRC(el.name);
+				document.getElementById(el.name).className='clsInvalid';
+				msg+="\'" +t[el.name]+"\'"+" "+t['XINVALID']+"\n";
+				websys_setfocus(el.name);
+			}
+		}
+		if (isLabeledMandatoryTRC(el.name)) {
+			if (document.getElementById(el.name).value=="") { 
+				if (el) {
+					EnableFieldTRC(el.name);
+					document.getElementById(el.name).className='clsInvalid';
+					if (document.forms['fPAAdm_EditEmergency']) {
+						msg+=RequiredMsgObj(document.forms['fPAWaitingList_Edit'].elements[el.name],false);
+					}
+  					else {
+	  					msg+=RequiredMsgObj(document.getElementById(el.name),false);
+	  				}
+					websys_setfocus(el.name);
+				}
+			}
+		}				
+	}
+	if (msg) {
+		alert(msg);
+		return false;
+	} else return true;
+}
+
+disablebuttons = (function() {
+	if (typeof disablebuttons=="function") {
+	    var cached_disablebuttons=disablebuttons;
+	    return function () {
+	            cached_disablebuttons();
+	            var objUpdate=document.getElementById('update1');
+				if (objUpdate) {
+					objUpdate.onclick=CustomUpdateAll;
+					objUpdate.disabled=false;
+				}
+	    }
+	}
+}())
+
+
+function isLabeledMandatoryTRC(fld) {
+	if (document.getElementById(fld)) {
+		if ((document.getElementById('c' + fld))&&(isLabeledMandatory(fld))) return true;
+		else if (document.getElementById(fld).getAttribute('NoLabelMand')==1) return true;
+		else return false;
+	}
+	return false;
+}
+
+function labelMandatoryTRC(fld) {
+	if (document.getElementById(fld)) {
+		if (document.getElementById('c' + fld)) labelMandatory(fld);
+		else document.getElementById(fld).setAttribute('NoLabelMand','1');
+		EnableFieldTRC(fld);
+	}
+}
+
+function labelNormalTRC(fld) {
+	if (document.getElementById(fld)) {
+		if (document.getElementById('c' + fld)) labelNormal(fld);
+		if (document.getElementById(fld).getAttribute('NoLabelMand')==1) document.getElementById(fld).removeAttribute('NoLabelMand');
+		EnableFieldTRC(fld);
+	}
+}
+
+function EnableFieldTRC(fld) {
+	EnableField(fld);
+	EnableLookup("ld407i"+fld);
+}
+
+function DisableFieldTRC(fld) {
+	if (document.getElementById(fld)) {
+		if (document.getElementById('c' + fld)) labelNormal(fld);
+		if (document.getElementById(fld).getAttribute('NoLabelMand')==1) document.getElementById(fld).removeAttribute('NoLabelMand');
+		DisableField(fld);
+		DisableLookup("ld407i"+fld);
+	}
+}
+]]></Implementation>
+</Method>
+
+<Method name="FlagATTENDDescSelectValue">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>contextval:%String="",ATTENDDescValue:%String=""</FormalSpec>
+<ReturnType>%Boolean</ReturnType>
+<Implementation><![CDATA[
+	#import SQLUser
+	#dim CSPSessionTokenId as %String = ""
+	if $DATA(%session) set CSPSessionTokenId=%session.SessionId
+	quit:CSPSessionTokenId="" 1
+	set wkflid=$SELECT($LENGTH(contextval,"W")>1:+$PIECE(contextval,"W",2),1:"na")
+	if (wkflid'="")&&(ATTENDDescValue'="") {
+		set ^TMP("WEB",CSPSessionTokenId,"TRC204705","ATTENDDesc",wkflid)=ATTENDDescValue
+	}
+	quit 1
+]]></Implementation>
+</Method>
+
+<Method name="FlagNFMISelectValue">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>contextval:%String="",NFMIDescValue:%String=""</FormalSpec>
+<ReturnType>%Boolean</ReturnType>
+<Implementation><![CDATA[
+	#import SQLUser
+	#dim CSPSessionTokenId as %String = ""
+	if $DATA(%session) set CSPSessionTokenId=%session.SessionId
+	quit:CSPSessionTokenId="" 1
+	set wkflid=$SELECT($LENGTH(contextval,"W")>1:+$PIECE(contextval,"W",2),1:"na")
+	if (wkflid'="")&&(NFMIDescValue'="") {
+		set ^TMP("WEB",CSPSessionTokenId,"TRC204705","NFMICategDepart",wkflid)=NFMIDescValue
+	}
+	quit 1
+]]></Implementation>
+</Method>
+
+<Method name="ClearNFMISelectValue">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>FieldName:%String=""</FormalSpec>
+<ReturnType>%Boolean</ReturnType>
+<Implementation><![CDATA[
+	#dim CSPSessionTokenId as %String = ""
+	if $DATA(%session) set CSPSessionTokenId=%session.SessionId
+	if (FieldName'="")&&(FieldName["NFMICategDepart") {
+		set FieldName="NFMICategDepart"
+	}
+	if (FieldName'="")&&(CSPSessionTokenId'="")&&($DATA(^TMP("WEB",CSPSessionTokenId,"TRC204705",FieldName))) {
+		kill ^TMP("WEB",CSPSessionTokenId,"TRC204705",FieldName)
+	} elseif (FieldName="")&&(CSPSessionTokenId'="")&&($DATA(^TMP("WEB",CSPSessionTokenId,"TRC204705"))) {
+		kill ^TMP("WEB",CSPSessionTokenId,"TRC204705")
+	}
+	quit 1
+]]></Implementation>
+</Method>
+
+<Method name="OnRowLUNFMICategDepart">
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&rowH]]></FormalSpec>
+<ReturnType>%Boolean</ReturnType>
+<Implementation><![CDATA[
+	#import SQLUser
+	#dim NFMIDesc,context,CSPSessionTokenId,ATTENDDescVal as %String = ""
+	#dim OnRowSresultSC as %Boolean = 1
+	set NFMIId=$get(rowH.Data("HIDDEN"))
+	if NFMIId'="" {
+		set NFMIDepartmentData=^CT("NFMI",+NFMIId,"DEP",$piece(NFMIId,"||",2))
+		set DEPDateFrom=$piece(NFMIDepartmentData,"^",4)
+		set DEPDateTo=$piece(NFMIDepartmentData,"^",5)
+		if '((DEPDateFrom<=+$horolog)&&(((DEPDateTo'="")&&(DEPDateTo>=+$horolog))||(DEPDateTo=""))) {
+			set OnRowSresultSC=0
+		}
+	}
+	quit:('OnRowSresultSC) OnRowSresultSC
+	if $DATA(%session) set CSPSessionTokenId=%session.SessionId
+	set context=$get(%request.Data("CONTEXT2",1))
+	set NFMIDesc=$get(rowH.Data("Description"))
+	if (NFMIDesc'="")&&(CSPSessionTokenId'="") {
+		set ATTENDDescVal=$GET(^TMP("WEB",CSPSessionTokenId,"TRC204705","ATTENDDesc",$SELECT($LENGTH(context,"W")>1:+$PIECE(context,"W",2),1:"na")))
+		set OnRowSresultSC=..CheckWLNFMICategDepartToATTENDDesc(ATTENDDescVal,NFMIDesc)
+	}
+	quit OnRowSresultSC
+]]></Implementation>
+</Method>
+
+<Method name="OnRowLUATTENDDesc">
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&rowH]]></FormalSpec>
+<ReturnType>%Boolean</ReturnType>
+<Implementation><![CDATA[
+	#import SQLUser
+	#dim NFMIDesc as %String = ""
+	#dim context,CSPSessionTokenId,ATTENDDescVal as %String = ""
+	#dim OnRowSresultSC as %Boolean = 1
+	if $DATA(%session) set CSPSessionTokenId=%session.SessionId
+	set context=$get(%request.Data("CONTEXT2",1))
+	set ATTENDDescVal=$get(rowH.Data("desc"))
+	if (ATTENDDescVal'="")&&(CSPSessionTokenId'="") {
+		set NFMIDesc=$GET(^TMP("WEB",CSPSessionTokenId,"TRC204705","NFMICategDepart",$SELECT($LENGTH(context,"W")>1:+$PIECE(context,"W",2),1:"na")))
+		set OnRowSresultSC=..CheckWLNFMICategDepartToATTENDDesc(ATTENDDescVal,NFMIDesc)
+	}
+	quit OnRowSresultSC
+]]></Implementation>
+</Method>
+
+<Method name="CheckWLNFMICategDepartToATTENDDesc">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>ATTENDDescVal:%String="",NFMIDescValue:%String=""</FormalSpec>
+<ReturnType>%Boolean</ReturnType>
+<Implementation><![CDATA[
+	#import SQLUser
+	#dim CTTAGCODES,NFMICodeTableTags as %List = ""
+	#dim OnRowResultSC as %Boolean = 1
+	#dim found as %Boolean = 0
+	#dim pointer1,pointer2 as %Integer = 0
+	#dim CodeTableTagNF,CodeTableTagAT,piece1,piece2 as %String = ""
+	quit:((ATTENDDescVal="")||(NFMIDescValue="")) OnRowResultSC
+	&SQL(SELECT DEP_ParRef->NFMI_CodeTableTags
+	INTO :NFMICodeTableTags
+	FROM CT_NFMI_CategDepart
+	WHERE DEP_DESC=:NFMIDescValue
+	)
+	&SQL(SELECT ATTEND_CodeTableTags 
+	INTO :CTTAGCODES
+	FROM PAC_SourceOfAttendance
+	WHERE ATTEND_Desc=:ATTENDDescVal 
+	)
+	quit:(CTTAGCODES="")&&(NFMICodeTableTags="") OnRowResultSC
+	if ($listvalid(CTTAGCODES))||($listvalid(NFMICodeTableTags)) {
+		while $LISTNEXT(CTTAGCODES,pointer1,piece1) {
+			set code=""
+			set CTTAGCODESArray(piece1)=1
+		}
+		while $LISTNEXT(NFMICodeTableTags,pointer2,piece2) {
+			set code=""
+			set NFMITagArray(piece2)=1
+		}
+		for {
+			set CodeTableTagNF=$O(NFMITagArray(CodeTableTagNF))
+			quit:CodeTableTagNF=""
+			if $GET(CTTAGCODES(CodeTableTagNF)) {
+				set found=1
+			}
+		}
+		if 'found {
+			for {
+				set CodeTableTagAT=$O(CTTAGCODESArray(CodeTableTagAT))
+				quit:CodeTableTagAT=""
+				if $GET(NFMITagArray(CodeTableTagAT)) {
+					set found=1
+				}
+			}
+		}
+		if 'found set OnRowResultSC=0
+	}
+	quit OnRowResultSC
+]]></Implementation>
+</Method>
+</Class>
+</Export>

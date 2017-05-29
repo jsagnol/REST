@@ -1,0 +1,171 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.AUXX.Report.ZEN.StoredProc.InvoicesPending">
+<ProcedureBlock>0</ProcedureBlock>
+<Super>Report.Abstract</Super>
+<TimeCreated>59388,55236.125</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/AUXX/Report/ZEN/StoredProc/InvoicesPending.xml#1 $</Default>
+</Parameter>
+
+<UDLText name="T">
+<Content><![CDATA[
+// Report Name: Trak Invoices Pending <br>
+
+]]></Content>
+</UDLText>
+
+<UDLText name="T">
+<Content><![CDATA[
+// Report Code: AUXX.FIN0004 <br>
+
+]]></Content>
+</UDLText>
+
+<UDLText name="T">
+<Content><![CDATA[
+// LOGTRAK Number: 72209 <br>
+
+]]></Content>
+</UDLText>
+
+<Method name="InvoicesPendingClose">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>QHandle:%Library.Binary</FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Clean up by purging the temporary node in ^CacheTemp global
+ New repid
+ Set repid=$LIST(QHandle,2)
+ 
+ //Start Monitor (if configured to capture stats)
+ If mon Do ..MonitorEnd(mon)
+
+ Kill ^CacheTemp("TRAK",repid)
+ 
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="InvoicesPendingExecute">
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,DateFrom:%Date,DateTo:%Date,Hospital:%String,InvoiceNo:%String,DatePrinted:%String]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ //Start Monitor (if configured to capture stats)
+ Set mon=..MonitorBegin()
+   
+ // Get reportid i.e. use $INCREMENT to add another node to ^CacheTemp global. 
+ // We use ^CacheTemp global because it will always use memory before disk
+ New repid,ind
+
+ // Use $Increment to get the next node
+ Set repid=$I(^CacheTemp("TRAK"))
+
+ New Number,String,Date,Time,c,n,Print,Invoice
+ New ARPBLRowId,PAPMINo,PAADMADMNo,PAPMIName,ARPBLDateFrom,ARPBLDateTo,ARPBLBillNo,ARPBLDatePrinted,ARPBLAmountToPay,PAPMIName2,INSTCode,INSTDesc,HOSPDesc
+ Set (ARPBLRowId,ARPBLAmountToPay)=0
+ Set (PAPMINo,PAADMADMNo,PAPMIName,ARPBLDateFrom,ARPBLDateTo,ARPBLBillNo,ARPBLDatePrinted,PAPMIName2,PAPMIName3,INSTCode,INSTDesc,HOSPDesc)=""
+ 
+ Set DateFrom=..ConvertDateToCache(DateFrom)
+ Set DateTo=..ConvertDateToCache(DateTo)
+ Set DatePrinted=..ConvertDateToCache(DatePrinted)
+ 
+ i $g(Hospital)'="" s Hospital=$zstrip(Hospital,"*CW")
+ i $g(InvoiceNo)'="" s InvoiceNo=$zstrip(InvoiceNo,"*CW")
+ //s DatePrinted=$zstrip(DatePrinted,"*CW")
+ //i $g(DatePrinted)'="" {
+ ;	 s DatePrinted=$zstrip(DatePrinted,"*CW")
+ ;   s Month=$p(DatePrinted,"/",2)
+ ;   s Day=$p(DatePrinted,"/",1)
+ ;	 s Year=$p(DatePrinted,"/",3)
+ ;	 s DatePrinted=Day_"/"_Month_"/"_Year
+ ;	 i DatePrinted'="" s DatePrinted=$$intdate^SSUTIL4(DatePrinted)
+ ;}
+ 
+ &sql(declare InvoicesPending cursor for
+ SELECT
+ ARPBL_RowId,
+ ARPBL_PAADM_DR->PAADM_PAPMI_DR->PAPMI_No,
+ ARPBL_PAADM_DR->PAADM_ADMNo,
+ ARPBL_PAADM_DR->PAADM_PAPMI_DR->PAPMI_Name,
+ ARPBL_PAADM_DR->PAADM_AdmDate,
+ ARPBL_PAADM_DR->PAADM_DischgDate,
+ ARPBL_BillNo,
+ ARPBL_DatePrinted,
+ ARPBL_AmountToPay,
+ ARPBL_PAADM_DR->PAADM_PAPMI_DR->PAPMI_Name2,
+ ARPBL_PAADM_DR->PAADM_PAPMI_DR->PAPMI_Name3,
+ ARPBL_InsuranceType_DR->INST_Code,
+ ARPBL_InsuranceType_DR->INST_Desc,
+ ARPBL_Hospital_DR->HOSP_Desc
+ INTO :ARPBLRowId,:PAPMINo,:PAADMADMNo,:PAPMIName,:ARPBLDateFrom,:ARPBLDateTo,:ARPBLBillNo,:ARPBLDatePrinted,:ARPBLAmountToPay,:PAPMIName2,:PAPMIName3,:INSTCode,:INSTDesc,:HOSPDesc
+ FROM SQLUser.AR_PatientBill
+ WHERE ARPBL_AmountToPay<>0 and
+ (({fn CONCAT( ',', {fn CONCAT((:Hospital),',')})} [ {fn CONCAT( ',', {fn CONCAT((ARPBL_hospital_DR->HOSP_RowId),',')})}) OR (:Hospital IS NULL))
+ AND ARPBL_PAADM_DR->PAADM_DischgDate BETWEEN :DateFrom AND :DateTo
+ AND (ARPBL_DatePrinted=:DatePrinted OR :DatePrinted IS NULL)
+ AND  (({fn CONCAT( ',', {fn CONCAT((:InvoiceNo),',')})} [ {fn CONCAT( ',', {fn CONCAT((ARPBL_RowId),',')})}) OR (:InvoiceNo IS NULL)))
+
+ &SQL(OPEN InvoicesPending)
+ f  &SQL(FETCH InvoicesPending) q:SQLCODE'=0  d
+ . d FormatDates
+ . s ind=$i(ind)
+ . s ^CacheTemp("TRAK",repid,$ZCVT(HOSPDesc,"U")_" "_ARPBLDateTo_" "_$ZCVT(ARPBLBillNo,"U")_ind)=$LB(ARPBLRowId,PAPMINo,PAADMADMNo,PAPMIName,ARPBLDateFrom,ARPBLDateTo,ARPBLBillNo,ARPBLDatePrinted,ARPBLAmountToPay,PAPMIName2,PAPMIName3,INSTCode,INSTDesc,HOSPDesc)
+ &SQL(CLOSE InvoicesPending)
+
+ // Build QHandle (AtEnd,ReportID,Index)
+ Set QHandle=$lb(0,repid,0)
+
+ Quit $$$OK
+
+FormatDates
+ // Convert the dates to ODBC date format
+ Set ARPBLDateTo=..ConvertDateToODBC(ARPBLDateTo)
+ Set ARPBLDateFrom=..ConvertDateToODBC(ARPBLDateFrom)
+ Set ARPBLDatePrinted=..ConvertDateToODBC(ARPBLDatePrinted)
+ Quit
+]]></Implementation>
+</Method>
+
+<Method name="InvoicesPendingFetch">
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,&Row:%Library.List,&AtEnd:%Library.Integer=0]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // This fetch method should never have to change. 
+
+
+ New repid,ind
+
+ // Restore QHandle
+ Set AtEnd=$LI(QHandle,1)
+ Set repid=$LI(QHandle,2)
+ Set ind=$LI(QHandle,3)
+
+ Set ind=$order(^CacheTemp("TRAK",repid,ind))
+ If ind="" {	// if there are no more rows, finish fetching
+ 	Set AtEnd=1
+ 	Set Row=""
+ }  Else  {	// fetch row
+ 	Set Row=^CacheTemp("TRAK",repid,ind)
+ }
+
+ // Save QHandle
+ Set QHandle=$lb(AtEnd,repid,ind)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Query name="InvoicesPending">
+<Type>%Library.Query</Type>
+<FormalSpec>DateFrom:%Date,DateTo:%Date,Hospital:%String,InvoiceNo:%String,DatePrinted:%String</FormalSpec>
+<SqlProc>1</SqlProc>
+<Parameter name="CONTAINID" value="0"/>
+<Parameter name="ROWSPEC" value="ARPBLRowId:%Integer,PAPMINo:%String(MAXLEN=255),PAADMADMNo:%String(MAXLEN=255),PAPMIName:%String(MAXLEN=255),ARPBLDateFrom:%Date,ARPBLDateTo:%Date,ARPBLBillNo:%String(MAXLEN=255),ARPBLDatePrinted:%Date,ARPBLAmountToPay:%Float,PAPMIName2:%String(MAXLEN=255),PAPMIName3:%String(MAXLEN=255),INSTCode:%String(MAXLEN=255),INSTDesc:%String(MAXLEN=255),HOSPDesc:%String"/>
+</Query>
+</Class>
+</Export>

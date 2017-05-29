@@ -1,0 +1,1475 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.SWARH.Report.ZEN.StoredProc.SWARHZATD1002">
+<Description><![CDATA[
+<pre>
+***************************************************************************************************************************************
+* Report Code: SWARHZATD1002
+* Report Description: Discharge Summary - Multi Episode ZEN
+* Menu Caption: Discharge Summary - Multi Episode ZEN
+* Initial release: 31/10/2013
+* Developer: Paul Holt & Michael Welsh
+* Modified:
+* 26/03/14 MW	Added DisID parameter to ClassMethods SWARHZATD1002Meds & SWARHZATD1002CeasedMeds groups to 
+* 				filter both for selected episodes.
+* 27/03/14 MW	Added ClassMethod SWARHZATD1002EpisodeList which compiles a list of episodes which the DS was created for.
+* 28/09/15 PH	Changed fields for Generic Drug Name in Medications 		
+* 19/07/16 RG   Changed RAPID number retrieval method to use the MRN list as the PAPER_ID it was in was repurposed for the IHI number
+***************************************************************************************************************************************
+</pre>]]></Description>
+<ProcedureBlock>0</ProcedureBlock>
+<Super>Custom.SWARH.Report.ZEN.StoredProc.Abstract</Super>
+<TimeCreated>61221,1748.07682</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/SWARH/Report/ZEN/StoredProc/SWARHZATD1002.xml#1 $</Default>
+</Parameter>
+
+<UDLText name="T">
+<Content><![CDATA[
+// Parameter CACHETEMPSUBSCRIPT = "SWARH";
+
+]]></Content>
+</UDLText>
+
+<Method name="SWARHZATD1002Close">
+<Description>
+This is the Close component of the %Library.Query.
+This is standard code and should never have to change.
+This is where all the cleanup is performed, i.e. the purging of the temporary storage global ^CacheTemp.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>QHandle:%Library.Binary</FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Clean up by purging the temporary node in ^CacheTemp global
+ New repid
+ Set repid=$LIST(QHandle,2)
+ 
+ //Start Monitor (if configured to capture stats)
+ i mon Do ..MonitorEnd(mon)
+
+ Kill ^CacheTemp(..#CACHETEMPSUBSCRIPT,repid)
+ 
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="SWARHZATD1002Execute">
+<Description>
+This is the Execute section for the %Library.Query. 
+All of the logic will be performed here.
+A new node for the ^CacheTemp global will be created and each subscript of this global will contain
+a row for the report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,DisID:%Integer]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Get reportid i.e. use $INCREMENT to add another node to ^CacheTemp global. 
+ // We use ^CacheTemp global because it will always use memory before disk
+ New repid,ind
+
+ // Use $Increment to get the next node
+ Set repid=$Increment(^CacheTemp(..#CACHETEMPSUBSCRIPT))
+ 
+ s ind=1, END=0
+ //Start Monitor (if configured to capture stats)
+ s mon=..MonitorBegin()
+
+ // Build data into ^CacheTemp(ReportID)
+ // e.g. Set ^CacheTemp(ReportID,Index)=$LB(f1,f2,f3)
+ New Number,String,Date,Time,c,n,str,END
+ n PAADMRowId1,PAADMADMNo,CTPCPDesc,PAADMAdmDate,PAADMAdmDateSql,PAADMDischgDate,HOSPDesc,DISProcedures,DISActiveProblems,PAADMAdmTime
+ ,PAADMDischgTime,PAPMIRowId,PAPMIDOB,PAPMIName,PAPMIName2,PAPMIName3,PAPMINo,PAPERTelH,DISProgressNotes,PAPERStName,PAPERForeignAddress
+ ,CTZIPCode,CTCITDesc,MRADMRowId,CTSEXDesc,REFDDesc,REFDAddress,CLNAddress2,REFDCITDesc,DISStatus,REFDZIPCode,CLNChildSub,DISClinicalOpinion
+ ,DISOtherResults,DISSuggestions,DISCTPCPDesc,DISCTPCPTelO,CTCPTInternalType,DISRowId,TelH,DISUpdateDate,DISUpdateTime,SSUSRInitials
+ ,SSUSRName,SSUSRSurname,SSUSRGivenName,MRADMGPConsent,IPATDesc,HOSPPhone,FAMDTTLCode,WARDCode,CTLOCCode,CTLOCDesc,PAADMHospitalDR
+ ,REFDPROVCode,CLNAddress1,CLNCTCITDesc,CLNZIPCode,CLNPROVCode,CTLOCNataHeadings,DISParRef,VSTDesc,DSCLDesc,FAMDDesc,FAMDForename
+ ,CTPCPTextTwo,REFREFDDR,DISDate,DISDateSql,RapidNo,DISPrincipalDiagnosis,verno,PAADMRowId,TRESRowId,ARCIMDesc,TRRowId,OEORICollectionDate
+ ,OEORICollectionTime,TRClinicallySignificant,RESSTDesc,ARCICOrdCatDR,DISPrincipalDiag,ActiveProblems,DISProced,ProgressNotes
+ ,ClinicalOpinion,Suggestions,OtherResults,ConvertNewLines,NumResults
+ 
+ s (PAADMRowId1,PAPMIRowId,MRADMRowId,CLNChildSub,DISRowId,DISParRef,PAADMRowId,TRRowId,PAADMHospitalDR,ARCICOrdCatDR,NumResults)=0
+ n OEORDRowId
+ s OEORDRowId=""
+ 
+ s (PAADMADMNo,CTPCPDesc,PAADMAdmDate,PAADMAdmDateSql,PAADMDischgDate,HOSPDesc,DISProcedures,DISActiveProblems,PAADMAdmTime
+ ,PAADMDischgTime,PAPMIDOB,PAPMIName,PAPMIName2,PAPMIName3,PAPMINo,PAPERTelH,DISProgressNotes,PAPERStName,PAPERForeignAddress
+ ,CTZIPCode,CTCITDesc,MRADMRowId,CTSEXDesc,REFDDesc,REFDAddress,CLNAddress2,REFDCITDesc,DISStatus,REFDZIPCode,DISClinicalOpinion
+ ,DISOtherResults,DISSuggestions,DISCTPCPDesc,DISCTPCPTelO,CPTInternalT,CTCPTInternalType,TelH,DISUpdateDate,DISUpdateTime,SSUSRInitials
+ ,SSUSRName,SSUSRSurname,SSUSRGivenName
+ ,MRADMGPConsent,IPATDesc,HOSPPhone,FAMDTTLCode,WARDCode,CTLOCCode,CTLOCDesc,REFDPROVCode,CLNAddress1,CLNCTCITDesc,CLNZIPCode,CLNPROVCode
+ ,CTLOCNataHeadings,VSTDesc,DSCLDesc,FAMDDesc,FAMDForename,CTPCPTextTwo,REFREFDDR,DISDate,DisDateSql,RapidNo,DISPrincipalDiagnosis,verno
+ ,TRESRowId,ARCIMDesc,OEORICollectionDate,TRClinicallySignificant,RESSTDesc,DISPrincipalDiag,ActiveProblems,DISProced,ProgressNotes
+ ,ClinicalOpinion,Suggestions,OtherResults,ConvertNewLines)=""
+ 
+ s ^zbernard("1")=1
+ s ind=1
+ s ^zbernard("2")=2
+ s END=0
+
+ ; Principal Diagnosis 
+ //s idx=0 f  s idx=$o(^PA("DISSUM",DischID,"PD",idx)) q:idx=""  d 
+ //. s DISPrincipalDiagnosis=DISPrincipalDiagnosis_$s(DISPrincipalDiagnosis="":"",1:$c(13,10))_$g(^PA("DISSUM",CurrDischID,"PD",idx))
+
+#SQLCOMPILE SELECT=Display
+ &sql(select
+ PAADM_RowId, 
+ PAADM_ADMNo,
+ TRANS_CTCP_DR->CTPCP_Desc,
+ PAADM_AdmDate,
+ PAADM_DischgDate,
+ PAADM_CurrentWard_DR->WARD_LocationDR->CTLOC_Hospital_DR->HOSP_Desc,
+ PAADM_AdmTime,
+ PAADM_DischgTime,
+ PAPMI_RowId,
+ PAPMI_DOB,
+ PAPMI_Name, 
+ PAPMI_Name2,
+ PAPMI_Name3,
+ PAPMI_No,
+ PAPMI_PAPER_DR->PAPER_TelH,
+ $LISTTOSTRING(PAPMI_PAPER_DR->PAPER_StName, CHAR(13) || CHAR(10)),
+ $LISTTOSTRING(PAPMI_PAPER_DR->PAPER_ForeignAddress, CHAR(13) || CHAR(10)),
+ PAPMI_PAPER_DR->PAPER_Zip_DR->CTZIP_Code, 
+ PAPMI_PAPER_DR->PAPER_CityCode_DR->CTCIT_Desc,
+ PAADM_MainMRADM_DR,
+ PAPMI_PAPER_DR->PAPER_Sex_DR->CTSEX_Desc,
+ REF_RefDoc_DR->REFD_Desc as REFDDesc,
+ $LISTTOSTRING(REF_RefDoc_DR->REFD_Address, CHAR(13) || CHAR(10)),
+ $LISTTOSTRING(REF_RefDocClinic_DR->CLN_Address2, CHAR(13) || CHAR(10)),
+ REF_RefDoc_DR->REFD_CITY_DR->CTCIT_Desc as REFDCITDesc,
+ DIS_PADischargeSummary_DR->DIS_Status,
+ REF_RefDoc_DR->REFD_CTZIP_DR->CTZIP_Code as REFDZIPCode,
+ REF_RefDocClinic_DR->CLN_ChildSub,
+ DIS_PADischargeSummary_DR->DIS_CareProv_DR->CTPCP_Desc as DISCTPCPDesc,
+ DIS_PADischargeSummary_DR->DIS_CareProv_DR->CTPCP_TelO as DISCTPCPTelO,
+ DIS_PADischargeSummary_DR->DIS_CareProv_DR->CTPCP_CarPrvTp_DR->CTCPT_InternalType,
+ DIS_PADischargeSummary_DR,
+ PAPMI_PAPER_DR->PAPER_TelH,
+ DIS_PADischargeSummary_DR->DIS_UpdateDate,
+ DIS_PADischargeSummary_DR->DIS_UpdateTime,
+ DIS_PADischargeSummary_DR->DIS_UpdateUser_DR->SSUSR_Initials,
+ DIS_PADischargeSummary_DR->DIS_UpdateUser_DR->SSUSR_Name,
+ DIS_PADischargeSummary_DR->DIS_UpdateUser_DR->SSUSR_Surname,
+ DIS_PADischargeSummary_DR->DIS_UpdateUser_DR->SSUSR_GivenName,
+ PAADM_MainMRADM_DR->MRADM_GPConsent,
+ PAADM_InPatAdmType_DR->IPAT_Desc,
+ PAADM_CurrentWard_DR->WARD_LocationDR->CTLOC_Hospital_DR->HOSP_Phone, 
+ PAADM_PAPMI_dr->PAPMI_PAPER_DR->PAPER_FamilyDoctor_DR->REFD_Title_DR->TTL_Code as FAMDTTLCode,
+ PAADM_CurrentWard_DR->WARD_Code,
+ PAADM_DepCode_DR->CTLOC_Code,
+ PAADM_DepCode_DR->CTLOC_Desc,
+ PAADM_Hospital_DR,
+ REF_RefDoc_DR->REFD_Province_DR->PROV_Code,
+ $LISTTOSTRING(REF_RefDocClinic_DR->CLN_Address1, CHAR(13) || CHAR(10)),
+ REF_RefDocClinic_DR->CLN_City_DR->CTCIT_Desc as CLNCTCITDesc,
+ REF_RefDocClinic_DR->CLN_Zip_DR->CTZIP_Code as CLNZIPCode,
+ REF_RefDocClinic_DR->CLN_ZIP_DR->CTZIP_Province_dr->PROV_Code as CLNPROVCode,
+ PAADM_DepCode_DR->CTLOC_NATAHeadings,
+ DIS_ParRef,
+ PAADM_MainMRADM_DR->MRADM_VisitType_DR->VST_Desc,
+ PAADM_MainMRADM_DR->MRADM_DischClassif_DR->DSCL_Desc,
+ PAPMI_PAPER_DR->PAPER_FamilyDoctor_DR->REFD_Desc as FAMDDesc,
+ PAPMI_PAPER_DR->PAPER_FamilyDoctor_DR->REFD_Forename as FAMDForename,
+ DIS_PADischargeSummary_DR->DIS_CareProv_DR->CTPCP_TextTwo,
+ REF_RefDoc_DR,
+ DIS_PADischargeSummary_DR->DIS_Date,
+ (SELECT RTMAS_MRNo FROM SQLUser.RT_Master WHERE RTMAS_PatNo_DR=PAPMI_RowId AND RTMAS_MRType_DR=(SELECT TYP_RowId FROM SQLUser.RTC_MRecordType WHERE TYP_Code='RAPID') AND RTMAS_Active = 'Y') as RapidNo, -- PAPMI_PAPER_DR->PAPER_ID -- (rpgladman 2016-07-19)
+ PA_DischargeSummary.DIS_PrincipalDiagnosis AS DISPrincipalDiag,
+ PA_DischargeSummary.DIS_ActiveProblems AS ActiveProblems,
+ PA_DischargeSummary.DIS_Procedures AS DISProced,
+ PA_DischargeSummary.DIS_ProgressNotes AS ProgressNotes,
+ PA_DischargeSummary.DIS_ClinicalOpinion AS ClinicalOpinion,
+ PA_DischargeSummary.DIS_Suggestions AS Suggestions,
+ PA_DischargeSummary.DIS_OtherResults AS OtherResults
+ INTO :PAADMRowId1,:PAADMADMNo,:CTPCPDesc,:PAADMAdmDate,:PAADMDischgDate,:HOSPDesc,
+:PAADMAdmTime,:PAADMDischgTime,:PAPMIRowId,:PAPMIDOB,
+:PAPMIName,:PAPMIName2,:PAPMIName3,
+:PAPMINo,:PAPERTelH,:PAPERStName,:PAPERForeignAddress,
+:CTZIPCode,:CTCITDesc,:MRADMRowId,:CTSEXDesc,
+:REFDDesc,:REFDAddress,:CLNAddress2,:REFDCITDesc,:DISStatus,:REFDZIPCode,:CLNChildSub,
+:DISCTPCPDesc,
+:DISCTPCPTelO,:CTCPTInternalType,:DISRowId,:TelH,:DISUpdateDate,:DISUpdateTime,:SSUSRInitials,:SSUSRName,:SSUSRSurname,:SSUSRGivenName,
+:MRADMGPConsent,:IPATDesc,:HOSPPhone,:FAMDTTLCode,:WARDCode,:CTLOCCode,
+:CTLOCDesc,:PAADMHospitalDR,:REFDPROVCode,:CLNAddress1,:CLNCTCITDesc,
+:CLNZIPCode,:CLNPROVCode,:CTLOCNataHeadings,:DISParRef,:VSTDesc,:DSCLDesc,
+:FAMDDesc,:FAMDForename,:CTPCPTextTwo,:REFREFDDR,:DISDate,:RapidNo,:DISPrincipalDiag,:ActiveProblems,:DISProced,:ProgressNotes
+,:ClinicalOpinion,:Suggestions,:OtherResults
+ 
+ FROM
+ SQLUSER.PA_DischargeSummary PA_DischargeSummary
+ INNER JOIN SQLUSER.PA_Adm2DischargeSummary PA_Adm2DischargeSummary ON DIS_PADischargeSummary_DR=PA_DischargeSummary.DIS_RowId
+ LEFT JOIN SQLUSER.PA_Adm ON PAADM_RowId=DIS_ParRef
+ LEFT JOIN SQLUSER.PA_DischargeSummaryRefDoc ON DIS_PADischargeSummary_DR=REF_ParRef
+ LEFT JOIN SQLUSER.PA_PatMas ON PAADM_PAPMI_DR=PAPMI_RowId
+ LEFT join SQLUSER.PA_AdmTransaction ON (PAADM_Rowid=TRANS_ParRef AND TRANS_CTCP_DR IS NOT NULL)
+ WHERE
+ PA_DischargeSummary.DIS_RowId=:DisID
+ ORDER BY PAADM_DischgDate DESC, PAADM_DischgTime DESC, TRANS_EndDate DESC, TRANS_EndTime DESC
+ )
+ ;Order by PAADM_AdmDate desc,PAADM_AdmTime desc, TRANS_StartDate desc, TRANS_StartTime desc
+ ;and TRANS_TransType_dr=3 taken out of the selection criteria in query above 05/08/2010
+ 
+ s ^zbernard("3")=3
+ d FormatDates
+ d FormatTimes
+ d FormatEscapeXMLStrings
+ 
+ ;get the "version number"
+ s idstr=##Class(web.PAAdmDischargeSummary).GetPreviousVersions(DisID) 
+ s verno=($l(idstr,"^")+1) 
+ i idstr="" s verno=1
+ //new select to declare cursor
+ &sql(declare SWARHZATD1002 cursor for 
+ SELECT
+        COUNT(*)
+ FROM
+        SQLUser.OE_OrdItem
+ INNER JOIN SQLUser.OE_Order ON OEORI_OEORD_ParRef=OEORD_RowId
+ INNER JOIN SQLUser.PA_Adm ON OEORD_Adm_DR=PAADM_RowId
+ LEFT JOIN SQLUSer.PA_Adm2DischargeSummary paadm2ds ON PAADM_RowId=paadm2ds.DIS_ParRef
+ LEFT JOIN SQLUSer.OE_OrdTextResult ON TRES_ParRef=OEORI_RowId
+ LEFT JOIN SQLUSer.OE_TextResult ON TRES_OETR_DR=TR_RowId
+ LEFT JOIN SQLUSer.OE_TextResultSection ON SEC_ParRef=TR_RowId
+ WHERE paadm2ds.DIS_PADischargeSummary_DR=:DisID
+ AND OEORI_ItmMast_DR->ARCIM_ItemCat_DR->ARCIC_OrdCat_DR->ORCAT_Code IN ('ED','PATH','RAD')
+ AND OEORI_ItemStat_DR->OSTAT_Code ='E'
+ AND OEORI_ClinicallySignificant='Y'
+ )
+ &sql(open  SWARHZATD1002)
+
+
+ ;WHERE PAADM_PAPMI_DR=PAPMI_RowId and PAADM_Rowid=TRANS_ParRef and TRANS_TransType_dr=3 and (removed transaction type criteria)
+ 
+ // build the row
+ Set str=$LB(PAADMRowId1,PAADMADMNo,CTPCPDesc,PAADMAdmDate,PAADMAdmDateSql,PAADMDischgDate,HOSPDesc,PAADMAdmTime,PAADMDischgTime,
+ PAPMIRowId,PAPMIDOB,PAPMIName,PAPMIName2,PAPMIName3,PAPMINo,PAPERTelH,PAPERStName,PAPERForeignAddress,CTZIPCode,CTCITDesc,
+ MRADMRowId,CTSEXDesc,REFDDesc,REFDAddress,CLNAddress2,REFDCITDesc,DISStatus,REFDZIPCode,CLNChildSub,DISCTPCPDesc,DISCTPCPTelO,
+ CTCPTInternalType,DISRowId,TelH,DISUpdateDate,DISUpdateTime,SSUSRInitials,SSUSRName,SSUSRSurname,SSUSRGivenName,MRADMGPConsent,
+ IPATDesc,HOSPPhone,FAMDTTLCode,WARDCode,CTLOCCode,CTLOCDesc,PAADMHospitalDR,REFDPROVCode,
+ CLNAddress1,CLNCTCITDesc,CLNZIPCode,CLNPROVCode,CTLOCNataHeadings,DISParRef,VSTDesc,DSCLDesc,FAMDDesc,FAMDForename,CTPCPTextTwo,
+ REFREFDDR,DISDate,DISDateSql,RapidNo,DISPrincipalDiagnosis,DISActiveProblems,DISProcedures,DISProgressNotes,DISClinicalOpinion,
+ DISSuggestions,DISOtherResults,verno)
+
+
+ //fetch first order record - here only one record
+ &sql(fetch SWARHZATD1002 into :NumResults)
+ if SQLCODE '= 0 set END = 1
+ set strNumResults=$LB(NumResults)
+
+ d BuildRow
+
+ &sql(close SWARHZATD1002)
+
+ // Build QHandle (AtEnd,ReportID,Index)
+ Set QHandle=$lb(0,repid,0)
+
+ Quit $$$OK
+
+ //WSA Edit
+
+BuildRow
+ s zwsa("buildrow")=""
+ s ^CacheTemp(..#CACHETEMPSUBSCRIPT,repid,ind)=str_strNumResults
+ s ind=ind+1
+ q
+
+FormatDates
+ // Convert the dates to human-readable date format
+ If PAADMAdmDate {
+   Set PAADMAdmDateSql=$ZD($ZDH(PAADMAdmDate),3)
+   Set PAADMAdmDate=$ZD($ZDH(PAADMAdmDate),4)
+ }
+ If PAADMDischgDate Set PAADMDischgDate=$ZD($ZDH(PAADMDischgDate),4)
+ If PAPMIDOB Set PAPMIDOB=$ZD($ZDH(PAPMIDOB),4,"",4)
+ If DISUpdateDate Set DISUpdateDate=$ZD($ZDH(DISUpdateDate),4)
+ If DISDate {
+   Set DISDateSql=$ZD($ZDH(DISDate),3)
+   Set DISDate=$ZD($ZDH(DISDate),4)
+ }
+ Quit
+
+FormatTimes
+ // Convert the times to ODBC time format
+ If PAADMAdmTime Set PAADMAdmTime=$ZT(PAADMAdmTime,2)
+ If PAADMDischgTime Set PAADMDischgTime=$ZT(PAADMDischgTime,2)
+ If DISUpdateTime Set DISUpdateTime=$ZT(DISUpdateTime,2)
+ Quit
+ 
+FormatEscapeXMLStrings
+ s ConvertNewLines = "True"
+ ; Principal Diagnosis 
+ s DISPrincipalDiagnosis = ..EscapeXML(DISPrincipalDiag, ConvertNewLines)
+ ; Active Problems 
+ s DISActiveProblems = ..EscapeXML(ActiveProblems, ConvertNewLines)
+ ; Procedures 
+ s DISProcedures = ..EscapeXML(DISProced, ConvertNewLines) 
+ ; Progress Notes 
+ s DISProgressNotes = ..EscapeXML(ProgressNotes, ConvertNewLines) 
+ ; Clinical Opinion 
+ s DISClinicalOpinion = ..EscapeXML(ClinicalOpinion, ConvertNewLines)  
+ ; Suggestions 
+ s DISSuggestions = ..EscapeXML(Suggestions, ConvertNewLines) 
+ ; Other Results
+ s DISOtherResults = ..EscapeXML(OtherResults, ConvertNewLines)
+
+ q
+]]></Implementation>
+</Method>
+
+<Method name="SWARHZATD1002Fetch">
+<Description>
+This is the Fetch component of the %Library.Query. 
+This should never have to change. It is designed to fetch the row for each subscript of the ^CacheTemp
+global and return this row to the Crystal Report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,&Row:%Library.List,&AtEnd:%Library.Integer=0]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // This fetch method should never have to change. 
+
+ // repid - Report ID
+ // ind   - sequence index which represents each row
+
+ New repid,ind
+
+ // Restore QHandle
+ Set AtEnd=$li(QHandle,1)
+ Set repid=$li(QHandle,2)
+ Set ind=$li(QHandle,3)
+
+ Set ind=$o(^CacheTemp(..#CACHETEMPSUBSCRIPT,repid,ind))
+ If ind="" {  // if there are no more rows, finish fetching
+ Set AtEnd=1
+ Set Row=""
+ }
+ Else      {  // fetch row
+ Set Row=^CacheTemp(..#CACHETEMPSUBSCRIPT,repid,ind)
+ }
+
+ // Save QHandle
+ s QHandle=$lb(AtEnd,repid,ind)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Query name="SWARHZATD1002">
+<Type>%Library.Query</Type>
+<FormalSpec>DisID:%Integer</FormalSpec>
+<SqlProc>1</SqlProc>
+<Parameter name="CONTAINID" value="0"/>
+<Parameter name="ROWSPEC" value="PAADMRowId1:%Integer,PAADMADMNo:%String(MAXLEN=255),CTPCPDesc:%String(MAXLEN=255),PAADMAdmDate:%String,PAADMAdmDateSql:%String,PAADMDischgDate:%String,HOSPDesc:%String(MAXLEN=255),PAADMAdmTime:%String(MAXLEN=255),PAADMDischgTime:%String(MAXLEN=255),PAPMIRowId:%Integer,PAPMIDOB:%String,PAPMIName:%String(MAXLEN=255),PAPMIName2:%String(MAXLEN=255),PAPMIName3:%String(MAXLEN=255),PAPMINo:%String(MAXLEN=255),PAPERTelH:%String(MAXLEN=255),PAPERStName:%String(MAXLEN=255),PAPERForeignAddress:%String(MAXLEN=255),CTZIPCode:%String(MAXLEN=255),CTCITDesc:%String(MAXLEN=255),MRADMRowId:%Integer,CTSEXDesc:%String(MAXLEN=255),REFDDesc:%String(MAXLEN=255),REFDAddress:%String(MAXLEN=255),CLNAddress2:%String(MAXLEN=255),REFDCITDesc:%String(MAXLEN=255),DISStatus:%String(MAXLEN=255),REFDZIPCode:%String(MAXLEN=255),CLNChildSub:%Integer,DISCTPCPDesc:%String(MAXLEN=255),DISCTPCPTelO:%String(MAXLEN=255),CTCPTInternalType:%String(MAXLEN=255),DISRowId:%Integer,TelH:%String(MAXLEN=255),DISUpdateDate:%String,DISUpdateTime:%String(MAXLEN=255),SSUSRInitials:%String(MAXLEN=255),SSUSRName:%String(MAXLEN=255),SSUSRSurname:%String(MAXLEN=255),SSUSRGivenName:%String(MAXLEN=255),MRADMGPConsent:%String(MAXLEN=255),IPATDesc:%String(MAXLEN=255),HOSPPhone:%String(MAXLEN=255),FAMDTTLCode:%String(MAXLEN=255),WARDCode:%String(MAXLEN=255),CTLOCCode:%String(MAXLEN=255),CTLOCDesc:%String(MAXLEN=255),PAADMHospitalDR:%Integer,REFDPROVCode:%String(MAXLEN=255),CLNAddress1:%String(MAXLEN=255),CLNCTCITDesc:%String(MAXLEN=255),CLNZIPCode:%String(MAXLEN=255),CLNPROVCode:%String(MAXLEN=255),CTLOCNataHeadings:%String(MAXLEN=255),DISParRef:%Integer,VSTDesc:%String(MAXLEN=255),DSCLDesc:%String(MAXLEN=255),FAMDDesc:%String(MAXLEN=255),FAMDForename:%String(MAXLEN=255),CTPCPTextTwo:%String(MAXLEN=255),REFREFDDR:%String(MAXLEN=255),DISDate:%String,DISDateSql:%String,RapidNo:%String(MAXLEN=255),DISPrincipalDiagnosis:%String(MAXLEN=35000),DISActiveProblems:%String(MAXLEN=35000),DISProcedures:%String(MAXLEN=35000),DISProgressNotes:%String(MAXLEN=35000),DISClinicalOpinion:%String(MAXLEN=35000),DISSuggestions:%String(MAXLEN=35000),DISOtherResults:%String(MAXLEN=35000),verno:%String(MAXLEN=255),NumResults:%Integer"/>
+<Parameter name="SELECTMODE" value="ODBC"/>
+</Query>
+
+<Method name="SWARHZATD1002AllergiesClose">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>QHandle:%Library.Binary</FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Clean up by purging the temporary node in ^CacheTemp global
+ New repid
+ Set repid=$LIST(QHandle,2)
+ 
+ //Start Monitor (if configured to capture stats)
+ i mon Do ..MonitorEnd(mon)
+
+ Kill ^CacheTemp(..#CACHETEMPSUBSCRIPT,repid)
+ 
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="SWARHZATD1002AllergiesExecute">
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,PAPMIRowId:%Integer]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Get reportid i.e. use $INCREMENT to add another node to ^CacheTemp global. 
+ // We use ^CacheTemp global because it will always use memory before disk
+ New repid,ind
+
+ // Use $Increment to get the next node
+ Set repid=$Increment(^CacheTemp(..#CACHETEMPSUBSCRIPT))
+ 
+ //Start Monitor (if configured to capture stats)
+ s mon=..MonitorBegin()
+
+ // Build data into ^CacheTemp(ReportID)
+ // e.g. Set ^CacheTemp(ReportID,Index)=$LB(f1,f2,f3),ICDCode,DRGCode
+ New Number,String,Date,Time,c,n
+ New AlgDesc,PHCGEName,PHCDName,ALGRDesc,INGRDesc,AlgComments
+ s (AlgDesc,PHCGEName,PHCDName,ALGRDesc,INGRDesc,AlgComments)=""
+  
+ s ind=1
+
+ &SQL(DECLARE Allergies CURSOR FOR
+	
+ 	SELECT
+        alg.ALG_Type_DR->ALG_Desc, -- PAC_Allergy
+        alg.ALG_PHCGE_DR->PHCGE_Name, -- PHC_Generic
+        alg.ALG_PHCDM_DR->PHCD_Name, -- PHC_DrgMast
+        alg.ALG_AllergyGrp_DR->ALGR_Desc, -- PHC_AllergyGroup
+        alg.ALG_Ingred_DR->INGR_Desc, -- PHC_Ingredient
+        alg.ALG_Comments
+	FROM
+        SQLUser.PA_Allergy alg
+	WHERE
+        alg.ALG_PAPMI_ParRef = :PAPMIRowId 
+        AND ((alg.ALG_InActive IS NULL) OR (alg.ALG_InActive<>'Y'))
+ 
+ )
+ 
+ &sql(open Allergies)
+ do Fetchrow
+  
+ while 'SQLCODE {
+	 
+	d FormatStrings
+	d AppendComments
+	Set ^CacheTemp(..#CACHETEMPSUBSCRIPT,repid,ind)=$LB(AlgDesc,PHCGEName,PHCDName,ALGRDesc,INGRDesc)
+ 	s ind=ind+1
+	do Fetchrow
+ }
+ &sql(close Allergies)
+
+ Set QHandle=$lb(0,repid,0)
+
+ Quit $$$OK
+
+Fetchrow
+	&sql(fetch Allergies into :AlgDesc,:PHCGEName,:PHCDName,:ALGRDesc,:INGRDesc,:AlgComments)
+  	q
+	
+FormatStrings // Cleanup specified strings
+	s AlgDesc = $ZSTRIP(AlgDesc,"*C")
+ 	s PHCGEName = $ZSTRIP(PHCGEName,"*C")
+ 	s PHCDName = $ZSTRIP(PHCDName,"*C")
+ 	s ALGRDesc = $ZSTRIP(ALGRDesc,"*C")
+ 	s INGRDesc = $ZSTRIP(INGRDesc,"*C")
+ 	s AlgComments = $LISTTOSTRING(AlgComments,"") //property ALGComments as list of %String no delimiter
+ 	q
+ 
+AppendComments
+ 	If ((AlgDesc '= "") && (AlgComments '= "")) {s AlgDesc = AlgDesc_" "_AlgComments} 
+ 	If ((PHCGEName '= "") && (AlgComments '= "")) {s PHCGEName = PHCGEName_" "_AlgComments} 
+ 	If ((PHCDName '= "") && (AlgComments '= "")) {s PHCDName = PHCDName_" "_AlgComments} 
+ 	If ((ALGRDesc '= "") && (AlgComments '= "")) {s ALGRDesc = ALGRDesc_" "_AlgComments} 
+ 	If ((INGRDesc '= "") && (AlgComments '= "")) {s INGRDesc = INGRDesc_" "_AlgComments} 
+ 	q
+]]></Implementation>
+</Method>
+
+<Method name="SWARHZATD1002AllergiesFetch">
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,&Row:%Library.List,&AtEnd:%Library.Integer=0]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // This fetch method should never have to change. 
+ // repid - Report ID
+ // ind   - sequence index which represents each row
+
+ New repid,ind
+
+ // Restore QHandle
+ Set AtEnd=$li(QHandle,1)
+ Set repid=$li(QHandle,2)
+ Set ind=$li(QHandle,3)
+
+ Set ind=$o(^CacheTemp(..#CACHETEMPSUBSCRIPT,repid,ind))
+ If ind="" {	// if there are no more rows, finish fetching
+ Set AtEnd=1
+ Set Row=""
+ }
+ Else      {	// fetch row
+ Set Row=^CacheTemp(..#CACHETEMPSUBSCRIPT,repid,ind)
+ }
+
+ // Save QHandle
+ s QHandle=$lb(AtEnd,repid,ind)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Query name="SWARHZATD1002Allergies">
+<Type>%Library.Query</Type>
+<FormalSpec>PAPMIRowId:%Integer</FormalSpec>
+<SqlProc>1</SqlProc>
+<Parameter name="CONTAINID" value="0"/>
+<Parameter name="ROWSPEC" value="AlgDesc:%String,PHCGEName:%String,PHCDName:%String,ALGRDesc:%String,INGRDesc:%String"/>
+<Parameter name="SELECTMODE" value="ODBC"/>
+</Query>
+
+<Method name="SWARHZATD1002AlertsClose">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>QHandle:%Library.Binary</FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Clean up by purging the temporary node in ^CacheTemp global
+ New repid
+ Set repid=$LIST(QHandle,2)
+ 
+ //Start Monitor (if configured to capture stats)
+ i mon Do ..MonitorEnd(mon)
+
+ Kill ^CacheTemp(..#CACHETEMPSUBSCRIPT,repid)
+ 
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="SWARHZATD1002AlertsExecute">
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,PAPMIRowId:%Integer]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+
+ // Get reportid i.e. use $INCREMENT to add another node to ^CacheTemp global. 
+ // We use ^CacheTemp global because it will always use memory before disk
+ New repid,ind
+
+ // Use $Increment to get the next node
+ Set repid=$Increment(^CacheTemp(..#CACHETEMPSUBSCRIPT))
+ 
+ //Start Monitor (if configured to capture stats)
+ s mon=..MonitorBegin()
+
+	set currentDate = $ZDateTime($Horolog,3)
+ 
+#SQLCOMPILE SELECT=Display
+ &sql(
+ 	declare AlertsCursor cursor for
+ 	SELECT PC.ALERT_Desc, P.ALM_ClosedDate 
+ 	FROM SQLUser.PAC_PatientAlert PC, SQLUser.PA_AlertMsg P
+ 	WHERE PC.ALERT_RowId = P.ALM_Alert_DR 
+ 		AND (P.ALM_PAPMI_ParRef = :PAPMIRowId)
+		AND ((P.ALM_ClosedDate is null) or (P.ALM_ClosedDate>:currentDate))
+ )
+ // Removed the line:
+ //	...	AND (PC.ALERT_AlertCategory_DR = 3)
+ // because we are no longer interested only in behavioural alerts.
+ 
+ &sql(open AlertsCursor)
+ do Alertsfetch
+ s ind=1
+ while 'SQLCODE{
+	Set ^CacheTemp(..#CACHETEMPSUBSCRIPT,repid,ind)=row
+ 	s ind=ind+1
+	do Alertsfetch
+ }
+ &sql(close AlertsCursor)
+
+ Set QHandle=$lb(0,repid,0)
+
+ Quit $$$OK
+
+Alertsfetch
+ 	&sql(fetch AlertsCursor into :AlertDesc, :AlmClosedDate )
+	set row = $LB(AlertDesc, AlmClosedDate)
+	q
+]]></Implementation>
+</Method>
+
+<Method name="SWARHZATD1002AlertsFetch">
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,&Row:%Library.List,&AtEnd:%Library.Integer=0]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // This fetch method should never have to change. 
+
+ // repid - Report ID
+ // ind   - sequence index which represents each row
+
+ New repid,ind,AtEnd
+
+ // Restore QHandle
+ Set AtEnd=$li(QHandle,1)
+ Set repid=$li(QHandle,2)
+ Set ind=$li(QHandle,3)
+
+ Set ind=$o(^CacheTemp(..#CACHETEMPSUBSCRIPT,repid,ind))
+ If ind="" {	// if there are no more rows, finish fetching
+ Set AtEnd=1
+ Set Row=""
+ }
+ Else      {	// fetch row
+ Set Row=^CacheTemp(..#CACHETEMPSUBSCRIPT,repid,ind)
+ }
+
+ // Save QHandle
+ s QHandle=$lb(AtEnd,repid,ind)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Query name="SWARHZATD1002Alerts">
+<Type>%Library.Query</Type>
+<FormalSpec>PAPMIRowId:%Integer</FormalSpec>
+<SqlProc>1</SqlProc>
+<Parameter name="CONTAINID" value="0"/>
+<Parameter name="ROWSPEC" value="ALERT_Desc:%String(MAXLEN=255),ALM_ClosedDate:%String(MAXLEN=255)"/>
+<Parameter name="SELECTMODE" value="ODBC"/>
+</Query>
+
+<Method name="SWARHZATD1002DiscRefDocsClose">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>QHandle:%Library.Binary</FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Clean up by purging the temporary node in ^CacheTemp global
+ New repid
+ Set repid=$LIST(QHandle,2)
+ 
+ //Start Monitor (if configured to capture stats)
+ i mon Do ..MonitorEnd(mon)
+
+ Kill ^CacheTemp(..#CACHETEMPSUBSCRIPT,repid)
+ 
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<UDLText name="T">
+<Content><![CDATA[
+/*
+	Put your query parameter variable names as parameters to this method.
+ */
+]]></Content>
+</UDLText>
+
+<Method name="SWARHZATD1002DiscRefDocsExecute">
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,DISRowId:%Integer]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Get reportid i.e. use $INCREMENT to add another node to ^CacheTemp global. 
+ // We use ^CacheTemp global because it will always use memory before disk
+ New repid,ind
+
+ // Use $Increment to get the next node
+ Set repid=$Increment(^CacheTemp(..#CACHETEMPSUBSCRIPT))
+ 
+ //Start Monitor (if configured to capture stats)
+ s mon=..MonitorBegin()
+
+#SQLCOMPILE SELECT=Display
+ 
+ &sql(
+ 	declare DiscRefDocsCursor cursor for
+ 	
+	 SELECT
+		REF_ParRef,
+		REF_RefDoc_DR->REFD_Desc,
+		REF_RefDoc_DR->REFD_Forename,
+		REF_RefDoc_DR->REFD_Title,
+		REF_RefDoc_DR->REFD_Address as raddr,
+		REF_RefDoc_DR->REFD_Email,
+		REF_RefDoc_DR->REFD_City_DR->CTCIT_Desc,
+		REF_RefDoc_DR->REFD_CTZIP_DR->CTZIP_Code,
+		REF_RefDoc_DR->REFD_Province_DR->PROV_Code,
+		REF_RefDoc_DR->REFD_Text1,
+		REF_RefDocClinic_DR->CLN_Clinic_DR->CLN_Desc,
+		REF_RefDocClinic_DR->CLN_Address1 as addr1,
+		REF_RefDocClinic_DR->CLN_Address2 as addr2,
+		REF_RefDocClinic_DR->CLN_City_DR->CTCIT_Desc as CLNCTCITDesc,
+		REF_RefDocClinic_DR->CLN_Zip_DR->CTZIP_Code as CLNZIPCode,
+		REF_RefDocClinic_DR->CLN_ZIP_DR->CTZIP_Province_dr->PROV_Code as CLNPROVCode,
+		REF_RefDocClinic_DR->CLN_PreferredContact
+	 FROM
+	 	SQLUser.PA_DischargeSummaryRefDoc
+	 WHERE
+	 	REF_ParRef=:DISRowId
+	 	AND REF_RefDoc_DR->REFD_Code not in ('888','777')
+
+ )
+ 
+ &sql(open DiscRefDocsCursor)
+ do DiscRefDocsfetch
+ s ind=1
+ while 'SQLCODE{
+	Set ^CacheTemp(..#CACHETEMPSUBSCRIPT,repid,ind)=row
+ 	s ind=ind+1
+	do DiscRefDocsfetch
+ }
+ &sql(close DiscRefDocsCursor)
+
+ Set QHandle=$lb(0,repid,0)
+
+ Quit $$$OK
+
+DiscRefDocsfetch
+
+ 	s raddr=""
+	&sql(fetch DiscRefDocsCursor into :REFParRef,:REFDDesc,:REFDForename,:REFDTitle,:raddr,:REFDEmail,:CTCITDesc,:CTZIPCode,:PROVCode,:REFDText1,:CLNDesc,:addr1,:addr2,:CLNCTCITDesc,:CLNZIPCode,:CLNPROVCode,:CLNPreferredContact)
+	
+	set raddr = $ZSTRIP(raddr,"*C")
+	set row = $LB(REFParRef,REFDDesc,REFDForename,REFDTitle,raddr,REFDEmail,CTCITDesc,CTZIPCode,PROVCode,REFDText1,CLNDesc,addr1,addr2,CLNCTCITDesc,CLNZIPCode,CLNPROVCode,CLNPreferredContact)
+	q
+]]></Implementation>
+</Method>
+
+<Method name="SWARHZATD1002DiscRefDocsFetch">
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,&Row:%Library.List,&AtEnd:%Library.Integer=0]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // This fetch method should never have to change. 
+
+ // repid - Report ID
+ // ind   - sequence index which represents each row
+
+ New repid,ind,AtEnd
+
+ // Restore QHandle
+ Set AtEnd=$li(QHandle,1)
+ Set repid=$li(QHandle,2)
+ Set ind=$li(QHandle,3)
+
+ Set ind=$o(^CacheTemp(..#CACHETEMPSUBSCRIPT,repid,ind))
+ If ind="" {	// if there are no more rows, finish fetching
+ Set AtEnd=1
+ Set Row=""
+ }
+ Else      {	// fetch row
+ Set Row=^CacheTemp(..#CACHETEMPSUBSCRIPT,repid,ind)
+ }
+
+ // Save QHandle
+ s QHandle=$lb(AtEnd,repid,ind)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Query name="SWARHZATD1002DiscRefDocs">
+<Type>%Library.Query</Type>
+<FormalSpec>DISRowId:%Integer</FormalSpec>
+<SqlProc>1</SqlProc>
+<Parameter name="CONTAINID" value="0"/>
+<Parameter name="ROWSPEC" value="REF_ParRef:%String,REFD_Desc:%String,REFD_Forename:%String,REFD_Title:%String,raddr:%String,REFD_Email:%String,CTCIT_Desc:%String,CTZIP_Code:%String,PROV_Code:%String,REFD_Text1:%String,CLN_Desc:%String,addr1:%String,addr2:%String,CLNCTCITDesc:%String,CLNZIPCode:%String,CLNPROVCode:%String,CLN_PreferredContact:%String"/>
+<Parameter name="SELECTMODE" value="ODBC"/>
+</Query>
+
+<Method name="SWARHZATD1002InvestigationsClose">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>QHandle:%Library.Binary</FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Clean up by purging the temporary node in ^CacheTemp global
+ New repid
+ Set repid=$LIST(QHandle,2)
+ 
+ //Start Monitor (if configured to capture stats)
+ i mon Do ..MonitorEnd(mon)
+
+ Kill ^CacheTemp(..#CACHETEMPSUBSCRIPT,repid)
+ 
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="SWARHZATD1002InvestigationsExecute">
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,DisID:%Integer]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Get reportid i.e. use $INCREMENT to add another node to ^CacheTemp global. 
+ // We use ^CacheTemp global because it will always use memory before disk
+ n repid,ind,row
+
+ // Use $Increment to get the next node
+ Set repid=$Increment(^CacheTemp(..#CACHETEMPSUBSCRIPT))
+ 
+ //Start Monitor (if configured to capture stats)
+ s mon=..MonitorBegin()
+ 
+ n ARCIMDesc,OEORISttDat,OSTATCode,OSTATDesc,RESSTCode,RESSTDesc,OEORICollectionDate,OEORIClinicallySignificant,OEORIDepProcNotes,SECText,
+ ORCATCode,ORCATDesc,PAADMAdmNo
+ s (ARCIMDesc,OEORISttDat,OSTATCode,OSTATDesc,RESSTCode,RESSTDesc,OEORICollectionDate,OEORIClinicallySignificant,OEORIDepProcNotes,SECText,
+ ORCATCode,ORCATDesc,PAADMAdmNo)=""
+
+ #SQLCOMPILE SELECT=Display
+
+ &sql(declare InvestigationsCursor cursor for
+ 	
+ SELECT
+ 	OEORI_ItmMast_DR->ARCIM_Desc,
+ 	OEORI_SttDat,
+ 	OEORI_ItemStat_DR->OSTAT_Code,
+ 	OEORI_ItemStat_DR->OSTAT_Desc,
+ 	TR_ResStat_DR->RESST_Code,
+ 	TR_ResStat_DR->RESST_Desc,
+ 	TR_DateVerified,
+	OEORI_ClinicallySignificant,
+	$LISTTOSTRING(OEORI_DepProcNotes, CHAR(13) || CHAR(10)),
+	$LISTTOSTRING(SEC_Text, CHAR(13) || CHAR(10)),
+	OEORI_ItmMast_DR->ARCIM_ItemCat_DR->ARCIC_OrdCat_DR->ORCAT_Code,
+	OEORI_ItmMast_DR->ARCIM_ItemCat_DR->ARCIC_OrdCat_DR->ORCAT_Desc,
+	PAADM_AdmNo
+	--OEORD_RowId,
+	--OEORI_RowId,
+	--OEORI_Date,
+	--OEORI_OEORD_ParRef,
+	--OEORI_LabEpisodeNo,
+	--OEORI_ItemStat_DR,
+	--OEORI_OrdDept_DR->CTLOC_Code,
+	--paadm2ds.DIS_RowId,
+ FROM
+ 	SQLUser.OE_OrdItem
+ INNER JOIN SQLUser.OE_Order ON OEORI_OEORD_ParRef=OEORD_RowId
+ INNER JOIN SQLUser.PA_Adm ON OEORD_Adm_DR=PAADM_RowId
+ LEFT JOIN SQLUSer.PA_Adm2DischargeSummary paadm2ds ON PAADM_RowId=paadm2ds.DIS_ParRef
+ LEFT JOIN SQLUSer.OE_OrdTextResult ON TRES_ParRef=OEORI_RowId
+ LEFT JOIN SQLUSer.OE_TextResult ON TRES_OETR_DR=TR_RowId
+ LEFT JOIN SQLUSer.OE_TextResultSection ON SEC_ParRef=TR_RowId
+ WHERE paadm2ds.DIS_PADischargeSummary_DR=:DisID
+ AND OEORI_ItmMast_DR->ARCIM_ItemCat_DR->ARCIC_OrdCat_DR->ORCAT_Code IN ('ED','PATH','RAD')
+ AND OEORI_ItemStat_DR->OSTAT_Code ='E'
+ --and OEORI_ItemStat_DR->OSTAT_Code not in ('D','S','I','DI','RE')
+ ORDER BY ARCIM_Desc
+ )
+ 
+ &sql(open InvestigationsCursor)
+ do Investigationsfetch
+ s ind=1
+ while 'SQLCODE{
+	Set ^CacheTemp(..#CACHETEMPSUBSCRIPT,repid,ind)=row
+ 	s ind=ind+1
+	do Investigationsfetch
+ }
+ &sql(close InvestigationsCursor)
+
+ Set QHandle=$lb(0,repid,0)
+
+ Quit $$$OK
+
+Investigationsfetch
+	set (OEORISttDat,OEORICollectionDate)=""
+	&sql(fetch InvestigationsCursor into :ARCIMDesc,:OEORISttDat,:OSTATCode,:OSTATDesc,:RESSTCode,:RESSTDesc,:OEORICollectionDate,:OEORIClinicallySignificant,
+	:OEORIDepProcNotes,:SECText,:ORCATCode,:ORCATDesc,:PAADMAdmNo)
+	if OEORISttDat set OEORISttDat = $ZDATE($ZDATEH(OEORISttDat),4)
+	if OEORICollectionDate set OEORICollectionDate=$ZDATE($ZDATEH(OEORICollectionDate),4)
+	if (OEORIClinicallySignificant="Yes") s NumClinicallySignificant=$i(NumClinicallySignificant)
+	set row = $LB(ARCIMDesc,OEORISttDat,OSTATCode,OSTATDesc,RESSTCode,RESSTDesc,OEORICollectionDate,OEORIClinicallySignificant,OEORIDepProcNotes,SECText,
+ ORCATCode,ORCATDesc,PAADMAdmNo)
+	q
+]]></Implementation>
+</Method>
+
+<Method name="SWARHZATD1002InvestigationsFetch">
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,&Row:%Library.List,&AtEnd:%Library.Integer=0]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // This fetch method should never have to change. 
+
+ // repid - Report ID
+ // ind   - sequence index which represents each row
+
+ New repid,ind,AtEnd
+
+ // Restore QHandle
+ Set AtEnd=$li(QHandle,1)
+ Set repid=$li(QHandle,2)
+ Set ind=$li(QHandle,3)
+
+ Set ind=$o(^CacheTemp(..#CACHETEMPSUBSCRIPT,repid,ind))
+ If ind="" {	// if there are no more rows, finish fetching
+ Set AtEnd=1
+ Set Row=""
+ }
+ Else      {	// fetch row
+ Set Row=^CacheTemp(..#CACHETEMPSUBSCRIPT,repid,ind)
+ }
+
+ // Save QHandle
+ s QHandle=$lb(AtEnd,repid,ind)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Query name="SWARHZATD1002Investigations">
+<Type>%Library.Query</Type>
+<FormalSpec>DisID:%Integer</FormalSpec>
+<SqlProc>1</SqlProc>
+<Parameter name="CONTAINID" value="0"/>
+<Parameter name="ROWSPEC" value="ARCIMDesc:%String,OEORISttDat:%Date,OSTATCode:%String,OSTATDesc:%String,RESSTCode:%String,RESSTDesc:%String,OEORICollectionDate:%Date,OEORIClinicallySignificant:%String,OEORIDepProcNotes:%String,SECText:%String,ORCATCode:%String,ORCATDesc:%String,PAADMAdmNo:%String"/>
+<Parameter name="SELECTMODE" value="ODBC"/>
+</Query>
+
+<Method name="SWARHZATD1002NumSignificantResultsClose">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>QHandle:%Library.Binary</FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Clean up by purging the temporary node in ^CacheTemp global
+ New repid
+ Set repid=$LIST(QHandle,2)
+ 
+ //Start Monitor (if configured to capture stats)
+ i mon Do ..MonitorEnd(mon)
+
+ Kill ^CacheTemp(..#CACHETEMPSUBSCRIPT,repid)
+ 
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="SWARHZATD1002NumSignificantResultsExecute">
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,DisID:%Integer]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Get reportid i.e. use $INCREMENT to add another node to ^CacheTemp global. 
+ // We use ^CacheTemp global because it will always use memory before disk
+ n repid,ind,row
+
+ // Use $Increment to get the next node
+ Set repid=$Increment(^CacheTemp(..#CACHETEMPSUBSCRIPT))
+ 
+ //Start Monitor (if configured to capture stats)
+ s mon=..MonitorBegin()
+ 
+ n numResults
+ s numResults=0
+
+ #SQLCOMPILE SELECT=Display
+
+ &sql(declare NumSignificantResultsCursor cursor for
+ 	
+ SELECT
+ 	COUNT(*)
+ FROM
+ 	SQLUser.OE_OrdItem
+ INNER JOIN SQLUser.OE_Order ON OEORI_OEORD_ParRef=OEORD_RowId
+ INNER JOIN SQLUser.PA_Adm ON OEORD_Adm_DR=PAADM_RowId
+ LEFT JOIN SQLUSer.PA_Adm2DischargeSummary paadm2ds ON PAADM_RowId=paadm2ds.DIS_ParRef
+ LEFT JOIN SQLUSer.OE_OrdTextResult ON TRES_ParRef=OEORI_RowId
+ LEFT JOIN SQLUSer.OE_TextResult ON TRES_OETR_DR=TR_RowId
+ LEFT JOIN SQLUSer.OE_TextResultSection ON SEC_ParRef=TR_RowId
+ WHERE paadm2ds.DIS_PADischargeSummary_DR=:DisID
+ AND OEORI_ItmMast_DR->ARCIM_ItemCat_DR->ARCIC_OrdCat_DR->ORCAT_Code IN ('ED','PATH','RAD')
+ AND OEORI_ItemStat_DR->OSTAT_Code ='E'
+ AND OEORI_ClinicallySignificant='Y'
+ --and OEORI_ItemStat_DR->OSTAT_Code not in ('D','S','I','DI','RE')
+ )
+ 
+ &sql(open NumSignificantResultsCursor)
+ do NumSignificantResultsfetch
+ s ind=1
+ while 'SQLCODE{
+	Set ^CacheTemp(..#CACHETEMPSUBSCRIPT,repid,ind)=row
+ 	s ind=ind+1
+	do NumSignificantResultsfetch
+ }
+ &sql(close NumSignificantResultsCursor)
+
+ Set QHandle=$lb(0,repid,0)
+
+ Quit $$$OK
+
+NumSignificantResultsfetch
+	&sql(fetch NumSignificantResultsCursor into :numResults)
+	set row = $LB(numResults)
+	q
+]]></Implementation>
+</Method>
+
+<Method name="SWARHZATD1002NumSignificantResultsFetch">
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,&Row:%Library.List,&AtEnd:%Library.Integer=0]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // This fetch method should never have to change. 
+
+ // repid - Report ID
+ // ind   - sequence index which represents each row
+
+ New repid,ind,AtEnd
+
+ // Restore QHandle
+ Set AtEnd=$li(QHandle,1)
+ Set repid=$li(QHandle,2)
+ Set ind=$li(QHandle,3)
+
+ Set ind=$o(^CacheTemp(..#CACHETEMPSUBSCRIPT,repid,ind))
+ If ind="" {	// if there are no more rows, finish fetching
+ Set AtEnd=1
+ Set Row=""
+ }
+ Else      {	// fetch row
+ Set Row=^CacheTemp(..#CACHETEMPSUBSCRIPT,repid,ind)
+ }
+
+ // Save QHandle
+ s QHandle=$lb(AtEnd,repid,ind)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Query name="SWARHZATD1002NumSignificantResults">
+<Type>%Library.Query</Type>
+<FormalSpec>DisID:%Integer</FormalSpec>
+<SqlProc>1</SqlProc>
+<Parameter name="CONTAINID" value="0"/>
+<Parameter name="ROWSPEC" value="numResults:%Integer"/>
+<Parameter name="SELECTMODE" value="ODBC"/>
+</Query>
+
+<Method name="SWARHZATD1002MedsClose">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>QHandle:%Library.Binary</FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Clean up by purging the temporary node in ^CacheTemp global
+ New repid
+ Set repid=$LIST(QHandle,2)
+ 
+ //Start Monitor (if configured to capture stats)
+ i mon Do ..MonitorEnd(mon)
+
+ Kill ^CacheTemp(..#CACHETEMPSUBSCRIPT,repid)
+ 
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="SWARHZATD1002MedsExecute">
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,PAPMIRowId:%Integer,DisID:%Integer]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Get reportid i.e. use $INCREMENT to add another node to ^CacheTemp global. 
+ // We use ^CacheTemp global because it will always use memory before disk
+ New repid,ind
+
+ // Use $Increment to get the next node
+ Set repid=$Increment(^CacheTemp(..#CACHETEMPSUBSCRIPT))
+ 
+ //Start Monitor (if configured to capture stats)
+ s mon=..MonitorBegin()
+
+ // Build data into ^CacheTemp(ReportID)
+ // e.g. Set ^CacheTemp(ReportID,Index)=$LB(f1,f2,f3),ICDCode,DRGCode
+ New Number,String,Date,Time,c,n
+ New GenericName,MinDose,Maxdose,AdminRoute,Frequency,Status,PRNIndication,Dose,ItemStat,DoseUOM,VRDesc,IndNotes,Strength,Priority,PriorityDesc
+ s (GenericName,MinDose,Maxdose,AdminRoute,Frequency,Status,PRNIndication,Dose,DoseUOM,VRDesc,IndNotes,Strength,Priority,PriorityDesc)=""
+ s (ItemStat)=0 
+  
+ s ind=1
+
+ &SQL(DECLARE Medications CURSOR FOR
+	
+ 	SELECT DISTINCT
+        CASE WHEN (itm.OEORI_ItmMast_DR->ARCIM_PHCDF_DR->PHCDF_PHCD_ParRef->PHCD_Name IS NOT NULL) THEN itm.OEORI_ItmMast_DR->ARCIM_PHCDF_DR->PHCDF_PHCD_ParRef->PHCD_Name
+        ELSE itm.OEORI_ItmMast_DR->ARCIM_DMDGeneric_DR->PHCGE_Name END AS GenericName
+        ,itm.OEORI_OEOrdItem2_DR->ITM2_MinDoseQty AS MinDose
+        ,itm.OEORI_DoseQty AS Maxdose
+        ,itm.OEORI_AdminRoute_DR->ADMR_Desc AS AdminRoute
+        ,%EXACT(itm.OEORI_PHFreq_DR->PHCFR_Desc1) AS Frequency
+        ,itm.OEORI_ItemStat_DR->OSTAT_Desc AS Status
+        ,itm.OEORI_PRNIndication AS PRNIndication
+        ,itm.OEORI_ItemStat_DR AS ItemStat
+        ,itm.OEORI_Unit_DR->CTUOM_Code AS DoseUOM
+        ,%EXACT(itm.OEORI_VarianceReason_DR->VR_Desc) AS VRDesc
+        ,itm.OEORI_ItmMast_DR->ARCIM_PHCDF_DR->PHCDF_PHCS_DR->PHCS_Desc AS Strength
+        ,itm.OEORI_Priority_DR AS Priority
+        ,itm.OEORI_Priority_DR->OECPR_Desc AS PriorityDesc
+	FROM
+        SQLUser.PA_Adm adm
+                INNER JOIN SQLUser.OE_Order ord ON (ord.OEORD_ADM_DR = adm.PAADM_RowId)
+                INNER JOIN SQLUser.OE_OrdItem itm on (itm.OEORI_OEORD_ParRef = ord.OEORD_RowId)
+	WHERE
+        itm.OEORI_Categ_DR = 6 --Pharm
+        AND itm.OEORI_ItemStat_DR NOT IN (3,4,6) --excludes status of 'ON HOLD'(3),'DISCONTINUED'(4) and 'EXECUTED'(6)		
+        AND adm.PAADM_PAPMI_DR = :PAPMIRowId
+        AND adm.PAADM_RowId IN (
+                SELECT DISTINCT
+                        adm2.PAADM_RowId
+                FROM
+                        SQLUser.PA_Adm adm2
+                                JOIN SQLUser.PA_Adm2DischargeSummary dis ON dis.DIS_ParRef = adm2.PAADM_PAAdm2_DR
+                WHERE
+                        dis.DIS_PADischargeSummary_DR = :DisID
+                )
+ 
+ )
+ 
+ &sql(open Medications)
+ do MedsFetchrow
+  
+ while 'SQLCODE {
+	
+	d MedsFormatStrings
+	d MedsAppend
+	Set ^CacheTemp(..#CACHETEMPSUBSCRIPT,repid,ind)=$LB(GenericName,MinDose,Maxdose,AdminRoute,Frequency,Status,IndNotes,Dose,DoseUOM,Strength)
+ 	s ind=ind+1
+	do MedsFetchrow
+ }
+ &sql(close Medications)
+
+ Set QHandle=$lb(0,repid,0)
+
+ Quit $$$OK
+ 
+MedsAppend
+	;Appends MinDose and MaxDose to Dose
+ 	If (MinDose '= "") {s Dose = MinDose_" - "_Maxdose} Else {s Dose = Maxdose}
+ 	
+ 	;Changes Status of DISCONTINUED to Ceased and IndNotes from PRNIndication str to VarianceReason str.
+ 	If (ItemStat = 4) {s Status = "Ceased" s IndNotes = VRDesc} Else {s IndNotes = PRNIndication}
+	
+	;Appends the PriorityDesc to the Frequency field when Priority is 'PRN'(2)
+	If (Priority = 2) {s Frequency = Frequency_", "_PriorityDesc}
+	
+	q
+	
+	
+MedsFormatStrings // Cleanup specified strings
+ 	s PRNIndication = $LISTTOSTRING(PRNIndication,"") //property ALGComments as list of %String no delimiter
+ 	s GenericName = $ZCONVERT(GenericName,"W")
+	s AdminRoute = $ZCONVERT(AdminRoute,"W")
+	s Frequency = $ZCONVERT(Frequency,"W")
+	s Status = $ZCONVERT(Status,"W")
+	s PRNIndication = $ZCONVERT(PRNIndication,"W")
+	s DoseUOM = $ZCONVERT(DoseUOM,"L")
+	s VRDesc = $ZCONVERT(VRDesc,"W")
+	
+	q
+	
+MedsFetchrow
+	&sql(fetch Medications into :GenericName,:MinDose,:Maxdose,:AdminRoute,:Frequency,:Status,:PRNIndication,:ItemStat,:DoseUOM,:VRDesc,:Strength,:Priority,:PriorityDesc)
+  	q
+]]></Implementation>
+</Method>
+
+<Method name="SWARHZATD1002MedsFetch">
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,&Row:%Library.List,&AtEnd:%Library.Integer=0]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // This fetch method should never have to change. 
+ // repid - Report ID
+ // ind   - sequence index which represents each row
+
+ New repid,ind
+
+ // Restore QHandle
+ Set AtEnd=$li(QHandle,1)
+ Set repid=$li(QHandle,2)
+ Set ind=$li(QHandle,3)
+
+ Set ind=$o(^CacheTemp(..#CACHETEMPSUBSCRIPT,repid,ind))
+ If ind="" {	// if there are no more rows, finish fetching
+ Set AtEnd=1
+ Set Row=""
+ }
+ Else      {	// fetch row
+ Set Row=^CacheTemp(..#CACHETEMPSUBSCRIPT,repid,ind)
+ }
+
+ // Save QHandle
+ s QHandle=$lb(AtEnd,repid,ind)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Query name="SWARHZATD1002Meds">
+<Type>%Library.Query</Type>
+<FormalSpec>PAPMIRowId:%Integer,DisID:%Integer</FormalSpec>
+<SqlProc>1</SqlProc>
+<Parameter name="CONTAINID" value="0"/>
+<Parameter name="ROWSPEC" value="GenericName:%String,MinDose:%String,Maxdose:%String,AdminRoute:%String,Frequency:%String,Status:%String,IndNotes:%String,Dose:%String,DoseUOM:%String,Strength:%String"/>
+<Parameter name="SELECTMODE" value="ODBC"/>
+</Query>
+
+<Method name="SWARHZATD1002CeasedMedsClose">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>QHandle:%Library.Binary</FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Clean up by purging the temporary node in ^CacheTemp global
+ New repid
+ Set repid=$LIST(QHandle,2)
+ 
+ //Start Monitor (if configured to capture stats)
+ i mon Do ..MonitorEnd(mon)
+
+ Kill ^CacheTemp(..#CACHETEMPSUBSCRIPT,repid)
+ 
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="SWARHZATD1002CeasedMedsExecute">
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,PAPMIRowId:%Integer,DisID:%Integer]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Get reportid i.e. use $INCREMENT to add another node to ^CacheTemp global. 
+ // We use ^CacheTemp global because it will always use memory before disk
+ New repid,ind
+
+ // Use $Increment to get the next node
+ Set repid=$Increment(^CacheTemp(..#CACHETEMPSUBSCRIPT))
+ 
+ //Start Monitor (if configured to capture stats)
+ s mon=..MonitorBegin()
+
+ // Build data into ^CacheTemp(ReportID)
+ // e.g. Set ^CacheTemp(ReportID,Index)=$LB(f1,f2,f3),ICDCode,DRGCode
+ New Number,String,Date,Time,c,n
+ New GenericName,MinDose,Maxdose,AdminRoute,Frequency,Status,PRNIndication,Dose,ItemStat,DoseUOM,VRDesc,IndNotes,Strength,Priority,PriorityDesc
+ s (GenericName,MinDose,Maxdose,AdminRoute,Frequency,Status,PRNIndication,Dose,DoseUOM,VRDesc,IndNotes,Strength,Priority,PriorityDesc)=""
+ s (ItemStat)=0 
+  
+ s ind=1
+
+ &SQL(DECLARE CeasedMedications CURSOR FOR
+	
+ 	SELECT DISTINCT
+        CASE WHEN (itm.OEORI_ItmMast_DR->ARCIM_PHCDF_DR->PHCDF_PHCD_ParRef->PHCD_Name IS NOT NULL) THEN itm.OEORI_ItmMast_DR->ARCIM_PHCDF_DR->PHCDF_PHCD_ParRef->PHCD_Name
+        ELSE itm.OEORI_ItmMast_DR->ARCIM_DMDGeneric_DR->PHCGE_Name END AS GenericName
+        ,itm.OEORI_OEOrdItem2_DR->ITM2_MinDoseQty AS MinDose
+        ,itm.OEORI_DoseQty AS Maxdose
+        ,itm.OEORI_AdminRoute_DR->ADMR_Desc AS AdminRoute
+        ,%EXACT(itm.OEORI_PHFreq_DR->PHCFR_Desc1) AS Frequency
+        ,itm.OEORI_ItemStat_DR->OSTAT_Desc AS Status
+        ,itm.OEORI_PRNIndication AS PRNIndication
+        ,itm.OEORI_ItemStat_DR AS ItemStat
+        ,itm.OEORI_Unit_DR->CTUOM_Code AS DoseUOM
+        ,%EXACT(itm.OEORI_VarianceReason_DR->VR_Desc) AS VRDesc
+        ,itm.OEORI_ItmMast_DR->ARCIM_PHCDF_DR->PHCDF_PHCS_DR->PHCS_Desc AS Strength
+        ,itm.OEORI_Priority_DR AS Priority
+        ,itm.OEORI_Priority_DR->OECPR_Desc AS PriorityDesc
+	FROM
+        SQLUser.PA_Adm adm
+                INNER JOIN SQLUser.OE_Order ord ON (ord.OEORD_ADM_DR = adm.PAADM_RowId)
+                INNER JOIN SQLUser.OE_OrdItem itm on (itm.OEORI_OEORD_ParRef = ord.OEORD_RowId)
+	WHERE
+        itm.OEORI_Categ_DR = 6 --Pharm
+        AND itm.OEORI_ItemStat_DR = 4 -- 'DISCONTINUED'
+        AND itm.OEORI_VarianceReason_DR <> 6 -- 'Ordered in Error'
+        AND adm.PAADM_PAPMI_DR = :PAPMIRowId
+        AND adm.PAADM_RowId IN (
+                SELECT DISTINCT
+                        adm2.PAADM_RowId
+                FROM
+                        SQLUser.PA_Adm adm2
+                                JOIN SQLUser.PA_Adm2DischargeSummary dis ON dis.DIS_ParRef = adm2.PAADM_PAAdm2_DR
+                WHERE
+                        dis.DIS_PADischargeSummary_DR = :DisID
+                )
+ 
+ )
+ 
+ &sql(open CeasedMedications)
+ do CeasedMedsFetchrow
+  
+ while 'SQLCODE {
+	
+	d CeasedMedsFormatStrings
+	d CeasedMedsAppend
+	Set ^CacheTemp(..#CACHETEMPSUBSCRIPT,repid,ind)=$LB(GenericName,MinDose,Maxdose,AdminRoute,Frequency,Status,IndNotes,Dose,DoseUOM,Strength)
+ 	s ind=ind+1
+	do CeasedMedsFetchrow
+ }
+ &sql(close CeasedMedications)
+
+ Set QHandle=$lb(0,repid,0)
+
+ Quit $$$OK
+ 
+CeasedMedsAppend
+	;Appends MinDose and MaxDose to Dose
+ 	If (MinDose '= "") {s Dose = MinDose_" - "_Maxdose} Else {s Dose = Maxdose}
+ 	
+ 	;Changes Status of DISCONTINUED to Ceased and IndNotes from PRNIndication str to VarianceReason str.
+ 	If (ItemStat = 4) {s Status = "Ceased" s IndNotes = VRDesc} Else {s IndNotes = PRNIndication}
+	
+	;Appends the PriorityDesc to the Frequency field when Priority is 'PRN'(2)
+	If (Priority = 2) {s Frequency = Frequency_", "_PriorityDesc}
+	
+	q
+	
+	
+CeasedMedsFormatStrings // Cleanup specified strings
+ 	s PRNIndication = $LISTTOSTRING(PRNIndication,"") //property ALGComments as list of %String no delimiter
+ 	s GenericName = $ZCONVERT(GenericName,"W")
+	s AdminRoute = $ZCONVERT(AdminRoute,"W")
+	s Frequency = $ZCONVERT(Frequency,"W")
+	s Status = $ZCONVERT(Status,"W")
+	s PRNIndication = $ZCONVERT(PRNIndication,"W")
+	s DoseUOM = $ZCONVERT(DoseUOM,"L")
+	s VRDesc = $ZCONVERT(VRDesc,"W")
+	
+	q
+	
+CeasedMedsFetchrow
+	&sql(fetch CeasedMedications into :GenericName,:MinDose,:Maxdose,:AdminRoute,:Frequency,:Status,:PRNIndication,:ItemStat,:DoseUOM,:VRDesc,:Strength,:Priority,:PriorityDesc)
+  	q
+]]></Implementation>
+</Method>
+
+<Method name="SWARHZATD1002CeasedMedsFetch">
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,&Row:%Library.List,&AtEnd:%Library.Integer=0]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // This fetch method should never have to change. 
+ // repid - Report ID
+ // ind   - sequence index which represents each row
+
+ New repid,ind
+
+ // Restore QHandle
+ Set AtEnd=$li(QHandle,1)
+ Set repid=$li(QHandle,2)
+ Set ind=$li(QHandle,3)
+
+ Set ind=$o(^CacheTemp(..#CACHETEMPSUBSCRIPT,repid,ind))
+ If ind="" {	// if there are no more rows, finish fetching
+ Set AtEnd=1
+ Set Row=""
+ }
+ Else      {	// fetch row
+ Set Row=^CacheTemp(..#CACHETEMPSUBSCRIPT,repid,ind)
+ }
+
+ // Save QHandle
+ s QHandle=$lb(AtEnd,repid,ind)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Query name="SWARHZATD1002CeasedMeds">
+<Type>%Library.Query</Type>
+<FormalSpec>PAPMIRowId:%Integer,DisID:%Integer</FormalSpec>
+<SqlProc>1</SqlProc>
+<Parameter name="CONTAINID" value="0"/>
+<Parameter name="ROWSPEC" value="GenericName:%String,MinDose:%String,Maxdose:%String,AdminRoute:%String,Frequency:%String,Status:%String,IndNotes:%String,Dose:%String,DoseUOM:%String,Strength:%String"/>
+<Parameter name="SELECTMODE" value="ODBC"/>
+</Query>
+
+<Method name="SWARHZATD1002EpisodeListClose">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>QHandle:%Library.Binary</FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Clean up by purging the temporary node in ^CacheTemp global
+ New repid
+ Set repid=$LIST(QHandle,2)
+ 
+ //Start Monitor (if configured to capture stats)
+ i mon Do ..MonitorEnd(mon)
+
+ Kill ^CacheTemp(..#CACHETEMPSUBSCRIPT,repid)
+ 
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="SWARHZATD1002EpisodeListExecute">
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,PAPMIRowId:%Integer,DisID:%Integer]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Get reportid i.e. use $INCREMENT to add another node to ^CacheTemp global. 
+ // We use ^CacheTemp global because it will always use memory before disk
+ New repid,ind
+
+ // Use $Increment to get the next node
+ Set repid=$Increment(^CacheTemp(..#CACHETEMPSUBSCRIPT))
+ 
+ //Start Monitor (if configured to capture stats)
+ s mon=..MonitorBegin()
+
+ // Build data into ^CacheTemp(ReportID)
+ // e.g. Set ^CacheTemp(ReportID,Index)=$LB(f1,f2,f3),ICDCode,DRGCode
+ New PAADMADMNo,EpisodeList
+ s (PAADMADMNo,EpisodeList)=""
+ //s ()=0 
+  
+ s ind=1
+
+ &SQL(DECLARE EpisodeListCursor CURSOR FOR
+	
+ 	SELECT
+	PAADM_AdmNo
+	FROM
+	SQLUSer.PA_Adm2DischargeSummary paadm2ds
+	INNER JOIN SQLUser.PA_Adm ON PAADM_RowId=paadm2ds.DIS_ParRef
+	WHERE paadm2ds.DIS_PADischargeSummary_DR= :DisID
+        
+ )
+ &SQL(open EpisodeListCursor)
+ &SQL(fetch EpisodeListCursor into :PAADMADMNo)
+ WHILE 'SQLCODE {	 
+	 s EpisodeList = EpisodeList_" "_PAADMADMNo
+	 s ind=ind+1
+	 &SQL(fetch EpisodeListCursor into :PAADMADMNo)
+ }
+ &SQL(close EpisodeListCursor)
+ Set ^CacheTemp(..#CACHETEMPSUBSCRIPT,repid,ind)=$LB(EpisodeList)
+ Set QHandle=$lb(0,repid,0)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="SWARHZATD1002EpisodeListFetch">
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,&Row:%Library.List,&AtEnd:%Library.Integer=0]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // This fetch method should never have to change. 
+ // repid - Report ID
+ // ind   - sequence index which represents each row
+
+ New repid,ind
+
+ // Restore QHandle
+ Set AtEnd=$li(QHandle,1)
+ Set repid=$li(QHandle,2)
+ Set ind=$li(QHandle,3)
+
+ Set ind=$o(^CacheTemp(..#CACHETEMPSUBSCRIPT,repid,ind))
+ If ind="" {	// if there are no more rows, finish fetching
+ Set AtEnd=1
+ Set Row=""
+ }
+ Else      {	// fetch row
+ Set Row=^CacheTemp(..#CACHETEMPSUBSCRIPT,repid,ind)
+ }
+
+ // Save QHandle
+ s QHandle=$lb(AtEnd,repid,ind)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Query name="SWARHZATD1002EpisodeList">
+<Type>%Library.Query</Type>
+<FormalSpec>PAPMIRowId:%Integer,DisID:%Integer</FormalSpec>
+<SqlProc>1</SqlProc>
+<Parameter name="CONTAINID" value="0"/>
+<Parameter name="ROWSPEC" value="EpisodeList:%String"/>
+<Parameter name="SELECTMODE" value="ODBC"/>
+</Query>
+
+<Method name="DSEpisodeNo">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>DischID:%Integer</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	n PAADMAdmNo
+	s PAADMAdmNo=""
+	&sql(SELECT TOP 1 PAADM_AdmNo into :PAADMAdmNo FROM SQLUser.PA_Adm paadm INNER JOIN SQLUser.PA_Adm2DischargeSummary paadm2ds 
+	ON paadm.PAADM_RowId=paadm2ds.DIS_ParRef
+	WHERE paadm2ds.DIS_PADischargeSummary_DR=:DischID
+	ORDER BY PAADM_RowId DESC)
+	q PAADMAdmNo
+]]></Implementation>
+</Method>
+</Class>
+</Export>

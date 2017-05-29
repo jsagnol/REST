@@ -1,0 +1,185 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.SWARH.Report.ZEN.SWARHZEPR1008">
+<Description><![CDATA[
+<pre>
+***************************************************************************************************************************************
+* Report Code: SWARHZEPR1008
+* Report Description: Report returns Patient Pathology & Radiology Results either for all episodes for the report period selected 
+* 	or for a particular episode if selected. ZEN VERSION
+* Menu Caption: Patient Episode Pathology / Radiology Results
+* Initial Release: 02/05/2017	Developer: Michael Welsh
+* Modified:
+***************************************************************************************************************************************
+</pre>]]></Description>
+<Super>Report.ZEN.Abstract</Super>
+<TimeCreated>61815,46184.251494</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)</Description>
+<Default>$Id$</Default>
+</Parameter>
+
+<Property name="Hospital">
+<Type>%Integer</Type>
+<Parameter name="ZENURL" value="P1"/>
+</Property>
+
+<Property name="PatientUR">
+<Type>%String</Type>
+<Parameter name="ZENURL" value="P2"/>
+</Property>
+
+<Property name="ReportType">
+<Type>%String</Type>
+<Parameter name="ZENURL" value="P3"/>
+</Property>
+
+<Property name="DateFrom">
+<Type>%Date</Type>
+<Parameter name="ZENURL" value="P4"/>
+</Property>
+
+<Property name="DateTo">
+<Type>%Date</Type>
+<Parameter name="ZENURL" value="P5"/>
+</Property>
+
+<Property name="EpisodeID">
+<Type>%Integer</Type>
+<Parameter name="ZENURL" value="P6"/>
+</Property>
+
+<XData name="ReportDefinition">
+<XMLNamespace>http://www.intersystems.com/zen/report/definition</XMLNamespace>
+<Data><![CDATA[
+<report xmlns='http://www.intersystems.com/zen/report/definition' queryClass='Custom.SWARH.Report.ZEN.StoredProc.SWARHZEPR1008'
+	queryName='SWARHZEPR1008' name='SWARHZEPR1008'>
+  <parameter expression="..Hospital" />
+  <parameter expression="..PatientUR"/>
+  <parameter expression="..ReportType"/>
+  <parameter expression="..DateFrom"/>
+  <parameter expression="..DateTo"/>
+  <parameter expression="..EpisodeID"/>
+  
+  <attribute name="username" expression="..Username"/>
+  <attribute name="timestamp" expression='$ZDATETIME($H, 2, 2)'/>  
+   
+  <element field='URNo' name='URNo'/>
+  <element fields='Surname,GivenName,OtherGivenName' name='Name' 
+  	expression='%val("Surname")_", "_%val("GivenName")_" "_%val("OtherGivenName")'/>
+  <element field='DOB' name='DOB'/>
+  <element field='Datefrom' name='Datefrom'/>
+  <element field='Dateto' name='Dateto' />
+  <element field='HospDesc' name='HospDesc'/>
+  <element field='EpisodeNum' name='EpisodeNum'/>
+  <element fields='ServerNme,NameSpce,HospDR' name='HospLogo' 
+  	expression='"http://"_%val("ServerNme")_"/trakcare/"_%val("NameSpce")_"/web/images/SWARH/HospLogos/"_%val("HospDR")_".jpg"'/>
+  
+  <group name="EpisodeData" breakOnField="EpisodeNo">
+  <attribute field='EpisodeNo' name='Episode'/>
+  <group name="OrderDate" breakOnField="OrderDate">    
+  <attribute field='OrderDate' name='OrdDate'/>
+  <group name="Detail">
+  <element field='TextResultData' name='TRData'/>
+  </group>
+  </group>
+  </group>
+ </report>
+]]></Data>
+</XData>
+
+<XData name="ReportDisplay">
+<XMLNamespace>http://www.intersystems.com/zen/report/display</XMLNamespace>
+<Data><![CDATA[
+<report
+xmlns='http://www.intersystems.com/zen/report/display' xmlns:trakstyle='http://www.intersystems.com/zen/report/display/trak/style'
+xmlns:trak='http://www.intersystems.com/zen/report/display/trak' name='SWARHZEPR1008'>
+<document
+width="210mm" height="297mm" marginLeft="10mm" marginRight="10mm" marginTop="10mm" marginBottom="10mm" footerHeight="2mm" headerHeight="25mm">
+<trakstyle:trakgroupheader/>
+<trakstyle:trakgroupsummary/>
+<trakstyle:trakhospitalheader/>
+<trakstyle:trakpagefooter/>
+<trakstyle:trakpageheader/>
+<trakstyle:trakparameterheader/>
+<trakstyle:trakreporttitle/>
+<trakstyle:traktablecolumn/>
+<trakstyle:traktablecolumnoverflow/>
+</document>
+
+
+<pageheader width="100%">
+<table width="100%" style="font-size: small;">
+<block width="40%" style="text-align:left; font-weight:bold;">
+<item value="Patient Episode Pathology Radiology Results"  style="font-size: large;"/>
+<br/>
+<item field="HospDesc"/>
+</block>
+<block width="40%" style="text-align:left; font-weight:bold;">
+<item value="Patient Name: "/>
+<item field="Name"/>
+<br/>
+<item value="UR No: "/>
+<item field="URNo"/>
+<item value="DoB: " style="padding-left:10px"/>
+<item field="DOB"/>
+<br/>
+<item value="Date From: "/>
+<item field="Datefrom"/>
+<br/>
+<item value="Date To: "/>
+<item field="Dateto"/>
+<br/>
+<item value="Episode No: "/>
+<item field="EpisodeNum"/>
+<br/>
+</block>
+<block width="20%" style="text-align:right">
+<table orient="col">
+<img src="!HospLogo" contentHeight="50%"/> 
+</table>
+</block>
+</table>
+<line pattern="solid" width="100%"/>
+</pageheader>
+
+<pagefooter>
+<table>
+<block style="font-size:small;">
+<item value="Created on "/>
+<item field="//@timestamp "/>
+<item value="by "/>
+<item field="//@username"/>
+<br/>
+<item value="Report Code:SWARHZEPR1008" style="font-size:x-small;"/>
+</block>
+<block style="font-size:small" width="15%">
+<item value="Page&#160;"/>
+<item special="page-number-of"/>
+</block>
+</table>
+</pagefooter>
+
+<body>
+<group name="EpisodeData">
+<trak:GroupHeader label="Episode No: " field="@Episode"/>
+<group name="OrderDate">
+<trak:GroupHeader label="Order Date: " field="@OrdDate"/>
+<table group="Detail" layout="fixed" orient="col" class="traktablecolumn" width="100%" style="text-align:left; font-size:8pt">
+<item style="font-family: monospace; page-break-inside:avoid; keep-together:always; padding:5px;
+border-bottom:solid black; border-top:solid black; border-right:solid black; border-left:solid black;"
+breakOnLineFeed="false" insert-zero-width-spaces="true" literalSpaces="true" field="TRData" copyhtml="true"/>
+<!--item field="TRData" breakOnLineFeed="true" literalSpaces="true"  too-long-text="wrap" 
+style="border-bottom:solid black; border-top:solid black; border-right:solid black; border-left:solid black;
+ font-family:monospace;"/-->
+</table>
+</group>
+</group>
+</body>
+</report>
+]]></Data>
+</XData>
+</Class>
+</Export>

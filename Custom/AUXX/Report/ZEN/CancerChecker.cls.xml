@@ -1,0 +1,167 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.AUXX.Report.ZEN.CancerChecker">
+<Super>Custom.AUXX.Report.ZEN.Abstract</Super>
+<TimeCreated>61543,54494.035066</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/AUXX/Report/ZEN/CancerChecker.xml#1 $</Default>
+</Parameter>
+
+<UDLText name="T">
+<Content><![CDATA[
+// This Parameter should be updated when synced from Perforce
+
+]]></Content>
+</UDLText>
+
+<UDLText name="T">
+<Content><![CDATA[
+//Parameter SrcVer = "$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/AUXX/Report/ZEN/CancerChecker.xml#1 $";
+
+]]></Content>
+</UDLText>
+
+<UDLText name="T">
+<Content><![CDATA[
+// Report Name: Cancer Checker<br>
+
+]]></Content>
+</UDLText>
+
+<UDLText name="T">
+<Content><![CDATA[
+// Report Code: Trak.AUXX.CDG0001 <br>
+
+]]></Content>
+</UDLText>
+
+<UDLText name="T">
+<Content><![CDATA[
+// Logtrak Number:  <br>
+
+]]></Content>
+</UDLText>
+
+<UDLText name="T">
+<Content><![CDATA[
+// TRC Number:  70184 <br>
+
+]]></Content>
+</UDLText>
+
+<Property name="DateFrom">
+<Type>%String</Type>
+<Parameter name="ZENURL" value="P1"/>
+</Property>
+
+<Property name="DateTo">
+<Type>%String</Type>
+<Parameter name="ZENURL" value="P2"/>
+</Property>
+
+<Property name="Hospital">
+<Type>%String</Type>
+<Parameter name="ZENURL" value="P3"/>
+</Property>
+
+<XData name="ReportDefinition">
+<XMLNamespace>http://www.intersystems.com/zen/report/definition</XMLNamespace>
+<Data><![CDATA[
+<report xmlns='http://www.intersystems.com/zen/report/definition'
+   queryClass='Custom.AUXX.Report.ZEN.StoredProc.CancerChecker' queryName='GetCancerRecs' name='CancerChecker'>
+
+  <parameter expression='..DateFrom'/>
+  <parameter expression='..DateTo'/>
+  <parameter expression='..Hospital'/>
+  
+  <attribute name='datefrom' expression='..DisplayDate(..DateFrom)'/>
+  <attribute name='dateto' expression='..DisplayDate(..DateTo)'/>
+  <attribute name='hospital' expression='..GetHospListDesc(..Hospital)'/>
+
+  <attribute name='ReportTitle' expression='$$$Text("@CancerChecker@Cancer Checker")'/>
+  <attribute name='timestamp' expression='$ZDATETIME($H, 2, 2)'/>
+  <attribute name='username' expression='..Username'/>
+
+  <group name="hospital" breakOnField="HOSPDesc">
+ <attribute name="description" field="HOSPDesc" />
+
+ <element name='CaptionOne' expression='"Date of"_$C(13,10)_"Birth"' />
+ <element name='CaptionTwo' expression='"Admission"_$C(13,10)_"Date"' />
+ <element name='CaptionThree' expression='"Discharge"_$C(13,10)_"Date"' />
+
+
+<group name='Detail'>
+            <element field='Message' name='Message'/>
+            <attribute field='PACRRegNumber' name='PACRRegNumber'/>
+            <attribute field='PAADMAdmNo' name='PAADMAdmNo'/>
+            <attribute field='PAPMINo' name='PAPMINo'/>           
+            <attribute fields='PAPERName,PAPERName2' name='PatientName' expression='..DisplayName(%val("PAPERName"),%val("PAPERName2"))'/>
+            <attribute field='PAADMAdmDate' name='PAADMAdmDate' expression='..DisplayDate(%val)'/>
+            <attribute  field="PAADMDischgDate" name="PAADMDischgDate" expression='..DisplayDate(%val)'/>
+			<attribute field='PrimaryCode' name='PrimaryCode'/>
+			<attribute field='MorphologyCode' name='MorphologyCode'/>
+            <attribute field='TUMFirstDiagnosisDate' name='TUMFirstDiagnosisDate' expression='..DisplayDate(%val)'/>
+            <attribute  field="PACRRegDate" name="PACRRegDate" expression='..DisplayDate(%val)'/>
+			<attribute field='ssusrinitials' name='ssusrinitials'/>
+			</group>
+ 		  </group>
+
+   	  </report>
+]]></Data>
+</XData>
+
+<XData name="ReportDisplay">
+<XMLNamespace>http://www.intersystems.com/zen/report/display</XMLNamespace>
+<Data><![CDATA[
+<report xmlns='http://www.intersystems.com/zen/report/display'
+xmlns:auxxstyle='http://www.intersystems.com/zen/report/display/auxx/style'
+xmlns:auxx='http://www.intersystems.com/zen/report/display/auxx'
+   name='CancerChecker'>
+ <document width= "#(..ReportWidth)#" height="#(..ReportHeight)#" marginLeft="#(..DocMarginLeft)#" marginRight="#(..DocMarginRight)#" 
+marginTop="#(..DocMarginTop)#" marginBottom="#(..DocMarginBottom)#" footerHeight="#(..DocFooterHeight)#" headerHeight="#(..DocHeaderHeight)#" 
+regionBeforeExtent="#(..DocHeaderHeight)#" regionAfterExtent="#(..DocFooterHeight)#">
+<auxxstyle:auxxgroupheader/>
+<auxxstyle:auxxgroupsummary/>
+<auxxstyle:auxxhospitalheader/>
+<auxxstyle:auxxpagefooter/>
+<auxxstyle:auxxpageheader/>
+<auxxstyle:auxxparameterheader/>
+<auxxstyle:auxxreporttitle/>
+<auxxstyle:auxxtablecolumn/>
+</document>
+<auxx:ReportFooter username='@username' timestamp='@timestamp'/>
+<body>
+<!-- REPORT HEADER -->
+<auxx:ReportHeader reporttitle='@ReportTitle'/>
+<auxx:ReportParameterHeader label='@Hospital:@Hospital:' field='@hospital' xcondition="string-length(@hospital)>0"/>
+<auxx:ReportDateHeader datefrom="@datefrom" dateto="@dateto" />
+<auxx:NoResults xcondition="not(hospital)" />
+
+<group name='hospital' pagebreak="true">
+<auxx:GroupHospitalHeader label="@Hospital:@Hospital:" field="@description" />
+<line pattern="empty" lineHeight="1mm" />
+  
+     <table class='auxxtablecolumn' group='Detail'>
+        <item field='@PACRRegNumber' width="8%"  caption="Cancer Reg Number" />
+        <item field='@PAPMINo' width="9%"  caption="URN" /> 
+        <item field='@PAADMAdmNo' width="10%" caption='@EpisodeNumber@Episode Number'/>   
+        <item field='@PatientName' width="12%" caption='@PatientName@Patient Name'/>
+        <item field='@PAADMDischgDate' width="9%" displayCaption="true" breakOnLineFeed="true">
+        <caption field='CaptionThree' breakOnLineFeed="true"  />
+        </item>
+         <item field='@MorphologyCode' width="8%" caption='@MorphologyCode@Morphology Code'/> 
+         <item field='@TUMFirstDiagnosisDate' width="9%" caption='@DateofDiagnosis@Date of Diagnosis'/> 
+         <item field='@PACRRegDate' width="9%" caption='@DateofRegistration@Date of Registration'/> 
+         <item field='@ssusrinitials' width="6%" caption='@Coder@Coder'/> 
+        <item field='Message' width="20%" breakOnLineFeed="true" caption='@Messages@Messages' />    
+</table>
+</group>
+</body>
+</report>
+]]></Data>
+</XData>
+</Class>
+</Export>

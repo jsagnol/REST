@@ -1,0 +1,188 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.SWARHMTED001">
+<Description>
+Compensables by Payor Report</Description>
+<ClassType/>
+<ProcedureBlock>0</ProcedureBlock>
+<Super>%Library.RegisteredObject</Super>
+<TimeCreated>61221,1746.306379</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/SWARHMTED001.xml#1 $</Default>
+</Parameter>
+
+<Method name="CompensablesClose">
+<Description>
+This is the Close component of the %Library.Query.
+This is standard code and should never have to change.
+This is where all the cleanup is performed, i.e. the purging of the temporary storage global ^CacheTemp.</Description>
+<Final>0</Final>
+<ClassMethod>1</ClassMethod>
+<CodeMode>code</CodeMode>
+<FormalSpec>QHandle:%Library.Binary</FormalSpec>
+<Private>0</Private>
+<ReturnType>%Library.Status</ReturnType>
+<SqlProc>0</SqlProc>
+<Implementation><![CDATA[
+ // Clean up by purging the temporary node in ^CacheTemp global
+ New repid
+ Set repid=$li(QHandle,2)
+ Kill ^CacheTemp(repid)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="CompensablesExecute">
+<ClassMethod>1</ClassMethod>
+<CodeMode>code</CodeMode>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,HospitalID:%Integer,DateFrom:%Date,DateTo:%Date]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+	
+ k ^zbernard	
+ // Get reportid i.e. use $INCREMENT to add another node to ^CacheTemp global. 
+ // We use ^CacheTemp global because it will always use memory before disk
+ New repid,ind
+
+ // Use $Increment to get the next node
+ Set repid=$I(^CacheTemp)
+ s ^zBernard("1")=(1)
+
+ // Build data into ^CacheTemp(ReportID)
+ // e.g. Set ^CacheTemp(ReportID,Index)=$LB(f1,f2,f3)
+ New Number,String,Date,Time,c,n
+ n PAADMAdmDate,PAADMADMNo,PAPMINo,PAPMIName,PAPMIName2,PAPMIName3,PAADMType,PAADMVisitStatus,HOSPRowId,HOSPDesc,INSTCode,INSTDesc,DSCLDesc,MRADMPresentComplaint,CONTName,CONTAddress1,CONTAddress2,CTCITDesc,CTZIPCode
+ s (HOSPRowId)=0
+ s (PAADMAdmDate,PAADMADMNo,PAPMINo,PAPMIName,PAPMIName2,PAPMIName3,PAADMType,PAADMVisitStatus,HOSPDesc,INSTCode,INSTDesc,DSCLDesc,MRADMPresentComplaint, CONTName,CONTAddress1,CONTAddress2,CTCITDesc,CTZIPCode)=""
+
+ s ind=1
+
+ //Convert ODBC dates to cache format
+ s DateFrom=$$intdate^SSUTIL4(DateFrom)
+ s DateTo=$$intdate^SSUTIL4(DateTo)
+
+ //s ^bernard("2")=(2)
+
+ &sql(declare Compensables cursor for
+ SELECT 
+ PAADM_AdmDate,
+ PAADM_ADMNo,   
+ PAADM_PAPMI_DR->PAPMI_No,
+ PAADM_PAPMI_DR->PAPMI_Name,
+ PAADM_PAPMI_DR->PAPMI_Name2,
+ PAADM_PAPMI_DR->PAPMI_Name3,
+ PAADM_Type,
+ PAADM_VisitStatus,
+ PAADM_CurrentWard_DR->WARD_LocationDR->CTLOC_HOspital_DR->HOSP_RowId,
+ PAADM_CurrentWard_DR->WARD_LocationDR->CTLOC_HOspital_DR->HOSP_Desc,
+ INS_InsType_DR->INST_Code,
+ INS_InsType_DR->INST_Desc,
+ PAADM_MainMRADM_DR->MRADM_DischClassif_DR->DSCL_Desc,
+ PAADM_MainMRADM_DR->MRADM_PresentComplaint,
+ CONT_Name,
+ CONT_Address1,
+ CONT_Address2,
+ CONT_City_DR->CTCIT_Desc,
+ CONT_Zip_DR->CTZIP_Code
+ FROM    sqluser.PA_Adm, sqluser.PA_AdmInsurance, sqluser.PA_TrafficAccidentContact
+ WHERE  PAADM_RowID = INS_ParRef  AND PAADM_TrafficAccident_DR =*CONT_ParRef and 
+ PAADM_AdmDate between :DateFrom and :DateTo and 
+ PAADM_Type='E' and PAADM_VisitStatus<>'C' and
+ INS_InsType_DR->INST_Code in ('1','TAC','2','3','WC','4','5'))
+ &sql(open Compensables)
+
+
+ //fetch first row
+ &sql(fetch Compensables into :PAADMAdmDate,:PAADMADMNo,:PAPMINo,:PAPMIName,:PAPMIName2,:PAPMIName3,:PAADMType,:PAADMVisitStatus,:HOSPRowId,:HOSPDesc,:INSTCode,:INSTDesc,:DSCLDesc,:MRADMPresentComplaint,:CONTName,:CONTAddress1,:CONTAddress2,:CTCITDesc,:CTZIPCode)
+
+ while 'SQLCODE{
+ d FormatDates
+ d FormatTimes
+
+ // build the row
+ Set ^CacheTemp(repid,ind)=$LB(PAADMAdmDate,PAADMADMNo,PAPMINo,PAPMIName,PAPMIName2,PAPMIName3,PAADMType,PAADMVisitStatus,HOSPRowId,HOSPDesc,INSTCode,INSTDesc,DSCLDesc,MRADMPresentComplaint,CONTName,CONTAddress1,CONTAddress2,CTCITDesc,CTZIPCode)
+ s ind=ind+1
+ //fetch rows
+ &sql(fetch Compensables into :PAADMAdmDate,:PAADMADMNo,:PAPMINo,:PAPMIName,:PAPMIName2,:PAPMIName3,:PAADMType,:PAADMVisitStatus,:HOSPRowId,:HOSPDesc,:INSTCode,:INSTDesc,:DSCLDesc,:MRADMPresentComplaint,:CONTName,:CONTAddress1,:CONTAddress2,:CTCITDesc,:CTZIPCode)
+ }
+
+ //s ^zBernard("3")=(3)
+ &sql(close Compensables)
+
+ // Build QHandle (AtEnd,ReportID,Index)
+ Set QHandle=$lb(0,repid,0)
+
+ //s ^zBernard("4")=(4)
+ Quit $$$OK
+
+
+FormatDates
+ // Convert the dates to ODBC date format
+ If PAADMAdmDate Set PAADMAdmDate=$ZD(PAADMAdmDate,3)
+
+ //s ^zBernard("5")=(5)
+ Quit
+
+FormatTimes
+ // Convert the times to ODBC time format
+ Quit
+]]></Implementation>
+</Method>
+
+<Method name="CompensablesFetch">
+<Description>
+This is the Fetch component of the %Library.Query. 
+This should never have to change. It is designed to fetch the row for each subscript of the ^CacheTemp
+global and return this row to the Crystal Report.</Description>
+<ClassMethod>1</ClassMethod>
+<CodeMode>code</CodeMode>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,&Row:%Library.List,&AtEnd:%Library.Integer=0]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // This fetch method should never have to change. 
+
+ // repid - Report ID
+ // ind   - sequence index which represents each row
+
+ New repid,ind
+
+ // Restore QHandle
+ Set AtEnd=$li(QHandle,1)
+ Set repid=$li(QHandle,2)
+ Set ind=$li(QHandle,3)
+
+ Set ind=$o(^CacheTemp(repid,ind))
+ If ind="" {	// if there are no more rows, finish fetching
+ Set AtEnd=1
+ Set Row=""
+ }
+ Else      {	// fetch row
+ Set Row=^CacheTemp(repid,ind)
+ }
+
+ // Save QHandle
+ s QHandle=$lb(AtEnd,repid,ind)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Query name="Compensables">
+<Description>
+Compensables by Payor Report
+It expects 2 parameter of type date and will return a list of records:
+Field1 - Integer
+Field2 - String(MAXLEN=255)
+Field3 - Date
+Field4 - Time</Description>
+<Type>%Library.Query</Type>
+<FormalSpec>HospitalID:%Integer,DateFrom:%Date,DateTo:%Date</FormalSpec>
+<SqlProc>1</SqlProc>
+<Parameter name="CONTAINID" value="0"/>
+<Parameter name="ROWSPEC" value="PAADMAdmDate:%Date,PAADMADMNo:%String(MAXLEN=255),PAPMINo:%String(MAXLEN=255),PAPMIName:%String(MAXLEN=255),PAPMIName2:%String(MAXLEN=255),PAPMIName3:%String(MAXLEN=255),PAADMType:%String(MAXLEN=255),PAADMVisitStatus:%String(MAXLEN=255),HOSPRowId:%Integer,HOSPDesc:%String(MAXLEN=255),INSTCode:%String(MAXLEN=255),INSTDesc:%String(MAXLEN=255),DSCLDesc:%String(MAXLEN=255),MRADMPresentComplaint:%String(MAXLEN=255),CONTName:%String(MAXLEN=255),CONTAddress1:%String(MAXLEN=255),CONTAddress2:%String(MAXLEN=255),CTCITDesc:%String(MAXLEN=255),CTZIPCode:%String(MAXLEN=255)"/>
+<Parameter name="SELECTMODE" value="ODBC"/>
+</Query>
+</Class>
+</Export>

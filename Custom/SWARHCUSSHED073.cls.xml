@@ -1,0 +1,227 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.SWARHCUSSHED073">
+<Description>
+Presentations by age group and gender per visit type</Description>
+<ClassType/>
+<ProcedureBlock>0</ProcedureBlock>
+<Super>%Library.RegisteredObject</Super>
+<TimeCreated>62298,58193.645056</TimeCreated>
+
+<Method name="SHED073Close">
+<Description>
+This is the Close component of the %Library.Query.
+This is standard code and should never have to change.
+This is where all the cleanup is performed, i.e. the purging of the temporary storage global ^CacheTemp.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>QHandle:%Library.Binary</FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Clean up by purging the temporary node in ^CacheTemp global
+ New repid
+ Set repid=$li(QHandle,2)
+ Kill ^CacheTemp(repid)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="SHED073Execute">
+<Description>
+This is the Execute section for the %Library.Query. 
+All of the logic will be performed here.
+A new node for the ^CacheTemp global will be created and each subscript of this global will contain
+a row for the report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,DateFrom:%Date,DateTo:%Date,SortType:%String,Hospital:%Integer]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+            
+ k ^zbernard 
+ // Get reportid i.e. use $INCREMENT to add another node to ^CacheTemp global. 
+ // We use ^CacheTemp global because it will always use memory before disk
+ New repid,ind
+
+ // Use $Increment to get the next node
+ Set repid=$I(^CacheTemp)
+ s ^zBernard("1")=(1)
+
+ // Build data into ^CacheTemp(ReportID)
+ // e.g. Set ^CacheTemp(ReportID,Index)=$LB(f1,f2,f3)
+ New Number,String,Date,Time,c,n
+ n PAADMAdmNo,VSTDesc,PAADMAdmDate,PAADMAdmTime,TimeFrameNum,PAADMDischgDate,PAADMDischgTime,PAADMPriorityDR,MRADMDischClassifDR,HOSPRowId,HOSPDesc
+ s (HOSPRowId,PAADMPriorityDR,MRADMDischClassifDR)=0
+ s (PAADMAdmNo,VSTDesc,PAADMAdmDate,PAADMAdmTime,TimeFrameNum,PAADMDischgDate,PAADMDischgTime,HOSPDesc)=""
+
+ s ind=1
+
+ //Convert ODBC dates to cache format
+ s DateFrom=$$intdate^SSUTIL4(DateFrom)
+ s DateTo=$$intdate^SSUTIL4(DateTo)
+
+ //s ^bernard("2")=(2)
+ 
+  if (SortType="discharge") {
+
+ &sql(declare SHED073 cursor for
+ SELECT
+ PAADM_AdmNo,
+ PAADM_MainMRADM_DR->MRADM_VisitType_DR->VST_Desc,
+ PAADM_AdmDate,
+ PAADM_AdmTime,
+ convert(integer,convert(integer,PAADM_AdmTime)/1800) as TimeFrameNum,
+ PAADM_DischgDate,
+ PAADM_DischgTime,
+ PAADM_Priority_DR,
+ PAADM_MainMRADM_DR->MRADM_DischClassif_DR,
+ PAADM_CurrentWard_DR->WARD_LocationDR->CTLOC_HOspital_DR->HOSP_RowId,
+ PAADM_CurrentWard_DR->WARD_LocationDR->CTLOC_HOspital_DR->HOSP_Desc
+FROM SQLUser.PA_Adm
+WHERE PAADM_DischgDate between :DateFrom and :DateTo AND PAADM_VisitStatus<>'C' 
+AND PAADM_Hospital_DR=:Hospital
+AND PAADM_Type='E')
+ }
+ 
+ if (SortType="admission") {
+
+ &sql(declare SHED073adm cursor for
+ SELECT
+ PAADM_AdmNo,
+ PAADM_MainMRADM_DR->MRADM_VisitType_DR->VST_Desc,
+ PAADM_AdmDate,
+ PAADM_AdmTime,
+ convert(integer,convert(integer,PAADM_AdmTime)/1800)as TimeFrameNum,
+ PAADM_DischgDate,
+ PAADM_DischgTime,
+ PAADM_Priority_DR,
+ PAADM_MainMRADM_DR->MRADM_DischClassif_DR,
+ PAADM_CurrentWard_DR->WARD_LocationDR->CTLOC_HOspital_DR->HOSP_RowId,
+ PAADM_CurrentWard_DR->WARD_LocationDR->CTLOC_HOspital_DR->HOSP_Desc
+FROM SQLUser.PA_Adm
+WHERE PAADM_AdmDate between :DateFrom and :DateTo AND PAADM_VisitStatus<>'C' 
+AND PAADM_Hospital_DR=:Hospital
+AND PAADM_Type='E')
+ }
+ 
+ if (SortType="discharge") {
+ &sql(open SHED073) 
+
+ //fetch first row
+ &sql(fetch SHED073 into :PAADMAdmNo,:VSTDesc,:PAADMAdmDate,:PAADMAdmTime,:TimeFrameNum,:PAADMDischgDate,:PAADMDischgTime,:PAADMPriorityDR,:MRADMDischClassifDR,:HOSPRowId,:HOSPDesc)
+
+ while 'SQLCODE{
+ d FormatDates
+ d FormatTimes
+ If TimeFrameNum Set TimeFrameNum=$$num(TimeFrameNum,2)
+ // build the row
+ Set ^CacheTemp(repid,ind)=$LB(PAADMAdmNo,VSTDesc,PAADMAdmDate,PAADMAdmTime,TimeFrameNum,PAADMDischgDate,PAADMDischgTime,PAADMPriorityDR,MRADMDischClassifDR,HOSPRowId,HOSPDesc)
+ s ind=ind+1
+ //fetch rows
+ &sql(fetch SHED073 into :PAADMAdmNo,:VSTDesc,:PAADMAdmDate,:PAADMAdmTime,:TimeFrameNum,:PAADMDischgDate,:PAADMDischgTime,:PAADMPriorityDR,:MRADMDischClassifDR,:HOSPRowId,:HOSPDesc)
+ }
+ &sql(close SHED073)
+ }
+ 
+  if (SortType="admission") {
+ &sql(open SHED073adm) 
+
+ //fetch first row
+ &sql(fetch SHED073adm into :PAADMAdmNo,:VSTDesc,:PAADMAdmDate,:PAADMAdmTime,:TimeFrameNum,:PAADMDischgDate,:PAADMDischgTime,:PAADMPriorityDR,:MRADMDischClassifDR,:HOSPRowId,:HOSPDesc)
+
+ while 'SQLCODE{
+ d FormatDates
+ d FormatTimes
+ If TimeFrameNum Set TimeFrameNum=$$num(TimeFrameNum,2)
+ // build the row
+ Set ^CacheTemp(repid,ind)=$LB(PAADMAdmNo,VSTDesc,PAADMAdmDate,PAADMAdmTime,TimeFrameNum,PAADMDischgDate,PAADMDischgTime,PAADMPriorityDR,MRADMDischClassifDR,HOSPRowId,HOSPDesc)
+ s ind=ind+1
+ //fetch rows
+ &sql(fetch SHED073adm into :PAADMAdmNo,:VSTDesc,:PAADMAdmDate,:PAADMAdmTime,:TimeFrameNum,:PAADMDischgDate,:PAADMDischgTime,:PAADMPriorityDR,:MRADMDischClassifDR,:HOSPRowId,:HOSPDesc)
+ }
+ &sql(close SHED073adm)
+ }
+
+
+ // Build QHandle (AtEnd,ReportID,Index)
+ Set QHandle=$lb(0,repid,0)
+
+ //s ^zBernard("4")=(4)
+ Quit $$$OK
+
+num(str,length) ;left pad with 0
+
+ Q $E(str+(10**length),2,length+1)
+
+ ;
+FormatDates
+ // Convert the dates to ODBC date format
+ If PAADMAdmDate Set PAADMAdmDate=$ZD(PAADMAdmDate,3)
+ If PAADMDischgDate Set PAADMDischgDate=$ZD(PAADMDischgDate,3)
+ /*If PAADMTriageDate Set PAADMTriageDate=$ZD(PAADMTriageDate,3)
+ If PAADMSeenDate Set PAADMSeenDate=$ZD(PAADMSeenDate,3)*/
+
+ //s ^zBernard("5")=(5)
+ Quit
+
+FormatTimes
+ // Convert the times to ODBC time format
+ If PAADMAdmTime Set PAADMAdmTime=$ZT(PAADMAdmTime,2)
+ /*$extract($ZT(PAADMAdmTime,2),0,2)_":00"*/
+ If PAADMDischgTime Set PAADMDischgTime=$ZT(PAADMDischgTime,2)
+ /*If PAADMTriageTime Set PAADMTriageTime=$ZT(PAADMTriageTime,2)
+ If PAADMSeenTime Set PAADMSeenTime=$ZT(PAADMSeenTime,2)*/
+ Quit
+]]></Implementation>
+</Method>
+
+<Method name="SHED073Fetch">
+<Description>
+This is the Fetch component of the %Library.Query. 
+This should never have to change. It is designed to fetch the row for each subscript of the ^CacheTemp
+global and return this row to the Crystal Report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,&Row:%Library.List,&AtEnd:%Library.Integer=0]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // This fetch method should never have to change. 
+
+ // repid - Report ID
+ // ind - sequence index which represents each row
+
+ New repid,ind
+
+ // Restore QHandle
+ Set AtEnd=$li(QHandle,1)
+ Set repid=$li(QHandle,2)
+ Set ind=$li(QHandle,3)
+
+ Set ind=$o(^CacheTemp(repid,ind))
+ If ind="" {        // if there are no more rows, finish fetching
+ Set AtEnd=1
+ Set Row=""
+ }
+ Else      {         // fetch row
+ Set Row=^CacheTemp(repid,ind)
+ }
+
+ // Save QHandle
+ s QHandle=$lb(AtEnd,repid,ind)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Query name="SHED073">
+<Description>
+GHA List reports Stored Procedure
+It expects 2 parameter of type date and will return a list of records:
+Field1 - Integer
+Field2 - String(MAXLEN=255)
+Field3 - Date
+Field4 - Time</Description>
+<Type>%Library.Query</Type>
+<FormalSpec>DateFrom:%Date,DateTo:%Date,SortType:%String,Hospital:%Integer</FormalSpec>
+<SqlProc>1</SqlProc>
+<Parameter name="CONTAINID" value="0"/>
+<Parameter name="ROWSPEC" value="PAADMAdmNo:%String(MAXLEN=255),VSTDesc:%String(MAXLEN=255),PAADMAdmDate:%String(MAXLEN=255),PAADMAdmTime:%String(MAXLEN=255),TimeFrameNum:%String(MAXLEN=255),PAADMDischgDate:%String(MAXLEN=255),PAADMDischgTime:%String(MAXLEN=255),PAADMPriorityDR:%Integer,MRADMDischClassifDR:%Integer,HOSPRowId:%Integer,HOSPDesc:%String(MAXLEN=255)"/>
+</Query>
+</Class>
+</Export>

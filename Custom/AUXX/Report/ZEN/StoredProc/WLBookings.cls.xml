@@ -1,0 +1,301 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.AUXX.Report.ZEN.StoredProc.WLBookings">
+<ProcedureBlock>0</ProcedureBlock>
+<Super>Report.Abstract</Super>
+<TimeCreated>59388,55236.125</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+This Parameter should be updated when synced from Perforce</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/AUXX/Report/ZEN/StoredProc/WLBookings.xml#1 $</Default>
+</Parameter>
+
+<UDLText name="T">
+<Content><![CDATA[
+// Zen Report Name: Waiting List Bookings <br>
+
+]]></Content>
+</UDLText>
+
+<UDLText name="T">
+<Content><![CDATA[
+// Report Code: Trak.WLBookings <br>
+
+]]></Content>
+</UDLText>
+
+<UDLText name="T">
+<Content><![CDATA[
+// LOGTRAK Number: 72456 <br>
+
+]]></Content>
+</UDLText>
+
+<Method name="BookingListClose">
+<Description>
+This is the Close component of the %Library.Query.
+This is standard code and should never have to change.
+This is where all the cleanup is performed, i.e. the purging of the temporary storage global ^CacheTemp.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>QHandle:%Library.Binary</FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Clean up by purging the temporary node in ^CacheTemp global
+ New repid
+ Set repid=$LIST(QHandle,2)
+ 
+ //Start Monitor (if configured to capture stats)
+ i mon Do ..MonitorEnd(mon)
+
+ Kill ^CacheTemp("TRAK",repid)
+ 
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="BookingListExecute">
+<Description>
+This is the Execute section for the %Library.Query. 
+All of the logic will be performed here.
+A new node for the ^CacheTemp("TRAK") global will be created and each subscript of this global will contain
+a row for the report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,DateFrom:%Date,DateTo:%Date,Hospital:%String,WLHospital:%String,Location:%String,CareProvider:%String,DayCases:%String]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Get reportid i.e. use $INCREMENT to add another node to ^CacheTemp("TRAK") global. 
+ // We use ^CacheTemp global because CACHETEMP is a memory resident database
+ New repid,ind
+
+ // Use $Increment to get the next node and clean up
+ Set repid=$Increment(^CacheTemp("TRAK"))
+ Kill ^CacheTemp("TRAK",repid)
+ 
+ //Start Monitor (if configured to capture stats)
+ s mon=..MonitorBegin()
+  
+ n WLRowId,WLDate,ADMOperDate,HOSPDesc,WARDLocationDR,WARDCode,WLPCode,WLSCode,READesc,REARowId,PAADMAdmNo,CTLOCDesc,CTLOCRowID,CTLOCCode,CTPCPRowId,CTPCPDesc,CTPCPSurname,WLPlannedSameDay,HOSPRowId,PAPERName,PAPERName2
+ n PAPERName3,SEXCode,ADMAdmDate,ADMRowId,PAPMIRowId,URNDetails,PAPMIVIPFlag,WLACCOMTDesc,WLRemarks,ADMTime,WLProcedureFreeText,PAPMINo,PAPERAge,PAPERAgeYr,PAPERAgeMth,PAPERAgeDay,PAPERDeceased,PAPERDeceasedDate,PAPERDOB
+ n WLRindex, WLRcounter, WLPindex, WLPcounter,ADMBookingNumber,TCIStatus,ADMChildSub,Listing
+ 
+ s (WLRowId,WARDLocationDR,REARowId,CTLOCRowId,HOSPRowId,PAPMIRowId,END,WLEstLengthOfStay,WLRindex, WLRcounter, WLPindex, WLPcounter,ADMBookingNumber)=0
+ s (WLDate,ADMOperDate,PAADMAdmNo,HOSPDesc,WARDCode,WLPCode,WLSCode,READesc,CTLOCDesc,CTLOCCode,CTPCPRowId,CTPCPDesc,CTPCPSurname,WLPlannedSameDay,PAPERName,PAPMIVIPFlag,WLACCOMTDesc,WLRemarks,ADMTime,WLProcedureFreeText,PAPMINo)=""
+ s (PAPMIVIPFlag,WLACCOMTDesc,WLRemarks,ADMTime,WLProcedureFreeText,PAPMINo,PAPERAge,PAPERAgeYr,PAPERAgeMth,PAPERAgeDay,PAPERDeceased,PAPERDeceasedDate,PAPERDOB,TCIStatus,ADMChildSub,Listing)=""
+ 
+ 
+ s DateFrom=..ConvertDateToCache(DateFrom)
+ s DateTo=..ConvertDateToCache(DateTo)
+ 
+ i $g(Hospital)'="" s Hospital=$zstrip(Hospital,"*C")
+ i $g(WLHospital)'="" s WLHospital=$zstrip(WLHospital,"*C")
+ i $g(Location)'="" s Location=$zstrip(Location,"*C")
+ i $g(CareProvider)'="" s CareProvider=$zstrip(CareProvider,"*C")
+ i $g(DayCases)'="" s DayCases=$zstrip(DayCases,"*C")
+ 
+ s WLRowId=0
+ f  s WLRowId=$o(^PAWL(WLRowId)) q:WLRowId=""  d
+ . s ADMChildSub=0 f  s ADMChildSub=$o(^PAWL(WLRowId,"ADM",ADMChildSub)) q:ADMChildSub=""  d
+ . . s ADMRowId=WLRowId_"||"_ADMChildSub
+ . . s ADMAdmDate=$p($g(^PAWL(WLRowId,"ADM",ADMChildSub)),"^",2)
+ . . s ADMCancelDate=$p($g(^PAWL(WLRowId,"ADM",ADMChildSub)),"^",3)
+ . . i ADMCancelDate=""  d
+ . . . i ADMAdmDate>=DateFrom,ADMAdmDate<=DateTo d GetData
+ 
+ 
+ // Build QHandle (AtEnd,ReportID,Index)
+ Set QHandle=$LISTBUILD(0,repid,0)
+ Quit $$$OK
+ 	
+GetData
+ &SQL(DECLARE WLBookings CURSOR FOR
+ SELECT
+ ADM_ParRef->WL_Date,
+ ADM_ParRef->WL_EstLengthOfStay,
+ ADM_ParRef->WL_Hospital_DR->HOSP_RowId,
+ ADM_ParRef->WL_Hospital_DR->HOSP_Code,
+ ADM_ParRef->WL_Hospital_DR->HOSP_Desc,
+ ADM_IntendedWard_DR->WARD_LocationDR, 
+ ADM_IntendedWard_DR->WARD_Code, 
+ ADM_ParRef->WL_WaitListPrior_DR->WLP_Code, 
+ ADM_ParRef->WL_WaitListStatus_DR->WLS_Code,
+ ADM_CancelReason_DR->REA_Desc,
+ ADM_CancelReason_DR->REA_RowId,
+ %EXACT(ADM_PAADM_DR->PAADM_AdmNo),
+ ADM_ParRef->WL_ctloc_dr->CTLOC_Desc,
+ ADM_ParRef->WL_ctloc_dr->CTLOC_RowId,
+ ADM_ParRef->WL_ctloc_dr->CTLOC_Code,
+ ADM_ParRef->WL_ctloc_dr->CTLOC_Hospital_DR->HOSP_RowId,
+ ADM_ParRef->WL_ctloc_dr->CTLOC_Hospital_DR->HOSP_Code,
+ ADM_ParRef->WL_ctloc_dr->CTLOC_Hospital_DR->HOSP_Desc,
+ ADM_ParRef->WL_Doctor_dr->CTPCP_RowId,
+ ADM_ParRef->WL_Doctor_dr->CTPCP_Desc,
+ ADM_ParRef->WL_Doctor_dr->CTPCP_Surname,
+ ADM_ParRef->WL_PlannedSameDay,
+ ADM_ParRef->WL_PAPMI_DR->PAPMI_No,
+ ADM_ParRef->WL_PAPMI_DR->PAPMI_Name,
+ ADM_ParRef->WL_PAPMI_DR->PAPMI_Name2,
+ ADM_ParRef->WL_PAPMI_DR->PAPMI_Name3,
+ ADM_ParRef->WL_PAPMI_DR->PAPMI_PAPER_DR->PAPER_Sex_DR->CTSEX_Code,
+ ADM_ParRef->WL_PAPMI_DR->PAPMI_PAPER_DR->PAPER_AgeYr,
+ ADM_ParRef->WL_PAPMI_DR->PAPMI_PAPER_DR->PAPER_AgeMth, 
+ ADM_ParRef->WL_PAPMI_DR->PAPMI_PAPER_DR->PAPER_AgeDay,
+ ADM_ParRef->WL_PAPMI_DR->PAPMI_PAPER_DR->PAPER_Deceased,
+ ADM_ParRef->WL_PAPMI_DR->PAPMI_PAPER_DR->PAPER_Deceased_Date,
+ ADM_ParRef->WL_PAPMI_DR->PAPMI_PAPER_DR->PAPER_DOB,
+ ADM_AdmDate,
+ ADM_RowId,
+ ADM_ParRef->WL_PAPMI_DR->PAPMI_RowId,
+ ADM_ParRef->WL_PAPMI_DR->PAPMI_VIPFlag,
+ ADM_ParRef->WL_AccomodationType_DR->ACCOMT_Code,
+ ADM_ParRef->WL_Remarks,
+ ADM_Time,
+ ADM_ParRef->WL_ProcedureFreeText,
+ ADM_BookingNumber, 
+ ADM_CancelReason_DR->REA_RowId,
+ ADM_CancelReason_DR->REA_Code, 
+ ADM_CancelReason_DR->REA_Desc,
+ ADM_CancelReason_DR->REA_ReasonGroup_DR->WLRG_Desc, 
+ ADM_OperDate,
+ ADM_OperTime,
+ ADM_CancelDate,
+ ADM_CancelTime,
+ ADM_PAADM_DR,
+ ADM_ParRef->WL_StateProc_DR->SPPP_Desc,
+ ADM_VisitStatus,
+ ADM_ParRef->WL_PreAdmission_DR->PAADM_AdmDate 
+ INTO :WLDate,:WLEstLengthOfStay,:WLHOSPRowId,:WLHOSPCode,:WLHOSPDesc,:WARDLocationDR,:WARDCode,:WLPCode,:WLSCode,:READesc,:REARowId,:PAADMAdmNo,:CTLOCDesc,:CTLOCRowID,:CTLOCCode,:HOSPRowID,:HOSPCode,:HOSPDesc,:CTPCPRowId,:CTPCPDesc,:CTPCPSurname,:WLPlannedSameDay,:PAPMINo,:PAPMIName,:PAPMIName2,:PAPMIName3,:SEXCode,:PAPERAgeYr,:PAPERAgeMth,:PAPERAgeDay,:PAPERDeceased,:PAPERDeceasedDate,:PAPERDOB,:ADMAdmDate,:ADMRowId,:PAPMIRowId,:PAPMIVIPFlag,:WLACCOMTDesc,:WLRemarks,:ADMTime,:WLProcedureFreeText,:ADMBookingNumber,:REARowId,:REACode,:READesc,:WLRGDesc,:ADMCancelDate,:ADMCancelTime,:PAADMNo,:OPERDate,:OPERTime,:OPERDesc,:TCIStatus,:PreAdmitDate
+ FROM SQLUser.PA_WaitingListAdm   
+ WHERE ADM_RowId=:ADMRowId
+ AND ADM_ParRef->WL_WaitListStatus_DR->WLS_Code='PRE'
+ AND (({fn CONCAT( ',', {fn CONCAT((:WLHospital),',')})} [ {fn CONCAT( ',', {fn CONCAT((ADM_ParRef->WL_Hospital_DR->HOSP_RowId),',')})}) OR (:WLHospital IS NULL))
+ AND (({fn CONCAT( ',', {fn CONCAT((:Hospital),',')})} [ {fn CONCAT( ',', {fn CONCAT((ADM_ParRef->WL_CTLOC_DR->CTLOC_Hospital_DR->HOSP_RowId),',')})}) OR (:Hospital IS NULL))
+ AND (({fn CONCAT( ',', {fn CONCAT((:Location),',')})} [ {fn CONCAT( ',', {fn CONCAT((ADM_ParRef->WL_CTLOC_DR->CTLOC_RowId),',')})}) OR (:Location IS NULL))
+ AND (({fn CONCAT( ',', {fn CONCAT((:CareProvider),',')})} [ {fn CONCAT( ',', {fn CONCAT((ADM_ParRef->WL_Doctor_dr->CTPCP_RowId),',')})}) OR (:CareProvider IS NULL))
+)
+
+ &SQL(OPEN WLBookings)
+ 
+ f  &SQL(FETCH WLBookings) q:SQLCODE'=0  d  
+ . d FormatDates
+ . d FormatTimes
+ . ;d GetBookingComments //used to be WLRemarks
+ . s WLRemarks=$zstrip(WLRemarks,"*C")
+ . d GetWLProcedureFreeText
+ . i $g(WLPlannedSameDay)="" s WLPlannedSameDay="U"
+ . i "U,N"[WLPlannedSameDay d
+ . . i $g(DayCases)="" d BuildRow
+ . i $g(DayCases)'="" d BuildRow
+
+ &SQL(CLOSE WLBookings)
+ q
+
+BuildRow
+ s Listing=$ZCVT(HOSPDesc,"U")_" "_$ZCVT(CTLOCDesc,"U")_" "_$ZCVT(WARDCode,"U")_" "_$ZCVT(CTPCPDesc,"U")_" "_ADMAdmDate_" "_ADMTime
+ s ind=$i(ind)
+ s ^CacheTemp("TRAK",repid,Listing_ind)=$LISTBUILD(WLRowId,WLDate,WLEstLengthOfStay,ADMOperDate,WLHOSPRowId,WLHOSPCode,WLHOSPDesc,WARDLocationDR,WARDCode,WLPCode,WLSCode,READesc,REARowId,PAADMAdmNo,CTLOCDesc,CTLOCRowID,CTLOCCode,HOSPRowId,HOSPCode,HOSPDesc,CTPCPRowId,CTPCPDesc,CTPCPSurname,WLPlannedSameDay,PAPMINo,PAPMIName,PAPMIName2,PAPMIName3,SEXCode,PAPERAge,PAPERDeceased,PAPERDeceasedDate,PAPERDOB,ADMAdmDate,ADMRowId,PAPMIRowId,PAPMIVIPFlag,WLACCOMTDesc,WLRemarks,ADMTime,WLProcedureFreeText,OPERDesc)
+ q
+ 
+GetTCIStatus
+ s TCIStatus=""
+ &SQL(SELECT TRANS_TCISTATUS
+ INTO :TCIStatus 
+ FROM SQLUser.PA_WaitingListTransaction
+ WHERE TRANS_PARREF=:WLRowId 
+ AND TRANS_BOOKINGNUMBER=:ADMBookingNumber
+ AND TRANS_TCISTATUS IS NOT NULL
+ ORDER BY TRANS_CHILDSUB desc)
+ q	
+
+ConstructAge
+ if ((PAPERAgeYr = 0) & (PAPERAgeMth = 0)) {
+	 s PAPERAge = PAPERAgeDay _ "d"
+ }
+ elseif ((PAPERAgeYr = 1) & (PAPERAgeMth <= 6)) {
+	 s PAPERAge = (PAPERAgeMth+12) _ "m"
+ }
+ elseif ((PAPERAgeYr = 0) & (PAPERAgeMth '=0)) {
+	 s PAPERAge = (PAPERAgeMth) _ "m"
+ }
+ elseif (((PAPERAgeYr > 1) ! ((PAPERAgeYr = 1) & (PAPERAgeMth > 6))) & (PAPERAgeYr<5)) {
+	 s PAPERAge = (PAPERAgeYr) _ "y "_ (PAPERAgeMth) _ "m"
+ }
+ else {
+	 s PAPERAge = PAPERAgeYr
+ }  
+ q
+
+FormatDates
+ s WLDate=..ConvertDateToODBC(WLDate)
+ s ADMOperDate=..ConvertDateToODBC(ADMOperDate)
+ if ADMAdmDate s ADMAdmDate=..ConvertDateToODBC(ADMAdmDate)
+ if PAPERDOB s PAPERDOB=..ConvertDateToODBC(PAPERDOB)
+ s PAPERDeceasedDate=..ConvertDateToODBC(PAPERDeceasedDate)
+ q
+
+FormatTimes
+ s ADMTime=$zt(ADMTime,2)
+ q
+ 
+GetBookingComments
+ //this used to get waiting list remarks but now has been changed to get booking comments
+ s WLRindex=1,WLRcounter=0,WLRemarks=""
+ s WLRcounter=$g(^PAWL(WLRowId,"ADM",ADMChildSub,"RMK1",0))
+ f WLRindex=1:1:WLRcounter  d
+ . s WLRemarks=WLRemarks_$g(^PAWL(WLRowId,"ADM",ADMChildSub,"RMK1",WLRindex))_" "
+ s WLRemarks=$zstrip(WLRemarks,"*C")
+ q
+
+GetWLProcedureFreeText
+ s WLPindex=1,WLPcounter=0,WLProcedureFreeText=""
+ s WLPcounter=$g(^PAWL(WLRowId,"PROC",0))
+ f WLPindex=1:1:WLPcounter  d
+ . s WLProcedureFreeText = WLProcedureFreeText_$g(^PAWL(WLRowId,"PROC",WLPindex))_" "
+ s WLProcedureFreeText=$zstrip(WLProcedureFreeText,"*C")
+ q
+]]></Implementation>
+</Method>
+
+<Method name="BookingListFetch">
+<Description>
+This is the Fetch component of the %Library.Query. 
+This should never have to change. It is designed to fetch the row for each subscript of the 
+^CacheTemp("TRAK" global and return this row to the Report writer</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,&Row:%Library.List,&AtEnd:%Library.Integer=0]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // This fetch method should never have to change. 
+ // repid - Report ID
+ // ind   - sequence index which represents each row
+
+ New repid,ind
+
+ // Restore QHandle
+ Set AtEnd=$LI(QHandle,1)
+ Set repid=$LI(QHandle,2)
+ Set ind=$LI(QHandle,3)
+
+ Set ind=$order(^CacheTemp("TRAK",repid,ind))
+ If ind="" {	// if there are no more rows, finish fetching
+ 	Set AtEnd=1
+ 	Set Row=""
+ }  Else  {	// fetch row
+ 	Set Row=^CacheTemp("TRAK",repid,ind)
+ }
+
+ // Save QHandle
+ Set QHandle=$lb(AtEnd,repid,ind)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Query name="BookingList">
+<Type>%Library.Query</Type>
+<FormalSpec>DateFrom:%Date,DateTo:%Date,Hospital:%String,WLHospital:%String,Location:%String,CareProvider:%String,DayCases:%String</FormalSpec>
+<SqlProc>1</SqlProc>
+<Parameter name="CONTAINID" value="0"/>
+<Parameter name="ROWSPEC" value="WLRowId:%String(MAXLEN=255),WLDate:%Date,WLEstLengthOfStay:%Integer,ADMOperDate:%Date,WLHOSPRowId:%String(MAXLEN=255),WLHOSPCode:%String(MAXLEN=255),HOSPDesc:%String(MAXLEN=255),WARDLocationDR:%String(MAXLEN=255),WARDCode:%String(MAXLEN=255),WLPCode:%String(MAXLEN=255),WLSCode:%String(MAXLEN=255),READesc:%String(MAXLEN=255),REARowId:%String(MAXLEN=255),PAADMAdmNo:%String(MAXLEN=255),CTLOCDesc:%String(MAXLEN=255),CTLOCRowId:%String(MAXLEN=255),CTLOCCode:%String(MAXLEN=255),HOSPRowId:%String(MAXLEN=255),HOSPCode:%String(MAXLEN=255),HOSPDesc:%String(MAXLEN=255),CTPCPRowId:%String(MAXLEN=255),CTPCPDesc:%String(MAXLEN=255),CTPCPSurname:%String(MAXLEN=255),WLPlannedSameDay:%String(MAXLEN=255),PAPMINo:%String, PAPMIName:%String(MAXLEN=255),PAPMIName2:%String(MAXLEN=255),PAPMIName3:%String(MAXLEN=255),SEXCode:%String(MAXLEN=255),PAPERAge:%String(MAXLEN=255),PAPERDeceased:%String(MAXLEN=255),PAPERDeceasedDate:%Date,PAPERDOB:%Date,ADMAdmDate:%Date,ADMRowId:%String(MAXLEN=255),PAPMIRowId:%String(MAXLEN=255),PAPMIVIPFlag:%String(MAXLEN=255),WLACCOMTDesc:%String(MAXLEN=255),WLRemarks:%String(MAXLEN=255),ADMTime:%String(MAXLEN=255),WLProcedureFreeText:%String(MAXLEN=255),OPERDesc:%String"/>
+</Query>
+</Class>
+</Export>

@@ -1,0 +1,118 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.AUSW.ws.BookingService.BookingServiceSoap">
+<ProcedureBlock>1</ProcedureBlock>
+<Super>%SOAP.WebClient</Super>
+<TimeCreated>63365,54288.243425</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/AUSW/ws/BookingService/BookingServiceSoap.xml#1 $</Default>
+</Parameter>
+
+<Parameter name="LOCATION">
+<Description>
+This is the URL used to access the web service.</Description>
+<Default>http://snap-wip/WebServices/BookingService.asmx</Default>
+</Parameter>
+
+<Parameter name="NAMESPACE">
+<Description>
+This is the namespace used by the Service</Description>
+<Default>http://tempuri.org/</Default>
+</Parameter>
+
+<Parameter name="OUTPUTTYPEATTRIBUTE">
+<Description>
+Use xsi:type attribute for literal types.</Description>
+<Default>1</Default>
+</Parameter>
+
+<Parameter name="SECURITYIN">
+<Description>
+Determines handling of Security header.</Description>
+<Default>ALLOW</Default>
+</Parameter>
+
+<Parameter name="SERVICENAME">
+<Description>
+This is the name of the Service</Description>
+<Default>BookingService</Default>
+</Parameter>
+
+<Parameter name="SOAPVERSION">
+<Description>
+This service supports both SOAP 1.1 and SOAP 1.2.</Description>
+</Parameter>
+
+<Method name="GetLocation">
+<Implementation><![CDATA[
+	s location=""
+	&SQL(SELECT FILE_RowId INTO :file FROM SQLUser.CF_SystemFileDefinition WHERE FILE_Desc='SNAP')
+	i file {
+		s CFobj=##class(User.CFSystemFileDefinition).%OpenId(file)
+		i CFobj {
+			set baseuri=CFobj.FILEVirtualDirectory
+			set:($e(baseuri,*,*)'="/") baseuri = baseuri_"/"
+			
+			set relativeuri=$p(..#LOCATION, "/", 4, $l(..#LOCATION,"/"))
+			set location = baseuri_relativeuri
+			k CFobj
+		}
+	}
+	q location
+]]></Implementation>
+</Method>
+
+<Method name="%OnNew">
+<Description><![CDATA[
+This callback method is invoked by the <METHOD>%New</METHOD> method to 
+provide notification that a new instance of an object is being created.
+
+<p>If this method returns an error then the object will not be created.
+<p>It is passed the arguments provided in the %New call.
+When customizing this method, override the arguments with whatever variables and types you expect to receive from %New().
+For example, if you're going to call %New, passing 2 arguments, %OnNew's signature could be:
+<p>Method %OnNew(dob as %Date = "", name as %Name = "") as %Status
+If instead of returning a %Status code this returns an oref and this oref is a subclass of the current
+class then this oref will be the one returned to the caller of %New method.]]></Description>
+<Private>1</Private>
+<ReturnType>%Status</ReturnType>
+<ServerOnly>1</ServerOnly>
+<Implementation><![CDATA[
+	s location=..GetLocation()
+	i location'="" s ..Location=location
+	// default to SOAP 1.2 if supported, which returns meaningful errors in SOAP faults
+	i (..#SOAPVERSION = "") && (..SoapVersion = "")
+		s ..SoapVersion = "1.2"
+	Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="AppointmentSyncFromTrak">
+<Final>1</Final>
+<FormalSpec>trakApptId:%String</FormalSpec>
+<ProcedureBlock>1</ProcedureBlock>
+<ReturnType>%Boolean</ReturnType>
+<WebMethod>1</WebMethod>
+<SoapBindingStyle>document</SoapBindingStyle>
+<SoapBodyUse>literal</SoapBodyUse>
+<Implementation><![CDATA[ Quit ..WebMethod("AppointmentSyncFromTrak").Invoke($this,"http://tempuri.org/AppointmentSyncFromTrak",.trakApptId)
+]]></Implementation>
+</Method>
+
+<Method name="BookingSyncFromTrakEventTime">
+<Final>1</Final>
+<FormalSpec>trakEventTimeId:%String</FormalSpec>
+<ProcedureBlock>1</ProcedureBlock>
+<ReturnType>%Boolean</ReturnType>
+<WebMethod>1</WebMethod>
+<SoapBindingStyle>document</SoapBindingStyle>
+<SoapBodyUse>literal</SoapBodyUse>
+<ReturnTypeParams>XMLNAME="BookingSyncFromTrakEventTimeResult"</ReturnTypeParams>
+<Implementation><![CDATA[ Quit ..WebMethod("BookingSyncFromTrakEventTime").Invoke($this,"http://tempuri.org/BookingSyncFromTrakEventTime",.trakEventTimeId)
+]]></Implementation>
+</Method>
+</Class>
+</Export>

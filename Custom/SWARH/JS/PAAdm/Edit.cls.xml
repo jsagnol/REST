@@ -1,0 +1,423 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.SWARH.JS.PAAdm.Edit">
+<Description>
+Component JavaScript for: PAAdm.Edit</Description>
+<Modified>0</Modified>
+<Super>websys.AbstractJavaScript</Super>
+<TimeCreated>63537,10516.989845</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+This Parameter is updated by Perforce</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/SWARH/JS/PAAdm/Edit.xml#1 $</Default>
+</Parameter>
+
+<Method name="JSContent">
+<Description>
+ </Description>
+<Language>javascript</Language>
+<ClientMethod>1</ClientMethod>
+<Implementation><![CDATA[
+/*********************************************************************
+$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/SWARH/JS/PAAdm/Edit.xml#1 $
+Version 1
+
+- General custom field validation for paadm.edit component
+
+REMEMBER to update the versions with initials, date and description for each modification...
+IF	29/07/2011		- Updated referral expiry date when referral date is entered
+IF	12/09/2011		- Merged AUXX with SWARH script
+IF	27/03/2012		- TRC103417 updated referral period code to keep predictive text working
+IF	31/05/2012		- TRC98502 Make Mothers UR mandatory
+IF	31/07/2013		- TRC154215 Set values for planned length of stay and admission category
+DJB 28/05/2015		- TRC191738 2015 1st July VINAH changes--general script cleanup
+DJB 16/05/2016		- TRC204705 Limit ATTENDDesc lookup results on PAADM2NFMICategDepart value
+
+**********************************************************************/
+
+websys_removeListener("load","onload",Init);
+websys_addListener("load","onload",CustomDocumentLoadHandler);
+
+function CustomDocumentLoadHandler() {
+	Init();
+	
+	var obj=document.getElementById('REFPERDesc');
+	if (obj) {
+		ReferralPeriod();
+		websys_addListener("blur","onblur",ReferralPeriod,obj);
+
+	}
+	
+	var objATTENDDesc=document.getElementById("ATTENDDesc"); 
+	if (objATTENDDesc) {
+		websys_addListener("blur","onblur",ATTENDDescCustomHandler,objATTENDDesc);
+		ATTENDDescCustomHandler();
+	}
+	
+	var objPAADM2NFMICategDepart=document.getElementById("PAADM2NFMICategDepart"); 
+	if (objPAADM2NFMICategDepart) {
+		websys_addListener("blur","onblur",PAADM2NFMICategDepartCustomHandler,objPAADM2NFMICategDepart);
+		PAADM2NFMICategDepartCustomHandler();
+	}
+	
+	var objIPATDesc=document.getElementById('IPATDesc');
+	if (objIPATDesc) {
+		CustomIPATDesc();
+		websys_addListener("blur","onblur",CustomIPATDesc,objIPATDesc);
+	}
+	
+    objupdate1=document.getElementById('update1')
+    if (objupdate1) objupdate1.onclick = CustomUpdateAll;
+    if (tsc['update1']) websys_sckeys[tsc['update1']]=CustomUpdateAll;
+    
+    var objAdmDate=document.getElementById('PAADMAdmDate');
+	if (objAdmDate) {
+		websys_addListener("blur","onblur",AdmDateChangeCustom,objAdmDate);
+	}
+    
+    var objpaadmtype=document.getElementById("PAADMType");
+	if ((objpaadmtype)&&(objpaadmtype.value=="O")) {
+		var objrst=document.getElementById("RSTDesc");
+		if (objrst) {
+			CheckRefStat();
+			websys_addListener("blur","onblur",CheckRefStat,objrst);
+		}
+	}
+}
+
+/*
+if ?Admission Criteria? = ?B? then ?Planned length of stay? must = 1
+if ?Admission Criteria? = ?C? then ?Planned length of stay? must = 1
+if ?Admission Criteria? = ?N? then ?Planned length of stay? must = 4
+if ?Admission Criteria? = ?O? then ?Planned length of stay? must = 4
+if ?Admission Criteria? = ?U? then ?Planned length of stay? must = 4
+*/
+
+AdmReasonLookupSel = (function(str) {
+	if (typeof AdmReasonLookupSel=="function") {
+		var cached_AdmReasonLookupSel=AdmReasonLookupSel;
+		return function (str) {
+			cached_AdmReasonLookupSel(str);
+			CustomAdmReasonLookupSel(str);
+		}
+	}
+}())
+
+
+function CustomAdmReasonLookupSel(str) {
+    var obj=document.getElementById("ADMCATDesc");
+    if ((obj)&&(obj.value!="")) {
+	    var lu = str.split("^");
+	    var invalid=0;
+	    if ((lu[0]=="Day Only Bands 1A, 1B, 2, 3 and 4")&&(obj.value!='Planned same day')) var invalid=1;
+	    if ((lu[0]=="Type C Professional Attention Procedures with Certification")&&(obj.value!='Planned same day')) var invalid=1;
+	    if ((lu[0]=="Qualified newborn")&&(obj.value!='Planned multi day stay')) var invalid=1;
+	    if ((lu[0]=="Patient expected to require hospitalisation for minimum of one night")&&(obj.value!='Planned multi day stay')) var invalid=1;
+	    if ((lu[0]=="Unqualified newborn")&&(obj.value!='Planned multi day stay')) var invalid=1;
+	    
+	    if (invalid) {
+		    alert(t['ADMCATDesc']+' '+t['XINVALID']+' for '+t['READesc']);
+		    obj.className="clsInvalid";
+		    websys_setfocus('ADMCATDesc');
+	    }
+    }
+}
+
+ADMCATSelect = (function(str) {
+	if (typeof ADMCATSelect=="function") {
+		var cached_ADMCATSelect=ADMCATSelect;
+		return function (str) {
+			cached_ADMCATSelect(str);
+			CustomADMCATSelect(str);
+		}
+	}
+}())
+
+function CustomADMCATSelect(str) {
+    var obj=document.getElementById("READesc");
+    if ((obj)&&(obj.value!="")) {
+	    var lu = str.split("^");
+	    var invalid=0;
+	    if ((obj.value=="Day Only Bands 1A, 1B, 2, 3 and 4")&&(lu[0]!='Planned same day')) var invalid=1;
+	    if ((obj.value=="Type C Professional Attention Procedures with Certification")&&(lu[0]!='Planned same day')) var invalid=1;
+	    if ((obj.value=="Qualified newborn")&&(lu[0]!='Planned multi day stay')) var invalid=1;
+	    if ((obj.value=="Patient expected to require hospitalisation for minimum of one night")&&(lu[0]!='Planned multi day stay')) var invalid=1;
+	    if ((obj.value=="Unqualified newborn")&&(lu[0]!='Planned multi day stay')) var invalid=1;
+	    
+	    if (invalid) {
+		    alert(t['READesc']+' '+t['XINVALID']+' for '+t['ADMCATDesc']);
+		    obj.className="clsInvalid";
+		    websys_setfocus('READesc');
+	    }
+    }
+}
+
+ATTENDDesc_lookupsel = (function (value) {
+	if (typeof ATTENDDesc_lookupsel=="function") {
+		var cached_ATTENDDesclookupsel=ATTENDDesc_lookupsel;
+		return function (value) {
+			cached_ATTENDDesclookupsel(value);
+			ATTENDDescCustomHandler();
+		}
+	}
+}())
+
+function ATTENDDescCustomHandler() {
+	var objATTENDDesc=document.getElementById("ATTENDDesc");
+	var objCONTEXT=document.getElementById("CONTEXT");
+	if ((objATTENDDesc)&&(objATTENDDesc.value)&&(objCONTEXT))	{
+		var ATTENDDescValue=objATTENDDesc.value;
+		var CONTEXTValue="na";
+		if (objCONTEXT.value) CONTEXTValue=objCONTEXT.value;
+		var ATTENDDesc=tkMakeServerCall("Custom.SWARH.JS.PAWaitingList.Edit","FlagATTENDDescSelectValue",CONTEXTValue,ATTENDDescValue);
+	}else if (objATTENDDesc.value.value=="") {
+		var NFMIClearVar=tkMakeServerCall("Custom.SWARH.JS.PAWaitingList.Edit","ClearNFMISelectValue","ATTENDDesc");
+	}
+}
+
+PAADM2NFMICategDepart_lookupsel = (function (value) {
+	if (typeof PAADM2NFMICategDepart_lookupsel=="function") {
+		var cached_PAADM2NFMICategDepartlookupsel=PAADM2NFMICategDepart_lookupsel;
+		return function (value) {
+			cached_PAADM2NFMICategDepartlookupsel(value);
+			PAADM2NFMICategDepartCustomHandler();
+		}
+	}
+}())
+
+function PAADM2NFMICategDepartCustomHandler() {
+	var objPAADM2NFMICategDepart=document.getElementById("PAADM2NFMICategDepart");
+	var objCONTEXT=document.getElementById("CONTEXT");
+	if ((objPAADM2NFMICategDepart)&&(objPAADM2NFMICategDepart.value)&&(objCONTEXT))	{
+		var PAADM2NFMICategDepartValue=objPAADM2NFMICategDepart.value;
+		var CONTEXTValue="na";
+		if (objCONTEXT.value) CONTEXTValue=objCONTEXT.value;
+		var PAADM2NFMICategDepart=tkMakeServerCall("Custom.SWARH.JS.PAWaitingList.Edit","FlagNFMISelectValue",CONTEXTValue,PAADM2NFMICategDepartValue);
+	}	else if (objPAADM2NFMICategDepart.value=="") {
+		var NFMIClearVar=tkMakeServerCall("Custom.SWARH.JS.PAWaitingList.Edit","ClearNFMISelectValue","PAADM2NFMICategDepart");
+	}
+}
+
+function CustomUpdateAll() {
+	var msg="";
+	var CheckMandatoryArry = new Array("REFSTREADesc","PAADM2FreeText1")
+	var i=0;
+	while (CheckMandatoryArry[i]) {
+		if ((document.getElementById(CheckMandatoryArry[i]))&&(isLabeledMandatoryTRC(CheckMandatoryArry[i]))) {
+			if (document.forms['fPAAdm_Edit']) {
+				msg+=RequiredMsgObj(document.forms['fPAAdm_Edit'].elements[CheckMandatoryArry[i]],false);
+				}
+  			else {
+	  			msg+=RequiredMsgObj(document.getElementById(CheckMandatoryArry[i]),false);
+	  			}
+	  		websys_setfocus(CheckMandatoryArry[i]);
+		}
+		i++
+	}
+	if (msg != "") {
+		alert(msg);
+	} else {
+		UpdateAll();
+	}
+}
+
+function AdmDateChangeCustom() {
+    var objpaadmtype=document.getElementById("PAADMType");
+	if ((objpaadmtype)&&(objpaadmtype.value=="O")) {
+		var objrst=document.getElementById("RSTDesc");
+		if (objrst) {
+			CheckRefStat();
+		}
+	}
+}
+
+
+function CustomIPATDesc() {
+	var obj=document.getElementById('IPATDesc');
+	if ((obj)&&((obj.value=="Newborn")||(obj.value=="Y"))) {
+			labelMandatoryTRC("PAADM2FreeText1");
+		} else {
+			labelNormalTRC("PAADM2FreeText1");
+		}
+}
+
+
+IPATLookupSelect = (function(str) {
+	if (typeof IPATLookupSelect=="function") {
+		var cached_functionIPATDesc=IPATLookupSelect;
+		return function (str) {
+			var result=cached_functionIPATDesc(str);
+	   		CustomIPATDesc();
+	    	return result;
+		}
+	}
+}())
+
+ReferralStatusLookUp = (function () {
+	if (typeof ReferralStatusLookUp=="function") {
+		var cached_functionReferralStatus=ReferralStatusLookUp;
+		return function () {
+			cached_functionReferralStatus();
+			var objpaadmtype=document.getElementById("PAADMType");
+			if ((objpaadmtype)&&(objpaadmtype.value=="O")) CheckRefStat();
+		}
+	}
+}())
+
+
+referralPeriodLookUp = (function(str) {
+	if (typeof referralPeriodLookUp=="function") {
+		var cached_functionreferralPeriod=referralPeriodLookUp;
+		return function (str) {
+			cached_functionreferralPeriod(str);
+			ReferralPeriod(str);
+		}
+	}
+}())
+
+function ReferralPeriod(str) {
+	var refDate=document.getElementById("PAADMRefDate");
+	var period=document.getElementById('REFPERDesc');
+	var factor=tkMakeServerCall("Custom.AUXXUtilities","Factor",period.value);
+	if ((refDate)&&(refDate.value!="")&&(factor!="")) {
+		obj=document.getElementById("PAADMRefExpiryDate");
+		if (obj) obj.value=AddToDateStrGetDateStr(refDate.value,"D",factor);
+	}
+	//call /script_gen/Sys referralPeriodLookUp method to show desctiption in lookup TRC193038
+	//referralPeriodLookUp(str);
+}
+
+/*function ReferralPeriod(str) {
+	var refDate=document.getElementById("PAADMRefDate");
+	var period=document.getElementById('REFPERDesc');
+	var factor=tkMakeServerCall("Custom.AUXXUtilities","Factor",period.value);
+
+	if ((refDate)&&(refDate.value!="")&&(factor!="")) {
+		
+		var oneDay=60*1000*60*24
+		var strDate=SplitDateStr(refDate.value);
+		var targetDate=new Date(strDate["yr"],strDate["mn"]-1,strDate["dy"])
+		var dateinMS = targetDate.getTime()
+		dateinMS += oneDay*factor
+		targetDate.setTime(dateinMS)
+		
+		mn=targetDate.getMonth()
+		dy=targetDate.getDate()
+		yr=targetDate.getYear()
+		
+		switch (dtformat) {
+			case "YMD":
+			temp = "" + yr + dtseparator + (mn+1) + dtseparator + dy;
+			break;
+			case "MDY":
+			temp = "" + (mn+1) + dtseparator + yr + dtseparator + dy;
+			break;
+			case "DMY":
+			temp = "" + dy + dtseparator + (mn+1) + dtseparator + yr;
+			break;
+		}
+		obj=document.getElementById("PAADMRefExpiryDate");
+		if (obj) obj.value=temp;
+	}
+}*/
+
+function SplitDateStr(strDate) {
+ 	var arrDateComponents = new Array(3);
+ 	var arrDate = strDate.split(dtseparator);
+ 	switch (dtformat) {
+	  	case "YMD":
+	   	arrDateComponents["yr"] = arrDate[0];
+	   	arrDateComponents["mn"] = arrDate[1];
+	   	arrDateComponents["dy"] = arrDate[2];
+	   	break;
+	  	case "MDY":
+	   	arrDateComponents["yr"] = arrDate[2];
+	   	arrDateComponents["mn"] = arrDate[0];
+	   	arrDateComponents["dy"] = arrDate[1];
+	   	break;
+	  	default:
+	   	arrDateComponents["yr"] = arrDate[2];
+	   	arrDateComponents["mn"] = arrDate[1];
+	   	arrDateComponents["dy"] = arrDate[0];
+	   	break;
+ 	}
+	return arrDateComponents;
+}
+
+function CheckRefStat() {
+		var objAdmDate=document.getElementById('PAADMAdmDate');
+		if ((objAdmDate)&&(objAdmDate.value!="")) var DateCompare=DateStringCompare("30/06/2015",objAdmDate.value);
+		else var DateCompare=DateStringCompareToday("30/06/2015");
+		if (DateCompare>"-1") return;
+		var objRSTDesc=document.getElementById('RSTDesc');
+		var NFMIValue="";
+		var NFMIobj=document.getElementById('PAADM2NFMICategDepart');
+		var NFMIStr="V OP"
+		var RefStatusStr=",Accepted,Waiting List,Requested,Appointment,";
+		if (NFMIobj) var NFMIValue=NFMIobj.value.toUpperCase();
+		if ((objRSTDesc)&&(NFMIValue!="")&&(RefStatusStr.indexOf(","+objRSTDesc.value+",")>"-1")&&(NFMIValue.indexOf(NFMIStr)>"-1")) {
+				labelMandatoryTRC("REFSTREADesc");
+		}
+		else {
+				labelNormalTRC("REFSTREADesc");
+		}
+}
+
+function isLabeledMandatoryTRC(fld) {
+	if (document.getElementById(fld)) {
+		if ((document.getElementById('c' + fld))&&(isLabeledMandatory(fld))) return true;
+		else if (document.getElementById(fld).getAttribute('NoLabelMand')==1) return true;
+		else return false;
+	}
+	return false;
+}
+
+function labelMandatoryTRC(fld) {
+	if (document.getElementById(fld)) {
+		if (document.getElementById('c' + fld)) labelMandatory(fld);
+		else document.getElementById(fld).setAttribute('NoLabelMand','1');
+		EnableField(fld);
+	}
+}
+
+function labelNormalTRC(fld) {
+	if (document.getElementById(fld)) {
+		if (document.getElementById('c' + fld)) labelNormal(fld);
+		if (document.getElementById(fld).getAttribute('NoLabelMand')==1) document.getElementById(fld).removeAttribute('NoLabelMand');
+		EnableField(fld);
+	}
+}
+
+//tknoll-miller (SWARH) 2009-09-16 Load authorise script
+var authcfg = {
+   'buttons': [
+      'update1',
+      'Delete1'
+   ],
+   'fields': {
+      'username': 'UserCode',
+      'password': 'PIN'
+   }
+};
+
+//tknoll-miller (SWARH) 2009-09-16 Load authorise script
+// Scope variables
+(function() {
+   var loadScript = function(type, src) {
+      var head = document.getElementsByTagName('head')[0];
+      var script = document.createElement('script');
+      script.type = type;
+      script.src = src;
+      head.appendChild(script);
+      websys_addListener('load', 'onload', function(){document.isLoaded=true});
+      return script;
+   };
+
+   loadScript('text/javascript', '../custom/SWARH/scripts/authorise4.js');
+})();
+//end tknoll-miller (SWARH) 2009-09-16 Load authorise script
+]]></Implementation>
+</Method>
+</Class>
+</Export>

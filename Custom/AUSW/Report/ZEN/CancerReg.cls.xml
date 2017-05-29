@@ -1,0 +1,157 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.AUSW.Report.ZEN.CancerReg">
+<Super>Report.ZEN.Abstract</Super>
+<TimeCreated>61543,54494.035066</TimeCreated>
+<LegacyInstanceContext>1</LegacyInstanceContext>
+
+<Parameter name="SrcVer">
+<Description>
+This Parameter should be updated when synced from Perforce</Description>
+<Default>Parameter SrcVer = "$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/AUSW/Report/ZEN/CancerReg.xml#1 $</Default>
+</Parameter>
+
+<UDLText name="T">
+<Content><![CDATA[
+// Report Name: Cancer Registrations <br>
+
+]]></Content>
+</UDLText>
+
+<UDLText name="T">
+<Content><![CDATA[
+// Report Code: AUSW.CDG0010 <br>
+
+]]></Content>
+</UDLText>
+
+<UDLText name="T">
+<Content><![CDATA[
+// TRC Number: 153406 <br>
+
+]]></Content>
+</UDLText>
+
+<Property name="DateFrom">
+<Type>%String</Type>
+<Parameter name="ZENURL" value="P1"/>
+</Property>
+
+<Property name="DateTo">
+<Type>%String</Type>
+<Parameter name="ZENURL" value="P2"/>
+</Property>
+
+<Property name="Hospital">
+<Type>%String</Type>
+<Parameter name="ZENURL" value="P3"/>
+</Property>
+
+<XData name="ReportDefinition">
+<XMLNamespace>http://www.intersystems.com/zen/report/definition</XMLNamespace>
+<Data><![CDATA[
+<report xmlns='http://www.intersystems.com/zen/report/definition'
+   queryClass='Custom.AUSW.Report.ZEN.StoredProc.CancerReg' queryName='GetCancerRecs' name='CancerReg'>
+
+  <parameter expression='..DateFrom'/>
+  <parameter expression='..DateTo'/>
+  <parameter expression='..Hospital'/>
+
+  <attribute name='ReportTitle' expression='$$$Text("@CancerRegistrations@Cancer Registrations")'/>
+  <attribute name='timestamp' expression='$ZDATETIME($H, 2, 2)'/>
+  <attribute name='username' expression='..Username'/>
+  <attribute name='hospital' expression="..GetHospListDesc(..Hospital)"/>
+  <attribute name="datefrom" expression="..DisplayDate(..DateFrom)"/>
+  <attribute name="dateto" expression="..DisplayDate(..DateTo)"/>
+
+  <group name="hospital" breakOnField="HOSPDesc">
+ <attribute name="description" field="HOSPDesc" />
+   <aggregate name='HospitalTotal' type='CUSTOM' field='PACRRegNumber' class='%ZEN.Report.Aggregate.CountDistinct'/>
+      <element name='CaptionOne' expression='"Cancer"_$C(13,10)_"Reg No"' />
+      <element name='CaptionTwo' expression='"Primary"_$C(13,10)_"Site"' />
+     
+       <group name='Detail'>
+             <attribute field='TUMRowId' name='TUMRowId'/>	    
+      
+            <attribute field='PAPMINo' name='PAPMINo'/>	    
+            <attribute field='PAPERDOB' name='PAPERDOB' expression='..DisplayDate(%val)'/>
+	    	<attribute fields='PAPERName,PAPERName2' name='PatientName' expression='..DisplayName(%val("PAPERName"),%val("PAPERName2"))'/>
+            <attribute field='PACRRegNumber' name='PACRRegNumber'/>
+            <attribute field='PACRRegDate' name='PACRRegDate' expression='..DisplayDate(%val)'/>
+            <attribute field='CTSEXCode' name='CTSEXCode'/>
+            <element field='EpisodeNo' name='EpisodeNo'/>
+            <attribute field='PrimaryCode' name='PrimaryCode'/>
+            <attribute field='MorphologyCode' name='MorphologyCode'/>
+            <attribute field='Primary' name='Primary'/>
+            <attribute field='Morphology' name='Morphology'/>           
+            <attribute field='TUMFirstDiagnosisDate' name='TUMFirstDiagnosisDate' expression='..DisplayDate(%val)'/> 
+            <attribute field='TUMPrimarySiteCancer' name='TUMPrimarySiteCancer' />                
+ 	    	<attribute field='MCodes' name='MCodes'/>
+            <attribute field='CLDRCodes' name='CLDRCodes'/>
+            </group>
+ 		 </group>
+    	  </report>
+]]></Data>
+</XData>
+
+<XData name="ReportDisplay">
+<XMLNamespace>http://www.intersystems.com/zen/report/display</XMLNamespace>
+<Data><![CDATA[
+<report xmlns='http://www.intersystems.com/zen/report/display'
+xmlns:auxxstyle='http://www.intersystems.com/zen/report/display/auxx/style'
+xmlns:auxx='http://www.intersystems.com/zen/report/display/auxx'
+   name='CancerReg'>
+ <document width= "#(..ReportWidth)#" height="#(..ReportHeight)#" marginLeft="#(..DocMarginLeft)#" marginRight="#(..DocMarginRight)#" 
+marginTop="#(..DocMarginTop)#" marginBottom="#(..DocMarginBottom)#" footerHeight="#(..DocFooterHeight)#" headerHeight="#(..DocHeaderHeight)#" 
+regionBeforeExtent="#(..DocHeaderHeight)#" regionAfterExtent="#(..DocFooterHeight)#">
+<auxxstyle:auxxgroupheader/>
+<auxxstyle:auxxgroupsummary/>
+<auxxstyle:auxxhospitalheader/>
+<auxxstyle:auxxpagefooter/>
+<auxxstyle:auxxpageheader/>
+<auxxstyle:auxxparameterheader/>
+<auxxstyle:auxxreporttitle/>
+<auxxstyle:auxxtablecolumn/>
+</document>
+<auxx:PageHeader pagetitle='@ReportTitle'/>
+<auxx:ReportFooter username='@username' timestamp='@timestamp'/>
+<body>
+<!-- REPORT HEADER -->
+<auxx:ReportHeader reporttitle='@ReportTitle'/>
+<auxx:ReportParameterHeader label='@Hospital:@Hospital:' field='@hospital' xcondition="string-length(@hospital)>0"/>
+
+<auxx:ReportDateHeader datefrom="@datefrom" dateto="@dateto" />
+<line pattern="solid" width="100%"/>
+<line pattern="empty" width="100%"></line> 
+<auxx:NoResults xcondition="not(hospital)" />
+<group name='hospital' pagebreak="true">
+<auxx:GroupHospitalHeader label="@Hospital:@Hospital:" field="@description" />
+<line pattern="empty" lineHeight="2mm" />
+     <table class='auxxtablecolumn' group='Detail' >
+        <item field='@PAPMINo' width="9%" caption='@URN@URN' ifxpath='preceding-sibling::Detail[1]/@PACRRegNumber!=@PACRRegNumber or not(preceding-sibling::Detail[1]/@PACRRegNumber)'/>
+        <item field='@PatientName' width='11.5%' caption='@PatientName@Patient Name' ifxpath='preceding-sibling::Detail[1]/@PACRRegNumber!=@PACRRegNumber or not(preceding-sibling::Detail[1]/@PACRRegNumber)'/>
+		<item field='@PAPERDOB' width="8%" caption='@DateofBirth@Date of Birth' ifxpath='preceding-sibling::Detail[1]/@PACRRegNumber!=@PACRRegNumber or not(preceding-sibling::Detail[1]/@PACRRegNumber)'/>
+        <item field='@CTSEXCode' width="4%" caption='@Sex@Sex' style="text-align:center" ifxpath='preceding-sibling::Detail[1]/@PACRRegNumber!=@PACRRegNumber or not(preceding-sibling::Detail[1]/@PACRRegNumber)'/>
+        <item field='EpisodeNo' width='9%' caption="@EpisodeNo@Episode No" ifxpath='preceding-sibling::Detail[1]/@PACRRegNumber!=@PACRRegNumber or not(preceding-sibling::Detail[1]/@PACRRegNumber)' />
+        <item field='@PACRRegNumber' width='7%' displayCaption="true" ifxpath='preceding-sibling::Detail[1]/@PACRRegNumber!=@PACRRegNumber or not(preceding-sibling::Detail[1]/@PACRRegNumber)'>
+        <caption field='CaptionOne' breakOnLineFeed="true" />
+         </item>
+        <item field='@PACRRegDate' width='8%' caption="@RegDate@Reg Date" ifxpath='preceding-sibling::Detail[1]/@PACRRegNumber!=@PACRRegNumber or not(preceding-sibling::Detail[1]/@PACRRegNumber)'/>
+        <item field='@PrimaryCode' width='6.5%' caption="@PrimaryCode@Primary Code"/>
+         <item field='@MorphologyCode' width='8%' caption="@MorphologyCode@Morphology Code"/>
+         <item field='@TUMFirstDiagnosisDate' width='8%' caption="@DiagnosisDate@Diagnosis Date"/>
+         <item field='@TUMPrimarySiteCancer' width='14%' displayCaption="true">
+        <caption field='CaptionTwo' breakOnLineFeed="true" />
+         </item>
+             <item field='@MCodes' width='7%' caption='@MetastaticSiteCode@Metastatic Site Code' />
+       </table>
+       <line pattern="empty" width="100%"></line> 
+         <auxx:GroupSummary label="@TotalRegistrationsfor@Total Registrations for " group="@description" summaryvalue="HospitalTotal" />
+         </group>	   
+
+</body>
+   </report>
+]]></Data>
+</XData>
+</Class>
+</Export>

@@ -1,0 +1,227 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.SWARH.Report.RptSvc.StoredProc.SWARHREPR1004">
+<Description><![CDATA[
+<pre>
+***************************************************************************************************************************************
+* Report Code: SWARHREPR1004
+* Report Description: Medication Data dump
+* Menu Caption: Medication Data
+* Initial release: 
+* Developer: David Cottrill
+* Report shows:Medication Data
+* Fields:All field to do with medication and medication administration
+* Modified: 13/02/2017 - MW - Rewrite query removing requirement for Generic Name which was excluding some entries.(Service Request #436202)
+*	09/05/2017 - MW - Added common names to fields to facilate export to CSV file.
+***************************************************************************************************************************************
+</pre>]]></Description>
+<ProcedureBlock>0</ProcedureBlock>
+<Super>Custom.SWARH.Report.RptSvc.StoredProc.Abstract</Super>
+<TimeCreated>60905,54849</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)</Description>
+<Default>$Id$</Default>
+</Parameter>
+
+<Method name="SWARHREPR1004Execute">
+<Description>
+This is the Execute section for the %Library.Query. 
+All of the logic will be performed here.
+A new node for the ^CacheTemp global will be created and each subscript of this global will contain
+a row for the report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,Hospital:%Library.Integer,DateFrom:%Library.Date,DateTo:%Library.Date]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Get reportid i.e. use $INCREMENT to add another node to ^CacheTemp global. 
+ // We use ^CacheTemp global because it will always use memory before disk
+ New repid,ind
+
+  // Use $Increment to get the next node
+ Set repid=$Increment(^CacheTemp(..#CACHETEMPSUBSCRIPT))
+ 
+ New EpisodeNumber,URNumber,Surname,GivenName,AdmissionDate,DischargeDate,Priority,Clinician,Frequency,Duration,Quantity,MedicationName,GenericName
+ 	,Category,VarianceReason,DateExecuted,TimeExecuted,OrderDate,OrderTime,OrderEndDate,OrderEndTime,Name,DispensedBy,AdministrationRoute
+ 	,Instructions1,Instructions2,Status,PRNIndication
+
+ Set (EpisodeNumber,URNumber,Surname,GivenName,AdmissionDate,DischargeDate,Priority,Clinician,Frequency,Duration,Quantity,MedicationName,GenericName
+ 	,Category,VarianceReason,DateExecuted,TimeExecuted,OrderDate,OrderTime,OrderEndDate,OrderEndTime,Name,DispensedBy,AdministrationRoute
+ 	,Instructions1,Instructions2,Status,PRNIndication)=""
+ 	
+ Set ind=1, END=0
+
+ //Start Monitor (if configured to capture stats)
+ Set mon=..MonitorBegin()
+  
+ //Convert ODBC dates to cache format
+ Set DateFrom=..ConvertDateToCache(DateFrom)
+ Set DateTo=..ConvertDateToCache(DateTo)
+ 
+ &SQL(DECLARE SWARHREPR1004Cursor CURSOR FOR 
+	SELECT
+        ori.OEORI_OEORD_ParRef->OEORD_Adm_DR->PAADM_ADMNo AS EpisodeNumber
+        ,ori.OEORI_OEORD_ParRef->OEORD_Adm_DR->PAADM_PAPMI_DR->PAPMI_No AS URNumber
+        ,ori.OEORI_OEORD_ParRef->OEORD_Adm_DR->PAADM_PAPMI_DR->PAPMI_Name AS Surname
+        ,ori.OEORI_OEORD_ParRef->OEORD_Adm_DR->PAADM_PAPMI_DR->PAPMI_Name2 AS GivenName
+        ,ori.OEORI_OEORD_ParRef->OEORD_Adm_DR->PAADM_admdate AS AdmissionDate
+        ,ori.OEORI_OEORD_ParRef->OEORD_Adm_DR->PAADM_DischgDate AS DischargeDate
+        ,ori.OEORI_Priority_DR->OECPR_Desc AS Priority
+        ,ori.OEORI_Doctor_DR->CTPCP_Desc AS Clinician
+        ,ori.OEORI_PHFREQ_DR->PHCFR_DESC1 AS Frequency
+        ,ori.OEORI_Durat_DR->PHCDU_Desc1 AS Duration
+        ,ori.OEORI_DoseQty AS Quantity
+        ,ori.OEORI_ItmMast_DR->ARCIM_Desc AS MedicationName
+        ,ori.OEORI_ItmMast_DR->ARCIM_Generic_DR->PHCGE_Name AS GenericName
+        ,ori.OEORI_ItmMast_DR->ARCIM_ItemCat_DR->ARCIC_Desc AS Category
+        ,ore.OEORE_VarianceReason_DR->VR_Desc AS VarianceReason
+        ,ore.OEORE_DateExecuted AS DateExecuted
+        ,ore.OEORE_TimeExecuted AS TimeExecuted
+        ,ore.OEORE_ExStDate AS OrderDate
+        ,ore.OEORE_ExStTime AS OrderTime
+        ,ore.OEORE_ExEnDate AS OrderEndDate
+        ,ore.OEORE_ExEnTime AS OrderEndTime
+        ,ore.OEORE_Outcome_DR->CLPO_Desc AS Name
+        ,ore.OEORE_CTPCP_DR->CTPCP_Desc AS DispensedBy
+        ,ori.OEORI_AdminRoute_DR->ADMR_Desc AS AdministrationRoute
+        ,ori.OEORI_Instr_DR->PHCIN_Desc1 AS Instructions1
+        ,ori.OEORI_Instr_DR->PHCIN_Desc2 AS Instructions2
+        ,ore.OEORE_Order_Status_DR->STAT_Desc AS Status
+        ,ori.OEORI_PRNIndication AS PRNIndication
+	FROM
+        SQLUser.OE_OrdItem ori
+                LEFT OUTER JOIN SQLUser.OE_OrdExec ore ON (ore.OEORE_OEORI_ParRef = ori.OEORI_RowID)
+	WHERE
+        (ori.OEORI_OEORD_ParRef->OEORD_Adm_DR->PAADM_Hospital_Dr = :Hospital)
+	AND
+        (ori.OEORI_OEORD_ParRef->OEORD_Adm_DR->PAADM_DischgDate >= ore.OEORE_ExStDate)
+	AND
+        (ore.OEORE_ExStDate >= :DateFrom)
+	AND
+        (ore.OEORE_ExStDate <= :DateTo))
+        
+ &SQL(OPEN SWARHREPR1004Cursor)
+ 
+ //FETCH FIRST ROW
+ Do FetchRow
+  
+ While END=0 {
+  
+	 Do FormatDates
+  	 Do FormatTimes
+  	 
+	 //s sort = ind		// don't sort - uncomment this line if you've sorted in the query
+	 Set sort = $ZCVT(EpisodeNumber,"U")_ind
+	 
+	 Set PRNIndication=$ZSTRIP(PRNIndication,"*C")
+ 
+	 
+	 Set ^CacheTemp(..#CACHETEMPSUBSCRIPT,repid,sort)=$Listbuild(EpisodeNumber,URNumber,Surname,GivenName,AdmissionDate,DischargeDate,Priority,Clinician
+	 	,Frequency,Duration,Quantity,MedicationName,GenericName,Category,VarianceReason,DateExecuted,TimeExecuted,OrderDate,OrderTime,OrderEndDate,OrderEndTime
+	 	,Name,DispensedBy,AdministrationRoute,Instructions1,Instructions2,Status,PRNIndication)
+	 	
+	 Set ind=ind+1
+ 
+	 //fetch rows
+	 Do FetchRow
+ }
+
+ &SQL(CLOSE SWARHREPR1004Cursor)
+ 
+ // Build QHandle (AtEnd,ReportID,Index)
+ Set QHandle=$Listbuild(0,repid,0)
+
+ Quit $$$OK
+
+FetchRow
+ 
+ &sql(FETCH SWARHREPR1004Cursor INTO :EpisodeNumber,:URNumber,:Surname,:GivenName,:AdmissionDate,:DischargeDate,:Priority,:Clinician,:Frequency,:Duration
+ 	,:Quantity,:MedicationName,:GenericName,:Category,:VarianceReason,:DateExecuted,:TimeExecuted,:OrderDate,:OrderTime,:OrderEndDate,:OrderEndTime,:Name
+ 	,:DispensedBy,:AdministrationRoute,:Instructions1,:Instructions2,:Status,:PRNIndication)
+ If SQLCODE '= 0 Set END = 1
+ Quit
+ 
+FormatDates
+ Set AdmissionDate=..ConvertDateToODBC(AdmissionDate)
+ Set DischargeDate=..ConvertDateToODBC(DischargeDate)
+ Set DateExecuted=..ConvertDateToODBC(DateExecuted)
+ Set OrderDate=..ConvertDateToODBC(OrderDate)
+ Set OrderEndDate=..ConvertDateToODBC(OrderEndTime)
+ Quit
+ 
+FormatTimes
+ Set TimeExecuted=..ConvertTimeToHHMM(TimeExecuted)
+ Set OrderTime=..ConvertTimeToHHMM(OrderTime)
+ Set OrderEndTime=..ConvertTimeToHHMM(OrderEndTime)
+ Quit
+]]></Implementation>
+</Method>
+
+<Method name="SWARHREPR1004Fetch">
+<Description>
+This is the Fetch component of the %Library.Query. 
+This should never have to change. It is designed to fetch the row for each subscript of the ^CacheTemp
+global and return this row to the Crystal Report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,&Row:%Library.List,&AtEnd:%Library.Integer=0]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // This fetch method should never have to change. 
+
+ // repid - Report ID
+ // ind   - sequence index which represents each row
+
+ New repid,ind
+
+ // Restore QHandle
+ Set AtEnd=$List(QHandle,1)
+ Set repid=$List(QHandle,2)
+ Set ind=$List(QHandle,3)
+
+ Set ind=$Order(^CacheTemp(..#CACHETEMPSUBSCRIPT,repid,ind))
+ If ind="" {	// if there are no more rows, finish fetching
+	 Set AtEnd=1
+	 Set Row=""
+ }
+ Else      {	// fetch row
+ 	Set Row=^CacheTemp(..#CACHETEMPSUBSCRIPT,repid,ind)
+ }
+
+ // Save QHandle
+ Set QHandle=$Listbuild(AtEnd,repid,ind)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="SWARHREPR1004Close">
+<Description>
+This is the Close component of the %Library.Query.
+This is standard code and should never have to change.
+This is where all the cleanup is performed, i.e. the purging of the temporary storage global ^CacheTemp.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>QHandle:%Library.Binary</FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Clean up by purging the temporary node in ^CacheTemp global
+ New repid,ind
+ Set repid=$List(QHandle,2)
+
+ //Start Monitor (if configured to capture stats)
+ If mon Do ..MonitorEnd(mon)
+
+ Kill ^CacheTemp(..#CACHETEMPSUBSCRIPT,repid)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Query name="SWARHREPR1004">
+<Type>%Library.Query</Type>
+<FormalSpec>Hospital:%Library.Integer,DateFrom:%Date,DateTo:%Date</FormalSpec>
+<SqlProc>1</SqlProc>
+<Parameter name="CONTAINID" value="0"/>
+<Parameter name="ROWSPEC" value="EpisodeNumber:%String,URNumber:%Integer,Surname:%String,GivenName:%String,AdmissionDate:%Date,DischargeDate:%Date,Priority:%String,Clinician:%String,Frequency:%String,Duration:%String,Quantity:%String,MedicationName:%String,GenericName:%String,Category:%String,VarianceReason:%String,DateExecuted:%Date,TimeExecuted:%String,OrderDate:%Date,OrderTime:%String,OrderEndDate:%Date,OrderEndTime:%String,Name:%String,DispensedBy:%String,AdministrationRoute:%String,Instructions1:%String,Instructions2:%String,Status:%String,PRNIndication:%String"/>
+<Parameter name="SELECTMODE" value="ODBC"/>
+</Query>
+</Class>
+</Export>

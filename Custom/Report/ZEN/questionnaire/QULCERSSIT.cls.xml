@@ -1,0 +1,2095 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.Report.ZEN.questionnaire.QULCERSSIT">
+<ProcedureBlock>1</ProcedureBlock>
+<Super>Report.ZEN.Abstract</Super>
+<TimeCreated>63496,29883.382481</TimeCreated>
+
+<Property name="CONTEXT">
+<Description>
+CONTEXT</Description>
+<Type>%String</Type>
+<Parameter name="ZENURL" value="P3"/>
+</Property>
+
+<Property name="QuesID">
+<Description>
+Questionnaire ID</Description>
+<Type>%String</Type>
+<Parameter name="ZENURL" value="P1"/>
+</Property>
+
+<Property name="RepClass">
+<Description>
+Report Class</Description>
+<Type>%String</Type>
+<Parameter name="ZENURL" value="P2"/>
+</Property>
+
+<Method name="%OnBeforeReport">
+<ProcedureBlock>0</ProcedureBlock>
+<ReturnType>%Status</ReturnType>
+<Implementation><![CDATA[
+	//updated for zen reports encryption Ar 30/3/11
+	s sc=##super()
+	if $$$ISERR(sc) q sc
+	s obj=##Class(questionnaire.QULCER).%OpenId(..QuesID)
+	q $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="DisplayChildTable">
+<FormalSpec>repcls, subrep, mode, repname</FormalSpec>
+<ProcedureBlock>0</ProcedureBlock>
+<ReturnType>%GlobalCharacterStream</ReturnType>
+<Implementation><![CDATA[
+	s (tSC,rpt,stream)=""
+	i '##class(%Dictionary.CompiledClass).%Exists($lb(repcls)) q "" 
+	s exe="s rpt=##class("_repcls_").%New()"
+	x exe
+	i rpt {
+		s rpt.SubReport=subrep
+		s rpt.MainReport="QReportULCER"
+		s rpt.StripPI=1
+		s %request.Data("CONTEXT",1)=..CONTEXT
+		d rpt.%ApplyURLParms()
+		s rpt.ReportName=repname
+		s tSC=rpt.GenerateStream(.stream,mode)
+	}
+	i $$$ISERR(tSC) set stream=""
+	quit stream
+]]></Implementation>
+</Method>
+
+<Method name="DisplayChildTableQStaging">
+<FormalSpec>mode:%CacheString</FormalSpec>
+<ProcedureBlock>0</ProcedureBlock>
+<ReturnType>%GlobalCharacterStream</ReturnType>
+<Implementation><![CDATA[
+	s cmpid="50104"
+	s Rep="Custom.Report.ZEN.questionnaire.Child.C"_##class(epr.XMLChart).GetGCOMID(cmpid,..CONTEXT)
+	q ..DisplayChildTable(Rep,"QStaging",mode,"ChildQStaging")
+]]></Implementation>
+</Method>
+
+<Method name="GetChildTable">
+<FormalSpec>rep, repname</FormalSpec>
+<ProcedureBlock>0</ProcedureBlock>
+<ReturnType>%GlobalCharacterStream</ReturnType>
+<Implementation><![CDATA[
+	n tSC, rpt, stream, exe, classDEF, propx, prop
+	s (tSC,rpt,stream)=""
+	i '##class(%Dictionary.CompiledClass).%Exists($lb(rep)) q "" 
+	s exe="s rpt=##class("_rep_").%New()"
+	x exe
+	i rpt {
+		s %request.Data("CONTEXT",1)=..CONTEXT
+		d rpt.%ApplyURLParms()
+		s rpt.ReportName=repname
+		s rpt.UseRawIOForXML=1
+		s tSC=rpt.GenerateStream(.stream,0)
+	}
+	i $$$ISERR(tSC) set stream=""
+	quit stream
+]]></Implementation>
+</Method>
+
+<Method name="GetChildTableQStaging">
+<ProcedureBlock>0</ProcedureBlock>
+<ReturnType>%GlobalCharacterStream</ReturnType>
+<Implementation><![CDATA[
+	s %request.Data("QStagingPARREF",1)=..QuesID
+	s cmpid="50104"
+	s Rep="Custom.Report.ZEN.questionnaire.Child.C"_##class(epr.XMLChart).GetGCOMID(cmpid,..CONTEXT)
+	q ..GetChildTable(Rep,"ChildQStaging")
+]]></Implementation>
+</Method>
+
+<Method name="GetHeightWidthOfAnnotation">
+<FormalSpec>ImgProperty:%CacheString</FormalSpec>
+<ProcedureBlock>0</ProcedureBlock>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	; method takes property NAME of type annotation and returns width/height of background image
+	n (%request, %session, obj, ImgProperty)
+	s OEAnnotID=""
+	try{
+		; annotationID is stored in property WITHOUT the '_HREF' suffix
+		s OEAnnotID=$property(obj,$p(ImgProperty,"_HREF"))
+	} catch(err){}
+	s oOEAnnot=##Class(User.OEAnnotation).%OpenId(OEAnnotID)
+	s (H, W)=150
+	i oOEAnnot {
+		s oPic=""
+		if oOEAnnot.ANNOTMRPicDR,oOEAnnot.ANNOTMRPicDR.PICMRCPictDR s oPic=oOEAnnot.ANNOTMRPicDR.PICMRCPictDR.PICStreamData
+		if 'oPic,oOEAnnot.ANNOTMRPicDR s oPic=oOEAnnot.ANNOTMRPicDR.PICwebsysDocument
+		if 'oPic,oOEAnnot.ANNOTPersonPicturesDR s oPic=oOEAnnot.ANNOTPersonPicturesDR.PICwebsysDocument
+		if oPic,$isobject(oPic),oPic.docData.Size {
+			d ##Class(websys.UI.Annotate.Utils).GetImageDimensions(oPic.docData,.W,.H)
+		}
+	}
+	;re-scale large images to ensure they can fit on A4 size
+	if W > 450 { s W=450 }
+	if H > 600 { s H=600 }
+	q W_"px,"_H_"px"
+]]></Implementation>
+</Method>
+
+<Method name="GetHeightWidthOfBinaryStream">
+<FormalSpec>ImgProperty:%CacheString</FormalSpec>
+<ProcedureBlock>0</ProcedureBlock>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	; method takes a property NAME of type GlobalBinaryStream
+	n (%request, %session, obj, ImgProperty)
+	s oSrcStream=""
+	s (H, W)=150
+	try{
+		s oSrcStream=$property(obj,ImgProperty)
+	} catch(err){}
+	i oSrcStream, oSrcStream.Size  {
+		s W=oSrcStream.GetAttribute("ImgWidth"),H=oSrcStream.GetAttribute("ImgHeight")
+	}
+	;re-scale large images to ensure they can fit on A4 size
+	if W > 450 { s W=450 }
+	if H > 600 { s H=600 }
+	q W_"px,"_H_"px"
+	
+]]></Implementation>
+</Method>
+
+<Method name="GetVal">
+<FormalSpec>ItemIndex:%CacheString</FormalSpec>
+<ProcedureBlock>0</ProcedureBlock>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	n (%request, %session, obj, ItemIndex)
+	s val=""
+	d {
+		; QUESSSUserDefWindowDR
+		i ItemIndex="QUESSSUserDefWindowDR" s val="Pressure Ulcer Risk Assessment" q
+		; QUESScore
+		i ItemIndex="QUESScore" i obj s val=obj.QUESScore q
+		; QUESDate
+		i ItemIndex="QUESDate" i obj s val=##Class(websys.Conversions).DateLogicalToHtml(obj.QUESDate) q
+		; QUESTime
+		i ItemIndex="QUESTime" i obj s val=##Class(websys.Conversions).TimeLogicalToHtml(obj.QUESTime) q
+		; QUESUser
+		i ItemIndex="QUESUser" s val="" i obj,obj.QUESUserDR s val=obj.QUESUserDR.SSUSRName q
+		; QUESCreateDate
+		i ItemIndex="QUESCreateDate" i obj s val=##Class(websys.Conversions).DateLogicalToHtml(obj.QUESCreateDate) q
+		; QUESCreateTime
+		i ItemIndex="QUESCreateTime" i obj s val=##Class(websys.Conversions).TimeLogicalToHtml(obj.QUESCreateTime) q
+		; QUESCreateUser
+		i ItemIndex="QUESCreateUser" s val="" i obj,obj.QUESCreateUserDR s val=obj.QUESCreateUserDR.SSUSRName q
+		; QUESCopiedEpDR
+		i ItemIndex="QUESCopiedEpDR" s val="" i obj,obj.QUESCopiedEpDR s val=obj.QUESCopiedEpDR.PAADMADMNo q
+		; QUESCopiedUser
+		i ItemIndex="QUESCopiedUser" s val="" i obj,obj.QUESCopiedUserDR s val=obj.QUESCopiedUserDR.SSUSRName q
+		; QUESCopiedDate
+		i ItemIndex="QUESCopiedDate" s val="" i obj s val=##Class(websys.Conversions).DateLogicalToHtml(obj.QUESCopiedDate) q
+		; QUESCopiedTime
+		i ItemIndex="QUESCopiedTime" s val="" i obj s val=##Class(websys.Conversions).TimeLogicalToHtml(obj.QUESCopiedTime) q
+		; QUESCopiedComments
+		i ItemIndex="QUESCopiedComments" s val="" i obj s val=obj.QUESCopiedComments q
+		; UserName
+		i ItemIndex="UserName" s val=$g(%session.Data("LOGON.USERCODE")) q
+		; QUESStatusDR
+		i ItemIndex="QUESStatusDR" s val="" i obj,obj.QUESStatusDR s val=obj.QUESStatusDR.NNSDesc q
+		; QUESReasonForCorrectionDR
+		i ItemIndex="QUESReasonForCorrectionDR"  q
+		; QUESReasForCorrDisplay
+		i ItemIndex="QUESReasForCorrDisplay" s val="" i obj,obj.QUESReasonForCorrectionDR s val=obj.QUESReasonForCorrectionDR.ENTERRDesc q
+		; QAct
+		i ItemIndex="QAct" s val=$s(obj:obj.QAct,1:"ERROR!") q
+		; QAssessDt
+		i ItemIndex="QAssessDt" s val=##Class(websys.Conversions).DateLogicalToHtml($s(obj:obj.QAssessDt,1:"ERROR!")) q
+		; QFrict
+		i ItemIndex="QFrict" s val=$s(obj:obj.QFrict,1:"ERROR!") q
+		; QHospID
+		i ItemIndex="QHospID" s val=$lg(##Class(web.CTHospital).GetCodeDescriptionFromId(obj.QHospID),1) q
+		; QMob
+		i ItemIndex="QMob" s val=$s(obj:obj.QMob,1:"ERROR!") q
+		; QMoist
+		i ItemIndex="QMoist" s val=$s(obj:obj.QMoist,1:"ERROR!") q
+		; QNut
+		i ItemIndex="QNut" s val=$s(obj:obj.QNut,1:"ERROR!") q
+		; QPUDoc
+		i ItemIndex="QPUDoc" s:obj val=obj.QPUDoc q
+		; QSensPer
+		i ItemIndex="QSensPer" s val=$s(obj:obj.QSensPer,1:"ERROR!") q
+		; QTotal
+		i ItemIndex="QTotal" s val=$s(obj:obj.QTotal,1:"ERROR!") q
+		i ItemIndex="ID" s val="" if obj s val=obj.%Id() d:val="" ##Class(questionnaire.QULCER).LoadDefaultPatientAnswers(.obj,$g(%request.Data("PatientID",1)),50105,$g(%request.Data("EpisodeID",1))) q
+		i ItemIndex="QUESPAAdmDR" s val=$s(obj&&(obj.QUESPAAdmDR):obj.QUESPAAdmDR.%Id(),1:$g(%request.Data("EpisodeID",1))) if (obj&&(obj.%Id()="")) {d obj.QUESPAAdmDRSetObjectId(val)} q
+		i ItemIndex="QUESPAPatMasDR" s val=$s(obj&&(obj.QUESPAPatMasDR):obj.QUESPAPatMasDR.%Id(),1:$g(%request.Data("PatientID",1))) if (obj&&(obj.%Id()="")) {d obj.QUESPAPatMasDRSetObjectId(val)} q
+		i ItemIndex="QUESOEOrdExecDR" s val=$s(obj&&(obj.QUESOEOrdExecDR):obj.QUESOEOrdExecDR.%Id(),1:$g(%request.Data("OEOrdExecID",1))) if (obj&&(obj.%Id()="")) {d obj.QUESOEOrdExecDRSetObjectId(val)} q
+		i ItemIndex="QUESMRClinicalPathWaysDR" s val=$s(obj&&(obj.QUESMRClinicalPathWaysDR):obj.QUESMRClinicalPathWaysDR.%Id(),1:$g(%request.Data("MRClinicalPathWays",1))) if (obj&&(obj.%Id()="")) {d obj.QUESMRClinicalPathWaysDRSetObjectId(val)} q
+		i ItemIndex="QUESConsultDR" s val=$s(obj&&(obj.QUESConsultDR):obj.QUESConsultDR.%Id(),1:$g(%request.Data("QUESConsultDR",1))) if (obj&&(obj.%Id()="")) {d obj.QUESConsultDRSetObjectId(val)} q
+		i ItemIndex="QUESOperRoomDR" s val=$s(obj&&(obj.QUESOperRoomDR):obj.QUESOperRoomDR.%Id(),1:$g(%request.Data("OperRoomID",1))) if (obj&&(obj.%Id()="")) {d obj.QUESOperRoomDRSetObjectId(val)} q
+		i ItemIndex="QUESTextResultDR" s val=$s(obj&&(obj.QUESTextResultDR):obj.QUESTextResultDR.%Id(),1:$g(%request.Data("TextResultID",1))) if (obj&&(obj.%Id()="")) {d obj.QUESTextResultDRSetObjectId(val)} q
+		i ItemIndex="QUESNRCarePlanIssuesDR" s val=$s(obj&&(obj.QUESNRCarePlanIssuesDR):obj.QUESNRCarePlanIssuesDR.%Id(),1:$g(%request.Data("CarePlanIssueID",1))) if (obj&&(obj.%Id()="")) {d obj.QUESNRCarePlanIssuesDRSetObjectId(val)} q
+		i ItemIndex="QUESRBAppointmentDR" s val=$s(obj&&(obj.QUESRBAppointmentDR):obj.QUESRBAppointmentDR.%Id(),1:$g(%request.Data("ApptID",1))) if (obj&&(obj.%Id()="")) {d obj.QUESRBAppointmentDRSetObjectId(val)} q
+		i ItemIndex="GenUpdFlag" i obj s val=##class(web.SSUserDefWindow).TestGenerationUpdate("109") q
+		i ItemIndex="ZENRepName" i obj s val=##class(web.SSUserDefWindow).ZENReportName("109") q
+		i ItemIndex="UseZENReports" i obj s val=##class(web.SSUserDefWindow).UseZENReports("109") q
+		i ItemIndex="QEFlag" s val=$g(%request.Data("QEFlag",1)) q
+		i ItemIndex="ChartID" s val=$g(%request.Data("ChartID",1)) q
+		i ItemIndex="PatientID" s val=$g(%request.Data("PatientID",1)) q
+		i ItemIndex="EpisodeID" s val=$g(%request.Data("EpisodeID",1)) q
+		i ItemIndex="mradm" s val=$g(%request.Data("mradm",1)) q
+		i ItemIndex="RescID" s val=$g(%request.Data("RescID",1)) q
+		i ItemIndex="ServID" s val=$g(%request.Data("ServID",1)) q
+		i ItemIndex="WListID" s val=$g(%request.Data("WListID",1)) q
+		i ItemIndex="refresh" s val=$g(%request.Data("refresh",1)) q
+		i ItemIndex="MRDIARowId" s val=$g(%request.Data("MRDIARowId",1)) q
+		i ItemIndex="OEORIRowId" s val=$g(%request.Data("OEORIRowId",1)) q
+		i ItemIndex="TextResult" s val=$g(%request.Data("TextResult",1)) q
+		i ItemIndex="TextResultID" s val=$g(%request.Data("TextResultID",1)) q
+		i ItemIndex="OEOrdItemID" s val=$g(%request.Data("OEOrdItemID",1)) q
+		i ItemIndex="norefresh" s val=$g(%request.Data("norefresh",1)) q
+		i ItemIndex="PatBasedQues" s val=$g(%request.Data("PatBasedQues",1)) q
+		i ItemIndex="PatientBanner" s val=$g(%request.Data("PatientBanner",1)) q
+		i ItemIndex="ConsultParams" s val=$g(%request.Data("ConsultParams",1)) q
+		i ItemIndex="MHDetentionID" s val=$g(%request.Data("MHDetentionID",1)) q
+		i ItemIndex="MHSuspensionID" s val=$g(%request.Data("MHSuspensionID",1)) q
+		i ItemIndex="TaskID" s val=$g(%request.Data("TaskID",1)) q
+		i ItemIndex="qClassName" s val=$g(%request.Data("qClassName",1)) q
+		i ItemIndex="qClassNameID" s val=$g(%request.Data("qClassNameID",1)) q
+		i ItemIndex="ResidentID" s val=$g(%request.Data("ResidentID",1)) q
+		i ItemIndex="ENTERRDescHidden" s val="" i obj,obj.QUESErrorReasonDR s val=obj.QUESErrorReasonDR.ENTERRDesc q
+		i ItemIndex="GenItemsAfterUpdate" s val="" i obj s val=##Class(web.SSUserDefWindow).webGetNewCtrlDateTime("109",obj.%Id(),obj.QUESCreateDate,obj.QUESCreateTime) q
+		i ItemIndex="QPUDoc_ID"  q
+		i ItemIndex="QHospID_ID" i obj s val=obj.QHospID q
+	} while (0)
+	q val
+]]></Implementation>
+</Method>
+
+<Parameter name="DEFAULTMODE">
+<Default>PDF</Default>
+</Parameter>
+
+<Parameter name="GENERATIONBUILD">
+<Default>52</Default>
+</Parameter>
+
+<Parameter name="REPORTMANUALEDIT">
+<Description>
+users can edit ZEN report and set this to 1 to prevent regeneration upon changing questionnaire/layout</Description>
+<Default>0</Default>
+</Parameter>
+
+<Parameter name="XSLTMODE">
+<Default>server</Default>
+</Parameter>
+
+<XData name="ReportDefinition">
+<XMLNamespace>http://www.intersystems.com/zen/report/definition</XMLNamespace>
+<Data><![CDATA[
+<report xmlns='http://www.intersystems.com/zen/report/definition'
+ name='QReportULCER'
+ runonce="1" >
+	<parameter expression="..QuesID"/>
+	<attribute name='ReportTitle' expression='&quot;Pressure Ulcer Risk Assessment&quot;'/>
+	<attribute name='timestamp' expression='$ZDATETIME($H, 2, 2)'/> 
+	<attribute name='username' expression='..Username'/> 
+	<group name='QuestionnaireData'>
+       <attribute name='hasPatientData' expression='$s(obj.QUESPAPatMasDR:1,1:"")' />
+		<attribute name='patname'  expression='obj.QUESPAPatMasDR.PAPMIPAPERDR.PAPERName' />
+		<attribute name='patname2' expression='obj.QUESPAPatMasDR.PAPMIPAPERDR.PAPERName2' />
+		<attribute name='patname3' expression='obj.QUESPAPatMasDR.PAPMIPAPERDR.PAPERName3' />
+		<attribute name='patname4' expression='obj.QUESPAPatMasDR.PAPMIPAPERDR.PAPERName4' />
+		<attribute name='patname5' expression='obj.QUESPAPatMasDR.PAPMIPAPERDR.PAPERName5' />
+		<attribute name='patname6' expression='obj.QUESPAPatMasDR.PAPMIPAPERDR.PAPERName6' />
+		<attribute name='patname7' expression='obj.QUESPAPatMasDR.PAPMIPAPERDR.PAPERName7' />
+		<attribute name='patname8' expression='obj.QUESPAPatMasDR.PAPMIPAPERDR.PAPERName8' />
+		<attribute name='patdob' expression='##class(websys.Conversions).DateLogicalToHtml(obj.QUESPAPatMasDR.PAPMIPAPERDR.PAPERDob)'/>
+		<attribute name='patsex' expression='obj.QUESPAPatMasDR.PAPMIPAPERDR.PAPERSexDR.CTSEXDesc' />
+		<attribute name='patrego' expression='obj.QUESPAPatMasDR.PAPMINo' />
+       <attribute name='hasResidentData' expression='$s(obj.QUESFHResidentDR:1,1:"")' />
+		<attribute name='residentNumber'  expression='obj.QUESFHResidentDR.FHResidentNo' />
+		<attribute name='segment'  expression='obj.QUESFHResidentDR.FHMicroAreaDR.FHCMAAreaDR.FHCASegmentDR.FHCSDesc' />
+		<attribute name='area'  expression='obj.QUESFHResidentDR.FHMicroAreaDR.FHCMAAreaDR.FHCADesc' />
+		<attribute name='microArea'  expression='obj.QUESFHResidentDR.FHMicroAreaDR.FHCMADesc' />
+		<attribute name='primaryResidentName'  expression='obj.QUESFHResidentDR.FHPrimaryResidentDR.PAPERName' />
+		<attribute name='primaryResidentName2'  expression='obj.QUESFHResidentDR.FHPrimaryResidentDR.PAPERName2' />
+		<attribute name='address1'  expression='$s(obj.QUESFHResidentDR.FHAddress1:##class(websys.Conversions).LongTextLogicalToHtml(obj.QUESFHResidentDR.FHAddress1," "),1:"")' />
+		<attribute name='address2'  expression='obj.QUESFHResidentDR.FHAddress2' />
+		<attribute name='suburb'  expression='obj.QUESFHResidentDR.FHCityCodeDR.CTCITDesc' />
+		<attribute name='state'  expression='obj.QUESFHResidentDR.FHProvinceDR.PROVDesc' />
+		<attribute name='postcode'  expression='obj.QUESFHResidentDR.FHZipDR.CTZIPCode' />
+		<!-- layout component items-->
+		<element field='QUESSSUserDefWindowDR' name='QUESSSUserDefWindowDR' expression='..GetVal("QUESSSUserDefWindowDR")'  />
+		<element field='QUESScore' name='QUESScore' expression='..GetVal("QUESScore")'  />
+		<element field='QUESDate' name='QUESDate' expression='..GetVal("QUESDate")'  />
+		<element field='QUESTime' name='QUESTime' expression='..GetVal("QUESTime")'  />
+		<element field='QUESUser' name='QUESUser' expression='..GetVal("QUESUser")'  />
+		<element field='QUESCreateDate' name='QUESCreateDate' expression='..GetVal("QUESCreateDate")'  />
+		<element field='QUESCreateTime' name='QUESCreateTime' expression='..GetVal("QUESCreateTime")'  />
+		<element field='QUESCreateUser' name='QUESCreateUser' expression='..GetVal("QUESCreateUser")'  />
+		<element field='QUESCopiedEpDR' name='QUESCopiedEpDR' expression='..GetVal("QUESCopiedEpDR")'  />
+		<element field='QUESCopiedUser' name='QUESCopiedUser' expression='..GetVal("QUESCopiedUser")'  />
+		<element field='QUESCopiedDate' name='QUESCopiedDate' expression='..GetVal("QUESCopiedDate")'  />
+		<element field='QUESCopiedTime' name='QUESCopiedTime' expression='..GetVal("QUESCopiedTime")'  />
+		<element field='QUESCopiedComments' name='QUESCopiedComments' expression='..GetVal("QUESCopiedComments")'  />
+		<element field='UserName' name='UserName' expression='..GetVal("UserName")'  />
+		<element field='QUESStatusDR' name='QUESStatusDR' expression='..GetVal("QUESStatusDR")'  />
+		<element field='QUESReasonForCorrectionDR' name='QUESReasonForCorrectionDR' expression='..GetVal("QUESReasonForCorrectionDR")'  />
+		<element field='QUESReasForCorrDisplay' name='QUESReasForCorrDisplay' expression='..GetVal("QUESReasForCorrDisplay")'  />
+		<element field='QAct' name='QAct' expression='..GetVal("QAct")'  />
+		<element field='QAssessDt' name='QAssessDt' expression='..GetVal("QAssessDt")'  />
+		<element field='QFrict' name='QFrict' expression='..GetVal("QFrict")'  />
+		<element field='QHospID' name='QHospID' expression='..GetVal("QHospID")'  />
+		<element field='QMob' name='QMob' expression='..GetVal("QMob")'  />
+		<element field='QMoist' name='QMoist' expression='..GetVal("QMoist")'  />
+		<element field='QNut' name='QNut' expression='..GetVal("QNut")'  />
+		<element field='QPUDocMR' name='QPUDocMR' expression='$s((","_..GetVal("QPUDoc")_",")[(",MR,"):$c(254),1:$c(111))' />
+		<element field='QPUDocIF' name='QPUDocIF' expression='$s((","_..GetVal("QPUDoc")_",")[(",IF,"):$c(254),1:$c(111))' />
+		<element field='QPUDocWC' name='QPUDocWC' expression='$s((","_..GetVal("QPUDoc")_",")[(",WC,"):$c(254),1:$c(111))' />
+		<element field='QSensPer' name='QSensPer' expression='..GetVal("QSensPer")'  />
+		<element field='QTotal' name='QTotal' expression='..GetVal("QTotal")'  />
+		<!-- Appendix (image) items-->
+		<!-- HIDDEN component items-->
+		<element field='ID' name='ID' expression='..GetVal("ID")' />
+		<element field='QUESPAAdmDR' name='QUESPAAdmDR' expression='..GetVal("QUESPAAdmDR")' />
+		<element field='QUESPAPatMasDR' name='QUESPAPatMasDR' expression='..GetVal("QUESPAPatMasDR")' />
+		<element field='QUESOEOrdExecDR' name='QUESOEOrdExecDR' expression='..GetVal("QUESOEOrdExecDR")' />
+		<element field='QUESMRClinicalPathWaysDR' name='QUESMRClinicalPathWaysDR' expression='..GetVal("QUESMRClinicalPathWaysDR")' />
+		<element field='QUESConsultDR' name='QUESConsultDR' expression='..GetVal("QUESConsultDR")' />
+		<element field='QUESOperRoomDR' name='QUESOperRoomDR' expression='..GetVal("QUESOperRoomDR")' />
+		<element field='QUESTextResultDR' name='QUESTextResultDR' expression='..GetVal("QUESTextResultDR")' />
+		<element field='QUESNRCarePlanIssuesDR' name='QUESNRCarePlanIssuesDR' expression='..GetVal("QUESNRCarePlanIssuesDR")' />
+		<element field='QUESRBAppointmentDR' name='QUESRBAppointmentDR' expression='..GetVal("QUESRBAppointmentDR")' />
+		<element field='GenUpdFlag' name='GenUpdFlag' expression='..GetVal("GenUpdFlag")' />
+		<element field='ZENRepName' name='ZENRepName' expression='..GetVal("ZENRepName")' />
+		<element field='UseZENReports' name='UseZENReports' expression='..GetVal("UseZENReports")' />
+		<element field='QEFlag' name='QEFlag' expression='..GetVal("QEFlag")' />
+		<element field='ChartID' name='ChartID' expression='..GetVal("ChartID")' />
+		<element field='PatientID' name='PatientID' expression='..GetVal("PatientID")' />
+		<element field='EpisodeID' name='EpisodeID' expression='..GetVal("EpisodeID")' />
+		<element field='mradm' name='mradm' expression='..GetVal("mradm")' />
+		<element field='RescID' name='RescID' expression='..GetVal("RescID")' />
+		<element field='ServID' name='ServID' expression='..GetVal("ServID")' />
+		<element field='WListID' name='WListID' expression='..GetVal("WListID")' />
+		<element field='refresh' name='refresh' expression='..GetVal("refresh")' />
+		<element field='MRDIARowId' name='MRDIARowId' expression='..GetVal("MRDIARowId")' />
+		<element field='OEORIRowId' name='OEORIRowId' expression='..GetVal("OEORIRowId")' />
+		<element field='TextResult' name='TextResult' expression='..GetVal("TextResult")' />
+		<element field='TextResultID' name='TextResultID' expression='..GetVal("TextResultID")' />
+		<element field='OEOrdItemID' name='OEOrdItemID' expression='..GetVal("OEOrdItemID")' />
+		<element field='norefresh' name='norefresh' expression='..GetVal("norefresh")' />
+		<element field='PatBasedQues' name='PatBasedQues' expression='..GetVal("PatBasedQues")' />
+		<element field='PatientBanner' name='PatientBanner' expression='..GetVal("PatientBanner")' />
+		<element field='ConsultParams' name='ConsultParams' expression='..GetVal("ConsultParams")' />
+		<element field='MHDetentionID' name='MHDetentionID' expression='..GetVal("MHDetentionID")' />
+		<element field='MHSuspensionID' name='MHSuspensionID' expression='..GetVal("MHSuspensionID")' />
+		<element field='TaskID' name='TaskID' expression='..GetVal("TaskID")' />
+		<element field='qClassName' name='qClassName' expression='..GetVal("qClassName")' />
+		<element field='qClassNameID' name='qClassNameID' expression='..GetVal("qClassNameID")' />
+		<element field='ResidentID' name='ResidentID' expression='..GetVal("ResidentID")' />
+		<element field='ENTERRDescHidden' name='ENTERRDescHidden' expression='..GetVal("ENTERRDescHidden")' />
+		<element field='GenItemsAfterUpdate' name='GenItemsAfterUpdate' expression='..GetVal("GenItemsAfterUpdate")' />
+		<element field='QPUDoc_ID' name='QPUDoc_ID' expression='..GetVal("QPUDoc_ID")' />
+		<element field='QHospID_ID' name='QHospID_ID' expression='..GetVal("QHospID_ID")' />
+	</group>
+	<!-- child table  -->
+	<call method='GetChildTableQStaging' /> 
+</report>
+]]></Data>
+</XData>
+
+<XData name="ReportDisplay">
+<XMLNamespace>http://www.intersystems.com/zen/report/display</XMLNamespace>
+<Data><![CDATA[
+<report xmlns='http://www.intersystems.com/zen/report/display'
+ name='QReportULCER'
+ xmlns:trak='http://www.intersystems.com/zen/report/display/trak' 
+ xmlns:trakstyle='http://www.intersystems.com/zen/report/display/trak/style'
+ >
+	<document width= '#(..ReportWidth)#' height='#(..ReportHeight)#' marginLeft='#(..DocMarginLeft)#' marginRight='#(..DocMarginRight)#' 
+		marginTop='#(..DocMarginTop)#' marginBottom='#(..DocMarginBottom)#' footerHeight='#(..DocFooterHeight)#' headerHeight='#(..DocHeaderHeight)#' 
+		regionBeforeExtent='#(..DocHeaderHeight)#' regionAfterExtent='#(..DocFooterHeight)#' >
+		<trakstyle:trakgroupheader/>
+		<trakstyle:trakgroupsummary/>
+		<trakstyle:trakhospitalheader/>
+		<trakstyle:trakpagefooter/>
+		<trakstyle:trakpageheader/>
+		<trakstyle:trakparameterheader/>
+		<trakstyle:traktablecolumn/>
+		<class name="table.trakquesttable" >
+			<att name="font-family" value="Times New Roman,MingLiU" />
+			<att name="width" value="100%" />
+			<att name="table-layout" value="fixed"/>
+			<att name="border-style" value="none"/>
+		</class>
+		<!-- BLOCK styles -->
+		<class name="block.trakquestdisplayonlyitem">
+			<att name="font-weight" value="italic"/>
+		</class>
+		<class name="block.trakquestdisplayitem">
+			<att name="border-style" value="none" />
+		</class>
+		<class name="block.trakquestreadonlyitem">
+			<att name="font-weight" value="italic"/>
+		</class>
+		<!-- item styles  -->
+		<class name="td.trakquestdisplayborder">
+			<att name="border-style" value="solid"/>
+			<att name="border-color" value="black"/>
+			<att name="border-width" value="1pt"/>
+			<att name="padding-left" value="3pt" />
+			<att name="padding-right" value="3pt" />
+			<att name="padding-top" value="2pt" />
+			<att name="padding-bottom" value="2pt" />
+		</class>
+		<class name="td.trakquestitem">
+			<att name="font-family" value="Times New Roman,MingLiU" />
+			<att name="border-style" value="none" />
+		</class>
+		<class name="td.trakquestitemH1" >
+			<att name="font-size" value="16pt"/>
+			<att name="font-weight" value="bold"/>
+		</class>
+		<class name="td.trakquestitemH2" >
+			<att name="font-size" value="14pt"/>
+			<att name="font-weight" value="bold"/>
+		</class>
+		<class name="td.trakquestitemH3" >
+			<att name="font-size" value="12pt"/>
+		</class>
+		<class name="td.trakquestwingdingsitem" >
+			<att name="font-family" value="Wingdings" />
+			<att name="font-size" value="14pt"/>
+		</class>
+		<class name="td.trakquestcaptionitem">
+			<att name="font-size" value="9pt"/>
+			<att name="font-weight" value="bold"/>
+			<att name="display-align" value="before" />
+			<att name="padding-right" value="5pt" />
+		</class>
+		<class name="td.trakquestrow">
+			<att name="font-family" value="Times New Roman,MingLiU" />
+			<att name="padding-after" value="3pt" />
+		</class>
+		<!-- embedded 'child' table styles  -->
+		<class name='td.trakheaderbold'>
+			<att name='border-collapse' value='collapse' />
+			<att name='keep-with-next.within-page' value='auto' />
+			<att name='font-family' value='Arial' />
+			<att name='font-size' value='10pt'/>
+			<att name='font-weight' value='bold'/>
+			<att name='display-align' value='before' />
+			<att name='padding' value='2pt' />
+			<att name='text-align' value='left'/>
+			<att name='border-style' value='solid'/> 
+			<att name='border-width' value='1.3pt'/> 
+			<att name='border-color' value='#7BA1C7'/>
+			<att name='color' value='#FFFFFF'/>
+			<att name='background-color' value='#567498'/>
+		</class>
+	</document>
+	<trak:PatientPageHeader class="" ifxpath='/QReportULCER/QuestionnaireData/@hasPatientData=1'
+		description=''
+		patname1='/QReportULCER/QuestionnaireData/@patname'  
+		patname2='/QReportULCER/QuestionnaireData/@patname2' 
+		patname3='/QReportULCER/QuestionnaireData/@patname3' 
+		patname4='/QReportULCER/QuestionnaireData/@patname4' 
+		patname5='/QReportULCER/QuestionnaireData/@patname5' 
+		patname6='/QReportULCER/QuestionnaireData/@patname6' 
+		patname7='/QReportULCER/QuestionnaireData/@patname7' 
+		patname8='/QReportULCER/QuestionnaireData/@patname8' 
+		patdob='/QReportULCER/QuestionnaireData/@patdob' 
+		patsex='/QReportULCER/QuestionnaireData/@patsex' 
+		patrego='/QReportULCER/QuestionnaireData/@patrego' />
+	<trak:ResidentPageHeader class="" ifxpath='/QReportULCER/QuestionnaireData/@hasResidentData=1'
+		residentNumber='/QReportULCER/QuestionnaireData/@residentNumber'
+		segment='/QReportULCER/QuestionnaireData/@segment'
+		area='/QReportULCER/QuestionnaireData/@area'
+		microArea='/QReportULCER/QuestionnaireData/@microArea' 
+		primaryResidentName='/QReportULCER/QuestionnaireData/@primaryResidentName'
+		primaryResidentName2='/QReportULCER/QuestionnaireData/@primaryResidentName2' 
+		address1='/QReportULCER/QuestionnaireData/@address1'
+		address2='/QReportULCER/QuestionnaireData/@address2'
+		suburb='/QReportULCER/QuestionnaireData/@suburb'
+		state='/QReportULCER/QuestionnaireData/@state'
+		postcode='/QReportULCER/QuestionnaireData/@postcode' />
+	<trak:ReportFooter username='@username' timestamp='@timestamp'/>
+	<body>
+	 <trak:NoResults xcondition='not(QuestionnaireData)' />
+	 <table orient='row'>
+	  <group name='QuestionnaireData'>
+			<!--  Output from Component Layout  -->
+
+    <table orient='row' width="100%"    > <!-- table1 -->
+    	<table orient='col' width="100%" class="trakquestrow"  >  <!-- row 1,1-->
+    	<!-- td 1,1,1-->
+    	<block width='70%' class="trakquestdisplayitem"  >
+    	<item value='PRESSURE ULCER RISK ASSESSMENT'   class="trakquestitemH3" />
+    	</block>
+    	<!-- end td 1,1,1-->
+    	<!-- td 1,1,2-->
+    	<block width='28%' class="trakquestdisplayitem"  >
+    	<item value='' width='0%'  />
+    	</block>
+    	<!-- end td 1,1,2-->
+    	<item value='' width='0%'  />
+    </table>  <!-- endrow 1,1-->
+    	<table orient='col' width="100%" class="trakquestrow"  >  <!-- row 1,2-->
+    	<!-- td 1,2,1-->
+    	<block width='60%' class="trakquestdisplayborder"  >
+    <table  class="trakquestdisplayitem"     ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QHospID", ",") ))  ' >
+     <item  class="trakquestitem"  field='QHospID' />
+    </table>
+    	</block>
+    	<!-- end td 1,2,1-->
+    	<!-- td 1,2,2-->
+    	<block width='40%' class="trakquestdisplayitem"  >
+    	<item value='' width='0%'  />
+    	</block>
+    	<!-- end td 1,2,2-->
+    	<item value='' width='0%'  />
+    </table>  <!-- endrow 1,2-->
+    	<table orient='col' width="100%" class="trakquestrow"  >  <!-- row 1,3-->
+    	<!-- td 1,3,1-->
+    	<block width='60%' class="trakquestdisplayitem"  >
+    	<item value='  '   class="trakquestitem" />
+    	</block>
+    	<!-- end td 1,3,1-->
+    	<!-- td 1,3,2-->
+    	<block width='40%' class="trakquestdisplayitem"  >
+    	<item value='' width='0%'  />
+    	</block>
+    	<!-- end td 1,3,2-->
+    	<item value='' width='0%'  />
+    </table>  <!-- endrow 1,3-->
+    	<table orient='col' width="100%" class="trakquestrow"  >  <!-- row 1,4-->
+    	<!-- td 1,4,1-->
+    	<block width='96%' class="trakquestdisplayitem" style='background-color: #ffff80' >
+    	<item value='Mild Risk'   class="trakquestitem" />
+    	<item value=': Total Score: 15-18     '   class="trakquestitem" />
+    	<item value='Moderate Risk'   class="trakquestitem" />
+    	<item value=': Total Score: 13-14     '   class="trakquestitem" />
+    	<item value='High Risk'   class="trakquestitem" />
+    	<item value=': Total Score: 10-12     '   class="trakquestitem" />
+    	<item value='Severe Risk'   class="trakquestitem" />
+    	<item value=': Total Score: '   class="trakquestitem" />
+    	<item value='&lt;=9'   class="trakquestitem" />
+    	</block>
+    	<!-- end td 1,4,1-->
+    	<item value='' width='0%'  />
+    </table>  <!-- endrow 1,4-->
+    	<table orient='col' width="100%" class="trakquestrow"  >  <!-- row 1,5-->
+    	<!-- td 1,5,1-->
+    	<block width='42%' class="trakquestdisplayitem"  >
+    	<item value='  '   class="trakquestitem" />
+    	</block>
+    	<!-- end td 1,5,1-->
+    	<!-- td 1,5,2-->
+    	<block width='28%' class="trakquestdisplayitem"  >
+    	<item value='' width='0%'  />
+    	</block>
+    	<!-- end td 1,5,2-->
+    	<!-- td 1,5,3-->
+    	<block width='28%' class="trakquestdisplayitem"  >
+    	<item value='' width='0%'  />
+    	</block>
+    	<!-- end td 1,5,3-->
+    	<item value='' width='0%'  />
+    </table>  <!-- endrow 1,5-->
+    	<table orient='col' width="100%" class="trakquestrow"  >  <!-- row 1,6-->
+    	<!-- td 1,6,1-->
+    	<block width='28%' class="trakquestdisplayitem"  >
+    <item  class="trakquestcaptionitem"  value='Assessment Dates' 
+       ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QAssessDt", ",") )) ' />
+    	</block>
+    	<!-- end td 1,6,1-->
+    	<!-- td 1,6,2-->
+    	<block width='14%' class="trakquestdisplayborder"  >
+    <table  class="trakquestdisplayitem"     ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QAssessDt", ",") ))  ' >
+     <item  class="trakquestitem"  field='QAssessDt' />
+    </table>
+    	</block>
+    	<!-- end td 1,6,2-->
+    	<!-- td 1,6,3-->
+    	<block width='28%' class="trakquestdisplayitem"  >
+    	<item value='' width='0%'  />
+    	</block>
+    	<!-- end td 1,6,3-->
+    	<!-- td 1,6,4-->
+    	<block width='28%' class="trakquestdisplayitem"  >
+    	<item value='' width='0%'  />
+    	</block>
+    	<!-- end td 1,6,4-->
+    	<item value='' width='0%'  />
+    </table>  <!-- endrow 1,6-->
+    	<table orient='col' width="100%" class="trakquestrow"  >  <!-- row 1,7-->
+    	<!-- td 1,7,1-->
+    	<block width='28%' class="trakquestdisplayitem"  >
+    	<item value='  '   class="trakquestitem" />
+    	</block>
+    	<!-- end td 1,7,1-->
+    	<!-- td 1,7,2-->
+    	<block width='14%' class="trakquestdisplayitem"  >
+    	<item value='' width='0%'  />
+    	</block>
+    	<!-- end td 1,7,2-->
+    	<!-- td 1,7,3-->
+    	<block width='14%' class="trakquestdisplayitem"  >
+    	<item value='' width='0%'  />
+    	</block>
+    	<!-- end td 1,7,3-->
+    	<!-- td 1,7,4-->
+    	<block width='14%' class="trakquestdisplayitem"  >
+    	<item value='' width='0%'  />
+    	</block>
+    	<!-- end td 1,7,4-->
+    	<!-- td 1,7,5-->
+    	<block width='28%' class="trakquestdisplayitem"  >
+    	<item value='' width='0%'  />
+    	</block>
+    	<!-- end td 1,7,5-->
+    	<item value='' width='0%'  />
+    </table>  <!-- endrow 1,7-->
+    	<table orient='col' width="100%" class="trakquestrow"  >  <!-- row 1,8-->
+    	<!-- td 1,8,1-->
+    	<block width='14%' class="trakquestdisplayitem" style='background-color: #cfcfcf' >
+    	<item value='Risk Factor'   class="trakquestitem" />
+    	</block>
+    	<!-- end td 1,8,1-->
+    	<!-- td 1,8,2-->
+    	<block width='14%' class="trakquestdisplayitem" style='background-color: #cfcfcf' >
+    	<item value='Score'   class="trakquestitem" />
+    	</block>
+    	<!-- end td 1,8,2-->
+    	<!-- td 1,8,3-->
+    	<block width='14%' class="trakquestdisplayitem" style='background-color: #cfcfcf' >
+    	<item value='Description'   class="trakquestitem" />
+    	</block>
+    	<!-- end td 1,8,3-->
+    	<!-- td 1,8,4-->
+    	<block width='14%' class="trakquestdisplayitem" style='background-color: #cfcfcf' >
+    	<item value='' width='0%'  />
+    	</block>
+    	<!-- end td 1,8,4-->
+    	<!-- td 1,8,5-->
+    	<block width='14%' class="trakquestdisplayitem" style='background-color: #cfcfcf' >
+    	<item value='' width='0%'  />
+    	</block>
+    	<!-- end td 1,8,5-->
+    	<!-- td 1,8,6-->
+    	<block width='28%' class="trakquestdisplayitem" style='background-color: #cfcfcf' >
+    	<item value='' width='0%'  />
+    	</block>
+    	<!-- end td 1,8,6-->
+    	<item value='' width='0%'  />
+    </table>  <!-- endrow 1,8-->
+    	<table orient='col' width="100%" class="trakquestrow"  >  <!-- row 1,9-->
+    	<!-- td 1,9,1-->
+    	<block width='14%' class="trakquestdisplayitem" style='background-color: #efefef' >
+    	<item value='SENSORY PERCEPTION'   class="trakquestitem" />
+    	<item value='Ability to respond meaningfully to pressure-related discomfort'   class="trakquestitem" />
+    	</block>
+    	<!-- end td 1,9,1-->
+    	<!-- td 1,9,2-->
+    	<block width='14%' class="trakquestdisplayborder" style='background-color: #efefef' >
+    <table  class="trakquestdisplayitem"     ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QSensPer", ",") ))  ' >
+     <item  class="trakquestitem"  field='QSensPer' />
+    </table>
+    	</block>
+    	<!-- end td 1,9,2-->
+    	<!-- td 1,9,3-->
+    	<block width='14%' class="trakquestdisplayitem" style='background-color: #efefef' >
+    	<item value='1. COMPLETELY LIMITED'   class="trakquestitem" />
+    	<item value='Unresponsive (does not moan, flinch, or grasp) to painful stimuli, due to diminished level of consciousness or sedation.'   class="trakquestitem" />
+    	<item value='OR'   class="trakquestitem" />
+    	<item value='Limited ability to feel pain over most of body surface'   class="trakquestitem" />
+    	</block>
+    	<!-- end td 1,9,3-->
+    	<!-- td 1,9,4-->
+    	<block width='14%' class="trakquestdisplayitem" style='background-color: #efefef' >
+    	<item value='2. VERY LIMITED'   class="trakquestitem" />
+    	<item value='Responds only to painful stimuli. Cannot communicate discomfort except by moaning or restlessness.'   class="trakquestitem" />
+    	<item value='OR'   class="trakquestitem" />
+    	<item value='Has a sensory impairment which limits the ability to feel pain or discomfort over half of body.'   class="trakquestitem" />
+    	</block>
+    	<!-- end td 1,9,4-->
+    	<!-- td 1,9,5-->
+    	<block width='14%' class="trakquestdisplayitem" style='background-color: #efefef' >
+    	<item value='3. SLIGHTLY LIMITED'   class="trakquestitem" />
+    	<item value='Responds to verbal commands but cannot always communicate discomfort or need to be turned.'   class="trakquestitem" />
+    	<item value='OR'   class="trakquestitem" />
+    	<item value='Has some sensory impairment which limits ability to feel pain or discomfort to 1 or 2 extremities.'   class="trakquestitem" />
+    	<item value='  '   class="trakquestitem" />
+    	</block>
+    	<!-- end td 1,9,5-->
+    	<!-- td 1,9,6-->
+    	<block width='28%' class="trakquestdisplayitem" style='background-color: #efefef' >
+    	<item value='4. NO IMPAIRMENT'   class="trakquestitem" />
+    	<item value='Responds to verbal commands. Has no sensory deficit which would limit ability to feel or voice pain or discomfort.'   class="trakquestitem" />
+    	</block>
+    	<!-- end td 1,9,6-->
+    	<item value='' width='0%'  />
+    </table>  <!-- endrow 1,9-->
+    	<table orient='col' width="100%" class="trakquestrow"  >  <!-- row 1,10-->
+    	<!-- td 1,10,1-->
+    	<block width='14%' class="trakquestdisplayitem" style='background-color: #efefef' >
+    	<item value='MOISTURE'   class="trakquestitem" />
+    	<item value='Degree to which skin is exposed to moisture'   class="trakquestitem" />
+    	</block>
+    	<!-- end td 1,10,1-->
+    	<!-- td 1,10,2-->
+    	<block width='14%' class="trakquestdisplayborder" style='background-color: #efefef' >
+    <table  class="trakquestdisplayitem"     ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QMoist", ",") ))  ' >
+     <item  class="trakquestitem"  field='QMoist' />
+    </table>
+    	</block>
+    	<!-- end td 1,10,2-->
+    	<!-- td 1,10,3-->
+    	<block width='14%' class="trakquestdisplayitem" style='background-color: #efefef' >
+    	<item value='1. CONSTANTLY MOIST'   class="trakquestitem" />
+    	<item value='Skin is kept moist almost constantly by perspiration, urine, etc. Dampness is detected every time patient is moved or turned.'   class="trakquestitem" />
+    	</block>
+    	<!-- end td 1,10,3-->
+    	<!-- td 1,10,4-->
+    	<block width='14%' class="trakquestdisplayitem" style='background-color: #efefef' >
+    	<item value='2. OFTEN MOIST'   class="trakquestitem" />
+    	<item value='Skin is often but not always moist. Linen must be changed at least once a shift.'   class="trakquestitem" />
+    	</block>
+    	<!-- end td 1,10,4-->
+    	<!-- td 1,10,5-->
+    	<block width='14%' class="trakquestdisplayitem" style='background-color: #efefef' >
+    	<item value='3. OCCASIONALLY MOIST'   class="trakquestitem" />
+    	<item value='Skin is occasionally moist, requiring an extra linen change approximately once a day.'   class="trakquestitem" />
+    	<item value='  '   class="trakquestitem" />
+    	</block>
+    	<!-- end td 1,10,5-->
+    	<!-- td 1,10,6-->
+    	<block width='28%' class="trakquestdisplayitem" style='background-color: #efefef' >
+    	<item value='4. RARELY MOIST'   class="trakquestitem" />
+    	<item value='Skin is usually dry, linen only requires changing at routine intervals.'   class="trakquestitem" />
+    	</block>
+    	<!-- end td 1,10,6-->
+    	<item value='' width='0%'  />
+    </table>  <!-- endrow 1,10-->
+    	<table orient='col' width="100%" class="trakquestrow"  >  <!-- row 1,11-->
+    	<!-- td 1,11,1-->
+    	<block width='14%' class="trakquestdisplayitem" style='background-color: #efefef' >
+    	<item value='ACTIVITY'   class="trakquestitem" />
+    	<item value='Degree of physical activity'   class="trakquestitem" />
+    	</block>
+    	<!-- end td 1,11,1-->
+    	<!-- td 1,11,2-->
+    	<block width='14%' class="trakquestdisplayborder" style='background-color: #efefef' >
+    <table  class="trakquestdisplayitem"     ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QAct", ",") ))  ' >
+     <item  class="trakquestitem"  field='QAct' />
+    </table>
+    	</block>
+    	<!-- end td 1,11,2-->
+    	<!-- td 1,11,3-->
+    	<block width='14%' class="trakquestdisplayitem" style='background-color: #efefef' >
+    	<item value='1. BEDFAST'   class="trakquestitem" />
+    	<item value='Confined to bed.'   class="trakquestitem" />
+    	</block>
+    	<!-- end td 1,11,3-->
+    	<!-- td 1,11,4-->
+    	<block width='14%' class="trakquestdisplayitem" style='background-color: #efefef' >
+    	<item value='2. CHAIRFAST'   class="trakquestitem" />
+    	<item value='Ability to walk severely limited or non-existent. Cannot bear own weight and/or must be assisted into chair or wheelchair.'   class="trakquestitem" />
+    	</block>
+    	<!-- end td 1,11,4-->
+    	<!-- td 1,11,5-->
+    	<block width='14%' class="trakquestdisplayitem" style='background-color: #efefef' >
+    	<item value='3. WALKS OCCASIONALLY'   class="trakquestitem" />
+    	<item value='Walks occasionally during day but for very short distances with or without assistance. Spends majority of each shift in bed or chair.'   class="trakquestitem" />
+    	<item value='  '   class="trakquestitem" />
+    	</block>
+    	<!-- end td 1,11,5-->
+    	<!-- td 1,11,6-->
+    	<block width='28%' class="trakquestdisplayitem" style='background-color: #efefef' >
+    	<item value='4. WALKS FREQUENTLY'   class="trakquestitem" />
+    	<item value='Walks outside room at least twice a day and inside room at least once every 2 hours during waking hours.'   class="trakquestitem" />
+    	</block>
+    	<!-- end td 1,11,6-->
+    	<item value='' width='0%'  />
+    </table>  <!-- endrow 1,11-->
+    	<table orient='col' width="100%" class="trakquestrow"  >  <!-- row 1,12-->
+    	<!-- td 1,12,1-->
+    	<block width='14%' class="trakquestdisplayitem" style='background-color: #efefef' >
+    	<item value='MOBILITY'   class="trakquestitem" />
+    	<item value='Ability to change and control body position'   class="trakquestitem" />
+    	</block>
+    	<!-- end td 1,12,1-->
+    	<!-- td 1,12,2-->
+    	<block width='14%' class="trakquestdisplayborder" style='background-color: #efefef' >
+    <table  class="trakquestdisplayitem"     ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QMob", ",") ))  ' >
+     <item  class="trakquestitem"  field='QMob' />
+    </table>
+    	</block>
+    	<!-- end td 1,12,2-->
+    	<!-- td 1,12,3-->
+    	<block width='14%' class="trakquestdisplayitem" style='background-color: #efefef' >
+    	<item value='1. COMPLETELY IMMOBILE'   class="trakquestitem" />
+    	<item value='Does not make even slight changes in body or extremity position without assistance.'   class="trakquestitem" />
+    	</block>
+    	<!-- end td 1,12,3-->
+    	<!-- td 1,12,4-->
+    	<block width='14%' class="trakquestdisplayitem" style='background-color: #efefef' >
+    	<item value='2. VERY LIMITED'   class="trakquestitem" />
+    	<item value='Makes occasional slight changes in body or extremity position but unable to make frequent or significant changes independently.'   class="trakquestitem" />
+    	<item value='  '   class="trakquestitem" />
+    	</block>
+    	<!-- end td 1,12,4-->
+    	<!-- td 1,12,5-->
+    	<block width='14%' class="trakquestdisplayitem" style='background-color: #efefef' >
+    	<item value='3. SLIGHTLY LIMITED'   class="trakquestitem" />
+    	<item value='Makes frequent though slight changes in body or extremity position independently.'   class="trakquestitem" />
+    	</block>
+    	<!-- end td 1,12,5-->
+    	<!-- td 1,12,6-->
+    	<block width='28%' class="trakquestdisplayitem" style='background-color: #efefef' >
+    	<item value='4. NO LIMITATIONS'   class="trakquestitem" />
+    	<item value='Makes major and frequent changes in position without assistance.'   class="trakquestitem" />
+    	</block>
+    	<!-- end td 1,12,6-->
+    	<item value='' width='0%'  />
+    </table>  <!-- endrow 1,12-->
+    	<table orient='col' width="100%" class="trakquestrow"  >  <!-- row 1,13-->
+    	<!-- td 1,13,1-->
+    	<block width='14%' class="trakquestdisplayitem" style='background-color: #efefef' >
+    	<item value='NUTRITION'   class="trakquestitem" />
+    	<item value='Usual food intake pattern.'   class="trakquestitem" />
+    	<item value='NPO: Nothing by mouth'   class="trakquestitem" />
+    	<item value='IV: Intravenously'   class="trakquestitem" />
+    	<item value='TPN: Total Parenteral Nutrition'   class="trakquestitem" />
+    	</block>
+    	<!-- end td 1,13,1-->
+    	<!-- td 1,13,2-->
+    	<block width='14%' class="trakquestdisplayborder" style='background-color: #efefef' >
+    <table  class="trakquestdisplayitem"     ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QNut", ",") ))  ' >
+     <item  class="trakquestitem"  field='QNut' />
+    </table>
+    	</block>
+    	<!-- end td 1,13,2-->
+    	<!-- td 1,13,3-->
+    	<block width='14%' class="trakquestdisplayitem" style='background-color: #efefef' >
+    	<item value='1. VERY POOR'   class="trakquestitem" />
+    	<item value='Never eats a complete meal. Rarely eats more than one-third of any food offered. Eats 2 servings or less of protein (meat or dairy products) per day. Takes fluids poorly. Does not take a liquid dietary supplement.'   class="trakquestitem" />
+    	<item value='OR'   class="trakquestitem" />
+    	<item value='Is NPO and/or maintained on clear liquids or IV for more than 5 days.'   class="trakquestitem" />
+    	</block>
+    	<!-- end td 1,13,3-->
+    	<!-- td 1,13,4-->
+    	<block width='14%' class="trakquestdisplayitem" style='background-color: #efefef' >
+    	<item value='2. PROBABLY INADEQUATE'   class="trakquestitem" />
+    	<item value='Rarely eats a complete meal and generally eats only about half of any food offered. Protein intake includes only 3 servings of meat or dairy products per day. Occasionally will take a dietary supplement.'   class="trakquestitem" />
+    	<item value='OR'   class="trakquestitem" />
+    	<item value='Receives less than the optimum amount of liquid diet or tube feeding.'   class="trakquestitem" />
+    	<item value='  '   class="trakquestitem" />
+    	</block>
+    	<!-- end td 1,13,4-->
+    	<!-- td 1,13,5-->
+    	<block width='14%' class="trakquestdisplayitem" style='background-color: #efefef' >
+    	<item value='3. ADEQUATE'   class="trakquestitem" />
+    	<item value='Eats over half of most meals. Eats a total of 4 servings of protein (meat, dairy products) each day. Occasionally will refuse a meal, but will usually take a supplement if offered.'   class="trakquestitem" />
+    	<item value='OR'   class="trakquestitem" />
+    	<item value='Is on a tube feeding or TPN regimen, which probably meets most nutritional needs.'   class="trakquestitem" />
+    	<item value='  '   class="trakquestitem" />
+    	</block>
+    	<!-- end td 1,13,5-->
+    	<!-- td 1,13,6-->
+    	<block width='28%' class="trakquestdisplayitem" style='background-color: #efefef' >
+    	<item value='4. EXCELLENT'   class="trakquestitem" />
+    	<item value='Eats most of every meal. Never refuses a meal. Usually eats a total of 4 or more servings of meat or dairy products. Occasionally eats between meals. Does not require supplementation.'   class="trakquestitem" />
+    	</block>
+    	<!-- end td 1,13,6-->
+    	<item value='' width='0%'  />
+    </table>  <!-- endrow 1,13-->
+    	<table orient='col' width="100%" class="trakquestrow"  >  <!-- row 1,14-->
+    	<!-- td 1,14,1-->
+    	<block width='14%' class="trakquestdisplayitem" style='background-color: #efefef' >
+    	<item value='FRICTION AND SHEAR'   class="trakquestitem" />
+    	<item value='  '   class="trakquestitem" />
+    	</block>
+    	<!-- end td 1,14,1-->
+    	<!-- td 1,14,2-->
+    	<block width='14%' class="trakquestdisplayborder" style='background-color: #efefef' >
+    <table  class="trakquestdisplayitem"     ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QFrict", ",") ))  ' >
+     <item  class="trakquestitem"  field='QFrict' />
+    </table>
+    	</block>
+    	<!-- end td 1,14,2-->
+    	<!-- td 1,14,3-->
+    	<block width='14%' class="trakquestdisplayitem" style='background-color: #efefef' >
+    	<item value='1. PROBLEM'   class="trakquestitem" />
+    	<item value='Requires moderate to maximum assistance in moving. Complete lifting without sliding against sheets is impossible. Frequently slides down in bed or chair, requiring frequent repositioning with maximum assistance. Spasticity, contractures, or agitation leads to almost contact friction.'   class="trakquestitem" />
+    	<item value='  '   class="trakquestitem" />
+    	</block>
+    	<!-- end td 1,14,3-->
+    	<!-- td 1,14,4-->
+    	<block width='14%' class="trakquestdisplayitem" style='background-color: #efefef' >
+    	<item value='2. POTENTIAL PROBLEM'   class="trakquestitem" />
+    	<item value='Moves feebly or requires minimum assistance. During a move, skin probably slides to some extent against sheets, chair, restraints, or other devices. Maintans relatively good positioning in chair or bed most of the time but occasionally slides down.'   class="trakquestitem" />
+    	</block>
+    	<!-- end td 1,14,4-->
+    	<!-- td 1,14,5-->
+    	<block width='14%' class="trakquestdisplayitem" style='background-color: #efefef' >
+    	<item value='3. NO APPARENT PROBLEM'   class="trakquestitem" />
+    	<item value='Moves in bed and in chair independently and has sufficient muscle strength to lift up completely during move. Maintains good position in bed or chair at all times.'   class="trakquestitem" />
+    	</block>
+    	<!-- end td 1,14,5-->
+    	<!-- td 1,14,6-->
+    	<block width='28%' class="trakquestdisplayitem" style='background-color: #efefef' >
+    	<item value='' width='0%'  />
+    	</block>
+    	<!-- end td 1,14,6-->
+    	<item value='' width='0%'  />
+    </table>  <!-- endrow 1,14-->
+    	<table orient='col' width="100%" class="trakquestrow"  >  <!-- row 1,15-->
+    	<!-- td 1,15,1-->
+    	<block width='14%' class="trakquestdisplayitem" style='background-color: #cfcfcf' >
+    	<item value='TOTAL SCORE'   class="trakquestitem" />
+    	</block>
+    	<!-- end td 1,15,1-->
+    	<!-- td 1,15,2-->
+    	<block width='14%' class="trakquestdisplayitem" style='background-color: #cfcfcf' >
+    <table  class="trakquestdisplayonlyitem"     ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QTotal", ",") ))  ' >
+     <item  class="trakquestitem"  field='QTotal' />
+    </table>
+    	</block>
+    	<!-- end td 1,15,2-->
+    	<!-- td 1,15,3-->
+    	<block width='14%' class="trakquestdisplayitem" style='background-color: #cfcfcf' >
+    	<item value='TOTAL SCORE OF 12 or less represents HIGH RISK'   class="trakquestitem" />
+    	</block>
+    	<!-- end td 1,15,3-->
+    	<!-- td 1,15,4-->
+    	<block width='14%' class="trakquestdisplayitem" style='background-color: #cfcfcf' >
+    	<item value='' width='0%'  />
+    	</block>
+    	<!-- end td 1,15,4-->
+    	<!-- td 1,15,5-->
+    	<block width='14%' class="trakquestdisplayitem" style='background-color: #cfcfcf' >
+    	<item value='' width='0%'  />
+    	</block>
+    	<!-- end td 1,15,5-->
+    	<!-- td 1,15,6-->
+    	<block width='28%' class="trakquestdisplayitem" style='background-color: #cfcfcf' >
+    	<item value='' width='0%'  />
+    	</block>
+    	<!-- end td 1,15,6-->
+    	<item value='' width='0%'  />
+    </table>  <!-- endrow 1,15-->
+    	<table orient='col' width="100%" class="trakquestrow"  >  <!-- row 1,16-->
+    	<!-- td 1,16,1-->
+    	<block width='14%' class="trakquestdisplayitem"  >
+    	<item value='  '   class="trakquestitem" />
+    	</block>
+    	<!-- end td 1,16,1-->
+    	<!-- td 1,16,2-->
+    	<block width='14%' class="trakquestdisplayitem"  >
+    	<item value='' width='0%'  />
+    	</block>
+    	<!-- end td 1,16,2-->
+    	<!-- td 1,16,3-->
+    	<block width='14%' class="trakquestdisplayitem"  >
+    	<item value='Click Apply to calculate Score'   class="trakquestitem" />
+    	</block>
+    	<!-- end td 1,16,3-->
+    	<!-- td 1,16,4-->
+    	<block width='14%' class="trakquestdisplayitem"  >
+    	<item value='' width='0%'  />
+    	</block>
+    	<!-- end td 1,16,4-->
+    	<!-- td 1,16,5-->
+    	<block width='14%' class="trakquestdisplayitem"  >
+    	<item value='' width='0%'  />
+    	</block>
+    	<!-- end td 1,16,5-->
+    	<!-- td 1,16,6-->
+    	<block width='28%' class="trakquestdisplayitem"  >
+    	<item value='' width='0%'  />
+    	</block>
+    	<!-- end td 1,16,6-->
+    	<item value='' width='0%'  />
+    </table>  <!-- endrow 1,16-->
+    	<table orient='col' width="100%" class="trakquestrow"  >  <!-- row 1,17-->
+    	<!-- td 1,17,1-->
+    	<block width='42%' class="trakquestdisplayitem"  >
+    	<item value='  '   class="trakquestitem" />
+    	</block>
+    	<!-- end td 1,17,1-->
+    	<!-- td 1,17,2-->
+    	<block width='28%' class="trakquestdisplayitem"  >
+    	<item value='' width='0%'  />
+    	</block>
+    	<!-- end td 1,17,2-->
+    	<!-- td 1,17,3-->
+    	<block width='28%' class="trakquestdisplayitem"  >
+    	<item value='' width='0%'  />
+    	</block>
+    	<!-- end td 1,17,3-->
+    	<item value='' width='0%'  />
+    </table>  <!-- endrow 1,17-->
+    	<table orient='col' width="100%" class="trakquestrow"  >  <!-- row 1,18-->
+    	<!-- td 1,18,1-->
+    	<block width='42%' class="trakquestdisplayitem"  >
+    	<item value='STAGING OF PRESSURE ULCERS'   class="trakquestitem" />
+    	</block>
+    	<!-- end td 1,18,1-->
+    	<!-- td 1,18,2-->
+    	<block width='28%' class="trakquestdisplayitem"  >
+    	<item value='' width='0%'  />
+    	</block>
+    	<!-- end td 1,18,2-->
+    	<!-- td 1,18,3-->
+    	<block width='28%' class="trakquestdisplayitem"  >
+    	<item value='' width='0%'  />
+    	</block>
+    	<!-- end td 1,18,3-->
+    	<item value='' width='0%'  />
+    </table>  <!-- endrow 1,18-->
+    	<table orient='col' width="100%" class="trakquestrow"  >  <!-- row 1,19-->
+    	<!-- td 1,19,1-->
+    	<block width='42%' class="trakquestdisplayitem"  >
+    	<item value='  '   class="trakquestitem" />
+    	</block>
+    	<!-- end td 1,19,1-->
+    	<!-- td 1,19,2-->
+    	<block width='28%' class="trakquestdisplayitem"  >
+    	<item value='' width='0%'  />
+    	</block>
+    	<!-- end td 1,19,2-->
+    	<!-- td 1,19,3-->
+    	<block width='28%' class="trakquestdisplayitem"  >
+    	<item value='' width='0%'  />
+    	</block>
+    	<!-- end td 1,19,3-->
+    	<item value='' width='0%'  />
+    </table>  <!-- endrow 1,19-->
+    	<table orient='col' width="100%" class="trakquestrow"  >  <!-- row 1,20-->
+    	<!-- td 1,20,1-->
+    	<block width='28%' class="trakquestdisplayitem"  >
+    	<item value='Stage 0'   class="trakquestitem" />
+    	</block>
+    	<!-- end td 1,20,1-->
+    	<!-- td 1,20,2-->
+    	<block width='42%' class="trakquestdisplayitem"  >
+    	<item value='Healthy intact skin.'   class="trakquestitem" />
+    	</block>
+    	<!-- end td 1,20,2-->
+    	<!-- td 1,20,3-->
+    	<block width='28%' class="trakquestdisplayitem"  >
+    	<item value='' width='0%'  />
+    	</block>
+    	<!-- end td 1,20,3-->
+    	<item value='' width='0%'  />
+    </table>  <!-- endrow 1,20-->
+    	<table orient='col' width="100%" class="trakquestrow"  >  <!-- row 1,21-->
+    	<!-- td 1,21,1-->
+    	<block width='28%' class="trakquestdisplayitem"  >
+    	<item value='Stage 1'   class="trakquestitem" />
+    	</block>
+    	<!-- end td 1,21,1-->
+    	<!-- td 1,21,2-->
+    	<block width='42%' class="trakquestdisplayitem"  >
+    	<item value='Intact skin with non blanchable redness of a localised area usually over a bony prominence. In darker tones area may appear different to surrounding skin. Remember to reassess the area in 30 minutes after pt repositioned.'   class="trakquestitem" />
+    	</block>
+    	<!-- end td 1,21,2-->
+    	<!-- td 1,21,3-->
+    	<block width='28%' class="trakquestdisplayitem"  >
+    	<item value='' width='0%'  />
+    	</block>
+    	<!-- end td 1,21,3-->
+    	<item value='' width='0%'  />
+    </table>  <!-- endrow 1,21-->
+    	<table orient='col' width="100%" class="trakquestrow"  >  <!-- row 1,22-->
+    	<!-- td 1,22,1-->
+    	<block width='28%' class="trakquestdisplayitem"  >
+    	<item value='Stage 2'   class="trakquestitem" />
+    	</block>
+    	<!-- end td 1,22,1-->
+    	<!-- td 1,22,2-->
+    	<block width='42%' class="trakquestdisplayitem"  >
+    	<item value='Partial thickness skin loss of dermis presenting as a shallow, open ulcer with a red/pink wound bed, without slough. May be present as an intact or serum filled blister.'   class="trakquestitem" />
+    	</block>
+    	<!-- end td 1,22,2-->
+    	<!-- td 1,22,3-->
+    	<block width='28%' class="trakquestdisplayitem"  >
+    	<item value='' width='0%'  />
+    	</block>
+    	<!-- end td 1,22,3-->
+    	<item value='' width='0%'  />
+    </table>  <!-- endrow 1,22-->
+    	<table orient='col' width="100%" class="trakquestrow"  >  <!-- row 1,23-->
+    	<!-- td 1,23,1-->
+    	<block width='28%' class="trakquestdisplayitem"  >
+    	<item value='Stage 3'   class="trakquestitem" />
+    	</block>
+    	<!-- end td 1,23,1-->
+    	<!-- td 1,23,2-->
+    	<block width='42%' class="trakquestdisplayitem"  >
+    	<item value='Full thickness tissue loss. Subcutaneous fat may be visible, but bone, tendon and muscle are not exposed. Slough may be present but does not obscure depth of tissue loss.'   class="trakquestitem" />
+    	</block>
+    	<!-- end td 1,23,2-->
+    	<!-- td 1,23,3-->
+    	<block width='28%' class="trakquestdisplayitem"  >
+    	<item value='' width='0%'  />
+    	</block>
+    	<!-- end td 1,23,3-->
+    	<item value='' width='0%'  />
+    </table>  <!-- endrow 1,23-->
+    	<table orient='col' width="100%" class="trakquestrow"  >  <!-- row 1,24-->
+    	<!-- td 1,24,1-->
+    	<block width='28%' class="trakquestdisplayitem"  >
+    	<item value='Stage 4'   class="trakquestitem" />
+    	</block>
+    	<!-- end td 1,24,1-->
+    	<!-- td 1,24,2-->
+    	<block width='42%' class="trakquestdisplayitem"  >
+    	<item value='Full thickness tissue loss with exposed bone, tendon or muscle. Slough or eschar may be present.'   class="trakquestitem" />
+    	</block>
+    	<!-- end td 1,24,2-->
+    	<!-- td 1,24,3-->
+    	<block width='28%' class="trakquestdisplayitem"  >
+    	<item value='' width='0%'  />
+    	</block>
+    	<!-- end td 1,24,3-->
+    	<item value='' width='0%'  />
+    </table>  <!-- endrow 1,24-->
+    	<table orient='col' width="100%" class="trakquestrow"  >  <!-- row 1,25-->
+    	<!-- td 1,25,1-->
+    	<block width='28%' class="trakquestdisplayitem"  >
+    	<item value='' width='0%'  />
+    	</block>
+    	<!-- end td 1,25,1-->
+    	<!-- td 1,25,2-->
+    	<block width='42%' class="trakquestdisplayitem"  >
+    	<item value='Note: Accurate staging is not possible until necrotic tissue has sloughed or the wound debrided to expose base of the wound bed.'   class="trakquestitem" />
+    	</block>
+    	<!-- end td 1,25,2-->
+    	<!-- td 1,25,3-->
+    	<block width='28%' class="trakquestdisplayitem"  >
+    	<item value='' width='0%'  />
+    	</block>
+    	<!-- end td 1,25,3-->
+    	<item value='' width='0%'  />
+    </table>  <!-- endrow 1,25-->
+    	<table orient='col' width="100%" class="trakquestrow"  >  <!-- row 1,26-->
+    	<!-- td 1,26,1-->
+    	<block width='42%' class="trakquestdisplayitem"  >
+    	<item value='  '   class="trakquestitem" />
+    	</block>
+    	<!-- end td 1,26,1-->
+    	<!-- td 1,26,2-->
+    	<block width='28%' class="trakquestdisplayitem"  >
+    	<item value='' width='0%'  />
+    	</block>
+    	<!-- end td 1,26,2-->
+    	<!-- td 1,26,3-->
+    	<block width='28%' class="trakquestdisplayitem"  >
+    	<item value='' width='0%'  />
+    	</block>
+    	<!-- end td 1,26,3-->
+    	<item value='' width='0%'  />
+    </table>  <!-- endrow 1,26-->
+    	<table orient='col' width="100%" class="trakquestrow"  >  <!-- row 1,27-->
+    	<!-- td 1,27,1-->
+    	<block width='36%' class="trakquestdisplayitem" style='background-color: #cfcfcf' >
+    	<item value='Risk Assessment'   class="trakquestitem" />
+    	</block>
+    	<!-- end td 1,27,1-->
+    	<!-- td 1,27,2-->
+    	<block width='24%' class="trakquestdisplayitem" style='background-color: #cfcfcf' >
+    	<item value='Preventative Action (pt education/care)'   class="trakquestitem" />
+    	</block>
+    	<!-- end td 1,27,2-->
+    	<!-- td 1,27,3-->
+    	<block width='36%' class="trakquestdisplayitem" style='background-color: #cfcfcf' >
+    	<item value='Specific Action/Equipment'   class="trakquestitem" />
+    	</block>
+    	<!-- end td 1,27,3-->
+    	<item value='' width='0%'  />
+    </table>  <!-- endrow 1,27-->
+    	<table orient='col' width="100%" class="trakquestrow"  >  <!-- row 1,28-->
+    	<!-- td 1,28,1-->
+    	<block width='36%' class="trakquestdisplayitem" style='background-color: #efefef' >
+    	<item value='Mild Risk'   class="trakquestitem" />
+    	<item value=' ='   class="trakquestitem" />
+    	<item value='* Total Score 15-18'   class="trakquestitem" />
+    	<item value='* Activity '   class="trakquestitem" />
+    	<item value='&amp; Mobility Scores '   class="trakquestitem" />
+    	<item value='&gt; 2'   class="trakquestitem" />
+    	<item value='* No ulcers present'   class="trakquestitem" />
+    	<item value='* PT weight '   class="trakquestitem" />
+    	<item value='&lt; 120kg'   class="trakquestitem" />
+    	</block>
+    	<!-- end td 1,28,1-->
+    	<!-- td 1,28,2-->
+    	<block width='24%' class="trakquestdisplayitem" style='background-color: #efefef' >
+    	<item value='* Encourage regular repositioning.'   class="trakquestitem" />
+    	<item value='* Eliminate shear '   class="trakquestitem" />
+    	<item value='&amp; friction.'   class="trakquestitem" />
+    	<item value='* Protect bony prominences.'   class="trakquestitem" />
+    	<item value='* Manage incontinence, pain and nutritional/hydration deficits (avoid plastic backed pads).'   class="trakquestitem" />
+    	<item value='* Check for &apos;bottoming out&apos; of mattress.'   class="trakquestitem" />
+    	<item value='* Check and document skin condition daily.'   class="trakquestitem" />
+    	<item value='* Give and discuss pt info &apos;Bed Gym&apos;.'   class="trakquestitem" />
+    	<item value='  '   class="trakquestitem" />
+    	</block>
+    	<!-- end td 1,28,2-->
+    	<!-- td 1,28,3-->
+    	<block width='36%' class="trakquestdisplayitem" style='background-color: #efefef' >
+    	<item value='* Macmed static pressure reductions mattress.'   class="trakquestitem" />
+    	<item value='* Static overlays and gel pads are comfort devices and only used as such.'   class="trakquestitem" />
+    	<item value='* Heel wedge and referral to Podiatry if pts have Sensory Score '   class="trakquestitem" />
+    	<item value='&gt; 2, Foot Alert sticker, peripheral neuropathy or history of foot problem (other heel device if heel wedge unsuitable).'   class="trakquestitem" />
+    	</block>
+    	<!-- end td 1,28,3-->
+    	<item value='' width='0%'  />
+    </table>  <!-- endrow 1,28-->
+    	<table orient='col' width="100%" class="trakquestrow"  >  <!-- row 1,29-->
+    	<!-- td 1,29,1-->
+    	<block width='36%' class="trakquestdisplayitem" style='background-color: #efefef' >
+    	<item value='Moderate Risk'   class="trakquestitem" />
+    	<item value=' ='   class="trakquestitem" />
+    	<item value='* Total Score 13-14'   class="trakquestitem" />
+    	<item value='* Activity '   class="trakquestitem" />
+    	<item value='&amp; Mobility Scores '   class="trakquestitem" />
+    	<item value='&gt; 2'   class="trakquestitem" />
+    	<item value='* No ulcers present'   class="trakquestitem" />
+    	<item value='* PT weight '   class="trakquestitem" />
+    	<item value='&lt; 150kg'   class="trakquestitem" />
+    	</block>
+    	<!-- end td 1,29,1-->
+    	<!-- td 1,29,2-->
+    	<block width='24%' class="trakquestdisplayitem" style='background-color: #efefef' >
+    	<item value='As above plus'   class="trakquestitem" />
+    	<item value='* Supervise regular repositioning.'   class="trakquestitem" />
+    	<item value='* No more than 2 hours sitting in chair.'   class="trakquestitem" />
+    	<item value='* Consider referrals to Podiatry, OT, Wound Management and Nutrition if required.'   class="trakquestitem" />
+    	</block>
+    	<!-- end td 1,29,2-->
+    	<!-- td 1,29,3-->
+    	<block width='36%' class="trakquestdisplayitem" style='background-color: #efefef' >
+    	<item value='* Macmed static mattress.'   class="trakquestitem" />
+    	<item value='* Dynamic pressure relieving mattress (replacement or overlay used if pt weight, mobility is an issue).'   class="trakquestitem" />
+    	<item value='* Heel wedge and referral to Podiatry per indication above.'   class="trakquestitem" />
+    	</block>
+    	<!-- end td 1,29,3-->
+    	<item value='' width='0%'  />
+    </table>  <!-- endrow 1,29-->
+    	<table orient='col' width="100%" class="trakquestrow"  >  <!-- row 1,30-->
+    	<!-- td 1,30,1-->
+    	<block width='36%' class="trakquestdisplayitem" style='background-color: #efefef' >
+    	<item value='High Risk'   class="trakquestitem" />
+    	<item value=' = '   class="trakquestitem" />
+    	<item value='* Total Score 10-12  '   class="trakquestitem" />
+    	<item value='or'   class="trakquestitem" />
+    	<item value='* Activity '   class="trakquestitem" />
+    	<item value='&amp; Mobility Scores '   class="trakquestitem" />
+    	<item value='&lt;= 2  '   class="trakquestitem" />
+    	<item value='or'   class="trakquestitem" />
+    	<item value='* One ulcer present  '   class="trakquestitem" />
+    	<item value='or'   class="trakquestitem" />
+    	<item value='* PT weight '   class="trakquestitem" />
+    	<item value='&gt; 150kg'   class="trakquestitem" />
+    	</block>
+    	<!-- end td 1,30,1-->
+    	<!-- td 1,30,2-->
+    	<block width='24%' class="trakquestdisplayitem" style='background-color: #efefef' >
+    	<item value='As above plus'   class="trakquestitem" />
+    	<item value='* Documented turning schedule according to skin testing (areas of blanching redness to be checked for time to fade to estimate needs in both lying and sitting positions).'   class="trakquestitem" />
+    	<item value='* Aim for '   class="trakquestitem" />
+    	<item value='&lt; 2 hours sitting in chair and reposition half-hourly if chair bound.'   class="trakquestitem" />
+    	<item value='* Check function of any pressure relieving devices every shift and with position changes.'   class="trakquestitem" />
+    	<item value='* Ulcer present on the foot - refer to Podiatry.'   class="trakquestitem" />
+    	<item value='* For other ulcers consider referral to Wound Management.'   class="trakquestitem" />
+    	<item value='* For seating assessment refer to OT.'   class="trakquestitem" />
+    	<item value='* For dietary issues refer to Nutrition.'   class="trakquestitem" />
+    	<item value='  '   class="trakquestitem" />
+    	</block>
+    	<!-- end td 1,30,2-->
+    	<!-- td 1,30,3-->
+    	<block width='36%' class="trakquestdisplayitem" style='background-color: #efefef' >
+    	<item value='High Risk'   class="trakquestitem" />
+    	<item value='* Dynamic pressure relieving replacement mattress (Autologic or suitable hospital owned product).'   class="trakquestitem" />
+    	<item value='* Pressure relieving seat cushion if pt sits out of bed for extended periods if available.'   class="trakquestitem" />
+    	<item value='* Heel wedge and referral to Podiatry per indication above.'   class="trakquestitem" />
+    	</block>
+    	<!-- end td 1,30,3-->
+    	<item value='' width='0%'  />
+    </table>  <!-- endrow 1,30-->
+    	<table orient='col' width="100%" class="trakquestrow"  >  <!-- row 1,31-->
+    	<!-- td 1,31,1-->
+    	<block width='36%' class="trakquestdisplayitem" style='background-color: #efefef' >
+    	<item value='Severe Risk'   class="trakquestitem" />
+    	<item value=' = '   class="trakquestitem" />
+    	<item value='* Total Score '   class="trakquestitem" />
+    	<item value='&lt;= 9  '   class="trakquestitem" />
+    	<item value='or'   class="trakquestitem" />
+    	<item value='* Activity '   class="trakquestitem" />
+    	<item value='&amp; Mobility Scores '   class="trakquestitem" />
+    	<item value='&lt;= 2 '   class="trakquestitem" />
+    	<item value=' '   class="trakquestitem" />
+    	<item value='or'   class="trakquestitem" />
+    	<item value='* Multiple ulcers present '   class="trakquestitem" />
+    	<item value=' '   class="trakquestitem" />
+    	<item value='or'   class="trakquestitem" />
+    	<item value='* PT weight '   class="trakquestitem" />
+    	<item value='&gt;200kg  '   class="trakquestitem" />
+    	<item value='or'   class="trakquestitem" />
+    	<item value='* Multiple trauma, burns'   class="trakquestitem" />
+    	</block>
+    	<!-- end td 1,31,1-->
+    	<!-- td 1,31,2-->
+    	<block width='24%' class="trakquestdisplayitem" style='background-color: #efefef' >
+    	<item value='As above'   class="trakquestitem" />
+    	<item value=' '   class="trakquestitem" />
+    	<item value='Note'   class="trakquestitem" />
+    	<item value=': Existing or new pressure ulcers documented (please tick)'   class="trakquestitem" />
+    	<item value=' '   class="trakquestitem" />
+    	</block>
+    	<!-- end td 1,31,2-->
+    	<!-- td 1,31,3-->
+    	<block width='36%' class="trakquestdisplayitem" style='background-color: #efefef' >
+    	<item value='Severe Risk'   class="trakquestitem" />
+    	<item value='* Nimbus pressure relieving replacement mattress.'   class="trakquestitem" />
+    	<item value='* Heel wedge and referral to Podiatry per indication above.'   class="trakquestitem" />
+    	</block>
+    	<!-- end td 1,31,3-->
+    	<item value='' width='0%'  />
+    </table>  <!-- endrow 1,31-->
+    	<table orient='col' width="100%" class="trakquestrow"  >  <!-- row 1,32-->
+    	<!-- td 1,32,1-->
+    	<block width='36%' class="trakquestdisplayitem" style='background-color: #efefef' >
+    	<item value='' width='0%'  />
+    	</block>
+    	<!-- end td 1,32,1-->
+    	<!-- td 1,32,2-->
+    	<block width='24%' class="trakquestdisplayborder" style='background-color: #efefef' >
+    <table  class="trakquestdisplayitem"   orient='row'  ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QPUDoc", ",") ))  ' >
+     
+ <table  width='100%' orient='col' class='trakquesttable'  >  
+<!--  ## MR: In medical record ## -->
+<block width='25%' class='trakquestdisplayitem'>
+  <item class="trakquestwingdingsitem" field="QPUDocMR" />
+  <item  value='In medical record' >
+  </item>
+</block>
+<!--  ## IF: An Incident Form completed ## -->
+<block width='25%' class='trakquestdisplayitem'>
+  <item class="trakquestwingdingsitem" field="QPUDocIF" />
+  <item  value='An Incident Form completed' >
+  </item>
+</block>
+<!--  ## WC: Wound Care Chart commenced ## -->
+<block width='25%' class='trakquestdisplayitem'>
+  <item class="trakquestwingdingsitem" field="QPUDocWC" />
+  <item  value='Wound Care Chart commenced' >
+  </item>
+</block>
+</table>
+<table class='trakquestdisplayitem' width='100%' ><item value='&#160;' height='5px'  /></table> 
+    </table>
+    	</block>
+    	<!-- end td 1,32,2-->
+    	<!-- td 1,32,3-->
+    	<block width='36%' class="trakquestdisplayitem" style='background-color: #efefef' >
+    	<item value='' width='0%'  />
+    	</block>
+    	<!-- end td 1,32,3-->
+    	<item value='' width='0%'  />
+    </table>  <!-- endrow 1,32-->
+    	<table orient='col' width="100%" class="trakquestrow"  >  <!-- row 1,33-->
+    	<!-- td 1,33,1-->
+    	<block width='42%' class="trakquestdisplayitem"  >
+    	<item value='  '   class="trakquestitem" />
+    	</block>
+    	<!-- end td 1,33,1-->
+    	<!-- td 1,33,2-->
+    	<block width='28%' class="trakquestdisplayitem"  >
+    	<item value='' width='0%'  />
+    	</block>
+    	<!-- end td 1,33,2-->
+    	<!-- td 1,33,3-->
+    	<block width='28%' class="trakquestdisplayitem"  >
+    	<item value='' width='0%'  />
+    	</block>
+    	<!-- end td 1,33,3-->
+    	<item value='' width='0%'  />
+    </table>  <!-- endrow 1,33-->
+    	<table orient='col' width="100%" class="trakquestrow"  >  <!-- row 1,34-->
+    	<!-- td 1,34,1-->
+    	<block width='42%' class="trakquestdisplayitem"  >
+    	<item value='' width='0%'  />
+    	</block>
+    	<!-- end td 1,34,1-->
+    	<!-- td 1,34,2-->
+    	<block width='28%' class="trakquestdisplayitem"  >
+    	<item value='' width='0%'  />
+    	</block>
+    	<!-- end td 1,34,2-->
+    	<!-- td 1,34,3-->
+    	<block width='28%' class="trakquestdisplayitem"  >
+    	<item value='' width='0%'  />
+    	</block>
+    	<!-- end td 1,34,3-->
+    	<item value='' width='0%'  />
+    </table>  <!-- endrow 1,34-->
+    	<table orient='col' width="100%" class="trakquestrow"  >  <!-- row 1,35-->
+    	<!-- td 1,35,1-->
+    	<block width='42%' class="trakquestdisplayitem"  >
+    	<item value='' width='0%'  />
+    	</block>
+    	<!-- end td 1,35,1-->
+    	<!-- td 1,35,2-->
+    	<block width='28%' class="trakquestdisplayitem"  >
+    	<item value='' width='0%'  />
+    	</block>
+    	<!-- end td 1,35,2-->
+    	<!-- td 1,35,3-->
+    	<block width='28%' class="trakquestdisplayitem"  >
+    	<item value='' width='0%'  />
+    	</block>
+    	<!-- end td 1,35,3-->
+    	<item value='' width='0%'  />
+    </table>  <!-- endrow 1,35-->
+    	<table orient='col' width="100%" class="trakquestrow"  >  <!-- row 1,36-->
+    	<!-- td 1,36,1-->
+    	<block width='42%' class="trakquestdisplayitem"  >
+    	<item value='' width='0%'  />
+    	</block>
+    	<!-- end td 1,36,1-->
+    	<!-- td 1,36,2-->
+    	<block width='56%' class="trakquestdisplayitem"  >
+    	<item value='' width='0%'  />
+    	</block>
+    	<!-- end td 1,36,2-->
+    	<item value='' width='0%'  />
+    </table>  <!-- endrow 1,36-->
+    	<table orient='col' width="100%" class="trakquestrow"  >  <!-- row 1,37-->
+    	<!-- td 1,37,1-->
+    	<block width='96%' class="trakquestdisplayitem"  >
+    	<item value='' width='0%'  />
+    	</block>
+    	<!-- end td 1,37,1-->
+    	<item value='' width='0%'  />
+    </table>  <!-- endrow 1,37-->
+    	<table orient='col' width="100%" class="trakquestrow"  >  <!-- row 1,38-->
+    	<!-- td 1,38,1-->
+    	<block width='96%' class="trakquestdisplayitem"  >
+    	<item value='' width='0%'  />
+    	</block>
+    	<!-- end td 1,38,1-->
+    	<item value='' width='0%'  />
+    </table>  <!-- endrow 1,38-->
+    	<table orient='col' width="100%" class="trakquestrow"  >  <!-- row 1,39-->
+    	<!-- td 1,39,1-->
+    	<block width='42%' class="trakquestdisplayitem"  >
+    	<item value='  '   class="trakquestitem" />
+    	</block>
+    	<!-- end td 1,39,1-->
+    	<!-- td 1,39,2-->
+    	<block width='28%' class="trakquestdisplayitem"  >
+    	<item value='' width='0%'  />
+    	</block>
+    	<!-- end td 1,39,2-->
+    	<!-- td 1,39,3-->
+    	<block width='28%' class="trakquestdisplayitem"  >
+    	<item value='' width='0%'  />
+    	</block>
+    	<!-- end td 1,39,3-->
+    	<item value='' width='0%'  />
+    </table>  <!-- endrow 1,39-->
+    	<table orient='col' width="100%" class="trakquestrow"  >  <!-- row 1,40-->
+    	<!-- td 1,40,1-->
+    	<block width='70%' class="trakquestdisplayitem" style='background-color: #dfdfdf' >
+    	<item value='Guidelines for Periodic Assessment and Reassessment'   class="trakquestitem" />
+    	<item value='* Surgical Patients - on admission (or pre-admission), post operative day 1, then weekly.'   class="trakquestitem" />
+    	<item value='* Medical Patients - on admission, 48 hours after admission, then weekly.'   class="trakquestitem" />
+    	<item value='* ICU patients - may require daily or each shift if unstable.'   class="trakquestitem" />
+    	<item value='* Aged Care Facility Clients - on admission, then monthly as part of Resident of the Day.'   class="trakquestitem" />
+    	<item value='** Reassessment should '   class="trakquestitem" />
+    	<item value='also'   class="trakquestitem" />
+    	<item value=' be done '   class="trakquestitem" />
+    	<item value='whenever a person&apos;s condition changes'   class="trakquestitem" />
+    	<item value='.'   class="trakquestitem" />
+    	</block>
+    	<!-- end td 1,40,1-->
+    	<!-- td 1,40,2-->
+    	<block width='28%' class="trakquestdisplayitem" style='background-color: #dfdfdf' >
+    	<item value='Note'   class="trakquestitem" />
+    	<item value=':'   class="trakquestitem" />
+    	<item value='If mattress bottoming out, you are able to feel weight of buttocks / hip on your hand under mattress. '   class="trakquestitem" />
+    	<item value='Check both lying and sitting position.'   class="trakquestitem" />
+    	</block>
+    	<!-- end td 1,40,2-->
+    	<item value='' width='0%'  />
+    </table>  <!-- endrow 1,40-->
+    	<table orient='col' width="100%" class="trakquestrow"  >  <!-- row 1,41-->
+    	<!-- td 1,41,1-->
+    	<block width='42%' class="trakquestdisplayitem"  >
+    	<item value='' width='0%'  />
+    	</block>
+    	<!-- end td 1,41,1-->
+    	<!-- td 1,41,2-->
+    	<block width='28%' class="trakquestdisplayitem"  >
+    	<item value='' width='0%'  />
+    	</block>
+    	<!-- end td 1,41,2-->
+    	<!-- td 1,41,3-->
+    	<block width='28%' class="trakquestdisplayitem"  >
+    	<item value='' width='0%'  />
+    	</block>
+    	<!-- end td 1,41,3-->
+    	<item value='' width='0%'  />
+    </table>  <!-- endrow 1,41-->
+    	<table orient='col' width="100%" class="trakquestrow"  >  <!-- row 1,42-->
+    	<!-- td 1,42,1-->
+    	<block width='42%' class="trakquestdisplayitem"  >
+    	<item value='' width='0%'  />
+    	</block>
+    	<!-- end td 1,42,1-->
+    	<!-- td 1,42,2-->
+    	<block width='28%' class="trakquestdisplayitem"  >
+    	<item value='' width='0%'  />
+    	</block>
+    	<!-- end td 1,42,2-->
+    	<!-- td 1,42,3-->
+    	<block width='28%' class="trakquestdisplayitem"  >
+    	<item value='' width='0%'  />
+    	</block>
+    	<!-- end td 1,42,3-->
+    	<item value='' width='0%'  />
+    </table>  <!-- endrow 1,42-->
+    	<table orient='col' width="100%" class="trakquestrow"  >  <!-- row 1,43-->
+    	<!-- td 1,43,1-->
+    	<block width='42%' class="trakquestdisplayitem"  >
+    	<item value='  '   class="trakquestitem" />
+    	</block>
+    	<!-- end td 1,43,1-->
+    	<!-- td 1,43,2-->
+    	<block width='28%' class="trakquestdisplayitem"  >
+    	<item value='' width='0%'  />
+    	</block>
+    	<!-- end td 1,43,2-->
+    	<!-- td 1,43,3-->
+    	<block width='28%' class="trakquestdisplayitem"  >
+    	<item value='' width='0%'  />
+    	</block>
+    	<!-- end td 1,43,3-->
+    	<item value='' width='0%'  />
+    </table>  <!-- endrow 1,43-->
+    	<table orient='col' width="100%" class="trakquestrow"  >  <!-- row 1,44-->
+    	<!-- td 1,44,1-->
+    	<block width='42%' class="trakquestdisplayitem"  >
+    	<item value='' width='0%'  />
+    	</block>
+    	<!-- end td 1,44,1-->
+    	<!-- td 1,44,2-->
+    	<block width='28%' class="trakquestdisplayitem"  >
+    	<item value='' width='0%'  />
+    	</block>
+    	<!-- end td 1,44,2-->
+    	<!-- td 1,44,3-->
+    	<block width='14%' class="trakquestdisplayitem"  >
+    <item  class="trakquestcaptionitem"  value='Status' 
+       ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QUESStatusDR", ",") )) ' />
+    	</block>
+    	<!-- end td 1,44,3-->
+    	<!-- td 1,44,4-->
+    	<block width='14%' class="trakquestdisplayborder"  >
+    <table  class="trakquestdisplayitem"     ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QUESStatusDR", ",") ))  ' >
+     <item  class="trakquestitem"  field='QUESStatusDR' />
+    </table>
+    	</block>
+    	<!-- end td 1,44,4-->
+    	<item value='' width='0%'  />
+    </table>  <!-- endrow 1,44-->
+    	<table orient='col' width="100%" class="trakquestrow"  >  <!-- row 1,45-->
+    	<!-- td 1,45,1-->
+    	<block width='42%' class="trakquestdisplayitem"  >
+    	<item value='' width='0%'  />
+    	</block>
+    	<!-- end td 1,45,1-->
+    	<!-- td 1,45,2-->
+    	<block width='28%' class="trakquestdisplayitem"  >
+    	<item value='' width='0%'  />
+    	</block>
+    	<!-- end td 1,45,2-->
+    	<!-- td 1,45,3-->
+    	<block width='14%' class="trakquestdisplayitem"  >
+    <item  class="trakquestcaptionitem"  value='User' 
+       ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "UserName", ",") )) ' />
+    	</block>
+    	<!-- end td 1,45,3-->
+    	<!-- td 1,45,4-->
+    	<block width='14%' class="trakquestdisplayborder"  >
+    <table  class="trakquestdisplayitem"     ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "UserName", ",") ))  ' >
+     <item  class="trakquestitem"  field='UserName' />
+    </table>
+    	</block>
+    	<!-- end td 1,45,4-->
+    	<item value='' width='0%'  />
+    </table>  <!-- endrow 1,45-->
+    	<table orient='col' width="100%" class="trakquestrow"  >  <!-- row 1,46-->
+    	<!-- td 1,46,1-->
+    	<block width='42%' class="trakquestdisplayitem"  >
+    	<item value='' width='0%'  />
+    	</block>
+    	<!-- end td 1,46,1-->
+    	<!-- td 1,46,2-->
+    	<block width='28%' class="trakquestdisplayitem"  >
+    	<item value='' width='0%'  />
+    	</block>
+    	<!-- end td 1,46,2-->
+    	<!-- td 1,46,3-->
+    	<block width='14%' class="trakquestdisplayitem"  >
+    	<item value='' width='0%'  />
+    	</block>
+    	<!-- end td 1,46,3-->
+    	<!-- td 1,46,4-->
+    	<block width='14%' class="trakquestdisplayitem"  >
+    	<item value='' width='0%'  />
+    	</block>
+    	<!-- end td 1,46,4-->
+    	<item value='' width='0%'  />
+    </table>  <!-- endrow 1,46-->
+    	<table orient='col' width="100%" class="trakquestrow"  >  <!-- row 1,47-->
+    	<!-- td 1,47,1-->
+    	<block width='42%' class="trakquestdisplayitem"  >
+    	<item value='' width='0%'  />
+    	</block>
+    	<!-- end td 1,47,1-->
+    	<!-- td 1,47,2-->
+    	<block width='28%' class="trakquestdisplayitem"  >
+    	<item value='' width='0%'  />
+    	</block>
+    	<!-- end td 1,47,2-->
+    	<!-- td 1,47,3-->
+    	<block width='14%' class="trakquestdisplayitem"  >
+    	<item value='' width='0%'  />
+    	</block>
+    	<!-- end td 1,47,3-->
+    	<!-- td 1,47,4-->
+    	<block width='14%' class="trakquestdisplayitem"  >
+    	<item value='' width='0%'  />
+    	</block>
+    	<!-- end td 1,47,4-->
+    	<item value='' width='0%'  />
+    </table>  <!-- endrow 1,47-->
+    	<table orient='col' width="100%" class="trakquestrow"  >  <!-- row 1,48-->
+    	<!-- td 1,48,1-->
+    	<block width='42%' class="trakquestdisplayitem"  >
+    	<item value='' width='0%'  />
+    	</block>
+    	<!-- end td 1,48,1-->
+    	<!-- td 1,48,2-->
+    	<block width='28%' class="trakquestdisplayitem"  >
+    	<item value='' width='0%'  />
+    	</block>
+    	<!-- end td 1,48,2-->
+    	<!-- td 1,48,3-->
+    	<block width='14%' class="trakquestdisplayitem"  >
+    	<item value='' width='0%'  />
+    	</block>
+    	<!-- end td 1,48,3-->
+    	<!-- td 1,48,4-->
+    	<block width='14%' class="trakquestdisplayitem"  >
+    	<item value='' width='0%'  />
+    	</block>
+    	<!-- end td 1,48,4-->
+    	<item value='' width='0%'  />
+    </table>  <!-- endrow 1,48-->
+    	<table orient='col' width="100%" class="trakquestrow"  >  <!-- row 1,49-->
+    	<!-- td 1,49,1-->
+    	<block width='42%' class="trakquestdisplayitem"  >
+    	<item value='' width='0%'  />
+    	</block>
+    	<!-- end td 1,49,1-->
+    	<!-- td 1,49,2-->
+    	<block width='28%' class="trakquestdisplayitem"  >
+    	<item value='' width='0%'  />
+    	</block>
+    	<!-- end td 1,49,2-->
+    	<!-- td 1,49,3-->
+    	<block width='28%' class="trakquestdisplayitem"  >
+    	<item value='' width='0%'  />
+    	</block>
+    	<!-- end td 1,49,3-->
+    	<item value='' width='0%'  />
+    </table>  <!-- endrow 1,49-->
+    	<table orient='col' width="100%" class="trakquestrow"  >  <!-- row 1,50-->
+    	<!-- td 1,50,1-->
+    	<block width='42%' class="trakquestdisplayitem"  >
+    	<item value='' width='0%'  />
+    	</block>
+    	<!-- end td 1,50,1-->
+    	<!-- td 1,50,2-->
+    	<block width='28%' class="trakquestdisplayitem"  >
+    	<item value='' width='0%'  />
+    	</block>
+    	<!-- end td 1,50,2-->
+    	<!-- td 1,50,3-->
+    	<block width='28%' class="trakquestdisplayitem"  >
+    	<item value='' width='0%'  />
+    	</block>
+    	<!-- end td 1,50,3-->
+    	<item value='' width='0%'  />
+    </table>  <!-- endrow 1,50-->
+    	<table orient='col' width="100%" class="trakquestrow"  >  <!-- row 1,51-->
+    	<!-- td 1,51,1-->
+    	<block width='42%' class="trakquestdisplayitem"  >
+    <item  class="trakquestcaptionitem"  value='Reason For Correction (Display)' 
+       ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QUESReasForCorrDisplay", ",") )) ' />
+    <item value=': '  class="trakquestitem"  />
+    <table  class="trakquestdisplayonlyitem"     ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QUESReasForCorrDisplay", ",") ))  ' >
+     <item  class="trakquestitem"  field='QUESReasForCorrDisplay' />
+    </table>
+    	</block>
+    	<!-- end td 1,51,1-->
+    	<!-- td 1,51,2-->
+    	<block width='28%' class="trakquestdisplayitem"  >
+    	<item value='' width='0%'  />
+    	</block>
+    	<!-- end td 1,51,2-->
+    	<!-- td 1,51,3-->
+    	<block width='28%' class="trakquestdisplayitem"  >
+    	<item value='' width='0%'  />
+    	</block>
+    	<!-- end td 1,51,3-->
+    	<item value='' width='0%'  />
+    </table>  <!-- endrow 1,51-->
+    	<table orient='col' width="100%" class="trakquestrow"  >  <!-- row 1,52-->
+    	<!-- td 1,52,1-->
+    	<block width='42%' class="trakquestdisplayitem"  >
+    <item  class="trakquestcaptionitem"  value='Reason For Correction' 
+       ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QUESReasonForCorrectionDR", ",") )) ' />
+    <item value=': '  class="trakquestitem"  />
+    <table  class="trakquestdisplayitem"     ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QUESReasonForCorrectionDR", ",") ))  ' >
+     <item  class="trakquestitem"  field='QUESReasonForCorrectionDR' />
+    </table>
+    	</block>
+    	<!-- end td 1,52,1-->
+    	<!-- td 1,52,2-->
+    	<block width='28%' class="trakquestdisplayitem"  >
+    	<item value='' width='0%'  />
+    	</block>
+    	<!-- end td 1,52,2-->
+    	<!-- td 1,52,3-->
+    	<block width='28%' class="trakquestdisplayitem"  >
+    	<item value='' width='0%'  />
+    	</block>
+    	<!-- end td 1,52,3-->
+    	<item value='' width='0%'  />
+    </table>  <!-- endrow 1,52-->
+    	<table orient='col' width="100%" class="trakquestrow"  >  <!-- row 1,53-->
+    	<!-- td 1,53,1-->
+    	<block width='42%' class="trakquestdisplayitem"  >
+    	<item value='  '   class="trakquestitem" />
+    	</block>
+    	<!-- end td 1,53,1-->
+    	<!-- td 1,53,2-->
+    	<block width='28%' class="trakquestdisplayitem"  >
+    	<item value='' width='0%'  />
+    	</block>
+    	<!-- end td 1,53,2-->
+    	<!-- td 1,53,3-->
+    	<block width='28%' class="trakquestdisplayitem"  >
+    	<item value='' width='0%'  />
+    	</block>
+    	<!-- end td 1,53,3-->
+    	<item value='' width='0%'  />
+    </table>  <!-- endrow 1,53-->
+    	<table orient='col' width="100%" class="trakquestrow"  >  <!-- row 1,54-->
+    	<!-- td 1,54,1-->
+    	<block width='42%' class="trakquestdisplayitem"  >
+    	<item value='' width='0%'  />
+    	</block>
+    	<!-- end td 1,54,1-->
+    	<!-- td 1,54,2-->
+    	<block width='28%' class="trakquestdisplayitem"  >
+    	<item value='' width='0%'  />
+    	</block>
+    	<!-- end td 1,54,2-->
+    	<!-- td 1,54,3-->
+    	<block width='28%' class="trakquestdisplayitem"  >
+    	<item value='' width='0%'  />
+    	</block>
+    	<!-- end td 1,54,3-->
+    	<item value='' width='0%'  />
+    </table>  <!-- endrow 1,54-->
+    	<table orient='col' width="100%" class="trakquestrow"  >  <!-- row 1,55-->
+    	<!-- td 1,55,1-->
+    	<block width='42%' class="trakquestdisplayitem"  >
+    <item  class="trakquestcaptionitem"  value='Creation Date' 
+       ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QUESCreateDate", ",") )) ' />
+    <item value=': '  class="trakquestitem"  />
+    <table  class="trakquestdisplayonlyitem"     ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QUESCreateDate", ",") ))  ' >
+     <item  class="trakquestitem"  field='QUESCreateDate' />
+    </table>
+    	</block>
+    	<!-- end td 1,55,1-->
+    	<!-- td 1,55,2-->
+    	<block width='28%' class="trakquestdisplayitem"  >
+    	<item value='' width='0%'  />
+    	</block>
+    	<!-- end td 1,55,2-->
+    	<!-- td 1,55,3-->
+    	<block width='28%' class="trakquestdisplayitem"  >
+    	<item value='' width='0%'  />
+    	</block>
+    	<!-- end td 1,55,3-->
+    	<item value='' width='0%'  />
+    </table>  <!-- endrow 1,55-->
+    	<table orient='col' width="100%" class="trakquestrow"  >  <!-- row 1,56-->
+    	<!-- td 1,56,1-->
+    	<block width='42%' class="trakquestdisplayitem"  >
+    <item  class="trakquestcaptionitem"  value='Creation Time' 
+       ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QUESCreateTime", ",") )) ' />
+    <item value=': '  class="trakquestitem"  />
+    <table  class="trakquestdisplayonlyitem"     ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QUESCreateTime", ",") ))  ' >
+     <item  class="trakquestitem"  field='QUESCreateTime' />
+    </table>
+    	</block>
+    	<!-- end td 1,56,1-->
+    	<!-- td 1,56,2-->
+    	<block width='28%' class="trakquestdisplayitem"  >
+    	<item value='' width='0%'  />
+    	</block>
+    	<!-- end td 1,56,2-->
+    	<!-- td 1,56,3-->
+    	<block width='28%' class="trakquestdisplayitem"  >
+    	<item value='' width='0%'  />
+    	</block>
+    	<!-- end td 1,56,3-->
+    	<item value='' width='0%'  />
+    </table>  <!-- endrow 1,56-->
+    	<table orient='col' width="100%" class="trakquestrow"  >  <!-- row 1,57-->
+    	<!-- td 1,57,1-->
+    	<block width='42%' class="trakquestdisplayitem"  >
+    <item  class="trakquestcaptionitem"  value='Creation User' 
+       ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QUESCreateUser", ",") )) ' />
+    <item value=': '  class="trakquestitem"  />
+    <table  class="trakquestdisplayonlyitem"     ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QUESCreateUser", ",") ))  ' >
+     <item  class="trakquestitem"  field='QUESCreateUser' />
+    </table>
+    	</block>
+    	<!-- end td 1,57,1-->
+    	<!-- td 1,57,2-->
+    	<block width='28%' class="trakquestdisplayitem"  >
+    	<item value='' width='0%'  />
+    	</block>
+    	<!-- end td 1,57,2-->
+    	<!-- td 1,57,3-->
+    	<block width='28%' class="trakquestdisplayitem"  >
+    	<item value='' width='0%'  />
+    	</block>
+    	<!-- end td 1,57,3-->
+    	<item value='' width='0%'  />
+    </table>  <!-- endrow 1,57-->
+    	<table orient='col' width="100%" class="trakquestrow"  >  <!-- row 1,58-->
+    	<!-- td 1,58,1-->
+    	<block width='42%' class="trakquestdisplayitem"  >
+    	<item value='  '   class="trakquestitem" />
+    	</block>
+    	<!-- end td 1,58,1-->
+    	<!-- td 1,58,2-->
+    	<block width='28%' class="trakquestdisplayitem"  >
+    	<item value='' width='0%'  />
+    	</block>
+    	<!-- end td 1,58,2-->
+    	<!-- td 1,58,3-->
+    	<block width='28%' class="trakquestdisplayitem"  >
+    	<item value='' width='0%'  />
+    	</block>
+    	<!-- end td 1,58,3-->
+    	<item value='' width='0%'  />
+    </table>  <!-- endrow 1,58-->
+    	<table orient='col' width="100%" class="trakquestrow"  >  <!-- row 1,59-->
+    	<!-- td 1,59,1-->
+    	<block width='42%' class="trakquestdisplayitem"  >
+    <item  class="trakquestcaptionitem"  value='Last Update Date' 
+       ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QUESDate", ",") )) ' />
+    <item value=': '  class="trakquestitem"  />
+    <table  class="trakquestdisplayonlyitem"     ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QUESDate", ",") ))  ' >
+     <item  class="trakquestitem"  field='QUESDate' />
+    </table>
+    	</block>
+    	<!-- end td 1,59,1-->
+    	<!-- td 1,59,2-->
+    	<block width='28%' class="trakquestdisplayitem"  >
+    	<item value='' width='0%'  />
+    	</block>
+    	<!-- end td 1,59,2-->
+    	<!-- td 1,59,3-->
+    	<block width='28%' class="trakquestdisplayitem"  >
+    	<item value='' width='0%'  />
+    	</block>
+    	<!-- end td 1,59,3-->
+    	<item value='' width='0%'  />
+    </table>  <!-- endrow 1,59-->
+    	<table orient='col' width="100%" class="trakquestrow"  >  <!-- row 1,60-->
+    	<!-- td 1,60,1-->
+    	<block width='42%' class="trakquestdisplayitem"  >
+    <item  class="trakquestcaptionitem"  value='Last Update Time' 
+       ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QUESTime", ",") )) ' />
+    <item value=': '  class="trakquestitem"  />
+    <table  class="trakquestdisplayonlyitem"     ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QUESTime", ",") ))  ' >
+     <item  class="trakquestitem"  field='QUESTime' />
+    </table>
+    	</block>
+    	<!-- end td 1,60,1-->
+    	<!-- td 1,60,2-->
+    	<block width='28%' class="trakquestdisplayitem"  >
+    	<item value='' width='0%'  />
+    	</block>
+    	<!-- end td 1,60,2-->
+    	<!-- td 1,60,3-->
+    	<block width='28%' class="trakquestdisplayitem"  >
+    	<item value='' width='0%'  />
+    	</block>
+    	<!-- end td 1,60,3-->
+    	<item value='' width='0%'  />
+    </table>  <!-- endrow 1,60-->
+    	<table orient='col' width="100%" class="trakquestrow"  >  <!-- row 1,61-->
+    	<!-- td 1,61,1-->
+    	<block width='42%' class="trakquestdisplayitem"  >
+    <item  class="trakquestcaptionitem"  value='Last Update User' 
+       ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QUESUser", ",") )) ' />
+    <item value=': '  class="trakquestitem"  />
+    <table  class="trakquestdisplayonlyitem"     ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QUESUser", ",") ))  ' >
+     <item  class="trakquestitem"  field='QUESUser' />
+    </table>
+    	</block>
+    	<!-- end td 1,61,1-->
+    	<!-- td 1,61,2-->
+    	<block width='28%' class="trakquestdisplayitem"  >
+    	<item value='' width='0%'  />
+    	</block>
+    	<!-- end td 1,61,2-->
+    	<!-- td 1,61,3-->
+    	<block width='28%' class="trakquestdisplayitem"  >
+    	<item value='' width='0%'  />
+    	</block>
+    	<!-- end td 1,61,3-->
+    	<item value='' width='0%'  />
+    </table>  <!-- endrow 1,61-->
+    	<table orient='col' width="100%" class="trakquestrow"  >  <!-- row 1,62-->
+    	<!-- td 1,62,1-->
+    	<block width='42%' class="trakquestdisplayitem"  >
+    	<item value='' width='0%'  />
+    	</block>
+    	<!-- end td 1,62,1-->
+    	<!-- td 1,62,2-->
+    	<block width='28%' class="trakquestdisplayitem"  >
+    	<item value='' width='0%'  />
+    	</block>
+    	<!-- end td 1,62,2-->
+    	<!-- td 1,62,3-->
+    	<block width='28%' class="trakquestdisplayitem"  >
+    	<item value='' width='0%'  />
+    	</block>
+    	<!-- end td 1,62,3-->
+    	<item value='' width='0%'  />
+    </table>  <!-- endrow 1,62-->
+    	<table orient='col' width="100%" class="trakquestrow"  >  <!-- row 1,63-->
+    	<!-- td 1,63,1-->
+    	<block width='42%' class="trakquestdisplayitem"  >
+    	<item value='' width='0%'  />
+    	</block>
+    	<!-- end td 1,63,1-->
+    	<!-- td 1,63,2-->
+    	<block width='28%' class="trakquestdisplayitem"  >
+    	<item value='' width='0%'  />
+    	</block>
+    	<!-- end td 1,63,2-->
+    	<!-- td 1,63,3-->
+    	<block width='28%' class="trakquestdisplayitem"  >
+    	<item value='' width='0%'  />
+    	</block>
+    	<!-- end td 1,63,3-->
+    	<item value='' width='0%'  />
+    </table>  <!-- endrow 1,63-->
+    	<table orient='col' width="100%" class="trakquestrow"  >  <!-- row 1,64-->
+    	<!-- td 1,64,1-->
+    	<block width='42%' class="trakquestdisplayitem"  >
+    	<item value='' width='0%'  />
+    	</block>
+    	<!-- end td 1,64,1-->
+    	<!-- td 1,64,2-->
+    	<block width='28%' class="trakquestdisplayitem"  >
+    	<item value='' width='0%'  />
+    	</block>
+    	<!-- end td 1,64,2-->
+    	<!-- td 1,64,3-->
+    	<block width='28%' class="trakquestdisplayitem"  >
+    	<item value='' width='0%'  />
+    	</block>
+    	<!-- end td 1,64,3-->
+    	<item value='' width='0%'  />
+    </table>  <!-- endrow 1,64-->
+    	<table orient='col' width="100%" class="trakquestrow"  >  <!-- row 1,65-->
+    	<!-- td 1,65,1-->
+    	<block width='42%' class="trakquestdisplayitem"  >
+    	<item value='' width='0%'  />
+    	</block>
+    	<!-- end td 1,65,1-->
+    	<!-- td 1,65,2-->
+    	<block width='28%' class="trakquestdisplayitem"  >
+    	<item value='' width='0%'  />
+    	</block>
+    	<!-- end td 1,65,2-->
+    	<!-- td 1,65,3-->
+    	<block width='28%' class="trakquestdisplayitem"  >
+    	<item value='' width='0%'  />
+    	</block>
+    	<!-- end td 1,65,3-->
+    	<item value='' width='0%'  />
+    </table>  <!-- endrow 1,65-->
+    	<item value='' width='0%'  />
+    </table> <!-- end table1 -->
+	  </group>
+	<!-- child table  -->
+	<call method='DisplayChildTableQStaging' subreportname='ChildQStaging' subreport='QStaging' /> 
+	 </table>
+	</body>
+</report>
+]]></Data>
+</XData>
+
+<XData name="XslFoXslt">
+<XMLNamespace>http://www.intersystems.com/zen/report/display</XMLNamespace>
+<Data><![CDATA[
+<zenxslt>
+ <xsl:template name='stylealtcolor' >
+	<xsl:param name='num'/>
+	<xsl:if test='$num mod 2 = 0'>
+		<xsl:attribute name='background-color'>#DDDDDD</xsl:attribute>
+	</xsl:if>
+ </xsl:template>
+ <xsl:template name="ScaleImages" >
+	<xsl:param name="src"/>
+	<xsl:param name="heightval"/>
+	<xsl:param name="widthval"/>
+	<fo:block>
+		<fo:external-graphic>
+			<xsl:attribute name="src">
+				<xsl:value-of select="$src"/>
+			</xsl:attribute>
+			<xsl:attribute name='position'>absolute</xsl:attribute>
+			<xsl:attribute name='content-height'>
+				<xsl:value-of select="$heightval"/>
+			</xsl:attribute>
+			<xsl:attribute name='content-width'>
+				<xsl:value-of select="$widthval" />
+			</xsl:attribute>
+		</fo:external-graphic>
+	</fo:block>
+ </xsl:template>
+</zenxslt>
+]]></Data>
+</XData>
+</Class>
+</Export>

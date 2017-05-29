@@ -1,0 +1,342 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.SWARHCUS85aAfterHoursManPlan">
+<ClassType/>
+<ProcedureBlock>0</ProcedureBlock>
+<Super>%Library.RegisteredObject,%XML.Adaptor</Super>
+<TimeCreated>61780,60132.548074</TimeCreated>
+<Inheritance>right</Inheritance>
+
+<Method name="AfterHoursManPlanClose">
+<Description>
+This is the Close component of the %Library.Query.
+This is standard code and should never have to change.
+This is where all the cleanup is performed, i.e. the purging of the temporary storage global ^CacheTemp.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>QHandle:%Library.Binary</FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Clean up by purging the temporary node in ^CacheTemp global
+ New repid
+ Set repid=$li(QHandle,2)
+ Kill ^CacheTemp(repid)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="AfterHoursManPlanExecute">
+<Description>
+This is the Execute section for the %Library.Query. 
+All of the logic will be performed here.
+A new node for the ^CacheTemp global will be created and each subscript of this global will contain
+a row for the report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,QID:%Integer,EpisodeID:%Integer]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+	
+ k ^zbernard	
+ // Get reportid i.e. use $INCREMENT to add another node to ^CacheTemp global. 
+ // We use ^CacheTemp global because it will always use memory before disk
+ New repid,ind
+
+ // Use $Increment to get the next node
+ Set repid=$I(^CacheTemp)
+ s ^zBernard("1")=(1)
+
+ // Build data into ^CacheTemp(ReportID)
+ // e.g. Set ^CacheTemp(ReportID,Index)=$LB(f1,f2,f3)
+ New Number,String,Date,Time,c,n
+ n ID,PatUR,PatTitle,PatName,PatName2,PatName3,PatDOB,PatSex,PatAddress,PatCity,PatZip,PatState,
+ UsrSurname,UsrGivenname,QUESCreateUserDR,PatMedicare,PatMedicareCode,PAADMADMNo,PAADMVisitStatus,WARDCode,
+ HOSPDesc,HOSPPhone,PAADMType,
+ Q1,Q4,Q5,Q6,Q7,Q9,Q10,Q11,Q12,Q13,
+ QASelfHarm,QASelfHarmD,QDSelfHarm,QDSelfHarmD,QHarm2Oth,QHarm2OthD,QHarmFOthers,QHarmFOthersD,
+ QTreatCompl,QTreatComplD,QHarm2Dep,QHarm2DepD,QInterPStrat,QObservStrat,
+ QEnvironStrat,QAgreedMPlan,QCareOfDepend,QParSpouse,QSinglePar,QPrimCarer,
+ QParSep,QNoChild,QInfoNA,QEventDate,QEventVolume,QEventdetails,
+ QUpdateValidation,QChildren,QFirePlanExists,QFIREPLANDET,QSERVPLAN,QUESDate,QUESTime
+ s (ID,QUESCreateUserDR,QHOSPITAL)=0
+ s (PatUR,PatTitle,PatName,PatName2,PatName3,PatDOB,PatSex,PatAddress,PatCity,PatZip,PatState,
+ UsrSurname,UsrGivenname,PatMedicare,PatMedicareCode,PAADMADMNo,PAADMVisitStatus,WARDCode,
+ HOSPDesc,HOSPPhone,PAADMType,
+ Q1,Q4,Q5,Q6,Q7,Q9,Q10,Q11,Q12,Q13,
+ QASelfHarm,QASelfHarmD,QDSelfHarm,QDSelfHarmD,QHarm2Oth,QHarm2OthD,QHarmFOthers,QHarmFOthersD,
+ QTreatCompl,QTreatComplD,QHarm2Dep,QHarm2DepD,QInterPStrat,QObservStrat,
+ QEnvironStrat,QAgreedMPlan,QCareOfDepend,QParSpouse,QSinglePar,QPrimCarer,
+ QParSep,QNoChild,QInfoNA,QEventDate,QEventVolume,QEventdetails,
+ QUpdateValidation,QChildren,QFirePlanExists,QFIREPLANDET,QSERVPLAN,QUESDate,QUESTime)=""
+  
+ s ind=1
+
+  //s ^bernard("2")=(2)
+ 
+ &sql(declare AfterHoursManPlan cursor for
+ 
+ select distinct
+ID,
+PAPMI_No,
+PAPMI_Title_DR->TTL_Desc,
+PAPMI_Name,PAPMI_Name2,PAPMI_Name3,
+PAPMI_DOB,
+PAPMI_Sex_DR->CTSEX_Desc,
+upper(PAPER_StName),
+PAPMI_PAPER_DR->PAPER_CityCode_DR->CTCIT_Desc,
+PAPMI_PAPER_DR->PAPER_Zip_DR->CTZIP_Code,
+PAPMI_PAPER_DR->PAPER_CT_Province_DR->PROV_Desc,
+QUESUserDR->SSUSR_Surname,
+QUESUserDR->SSUSR_Givenname,
+QUESCreateUserDR,
+PAPMI_Medicare,
+PAPMI_MedicareCode,
+QUESPAADMDR->PAADM_AdmNo,
+QUESPAADMDR->PAADM_VisitStatus,
+QUESPAADMDR->PAADM_CurrentWard_DR->WARD_Code,
+upper(HOSP_Desc),
+HOSP_Phone,
+QUESPAADMDR->PAADM_Type,
+Q1,Q4,Q5,Q6,Q7,Q9,Q10,Q11,Q12,Q13,
+QASelfHarm,QASelfHarmD,QDSelfHarm,QDSelfHarmD,QHarm2Oth,QHarm2OthD,QHarmFOthers,QHarmFOthersD,
+QTreatCompl,QTreatComplD,QHarm2Dep,QHarm2DepD,QInterPStrat,QObservStrat,
+QEnvironStrat,QAgreedMPlan,QCareOfDepend,QParSpouse,QSinglePar,QPrimCarer,
+QParSep,QNoChild,QInfoNA,QEventDate,QEventVolume,QEventdetails,
+QUpdateValidation,QChildren,QFirePlanExists,QFIREPLANDET,QSERVPLAN,
+QUESDate,QUESTime
+
+from questionnaire.QPSYCHMAN,SQLUser.PA_PatMas,SQLUser.PA_Person,SQLUser.CT_Hospital where
+PAPER_RowId=QUESPAPatMasDR
+and PAPMI_RowId=QUESPAPatMasDR
+and HOSP_RowId=QHOSP
+and QUESPAADMDR=:EpisodeID
+and ID=:QID
+		       		
+)
+	
+ &sql(open AfterHoursManPlan)
+
+  //fetch first row 
+ &sql(fetch AfterHoursManPlan into :ID,:PatUR,:PatTitle,:PatName,:PatName2,:PatName3,:PatDOB,:PatSex,:PatAddress,:PatCity,:PatZip,:PatState,
+ :UsrSurname,:UsrGivenname,:QUESCreateUserDR,:PatMedicare,:PatMedicareCode,:PAADMADMNo,:PAADMVisitStatus,:WARDCode,
+ :HOSPDesc,:HOSPPhone,:PAADMType,
+ :Q1,:Q4,:Q5,:Q6,:Q7,:Q9,:Q10,:Q11,:Q12,:Q13,
+ :QASelfHarm,:QASelfHarmD,:QDSelfHarm,:QDSelfHarmD,:QHarm2Oth,:QHarm2OthD,:QHarmFOthers,:QHarmFOthersD,
+ :QTreatCompl,:QTreatComplD,:QHarm2Dep,:QHarm2DepD,:QInterPStrat,:QObservStrat,
+ :QEnvironStrat,:QAgreedMPlan,:QCareOfDepend,:QParSpouse,:QSinglePar,:QPrimCarer,
+ :QParSep,:QNoChild,:QInfoNA,:QEventDate,:QEventVolume,:QEventdetails,
+ :QUpdateValidation,:QChildren,:QFirePlanExists,:QFIREPLANDET,:QSERVPLAN,:QUESDate,:QUESTime
+ )
+
+ while 'SQLCODE{
+ s PatAddress=$zstrip(PatAddress,"<C")
+
+ s Q6 = $LISTTOSTRING(Q6, $CHAR(13)_$CHAR(10)) // Join list entries with newline character
+ s Q7 = $LISTTOSTRING(Q7, $CHAR(13)_$CHAR(10)) // Join list entries with newline character
+ s QEventdetails = $LISTTOSTRING(QEventdetails, $CHAR(13)_$CHAR(10)) // Join list entries with newline character
+ s QTreatComplD = $LISTTOSTRING(QTreatComplD, $CHAR(13)_$CHAR(10))
+ s QASelfHarmD = $LISTTOSTRING(QASelfHarmD, $CHAR(13)_$CHAR(10))
+ s QHarm2OthD = $LISTTOSTRING(QHarm2OthD, $CHAR(13)_$CHAR(10))
+ s QDSelfHarmD = $LISTTOSTRING(QDSelfHarmD, $CHAR(13)_$CHAR(10))
+ s QHarmFOthersD = $LISTTOSTRING(QHarmFOthersD, $CHAR(13)_$CHAR(10))
+ s QHarm2DepD = $LISTTOSTRING(QHarm2DepD, $CHAR(13)_$CHAR(10))
+ s QInterPStrat = $LISTTOSTRING(QInterPStrat, $CHAR(13)_$CHAR(10))
+ s QCareOfDepend = $LISTTOSTRING(QCareOfDepend, $CHAR(13)_$CHAR(10))
+ s QObservStrat = $LISTTOSTRING(QObservStrat, $CHAR(13)_$CHAR(10))
+ s QEnvironStrat = $LISTTOSTRING(QEnvironStrat, $CHAR(13)_$CHAR(10))
+ s QAgreedMPlan = $LISTTOSTRING(QAgreedMPlan, $CHAR(13)_$CHAR(10))
+ s Q10 = $LISTTOSTRING(Q10, $CHAR(13)_$CHAR(10))
+ s Q11 = $LISTTOSTRING(Q11, $CHAR(13)_$CHAR(10))
+ 
+ s Q12=$zstrip(Q12,"<C")
+ if $extract(Q12,2)=$char(1) {
+	 s Q12=$zstrip($extract(Q12,2,$length(Q12)),"<C")
+ }
+ s Q13=$zstrip(Q13,"<C")
+ if $extract(Q13,2)=$char(1) {
+	 s Q13=$zstrip($extract(Q13,2,$length(Q13)),"<C")
+ }
+ s QChildren=$zstrip(QChildren,"<C")
+ s QChildren=$replace(QChildren,$char(15),"")
+ s QChildren=$replace(QChildren,$char(1),", ")
+ 
+ s QFIREPLANDET = $LISTTOSTRING(QFIREPLANDET, $CHAR(13)_$CHAR(10))
+ s QSERVPLAN = $LISTTOSTRING(QSERVPLAN, $CHAR(13)_$CHAR(10))
+ 
+ d FormatDates
+
+ // build the row
+ Set ^CacheTemp(repid,ind)=$LB(ID,PatUR,PatTitle,PatName,PatName2,PatName3,PatDOB,PatSex,PatAddress,PatCity,PatZip,PatState,
+ UsrSurname,UsrGivenname,QUESCreateUserDR,PatMedicare,PatMedicareCode,PAADMADMNo,PAADMVisitStatus,WARDCode,
+ HOSPDesc,HOSPPhone,PAADMType,
+ Q1,Q4,Q5,Q6,Q7,Q9,Q10,Q11,Q12,Q13,
+ QASelfHarm,QASelfHarmD,QDSelfHarm,QDSelfHarmD,QHarm2Oth,QHarm2OthD,QHarmFOthers,QHarmFOthersD,
+ QTreatCompl,QTreatComplD,QHarm2Dep,QHarm2DepD,QInterPStrat,QObservStrat,
+ QEnvironStrat,QAgreedMPlan,QCareOfDepend,QParSpouse,QSinglePar,QPrimCarer,
+ QParSep,QNoChild,QInfoNA,QEventDate,QEventVolume,QEventdetails,
+ QUpdateValidation,QChildren,QFirePlanExists,QFIREPLANDET,QSERVPLAN,QUESDate,QUESTime)
+ s ind=ind+1
+ //fetch rows
+ &sql(fetch AfterHoursManPlan into :ID,:PatUR,:PatTitle,:PatName,:PatName2,:PatName3,:PatDOB,:PatSex,:PatAddress,:PatCity,:PatZip,:PatState,
+ :UsrSurname,:UsrGivenname,:QUESCreateUserDR,:PatMedicare,:PatMedicareCode,:PAADMADMNo,:PAADMVisitStatus,:WARDCode,
+ :HOSPDesc,:HOSPPhone,:PAADMType,
+ :Q1,:Q4,:Q5,:Q6,:Q7,:Q9,:Q10,:Q11,:Q12,:Q13,
+ :QASelfHarm,:QASelfHarmD,:QDSelfHarm,:QDSelfHarmD,:QHarm2Oth,:QHarm2OthD,:QHarmFOthers,:QHarmFOthersD,
+ :QTreatCompl,:QTreatComplD,:QHarm2Dep,:QHarm2DepD,:QInterPStrat,:QObservStrat,
+ :QEnvironStrat,:QAgreedMPlan,:QCareOfDepend,:QParSpouse,:QSinglePar,:QPrimCarer,
+ :QParSep,:QNoChild,:QInfoNA,:QEventDate,:QEventVolume,:QEventdetails,
+ :QUpdateValidation,:QChildren,:QFirePlanExists,:QFIREPLANDET,:QSERVPLAN,:QUESDate,:QUESTime
+ )
+ }
+
+ //s ^zBernard("3")=(3)
+ &sql(close AfterHoursManPlan)
+
+ // Build QHandle (AtEnd,ReportID,Index)
+ Set QHandle=$lb(0,repid,0)
+
+ //s ^zBernard("4")=(4)
+
+ Quit $$$OK
+
+
+FormatDates
+ // Convert the dates to ODBC date format
+ If PatDOB Set PatDOB=$ZD(PatDOB,3)
+ If Q4 Set Q4=$ZD(Q4,3)
+ If QEventDate Set QEventDate=$ZD(QEventDate,3)
+ If Q13 Set Q13=$ZD(Q13,3)
+ If QUESDate Set QUESDate=$ZD(QUESDate,3)
+ If QUESTime Set QUESTime=$ZT(QUESTime,1)
+ Quit
+]]></Implementation>
+</Method>
+
+<Method name="AfterHoursManPlanFetch">
+<Description>
+This is the Fetch component of the %Library.Query. 
+This should never have to change. It is designed to fetch the row for each subscript of the ^CacheTemp
+global and return this row to the Crystal Report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,&Row:%Library.List,&AtEnd:%Library.Integer=0]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // This fetch method should never have to change. 
+
+ // repid - Report ID
+ // ind   - sequence index which represents each row
+
+ New repid,ind
+
+ // Restore QHandle
+ Set AtEnd=$li(QHandle,1)
+ Set repid=$li(QHandle,2)
+ Set ind=$li(QHandle,3)
+
+ Set ind=$o(^CacheTemp(repid,ind))
+ If ind="" {	// if there are no more rows, finish fetching
+ Set AtEnd=1
+ Set Row=""
+ }
+ Else      {	// fetch row
+ Set Row=^CacheTemp(repid,ind)
+ }
+
+ // Save QHandle
+ s QHandle=$lb(AtEnd,repid,ind)
+
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Query name="AfterHoursManPlan">
+<Description>
+GHA List reports Stored Procedure
+It expects 2 parameter of type date and will return a list of records:
+Field1 - Integer
+Field2 - String(MAXLEN=255)
+Field3 - Date
+Field4 - Time</Description>
+<Type>%Library.Query</Type>
+<FormalSpec>QID:%Integer,EpisodeID:%Integer</FormalSpec>
+<SqlProc>1</SqlProc>
+<Parameter name="CONTAINID" value="0"/>
+<Parameter name="ROWSPEC" value="ID:%Integer,PatUR:%String(MAXLEN=255),PatTitle:%String(MAXLEN=255),PatName:%String(MAXLEN=255),PatName2:%String(MAXLEN=255),PatName3:%String(MAXLEN=255),PatDOB:%String(MAXLEN=255),PatSex:%String(MAXLEN=255),PatAddress:%String(MAXLEN=255),PatCity:%String(MAXLEN=255),PatZip:%String(MAXLEN=255),PatState:%String(MAXLEN=255),UsrSurname:%String(MAXLEN=255),UsrGivenname:%String(MAXLEN=255),QUESCreateUserDR:%Integer,PatMedicare:%String(MAXLEN=255),PatMedicareCode:%String(MAXLEN=255),PAADMADMNo:%String(MAXLEN=255),PAADMVisitStatus:%String(MAXLEN=255),WARDCode:%String(MAXLEN=255),HOSPDesc:%String(MAXLEN=255),HOSPPhone:%String(MAXLEN=255),PAADMType:%String(MAXLEN=255),Q1:%String(MAXLEN=255),Q4:%String(MAXLEN=255),Q5:%String(MAXLEN=255),Q6:%String(MAXLEN=8192),Q7:%String(MAXLEN=8192),Q9:%String(MAXLEN=255),Q10:%String(MAXLEN=4096),Q11:%String(MAXLEN=4096),Q12:%String(MAXLEN=255),Q13:%String(MAXLEN=255),QASelfHarm:%String(MAXLEN=255),QASelfHarmD:%String(MAXLEN=4096),QDSelfHarm:%String(MAXLEN=255),QDSelfHarmD:%String(MAXLEN=255),QHarm2Oth:%String(MAXLEN=255),QHarm2OthD:%String(MAXLEN=4096),QHarmFOthers:%String(MAXLEN=255),QHarmFOthersD:%String(MAXLEN=4096),QTreatCompl:%String(MAXLEN=255),QTreatComplD:%String(MAXLEN=4096),QHarm2Dep:%String(MAXLEN=255),QHarm2DepD:%String(MAXLEN=4096),QInterPStrat:%String(MAXLEN=4096),QObservStrat:%String(MAXLEN=4096),QEnvironStrat:%String(MAXLEN=4096),QAgreedMPlan:%String(MAXLEN=4096),QCareOfDepend:%String(MAXLEN=4096),QParSpouse:%String(MAXLEN=255),QSinglePar:%String(MAXLEN=255),QPrimCarer:%String(MAXLEN=255),QParSep:%String(MAXLEN=255),QNoChild:%String(MAXLEN=255),QInfoNA:%String(MAXLEN=255),QEventDate:%String(MAXLEN=255),QEventVolume:%String(MAXLEN=255),QEventdetails:%String(MAXLEN=8192),QUpdateValidation:%String(MAXLEN=255),QChildren:%String(MAXLEN=255),QFirePlanExists:%String(MAXLEN=255),QFIREPLANDET:%String(MAXLEN=4096),QSERVPLAN:%String(MAXLEN=4096),QUESDate:%String(MAXLEN=255),QUESTime:%String(MAXLEN=255)"/>
+<Parameter name="SELECTMODE" value="ODBC"/>
+</Query>
+
+<Query name="LookUpHospital">
+<Description>
+Lookup on Hospital returning all active services</Description>
+<Type>%Library.SQLQuery</Type>
+<FormalSpec>Hospital:%String</FormalSpec>
+<SqlQuery><![CDATA[SELECT HOSP_Desc, HOSP_RowId, HOSP_Code
+FROM SQLUser.CT_Hospital
+WHERE ((%ALPHAUP HOSP_Desc %STARTSWITH %ALPHAUP :Hospital) OR (%ALPHAUP HOSP_Code %STARTSWITH %ALPHAUP :Hospital))
+AND (HOSP_DateFrom <= CURRENT_DATE)
+AND ((HOSP_DateTo IS NULL) OR (HOSP_DateTo >= CURRENT_DATE))
+ORDER BY HOSP_Desc]]></SqlQuery>
+<Parameter name="CONTAINID" value="2"/>
+<Parameter name="ROWSPEC" value="Description:%String,HIDDEN:%String,Code:%String"/>
+</Query>
+
+<Method name="LookUpBrokerHospital">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>itmjs:%Library.String="",itmjsex:%Library.String="",Hospital:%Library.String=""</FormalSpec>
+<Implementation><![CDATA[
+ n id,code,desc,activedate
+
+ s (id,code,desc)=""
+
+ ; Try and find a matching code
+ &sql(SELECT	HOSP_Desc, HOSP_RowId, HOSP_Code
+ INTO	:desc, :id, :code
+ FROM	SQLUser.CT_Hospital
+ WHERE	((%ALPHAUP HOSP_Desc = %ALPHAUP :Hospital) OR (%ALPHAUP HOSP_Code = %ALPHAUP :Hospital))
+ AND (HOSP_DateFrom <= CURRENT_DATE)
+ AND ((HOSP_DateTo IS NULL) OR (HOSP_DateTo >= CURRENT_DATE))
+ )
+ ;
+ i SQLCODE s desc=Hospital q 0
+ s retval=itmjs_"('"_$ZCVT(desc,"O","JS")_"');"
+ i itmjsex'="""" s retval=retval_itmjsex_"('"_$ZCVT(desc,"O","JS")_"^"_id_"^"_$ZCVT(code,"O","JS")_"');"
+ &javascript<#(retval)#>
+ q 1
+]]></Implementation>
+</Method>
+
+<Query name="LookUpAlert">
+<Description>
+Lookup on Alerts </Description>
+<Type>%Library.SQLQuery</Type>
+<FormalSpec>Alert:%String</FormalSpec>
+<SqlQuery>SELECT Alert_Desc, Alert_RowId, Alert_Code 
+FROM SQLUser.PAC_PatientAlert
+WHERE ((%ALPHAUP Alert_Desc %STARTSWITH %ALPHAUP :Alert) OR (%ALPHAUP Alert_Code %STARTSWITH %ALPHAUP :Alert))
+ORDER BY Alert_Desc</SqlQuery>
+<Parameter name="CONTAINID" value="2"/>
+<Parameter name="ROWSPEC" value="Description:%String,HIDDEN:%String,Code:%String"/>
+</Query>
+
+<Method name="LookUpBrokerAlert">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>itmjs:%Library.String="",itmjsex:%Library.String="",Alert:%Library.String=""</FormalSpec>
+<Implementation><![CDATA[
+ n id,code,desc
+
+ s (id,code,desc)=""
+
+ ; Try and find a matching code
+ &sql(SELECT	 Alert_Desc, Alert_Code, Alert_RowId
+ INTO	:desc, :code, :id
+ FROM	SQLUser.PAC_PatientAlert
+ WHERE	((%ALPHAUP Alert_Desc = %ALPHAUP :Alert) OR (%ALPHAUP Alert_Code = %ALPHAUP :Alert))
+ )
+ ;
+ i SQLCODE s desc=Alert q 0
+ s retval=itmjs_"('"_$ZCVT(desc,"O","JS")_"');"
+ i itmjsex'="""" s retval=retval_itmjsex_"('"_$ZCVT(desc,"O","JS")_"^"_id_"^"_$ZCVT(code,"O","JS")_"');"
+ &javascript<#(retval)#>
+ q 1
+]]></Implementation>
+</Method>
+</Class>
+</Export>

@@ -1,0 +1,136 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.SWARH.JS.RBAppointment.DiaryView.List">
+<Description>
+Component JavaScript for: RBAppointment.DiaryView.List</Description>
+<Modified>0</Modified>
+<Super>websys.AbstractJavaScript</Super>
+<TimeCreated>63537,10520.019506</TimeCreated>
+
+<Method name="JSContent">
+<Description>
+ </Description>
+<Internal>0</Internal>
+<Language>javascript</Language>
+<ClientMethod>1</ClientMethod>
+<Implementation><![CDATA[
+/*********************************************************************
+$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/SWARH/JS/RBAppointment/DiaryView/List.xml#1 $
+Version 1
+
+- General custom field validation for rbappointment.diaryview.list.js component
+
+REMEMBER to update the versions with initials, date and description for each modification...
+IF		17/12/2013		TRC159209 - Created Script
+
+
+1.       ListAppointmentRooms, which will take parameters 
+
+appointment date -"Date"
+start time - "StartTime"
+end time - "EndTime"
+hospital - "Hospital"
+specialty - "Location"
+resource - "Resource"
+service - "Service"
+
+and return an ordered list of rooms which are available
+
+
+**********************************************************************/
+
+var RBApptDVL = {
+	SNAPDiaryLink : undefined,
+	createLink : function(loaded) {
+		if (SNAP) {
+			if (this.SNAPDiaryLink) {
+				var KeyId = document.getElementById("key");
+				var UserId = session['LOGON.USERID'];
+				var GroupId = session['LOGON.GROUPID'];
+				var LocId = session['LOGON.CTLOCID'];
+
+				var arKey = KeyId.value.split("$");
+				if (arKey && (arKey.length > 1)) {
+					var ResId = arKey[1];
+					var StartDate = SWARH.convertHorologToISO(arKey[0], "-");
+					var href = "ClinicianSearch.aspx?ResId=" + ResId + "&LogonLocId=" + LocId + "&LogonUserId=" + UserId + "&LogonGrpId=" + GroupId + "&StartDate=" + StartDate;
+					var link = document.createElement("a");
+					link.innerHTML = "Diary View";
+					link.href = "#";
+					
+					link.onclick = function(e) {
+						SNAP.openSWARHSNAPPerc(e, href, "diaryView" + KeyId.value.replace('$', '_'), 0.9, 0.5);
+					}
+					this.SNAPDiaryLink.appendChild(link);
+				} else {
+					//Not SNAP User
+				}
+			}
+		} else if (typeof loaded !== "undefined" && !loaded) {
+			SWARH.log("SNAP Wasn't loaded, loading again!");
+			SWARH.loadSNAP(function() { RBApptDVL.createLink(true); });
+		} else {
+			SWARH.log("Could not load SNAP object");
+		}
+	}
+};
+
+websys_removeListener("load","onload",DocumentLoadHandler);
+websys_addListener("load","onload",CustomDocumentLoadHandler);
+
+function CustomDocumentLoadHandler() {
+	DocumentLoadHandler();
+	
+	var tbl=document.getElementById("tRBAppointment_DiaryView_List");
+	for (var i=1;i<tbl.rows.length+1;i++) {
+		var obj=document.getElementById("Selectz"+i)
+		if (obj) {
+			obj.onclick = Customcheckhandler;
+			if (document.getElementById("PreRecUnavailz"+i).value==1) {obj.disabled=true;}
+		}
+	}
+
+	if (RBApptDVL) {
+		RBApptDVL.SNAPDiaryLink = document.getElementById("SNAPDiaryLink");
+		if (SWARH && RBApptDVL.SNAPDiaryLink) SWARH.onReady(SWARH.loadSNAP(RBApptDVL.createLink));
+	} else {
+		//Not SNAP User
+	}
+}
+
+function Customcheckhandler(e) {
+	checkhandler();
+
+	var obj=websys_getSrcElement(e);
+	var rowid=obj.id
+	var rowcnt=$p(rowid,"z",1)
+	var tbl=document.getElementById("tRBAppointment_DiaryView_List");
+
+	var schedID = document.getElementById("IDz"+rowcnt).value
+	var serID = document.getElementById("ServIdz"+rowcnt).value
+
+	var obj = document.getElementById(rowid)
+	
+	if (document.getElementById("Selectz"+rowcnt).checked) {
+		var str=tkMakeServerCall("Custom.AUSW.SNAP.Utils","ListAppointmentRooms",schedID,serID,session['LOGON.GROUPDESC'],-1);
+		if (str!="") {
+			var rooms = str.split("^");
+			if (rooms[1]!="") {
+				alert(rooms[1]);
+			} else {
+				alert(rooms[0]);
+			}
+		}
+	}
+}
+]]></Implementation>
+</Method>
+
+<Parameter name="SrcVer">
+<Description>
+This Parameter is updated by Perforce</Description>
+<Internal>0</Internal>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/SWARH/JS/RBAppointment/DiaryView/List.xml#1 $</Default>
+</Parameter>
+</Class>
+</Export>

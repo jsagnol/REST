@@ -1,0 +1,307 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.SWARH6Triage">
+<Description>
+SWARH Triage Report</Description>
+<ClassType/>
+<ProcedureBlock>0</ProcedureBlock>
+<Super>%Library.RegisteredObject</Super>
+<TimeCreated>61221,1746.152921</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/SWARH6Triage.xml#1 $</Default>
+</Parameter>
+
+<Method name="SWARHTriageReportClose">
+<Description>
+This is the Close component of the %Library.Query.
+This is standard code and should never have to change.
+This is where all the cleanup is performed, i.e. the purging of the temporary storage global ^CacheTemp.</Description>
+<Final>0</Final>
+<ClassMethod>1</ClassMethod>
+<CodeMode>code</CodeMode>
+<FormalSpec>QHandle:%Library.Binary</FormalSpec>
+<Private>0</Private>
+<ReturnType>%Library.Status</ReturnType>
+<SqlProc>0</SqlProc>
+<Implementation><![CDATA[
+ // Clean up by purging the temporary node in ^CacheTemp global
+ New repid
+ Set repid=$li(QHandle,2)
+ Kill ^CacheTemp(repid)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="SWARHTriageReportExecute">
+<Description>
+This is the Execute section for the %Library.Query. 
+All of the logic will be performed here.
+A new node for the ^CacheTemp global will be created and each subscript of this global will contain
+a row for the report.</Description>
+<Final>0</Final>
+<ClassMethod>1</ClassMethod>
+<CodeMode>code</CodeMode>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,EpisodeId:%Integer]]></FormalSpec>
+<Private>0</Private>
+<ReturnType>%Library.Status</ReturnType>
+<SqlProc>0</SqlProc>
+<Implementation><![CDATA[
+	
+ k ^zbernard
+ // Get reportid i.e. use $INCREMENT to add another node to ^CacheTemp global. 
+ // We use ^CacheTemp global because it will always use memory before disk
+ New repid,ind
+
+ // Use $Increment to get the next node
+ Set repid=$I(^CacheTemp)
+
+ // Build data into ^CacheTemp(ReportID)
+ // e.g. Set ^CacheTemp(ReportID,Index)=$LB(f1,f2,f3)
+ New Number,String,Date,Time,c,n,list,END
+ n PAADMADMNo,PAADMAdmDate,PAADMAdmTime,HOSPDesc,PAADMTriageDate,PAADMTriageTime,CTACUCode,MRADMRowId,PAPMIRowId,PAPMIDOB,TRANSMDesc,MRADMPresentComplaint,PAPMIName,PAPMIName2,PAPMIName3,PAPMINo,PAPERAgeYr,PAPERStName,PAPERForeignAddress,TriageNurse,CTZIPCode,CTCITDesc,TTLCode,CTSEXCode,MROBJDesc,SUBFText,ALGDesc
+ n PHCGEName,PHCDName,ALGRDesc,INGRDesc,AlgComment,row
+ s (PAPMIRowId,MRADMRowId)=0
+ s (PAADMADMNo,PAADMAdmDate,PAADMAdmTime,HOSPDesc,PAADMTriageDate,PAADMTriageTime,CTACUCode,PAPMIDOB,TRANSMDesc,MRADMPresentComplaint,PAPMIName,PAPMIName2,PAPMIName3,PAPMINo,PAPERAgeYr,PAPERStName,PAPERForeignAddress,TriageNurse,CTZIPCode,CTCITDesc,TTLCode,CTSEXCode,MROBJDesc,SUBFText,ALGDesc)=""
+ s (PHCGEName,PHCDName,ALGRDesc,INGRDesc,AlgComment,row) = ""
+ 
+ s ^zbernard("1")=1
+ s ind=1
+ s ^zbernard("2")=2
+
+ ;s Desc2="" f j=1:1: $ll(MROBJDesc) s Desc2=Desc2_$lg(MROBJDesc,j)
+
+
+ &sql(select 
+ PAADM_ADMNo,
+ PAADM_AdmDate,
+ PAADM_AdmTime,
+ PAADM_CurrentWard_DR->WARD_LocationDR->CTLOC_Hospital_DR->HOSP_Desc,
+ PAADM_TriageDate,
+ PAADM_TriageTime,
+ PAADM_Priority_DR->CTACU_Code,
+ PAADM_MainMRADM_DR,
+ PAPMI_RowId,
+ PAPMI_DOB,
+ PAADM_MainMRADM_DR->MRADM_TransferMeans_DR->TRANSM_Desc, 
+ PAADM_MainMRADM_DR->MRADM_PresentComplaint, 
+ PAPMI_Name, 
+ PAPMI_Name2,
+ PAPMI_Name3,
+ PAPMI_No, 
+ PAPMI_PAPER_DR->PAPER_AgeYr,
+ PAPMI_PAPER_DR->PAPER_StName,
+ PAPMI_PAPER_DR->PAPER_ForeignAddress,
+ PAADM_TriageNurse_DR->CTPCP_Desc as TriageNurse,
+ PAPMI_PAPER_DR->PAPER_Zip_DR->CTZIP_Code, 
+ PAPMI_PAPER_DR->PAPER_CityCode_DR->CTCIT_Desc,
+ PAPMI_PAPER_DR->PAPER_Title_DR->TTL_Code,
+ PAPMI_PAPER_DR->PAPER_Sex_DR->CTSEX_Code
+ INTO :PAADMADMNo,:PAADMAdmDate,:PAADMAdmTime,:HOSPDesc,:PAADMTriageDate,
+:PAADMTriageTime,:CTACUCode,:MRADMRowId,:PAPMIRowId,:PAPMIDOB,:TRANSMDesc,
+:MRADMPresentComplaint,:PAPMIName,:PAPMIName2,:PAPMIName3,
+:PAPMINo,:PAPERAgeYr,:PAPERStName,:PAPERForeignAddress,:TriageNurse,
+:CTZIPCode,:CTCITDesc,:TTLCode,
+:CTSEXCode
+ FROM sqluser.PA_Adm, sqluser.PA_PatMas
+ WHERE PAADM_PAPMI_DR=PAPMI_RowId AND 
+ PAADM_RowId =:EpisodeId
+ )
+ s ^zbernard("3")=3
+ Do FormatDates
+ Do FormatTimes
+ do GetMROBJ
+ do GetSUBF
+
+ s MROBJDesc=$zstrip(MROBJDesc,"*C")
+ s SUBFText=$zstrip(SUBFText,"*C")
+ s PAPERStName=$zstrip(PAPERStName,"*C")
+ s PAPERForeignAddress=$zstrip(PAPERForeignAddress,"*C")
+
+ // build the row
+ Set list=$LB(PAADMADMNo,PAADMAdmDate,PAADMAdmTime,HOSPDesc,PAADMTriageDate,PAADMTriageTime,CTACUCode,MRADMRowId,PAPMIRowId,PAPMIDOB,TRANSMDesc,MRADMPresentComplaint,PAPMIName,PAPMIName2,PAPMIName3,PAPMINo,PAPERAgeYr,PAPERStName,PAPERForeignAddress,TriageNurse,CTZIPCode,CTCITDesc,TTLCode,CTSEXCode,MROBJDesc,SUBFText)
+
+ &SQL(DECLARE AllergiesCursor CURSOR FOR
+ 	SELECT
+ 		CASE
+ 			WHEN alg.ALG_Type_DR->ALG_Desc IS NOT NULL -- PAC_Allergy
+ 				THEN alg.ALG_Type_DR->ALG_Desc
+ 			WHEN alg.ALG_PHCGE_DR->PHCGE_Name IS NOT NULL -- PHC_Generic
+ 				THEN alg.ALG_PHCGE_DR->PHCGE_Name
+ 			WHEN alg.ALG_PHCDM_DR->PHCD_Name IS NOT NULL -- PHC_DrgMast
+ 				THEN alg.ALG_PHCDM_DR->PHCD_Name
+ 			WHEN alg.ALG_AllergyGrp_DR->ALGR_Desc IS NOT NULL -- PHC_AllergyGroup
+ 				THEN alg.ALG_AllergyGrp_DR->ALGR_Desc
+ 			WHEN alg.ALG_Ingred_DR->INGR_Desc IS NOT NULL -- PHC_Ingredient
+ 				THEN alg.ALG_Ingred_DR->INGR_Desc
+        	WHEN alg.ALG_Comments IS NOT NULL
+        		THEN alg.ALG_Comments
+        	ELSE
+        		'Unknown Allergy'
+        END AS AllergyDesc
+    INTO
+    	:AllergyDesc
+    FROM
+        SQLUser.PA_Allergy alg
+        INNER JOIN SQLUser.PA_ADM adm
+        	ON (adm.PAADM_PAPMI_DR=alg.ALG_PAPMI_Parref)
+    WHERE
+       adm.PAADM_RowId =:EpisodeId AND
+        ((alg.ALG_InActive IS NULL) OR (alg.ALG_InActive<>'Y'))
+ )
+ 
+ &sql(open  AllergiesCursor)
+
+ Set END=0, count=0
+ 
+ //&sql(fetch SWARHTriageReport into :ALGDesc)
+ while 'END {
+	//fetch first allergy record
+	&sql(fetch AllergiesCursor)
+	if SQLCODE '= 0 {
+		Set END=1
+		Continue
+	}
+ 	s AllergyDesc = $ZSTRIP(AllergyDesc,"<>E'A'N")
+ 	
+	Set ^CacheTemp(repid,ind)=list_$LB(AllergyDesc)
+	s ind=ind+1
+	s count=count+1
+ }
+
+ if (count=0) {
+	 // Just in case the patient doesn't have ANY allergy record
+	 // This shouldn't happen since patients should have at least a "Nil Known" allergy record.
+	 Set ^CacheTemp(repid,ind)=list_$LB("")
+ }
+ s ^zbernard("4")=4
+ &sql(close AllergiesCursor)
+
+ // Build QHandle (AtEnd,ReportID,Index)
+ Set QHandle=$lb(0,repid,0)
+ s ^zbernard("5")=5
+
+ Quit $$$OK
+  
+
+FormatDates
+ // Convert the dates to ODBC date format
+ If PAADMAdmDate Set PAADMAdmDate=$ZD(PAADMAdmDate,3)
+ If PAPMIDOB Set PAPMIDOB=$ZD(PAPMIDOB,3)
+ If PAADMTriageDate Set PAADMTriageDate=$ZD(PAADMTriageDate,3)
+ Quit
+
+FormatTimes
+ // Convert the times to ODBC time format
+ If PAADMAdmTime Set PAADMAdmTime=$ZT(PAADMAdmTime,2)
+ If PAADMTriageTime Set PAADMTriageTime=$ZT(PAADMTriageTime,2)
+ Quit
+
+GetMROBJ
+ n MROBJChildsub,count,count2,i,x
+ s MROBJChildsub=0
+ s count=0
+ s count2=0
+ s i=0
+ s x=0
+ ;w ^MR(MRADMRowId,"OBJ",MROBJChildsub)
+ i MRADMRowId {
+	 i $g(^MR(MRADMRowId,"OBJ",MROBJChildsub)) {
+		 s count=^MR(MRADMRowId,"OBJ",MROBJChildsub)
+	 }
+ }
+ f i=1:1:count  d
+ .s count2=MROBJDesc_$g(^MR(MRADMRowId,"OBJ",i,"DESC",0))
+ .f x=1:1:count2  d
+ ..s MROBJDesc=MROBJDesc_$g(^MR(MRADMRowId,"OBJ",count,"DESC",x))
+ q
+
+GetSUBF
+ n SUBFChildsub,count,count2,i,x
+ //reset working variables
+ s SUBFChildsub=0
+ s count=0
+ s count2=0
+ s i=0
+ s x=0
+
+ //get the number of rows in the MR_SubjectFindings table for this 
+ //MRADMRowId (this can be more than one or none, which is
+ // why we use an outer join in sql
+ i MRADMRowId {
+ i $g(^MR(MRADMRowId,"SUBF",SUBFChildsub)) {
+	 	s count=^MR(MRADMRowId,"SUBF",SUBFChildsub)
+ }
+ }
+
+ //loop through each row - the for loop starts at one and goes up to the number of rows that we extracted in the line of code above. If there are no rows the for loop isn't executed
+ f i=1:1:count  d
+
+ .//get the number of lines for the database field SUBFText - it's defined as a multi-line field in cache
+ .//note that I'm referencing the global that I worked out from the msql
+ .s count2=SUBFText_$g(^MR(MRADMRowId,"SUBF",i,"REM",0))
+ .
+ .//loop through each line of the field
+ .f x=1:1:count2  d
+ ..//concatanate each line of the field to build a full string
+ ..s SUBFText=SUBFText_$g(^MR(MRADMRowId,"SUBF",count,"REM",x))
+
+ q
+]]></Implementation>
+</Method>
+
+<Method name="SWARHTriageReportFetch">
+<Description>
+This is the Fetch component of the %Library.Query. 
+This should never have to change. It is designed to fetch the row for each subscript of the ^CacheTemp
+global and return this row to the Crystal Report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,&Row:%Library.List,&AtEnd:%Library.Integer=0]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // This fetch method should never have to change. 
+
+ // repid - Report ID
+ // ind   - sequence index which represents each row
+
+ New repid,ind
+
+ // Restore QHandle
+ Set AtEnd=$li(QHandle,1)
+ Set repid=$li(QHandle,2)
+ Set ind=$li(QHandle,3)
+
+ Set ind=$o(^CacheTemp(repid,ind))
+ If ind="" {	// if there are no more rows, finish fetching
+ Set AtEnd=1
+ Set Row=""
+ }
+ Else      {	// fetch row
+ Set Row=^CacheTemp(repid,ind)
+ }
+
+ // Save QHandle
+ s QHandle=$lb(AtEnd,repid,ind)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Query name="SWARHTriageReport">
+<Description>
+Vic Triage Report
+It expects 1 parameter of type integer and will return 40 odd fields:
+Field1 - Integer
+Field2 - String(MAXLEN=255)
+Field3 - Date
+Field4 - Time</Description>
+<Type>%Library.Query</Type>
+<FormalSpec>EpisodeId:%Integer</FormalSpec>
+<SqlProc>1</SqlProc>
+<Parameter name="CONTAINID" value="0"/>
+<Parameter name="ROWSPEC" value="PAADMADMNo:%String(MAXLEN=255),PAADMAdmDate:%Date,PAADMAdmTime:%String(MAXLEN=255),HOSPDesc:%String(MAXLEN=255),PAADMTriageDate:%Date,PAADMTriageTime:%String(MAXLEN=255),CTACUCode:%String(MAXLEN=255),MRADMRowId:%Integer,PAPMIRowId:%Integer,PAPMIDOB:%Date,TRANSMDesc:%String(MAXLEN=255),MRADMPresentComplaint:%String(MAXLEN=255),PAPMIName:%String(MAXLEN=255),PAPMIName2:%String(MAXLEN=255),PAPMIName3:%String(MAXLEN=255),PAPMINo:%String(MAXLEN=255),PAPERAgeYr:%String(MAXLEN=255),PAPERStName:%String(MAXLEN=255),PAPERForeignAddress:%String(MAXLEN=255),TriageNurse:%String(MAXLEN=255),CTZIPCode:%String(MAXLEN=255),CTCITDesc:%String(MAXLEN=255),TTLCode:%String(MAXLEN=255),CTSEXCode:%String(MAXLEN=255),MROBJDesc:%String(MAXLEN=255),SUBFText:%String(MAXLEN=255),ALGDesc:%String(MAXLEN=1025)"/>
+<Parameter name="SELECTMODE" value="ODBC"/>
+</Query>
+</Class>
+</Export>

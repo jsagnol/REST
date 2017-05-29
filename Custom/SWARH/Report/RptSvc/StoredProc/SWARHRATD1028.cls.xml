@@ -1,0 +1,244 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.SWARH.Report.RptSvc.StoredProc.SWARHRATD1028">
+<Description><![CDATA[
+<pre>
+***************************************************************************************************************************************
+* Report Code: SWARHRATD1028
+* Report Description: SWARH ATD Long Stay Patients List
+* Menu Caption: Long Stay Patients List
+* Initial release: Dunno
+* Developer: Jayson Sagnol
+* Report shows: Long stay patients (Total LOS > 25) as at date specified
+* Fields: UR Number, Name, Age, Sex, Adm Doctor, Ward, A/C Class, Adm Date, Prev Hosp Stay, Prev SD Stay, Prev Total Stay, Curr Stay, Total Stay, Remarks, Review Date
+* Modified: 20/08/2013
+* Modified: 18/09/2013 by JS - Added the ability to filter out non PRS2 wards, Added the ability to alter LOSLimit from default 25 days
+***************************************************************************************************************************************
+</pre>
+Class for SWARHRATD1028 Report]]></Description>
+<ProcedureBlock>0</ProcedureBlock>
+<Super>Custom.SWARH.Report.ZEN.StoredProc.Abstract</Super>
+<TimeCreated>62341,47437.098472</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/SWARH/Report/RptSvc/StoredProc/SWARHRATD1028.xml#1 $</Default>
+</Parameter>
+
+<Method name="SWARHRATD1028Close">
+<Description>
+This is the Close component of the %Library.Query.
+This is standard code and should never have to change.
+This is where all the cleanup is performed, i.e. the purging of the temporary storage global ^CacheTemp.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>QHandle:%Library.Binary</FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Clean up by purging the temporary node in ^CacheTemp global
+ New repid,ind
+ Set repid=$li(QHandle,2)
+
+ //Start Monitor (if configured to capture stats)
+ i mon Do ..MonitorEnd(mon)
+
+ Kill ^CacheTemp("TRAK",repid)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="SWARHRATD1028Execute">
+<Description>
+This is the Execute section for the %Library.Query. 
+All of the logic will be performed here.
+A new node for the ^CacheTemp global will be created and each subscript of this global will contain
+a row for the report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,Hospital:%Library.Integer,DateAt:%Date,PRS2:%Library.String,LOSLimit:%Library.Integer]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Get reportid i.e. use $INCREMENT to add another node to ^CacheTemp global. 
+ // We use ^CacheTemp global because it will always use memory before disk
+ New repid,ind
+
+  // Use $Increment to get the next node
+ Set repid=$I(^CacheTemp("TRAK"))
+ 
+ New Number,String,Date,Time,c,n
+
+ /* TEMPLATE MODIFY: Define and initialise appropriate column variables to describe output rowset columns */
+  
+ s ind=1
+ //Convert ODBC dates to cache format
+ 
+ s:(LOSLimit="") LOSLimit=25
+
+ //Start Monitor (if configured to capture stats)
+ s mon=..MonitorBegin()
+ 
+ //Convert ODBC dates to cache format
+ s DateAt=$$intdate^SSUTIL4(DateAt)
+ 
+ &SQL(DECLARE SWARHRATD1028 CURSOR FOR 
+SELECT	ADM.PAADM_RowId,
+        ADM.PAADM_PAPMI_DR->PAPMI_No AS UR,
+        ADM.PAADM_AdmNo AS EpisodeNo,
+        ADM.PAADM_PAPMI_DR->PAPMI_Name AS Surname,
+        ADM.PAADM_PAPMI_DR->PAPMI_Name2 AS GivenName,
+        ADM.PAADM_PAPMI_DR->PAPMI_Name3 AS OtherName,
+        ADM.PAADM_Hospital_DR->HOSP_Desc AS HospDesc,
+        ADM.PAADM_PAPMI_DR->PAPMI_Sex_DR->CTSEX_Code As Sex,
+        ADM.PAADM_PAPMI_DR->PAPMI_PAPER_DR->PAPER_AgeYr AS Age,
+        ADM.PAADM_AdmDate AS AdmDate,
+        ADM.PAADM_DischgDate AS DchDate,
+        ADM.PAADM_CurrentWard_DR->WARD_Code AS WardCode,
+        ADM.PAADM_CurrentWard_DR->WARD_Desc AS WardDesc,
+        {fn concat(ADM.PAADM_AdmDocCodeDR->CTPCP_Title_DR->TTL_Code, {fn concat(' ',ADM.PAADM_AdmDocCodeDR->CTPCP_Desc)})} AS AdmDoctor,
+        {fn concat(ADM.PAADM_TreatingDR_DR->CTPCP_Title_DR->TTL_Code, {fn concat(' ',ADM.PAADM_TreatingDR_DR->CTPCP_Desc)})} AS PriDoctor,
+        DATEDIFF('dd',ADM.PAADM_AdmDate,:DateAt) AS CurSTAY,
+        ADM.PAADM_MainMRADM_DR->MRADM_PresentComplaint AS ProvDiag,
+        ADM.PAADM_MainMRADM_DR->MRADM_WorkingDiagnosis_DR AS WorkingDiag,
+        ADM.PAADM_Remark AS Remarks        
+
+FROM    SQLUser.PA_Adm ADM 
+
+WHERE   ADM.PAADM_Hospital_DR = :Hospital
+AND 	PAADM_AdmDate < :DateAt
+AND     (ADM.PAADM_DischgDate > :DateAt OR ADM.PAADM_DischgDate IS NULL)
+AND     ADM.PAADM_Type='I'
+AND     ADM.PAADM_VisitStatus NOT IN ('P','C','N')
+
+
+)
+ &SQL(OPEN SWARHRATD1028)
+ 
+  //FETCH FIRST ROW  ADM.PAADM_MainMRADM_DR->MRADM_WorkingDiagnosis_DR AS WorkingDiag
+ &sql(fetch SWARHRATD1028 INTO :PAADMRowId,:UR,:EpisodeNo,:Surname,:GivenName,:OtherName,:HospDesc,:Sex,:Age,:AdmDate,:DchDate,:WardCode,
+ :WardDesc,:AdmDoctor,:PriDoctor,:CurSTAY,:ProvDiag,:WorkingDiag,:Remarks)
+  
+ while 'SQLCODE{
+  
+	 d FormatDates
+	 //d FormatTimes
+	 d FormatStrings
+	 set FINCode=..GetPrimaryInsPayorGroupForEpisode(PAADMRowId)
+	 Set PrevLOS = ..GetLOSForPrevLinkedEpisodes(PAADMRowId) 
+	 Set HRDays = ..GetDaysCarriedForwardForEpisode(PAADMRowId)
+
+	 //s sort = ind		// don't sort - uncomment this line if you've sorted in the query
+ 
+	 /*Checks if Total LOS is greater than or equal to 25 to filter out short stay patients. */
+	 If ((HRDays+PrevLOS+CurSTAY)>=LOSLimit) {
+		 //Check if PRS2 ward
+		 s (PAADMCurrentWardDR,WARDLocationDR,CTLOCNationCode)=""
+		 Set PAADMCurrentWardDR = $P($G(^PAADM(PAADMRowId)), "^", 70)
+		 i PAADMCurrentWardDR {
+			 Set WARDLocationDR = $P($G(^PAWARD(PAADMCurrentWardDR)), "^", 5)
+		 	 i WARDLocationDR {
+			 	 Set CTLOCNationCode = $P($G(^CTLOC(WARDLocationDR)), "^", 51)
+		 	 }
+		 }
+		 
+		 //Only build row for non PRS2 ward if requested
+		 If (PRS2="Yes"){
+			 do BuildRow
+		 }else{
+			 if (CTLOCNationCode="PRS2"){
+			 	do BuildRow
+			 }
+		 }
+	 }
+ 
+	 /* TEMPLATE MODIFY: Change field variables to match row columns - copy FETCH FIRST ROW from above */
+	 //fetch rows
+	 &sql(fetch SWARHRATD1028 INTO :PAADMRowId,:UR,:EpisodeNo,:Surname,:GivenName,:OtherName,:HospDesc,:Sex,:Age,:AdmDate,:DchDate,:WardCode,
+	 :WardDesc,:AdmDoctor,:PriDoctor,:CurSTAY,:ProvDiag,:WorkingDiag,:Remarks)
+ }
+
+ &SQL(CLOSE SWARHRATD1028)
+ 
+ // Build QHandle (AtEnd,ReportID,Index)
+ Set QHandle=$lb(0,repid,0)
+
+ Quit $$$OK
+
+FormatDates
+ // Convert the dates to ODBC time format
+ If AdmDate Set AdmDate=..ConvertDateToODBC(AdmDate)
+ If DchDate Set DchDate=..ConvertDateToODBC(DchDate)
+ //If ReviewDate Set ReviewDate=..ConvertDateToODBC(ReviewDate)
+ quit
+ 
+FormatTimes
+ // Convert the times to ODBC time format
+ //If AdmTime Set AdmTime=..ConvertTimeToODBC(AdmTime)
+ //If DchTime Set DchTime=..ConvertTimeToODBC(DchTime)
+ quit
+ 
+FormatStrings
+ // Cleanup specified strings
+ Set Remarks = $ZStrip(Remarks,"*C")
+ quit
+ 
+BuildRow
+ s ^CacheTemp("TRAK",repid,ind)=$LB(PAADMRowId,UR,EpisodeNo,Surname,GivenName,OtherName,HospDesc,Sex,Age,AdmDate,DchDate,WardCode,
+			WardDesc,AdmDoctor,PriDoctor,HRDays,CurSTAY,FINCode,ProvDiag,WorkingDiag,Remarks,PrevLOS)
+ s ind=ind+1
+ quit
+]]></Implementation>
+</Method>
+
+<Method name="SWARHRATD1028Fetch">
+<Description>
+This is the Fetch component of the %Library.Query. 
+This should never have to change. It is designed to fetch the row for each subscript of the ^CacheTemp
+global and return this row to the Crystal Report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,&Row:%Library.List,&AtEnd:%Library.Integer=0]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // This fetch method should never have to change. 
+
+ // repid - Report ID
+ // ind   - sequence index which represents each row
+
+ New repid,ind
+
+ // Restore QHandle
+ Set AtEnd=$li(QHandle,1)
+ Set repid=$li(QHandle,2)
+ Set ind=$li(QHandle,3)
+
+ Set ind=$o(^CacheTemp("TRAK",repid,ind))
+ If ind="" {	// if there are no more rows, finish fetching
+ Set AtEnd=1
+ Set Row=""
+ }
+ Else      {	// fetch row
+ Set Row=^CacheTemp("TRAK",repid,ind)
+ }
+
+ // Save QHandle
+ s QHandle=$lb(AtEnd,repid,ind)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<UDLText name="T">
+<Content><![CDATA[
+/* TEMPLATE MODIFY: Rename Stored Proc query to <MyStoredProcName> 
+ * TEMPLATE MODIFY: Change parameters to match desired stored procedure parameters
+ * TEMPLATE MODIFY: Change ROWSPEC list to match desired output column names and column data types */
+]]></Content>
+</UDLText>
+
+<Query name="SWARHRATD1028">
+<Type>%Library.Query</Type>
+<FormalSpec>Hospital:%Library.Integer,DateAt:%Date,PRS2:%Library.String,LOSLimit:%Library.Integer</FormalSpec>
+<SqlProc>1</SqlProc>
+<Parameter name="CONTAINID" value="0"/>
+<Parameter name="ROWSPEC" value="PAADMRowId:%Integer,UR:%String(MAXLEN=255),EpisodeNo:%String(MAXLEN=255),Surname:%String(MAXLEN=255),GivenName:%String(MAXLEN=255),OtherName:%String(MAXLEN=255),HospDesc:%String(MAXLEN=255),Sex:%String(MAXLEN=255),Age:%Integer,AdmDate:%Date,DchDate:%Date,WardCode:%String(MAXLEN=255),WardDesc:%String(MAXLEN=255),AdmDoctor:%String(MAXLEN=255),PriDoctor:%String(MAXLEN=255),HRDays:%Integer,CurSTAY:%Integer,FINCode:%String(MAXLEN=255),ProvDiag:%String(MAXLEN=255),WorkingDiag:%String(MAXLEN=255),Remarks:%String(MAXLEN=255),PrevLOS:%Integer"/>
+<Parameter name="SELECTMODE" value="ODBC"/>
+</Query>
+</Class>
+</Export>

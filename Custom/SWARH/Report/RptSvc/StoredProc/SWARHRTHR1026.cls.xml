@@ -1,0 +1,181 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.SWARH.Report.RptSvc.StoredProc.SWARHRTHR1026">
+<Description><![CDATA[
+<pre>
+**************************************************************************************************************************************
+* Report Code: SWARHRTHR1026
+* Report Description: Timing statistics by surgeon in time period.
+* Menu Caption: Session Utilisation Detail
+* Initial release: 7/10/2013
+* Developer: Bradly Sharpe
+* Modified: 22/10/2013 - Bradly Sharpe - Added "AND C.ASCP_Active = 'Y'" to WHERE clause to filter out inactive ApptScheduleCP records
+* 
+**************************************************************************************************************************************
+</pre>]]></Description>
+<ProcedureBlock>0</ProcedureBlock>
+<Super>Custom.SWARH.Report.ZEN.StoredProc.Abstract</Super>
+<TimeCreated>63102,52551.710928</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/SWARH/Report/RptSvc/StoredProc/SWARHRTHR1026.xml#1 $</Default>
+</Parameter>
+
+<Method name="SWARHRTHR1026QueryClose">
+<Description>
+This is the Close component of the %Library.Query.
+This is standard code and should never have to change.
+This is where all the cleanup is performed, i.e. the purging of the temporary storage global ^CacheTemp.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>QHandle:%Library.Binary</FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ New repid,ind
+ Set repid=$li(QHandle,2)
+
+ i mon Do ..MonitorEnd(mon)
+
+ Kill ^CacheTemp("TRAK",repid)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="SWARHRTHR1026QueryExecute">
+<Description>
+This is the Execute section for the %Library.Query. 
+All of the logic will be performed here.
+A new node for the ^CacheTemp global will be created and each subscript of this global will contain
+a row for the report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,Hospital:%Library.String,DateFrom:%Date,DateTo:%Date]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+
+ New repid,ind
+ Set repid=$I(^CacheTemp("TRAK"))
+ 
+ New ASSessStartTime,ASSessEndTime,SESSDesc,ASDate,SESSTimeStart,SESSTimeEnd,ResDesc,EQDesc,CTPCPDesc,SPPPDesc,ANAOPOpStartTime,ANAOPOpEndTime,ANAAnaStartTime,ANAAnaFinishTime,TimeTaken,OPTimeTaken,OverrunString,PrerunString,Overrun,Prerun,TotalTimeAllocated
+ Set (ASSessStartTime,ASSessEndTime,SESSDesc,ASDate,SESSTimeStart,SESSTimeEnd,ResDesc,EQDesc,CTPCPDesc,SPPPDesc,ANAOPOpStartTime,ANAOPOpEndTime,ANAAnaStartTime,ANAAnaFinishTime,TimeTaken,OPTimeTaken,OverrunString,PrerunString,Overrun,Prerun,TotalTimeAllocated)=""
+
+ s ind=1
+ s mon=..MonitorBegin()
+
+ s Hospital=$zstrip(Hospital,"*CW")
+ s DateFrom=..ConvertDateToCache(DateFrom)
+ s DateTo=..ConvertDateToCache(DateTo)
+
+ &SQL(DECLARE SWARHRTHR1026Cursor CURSOR FOR 
+	SELECT
+			R.AS_SessStartTime, 
+			R.AS_SessEndTime, 
+			R.AS_SessionType_DR->SESS_Desc,
+			R.AS_Date,
+			R.AS_RBEffDateSession_DR->SESS_TimeStart,
+			R.AS_RBEffDateSession_DR->SESS_TimeEnd,
+			RB.Res_Desc, 
+			RB.RES_EQ_DR->EQ_Desc, 
+			C.ASCP_CareProv_DR->CTPCP_Desc,
+			ANO.ANAOP_StatePPP_DR->SPPP_Desc,
+			ANO.ANAOP_OpStartTime,
+			ANO.ANAOP_OpEndTime,
+			AN.ANA_AnaStartTime,
+			AN.ANA_AnaFinishTime,
+			DATEDIFF(mi,CONVERT(TIMESTAMP,AN.ANA_AnaStartTime),CONVERT(TIMESTAMP,AN.ANA_AnaFinishTime)) As Time_Taken,
+			DATEDIFF(mi,CONVERT(TIMESTAMP,ANO.ANAOP_OpStartTime),CONVERT(TIMESTAMP,ANO.ANAOP_OpEndTime)) As OP_Time_Taken,
+			CASE WHEN AN.ANA_AnaStartTime < R.AS_SessStartTime AND AN.ANA_AnaFinishTime BETWEEN R.AS_SessStartTime AND R.AS_SessEndTime THEN 'Y' ELSE 'N' End As PrerunString,
+			CASE WHEN AN.ANA_AnaFinishTime > R.AS_SessEndTime AND AN.ANA_AnaStartTime BETWEEN R.AS_SessStartTime AND R.AS_SessEndTime THEN 'Y' ELSE 'N' END as OverrunString,			
+			CASE WHEN AN.ANA_AnaStartTime < R.AS_SessStartTime AND AN.ANA_AnaFinishTime BETWEEN R.AS_SessStartTime AND R.AS_SessEndTime THEN DATEDIFF(mi,CONVERT(TIMESTAMP,AN.ANA_AnaStartTime),CONVERT(TIMESTAMP,R.AS_RBEffDateSession_DR->SESS_TimeStart)) ELSE 0 End As Prerun,
+			CASE WHEN AN.ANA_AnaFinishTime > R.AS_SessEndTime AND AN.ANA_AnaStartTime BETWEEN R.AS_SessStartTime AND R.AS_SessEndTime THEN DATEDIFF(mi,CONVERT(TIMESTAMP,R.AS_RBEffDateSession_DR->SESS_TimeEnd),CONVERT(TIMESTAMP,AN.ANA_AnaFinishTime)) ELSE 0 END as Overrun,
+			DATEDIFF(mi,CONVERT(TIMESTAMP,R.AS_RBEffDateSession_DR->SESS_TimeStart),CONVERT(TIMESTAMP,R.AS_RBEffDateSession_DR->SESS_TimeEnd)) As TotalTimeAllocated
+	FROM SQLUser.RB_ApptSchedule R
+		LEFT JOIN SQLUser.RB_ApptScheduleCP C ON R.AS_RowId = C.ASCP_ParRef
+		INNER JOIN SQLUser.RB_Resource RB ON RB.RES_RowId = R.AS_RES_ParRef
+		INNER JOIN SQLUser.OR_Anaesthesia AN ON AN.ANA_Date = R.AS_Date AND (AN.ANA_AnaStartTime BETWEEN R.AS_SessStartTime AND R.AS_SessEndTime OR (AN.ANA_AnaFinishTime > R.AS_SessStartTime AND AN.ANA_AnaFinishTime < R.AS_SessEndTime))
+		INNER JOIN SQLUser.OR_Anaest_Operation ANO ON AN.ANA_RowId = ANO.ANAOP_Par_Ref
+	WHERE RB.RES_CTLOC_DR->CTLOC_Hospital_DR = :Hospital
+			AND C.ASCP_CareProv_DR is not null
+			AND R.AS_Date Between :DateFrom AND :DateTo
+			AND C.ASCP_CareProv_DR = ANO.ANAOP_Surgeon_DR
+			AND C.ASCP_Active = 'Y'  -- Only get results where the ApptScheduleCP is Active
+	ORDER BY R.AS_Date, R.AS_SessionType_DR, C.ASCP_CareProv_DR, R.AS_RBEffDateSession_DR->SESS_TimeStart, AN.ANA_AnaStartTime
+	
+		)
+			
+ &SQL(OPEN SWARHRTHR1026Cursor)
+ &sql(fetch SWARHRTHR1026Cursor INTO :ASSessStartTime,:ASSessEndTime,:SESSDesc,:ASDate,:SESSTimeStart,:SESSTimeEnd,:ResDesc,:EQDesc,:CTPCPDesc,:SPPPDesc,:ANAOPOpStartTime,:ANAOPOpEndTime,:ANAAnaStartTime,:ANAAnaFinishTime,:TimeTaken,:OPTimeTaken,:OverrunString,:PrerunString,:Overrun,:Prerun,:TotalTimeAllocated)
+  
+ while 'SQLCODE{
+  
+	 d FormatDates
+  	 d FormatTimes
+	 s sort = ind		
+	 s ^CacheTemp("TRAK",repid,sort)=$LB(ASSessStartTime,ASSessEndTime,SESSDesc,ASDate,SESSTimeStart,SESSTimeEnd,ResDesc,EQDesc,CTPCPDesc,SPPPDesc,ANAOPOpStartTime,ANAOPOpEndTime,ANAAnaStartTime,ANAAnaFinishTime,TimeTaken,OPTimeTaken,OverrunString,PrerunString,Overrun,Prerun,TotalTimeAllocated)
+	 s ind=ind+1
+	 &sql(fetch SWARHRTHR1026Cursor INTO :ASSessStartTime,:ASSessEndTime,:SESSDesc,:ASDate,:SESSTimeStart,:SESSTimeEnd,:ResDesc,:EQDesc,:CTPCPDesc,:SPPPDesc,:ANAOPOpStartTime,:ANAOPOpEndTime,:ANAAnaStartTime,:ANAAnaFinishTime,:TimeTaken,:OPTimeTaken,:OverrunString,:PrerunString,:Overrun,:Prerun,:TotalTimeAllocated)
+ }
+
+ &SQL(CLOSE SWARHRTHR1026Cursor)
+ Set QHandle=$lb(0,repid,0)
+
+ Quit $$$OK
+
+FormatDates
+ s ASDate=..ConvertDateToODBC(ASDate)
+ //s SPPPDesc = $LISTTOSTRING(SPPPDesc, $CHAR(13)_$CHAR(10))
+ q
+FormatTimes
+ s ASSessStartTime=..ConvertTimeToODBC(ASSessStartTime)
+ s ASSessEndTime=..ConvertTimeToODBC(ASSessEndTime)
+ s SESSTimeStart=..ConvertTimeToODBC(SESSTimeEnd)
+ s SESSTimeEnd=..ConvertTimeToODBC(SESSTimeEnd)
+ s ANAOPOpStartTime=..ConvertTimeToODBC(ANAOPOpStartTime)
+ s ANAOPOpEndTime=..ConvertTimeToODBC(ANAOPOpEndTime)
+ s ANAAnaStartTime =..ConvertTimeToODBC(ANAAnaStartTime)
+ s ANAAnaFinishTime =..ConvertTimeToODBC(ANAAnaFinishTime)
+ q
+]]></Implementation>
+</Method>
+
+<Method name="SWARHRTHR1026QueryFetch">
+<Description>
+This is the Fetch component of the %Library.Query. 
+This should never have to change. It is designed to fetch the row for each subscript of the ^CacheTemp
+global and return this row to the Crystal Report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,&Row:%Library.List,&AtEnd:%Library.Integer=0]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+
+
+ New repid,ind
+
+ Set AtEnd=$li(QHandle,1)
+ Set repid=$li(QHandle,2)
+ Set ind=$li(QHandle,3)
+
+ Set ind=$o(^CacheTemp("TRAK",repid,ind))
+ If ind="" {
+	 Set AtEnd=1
+	 Set Row=""
+ }
+ Else      {
+ 	Set Row=^CacheTemp("TRAK",repid,ind)
+ }
+
+ s QHandle=$lb(AtEnd,repid,ind)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Query name="SWARHRTHR1026Query">
+<Type>%Library.Query</Type>
+<FormalSpec>Hospital:%Library.String,DateFrom:%Date,DateTo:%Date</FormalSpec>
+<SqlProc>1</SqlProc>
+<Parameter name="CONTAINID" value="0"/>
+<Parameter name="ROWSPEC" value="ASSessStartTime:%Library.Time,ASSessEndTime:%Library.Time,SESSDesc:%Library.String,ASDate:%Library.Date,SESSTimeStart:%Library.Time,SESSTimeEnd:%Library.Time,ResDesc:%Library.String,EQDesc:%Library.String,CTPCPDesc:%Library.String,SPPPDesc:%Library.String,ANAOPOpStartTime:%Library.Time,ANAOPOpEndTime:%Library.Time,ANAAnaStartTime:%Library.Time,ANAAnaFinishTime:%Library.Time,TimeTaken:%Library.Integer,OPTimeTaken:%Library.Integer,OverrunString:%Library.String,PrerunString:%Library.String,Overrun:%Library.Integer,Prerun:%Library.Integer,TotalTimeAllocated:%Library.Integer"/>
+<Parameter name="SELECTMODE" value="ODBC"/>
+</Query>
+</Class>
+</Export>

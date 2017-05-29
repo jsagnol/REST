@@ -1,0 +1,126 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.SWARH.JS.OEOrder.SummaryScreen">
+<Description>
+Component JavaScript for: OEOrder.SummaryScreen</Description>
+<Modified>0</Modified>
+<Super>websys.AbstractJavaScript</Super>
+<TimeCreated>63537,10516.47908</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+This Parameter is updated by Perforce</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/SWARH/JS/OEOrder/SummaryScreen.xml#1 $</Default>
+</Parameter>
+
+<Method name="JSContent">
+<Description>
+ </Description>
+<Language>javascript</Language>
+<ClientMethod>1</ClientMethod>
+<Implementation><![CDATA[
+
+function CustomSummaryLoadHandler() 
+{
+	OEOrderSummaryScreen_LoadHandler();
+	var updateobj=document.getElementById("update");
+	if (updateobj) updateobj.onclick=CustomUpdate;
+	
+}
+
+function CustomUpdate()
+{
+	var msg='';
+	var items = document.getElementById('OEOrdItemIDs').value;
+	var usercode = document.getElementById('UserCode');
+	if ((usercode)&&(usercode.value)&&(usercode.value!='')) {
+		var submit_usercode=usercode.value;
+		var rc = tkMakeServerCall("Custom.SWARH.JS.OEOrder.SummaryScreen","ValidatePrescribingDoctor",items,submit_usercode)
+		if (rc != 1) {
+			msg+="Unable to save as care provider on order items \ndoes not match saving care provider. Please rectify.\n";
+		}
+	}
+	if (msg!='') {
+		alert(msg);
+		return false;
+	} else {
+		SummUpdateClickHandler();
+	}
+}
+
+websys_removeListener("load","onload",OEOrderSummaryScreen_LoadHandler);
+websys_addListener("load","onload",CustomSummaryLoadHandler);
+
+//tknoll-miller (SWARH) 2009-09-16 Load authorise script
+var authcfg = {
+   'buttons': [
+      'Update',
+      'Delete'
+   ],
+   'fields': {
+      'username': 'UserCode',
+      'password': 'PIN'
+   }
+};
+
+//tknoll-miller (SWARH) 2009-09-16 Load authorise script
+// Scope variables
+(function() {
+   var loadScript = function(type, src) {
+      var head = document.getElementsByTagName('head')[0];
+      var script = document.createElement('script');
+      script.type = type;
+      script.src = src;
+      head.appendChild(script);
+      websys_addListener('load', 'onload', function(){document.isLoaded=true});
+      return script;
+   };
+
+   loadScript('text/javascript', '../custom/SWARH/scripts/authorise4.js');
+})();
+//end tknoll-miller (SWARH) 2009-09-16 Load authorise script
+]]></Implementation>
+</Method>
+
+<Method name="ValidatePrescribingDoctor">
+<Description><![CDATA[
+Given a caret delimted list of order items and a user id, validate the ordering care provider
+against the current user's care provider. Returns "1" if a match is made on <i>all</i> order items,
+or a 0 if there is one mismatch.]]></Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>OrderItems:%String="",UserInitials:%String</FormalSpec>
+<ReturnType>%Boolean</ReturnType>
+<Implementation><![CDATA[
+	#import SQLUser
+	#dim ptr as %Integer = 0
+	#dim failed as %Boolean = 1
+	#dim %session as %CSP.Session
+	#dim listOfOrders, order, OrderCategory as %String
+	set SSUSRCareProvDR=""
+	&SQL(SELECT SSUSR_CareProv_DR
+			INTO :SSUSRCareProvDR
+			FROM SS_User 
+			WHERE SSUSR_Initials = :UserInitials)
+	quit:SSUSRCareProvDR="" failed
+	Set listOfOrders = $LISTFROMSTRING(OrderItems,"^")
+	while $listnext(listOfOrders,ptr,order)
+	{
+		continue:$GET(order)=""
+		set order=$SELECT($piece(order,"*",2)'="":$piece(order,"*",2),1:order)
+		&SQL(SELECT OEORI_Doctor_DR, 
+					OEORI_Categ_DR->ORCAT_Code 
+				INTO :OEORIDoctorDR,
+				:ORCATCode
+				FROM OE_OrdItem 
+				WHERE OEORI_RowId = :order)
+		if ($get(ORCATCode)="PHARM")&&($get(OEORIDoctorDR)'=$get(SSUSRCareProvDR))
+		{
+			set failed = 0
+			quit
+		}
+	}
+	quit failed
+]]></Implementation>
+</Method>
+</Class>
+</Export>

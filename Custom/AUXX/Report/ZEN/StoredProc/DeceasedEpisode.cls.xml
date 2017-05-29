@@ -1,0 +1,209 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.AUXX.Report.ZEN.StoredProc.DeceasedEpisode">
+<ProcedureBlock>0</ProcedureBlock>
+<Super>Report.Abstract</Super>
+<TimeCreated>61017,48829.156782</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/AUXX/Report/ZEN/StoredProc/DeceasedEpisode.xml#1 $</Default>
+</Parameter>
+
+<UDLText name="T">
+<Content><![CDATA[
+// Report Name: Deceased Patients with Current Episodes <br>
+
+]]></Content>
+</UDLText>
+
+<UDLText name="T">
+<Content><![CDATA[
+// Report Code: AUXX.ATD0008 <br>
+
+]]></Content>
+</UDLText>
+
+<UDLText name="T">
+<Content><![CDATA[
+// LOGTRAK Number: 72142 <br>
+
+]]></Content>
+</UDLText>
+
+<Method name="DeceasedEpisodeClose">
+<Description>
+This is the Close component of the %Library.Query.
+This is standard code and should never have to change.
+This is where all the cleanup is performed, i.e. the purging of the temporary storage global ^CacheTemp.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>QHandle:%Library.Binary</FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Clean up by purging the temporary node in ^CacheTemp global
+ New repid
+ Set repid=$li(QHandle,2)
+ 
+ //Close Monitor (if configured to capture stats)
+ 	i mon Do ..MonitorEnd(mon)
+
+ 
+ Kill ^CacheTemp("TRAK",repid)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="DeceasedEpisodeExecute">
+<Description>
+This is the Execute section for the %Library.Query. 
+All of the logic will be performed here.
+A new node for the ^CacheTemp global will be created and each subscript of this global will contain
+a row for the report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,Hospital:%String,Location:%String,Ward:%String]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+	
+ // Get reportid i.e. use $INCREMENT to add another node to ^CacheTemp global. 
+ // We use ^CacheTemp global because it will always use memory before disk
+ New repid,ind
+
+ // Use $Increment to get the next node
+ Set repid=$I(^CacheTemp("TRAK"))
+ 
+ //Start Monitor (if configured to capture stats)
+ 	s mon=..MonitorBegin()
+ 	
+ // Build data into ^CacheTemp(ReportID)
+ // e.g. Set ^CacheTemp(ReportID,Index)=$LB(f1,f2,f3)
+ 
+ new Number,String,Date,Time,c,n
+ new PAADMAdmDate,PAADMADMNo,PAPMINo,PAPMIName,PAPMIName2,PAPMIName3,PAPMIDOB,HospRowId,HOSPDesc,CTLOCRowId,ctloccode,ctlocDesc,WARDRowId,wardcode,wardLocationDR,PAPERDeceasedDate,PAPERDeceasedTime,PAADMAdmDocCodeDR,CTPCPCode,CTPCPDesc,PAADMCurrentBedDR,BEDCode,PAADMType,PAADMSubType
+ set (HOSPRowId,CTLOCRowId,WARDRowId,WARDLocationDR)=0
+ set (PAADMAdmDate,PAADMADMNo,PAPMINo,PAPMIName,PAPMIName2,PAPMIName3,PAPMIDOB,HOSPDesc,ctloccode,ctlocDesc,wardcode,PAPERDeceasedDate,PAPERDeceasedTime,PAADMAdmDocCodeDR,CTPCPCode,CTPCPDesc,PAADMCurrentBedDR,BEDCode,PAADMType,PAADMSubType)=""
+ 
+ s ind=1 
+ 
+ i $g(Hospital)'="" s Hospital=$ZSTRIP(Hospital,"*WC")
+ i $g(Location)'="" s Location=$ZSTRIP(Location,"*WC")
+ i $g(Ward)'="" s Ward=$ZSTRIP(Ward,"*WC")
+
+ &sql(declare DeceasedEpisode cursor for
+ SELECT 
+ PAADM_AdmDate,
+ PAADM_ADMNo,   
+ PAADM_PAPMI_DR->PAPMI_No,
+ PAADM_PAPMI_DR->PAPMI_Name,
+ PAADM_PAPMI_DR->PAPMI_Name2,
+ PAADM_PAPMI_DR->PAPMI_Name3,
+ PAADM_PAPMI_DR->PAPMI_DOB,
+ 
+ PAADM_DepCode_Dr->ctloc_Hospital_DR->HOSP_RowId,
+ PAADM_DepCode_Dr->ctloc_Hospital_DR->HOSP_Desc,
+  
+ PAADM_DepCode_DR, 
+ PAADM_DepCode_Dr->ctloc_code,
+ PAADM_DepCode_Dr->ctloc_Desc,
+ PAADM_CurrentWard_DR->WARD_RowId,
+ PAADM_Currentward_dr->ward_code,
+ PAADM_Currentward_dr->ward_LocationDR,
+ PAADM_PAPMI_DR->PAPMI_PAPER_DR->PAPER_Deceased_Date,
+ PAADM_PAPMI_DR->PAPMI_PAPER_DR->PAPER_DeceasedTime,
+ PAADM_AdmDocCodeDR,
+ PAADM_AdmDocCodeDR->CTPCP_Code,
+ PAADM_AdmDocCodeDR->CTPCP_Desc,
+ PAADM_CurrentBed_DR,
+ PAADM_CurrentBed_DR->BED_Code,
+ CASE WHEN PAADM_Type='E' THEN 'Emergency' WHEN  PAADM_Type='I' THEN 'InPatient' else 'OutPatient' end as Type,
+ PAADM_Epissubtype_DR->SUBT_Desc
+ From SQLUser.PA_adm
+ WHERE PAADM_VisitStatus='A'
+ AND PAADM_PAPMI_DR->PAPMI_PAPER_DR->PAPER_Deceased='Y' 
+ AND (({fn CONCAT( ',', {fn CONCAT((:Hospital),',')})} [ {fn CONCAT( ',', {fn CONCAT((PAADM_DepCode_Dr->ctloc_Hospital_DR->HOSP_RowId),',')})}) OR (:Hospital IS NULL))
+ AND (({fn CONCAT( ',', {fn CONCAT((:Ward),',')})} [ {fn CONCAT( ',', {fn CONCAT((paadm_currentward_dr->WARD_RowId),',')})}) OR (:Ward IS NULL))
+ AND (({fn CONCAT( ',', {fn CONCAT((:Location),',')})} [ {fn CONCAT( ',', {fn CONCAT((paadm_depcode_dr->CTLOC_RowId),',')})}) OR (:Location IS NULL))
+ )
+ 
+ &sql(open DeceasedEpisode)
+
+ //fetch first row
+ &sql(fetch DeceasedEpisode into :PAADMAdmDate,:PAADMADMNo,:PAPMINo,:PAPMIName,:PAPMIName2,:PAPMIName3,:PAPMIDOB,:HospRowId,:HOSPDesc,:CTLOCRowId,:ctloccode,:ctlocDesc,:WARDRowId,:wardcode,:wardLocationDR,:PAPERDeceasedDate,:PAPERDeceasedTime,:PAADMAdmDocCodeDR,:CTPCPCode,:CTPCPDesc,:PAADMCurrentBedDR,:BEDCode,:PAADMType, :PAADMSubType)
+
+ while 'SQLCODE{
+	 
+ do FormatDates
+ do FormatTimes
+ 
+ // build the row
+ Set ^CacheTemp("TRAK",repid,$ZCVT(HOSPDesc,"U")_" "_PAPMINo_" "_PAPERDeceasedDate_ind)=$LB(PAADMAdmDate,PAADMADMNo,PAPMINo,PAPMIName,PAPMIName2,PAPMIName3,PAPMIDOB,HospRowId,HOSPDesc,CTLOCRowId,ctloccode,ctlocDesc,WARDRowId,wardcode,wardLocationDR,PAPERDeceasedDate,PAPERDeceasedTime,PAADMAdmDocCodeDR,CTPCPCode,CTPCPDesc,PAADMCurrentBedDR,BEDCode,PAADMType,PAADMSubType)
+ s ind=ind+1
+ //fetch rows
+ &sql(fetch DeceasedEpisode into :PAADMAdmDate,:PAADMADMNo,:PAPMINo,:PAPMIName,:PAPMIName2,:PAPMIName3,:PAPMIDOB,:HospRowId,:HOSPDesc,:CTLOCRowId,:ctloccode,:ctlocDesc,:WARDRowId,:wardcode,:wardLocationDR,:PAPERDeceasedDate,:PAPERDeceasedTime,:PAADMAdmDocCodeDR,:CTPCPCode,:CTPCPDesc,:PAADMCurrentBedDR,:BEDCode,:PAADMType,:PAADMSubType)}
+
+ &sql(close DeceasedEpisode)
+
+ // Build QHandle (AtEnd,ReportID,Index)
+ Set QHandle=$lb(0,repid,0)
+
+ Quit $$$OK
+
+FormatDates
+ // Convert the dates to ODBC date format
+ If PAADMAdmDate Set PAADMAdmDate=..ConvertDateToODBC(PAADMAdmDate)
+ If PAPMIDOB Set PAPMIDOB=..ConvertDateToODBC(PAPMIDOB)
+ If PAPERDeceasedDate Set PAPERDeceasedDate=..ConvertDateToODBC(PAPERDeceasedDate)
+ Quit
+
+FormatTimes
+ // Convert the dates to ODBC date format
+ If PAPERDeceasedTime Set PAPERDeceasedTime=..ConvertTimeToODBC(PAPERDeceasedTime)
+ Quit
+]]></Implementation>
+</Method>
+
+<Method name="DeceasedEpisodeFetch">
+<Description>
+This is the Fetch component of the %Library.Query. 
+This should never have to change. It is designed to fetch the row for each subscript of the ^CacheTemp
+global and return this row to the Crystal Report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,&Row:%Library.List,&AtEnd:%Library.Integer=0]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // This fetch method should never have to change. 
+
+ // repid - Report ID
+ // ind   - sequence index which represents each row
+
+ New repid,ind
+
+ // Restore QHandle
+ Set AtEnd=$li(QHandle,1)
+ Set repid=$li(QHandle,2)
+ Set ind=$li(QHandle,3)
+
+ Set ind=$o(^CacheTemp("TRAK",repid,ind))
+ If ind="" {	// if there are no more rows, finish fetching
+ Set AtEnd=1
+ Set Row=""
+ }
+ Else      {	// fetch row
+ Set Row=^CacheTemp("TRAK",repid,ind)
+ }
+
+ // Save QHandle
+ s QHandle=$lb(AtEnd,repid,ind)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Query name="DeceasedEpisode">
+<Type>%Library.Query</Type>
+<FormalSpec>Hospital:%String,Location:%String,Ward:%String</FormalSpec>
+<SqlProc>1</SqlProc>
+<Parameter name="CONTAINID" value="0"/>
+<Parameter name="ROWSPEC" value="PAADMAdmDate:%Date,PAADMADMNo:%String(MAXLEN=255),PAPMINo:%String(MAXLEN=255),PAPMIName:%String(MAXLEN=255),PAPMIName2:%String(MAXLEN=255),PAPMIName3:%String(MAXLEN=255),PAPMIDOB:%Date,HospRowId:%Integer,HOSPDesc:%String(MAXLEN=255),CTLOCRowId:%Integer,ctloccode:%String(MAXLEN=255),ctlocDesc:%String(MAXLEN=255),WARDRowId:%Integer,wardcode:%String(MAXLEN=255),wardLocationDR:%Integer,PAPERDeceasedDate:%Date,PAPERDeceasedTime:%String(MAXLEN=255),PAADMAdmDocCodeDR:%String(MAXLEN=255),CTPCPCode:%String(MAXLEN=255),CTPCPDesc:%String(MAXLEN=255),PAADMCurrentBedDR:%String(MAXLEN=255),BEDCode:%String(MAXLEN=255),PAADMType:%String(MAXLEN=255),PAADMSubType:%String(MAXLEN=255)"/>
+</Query>
+</Class>
+</Export>

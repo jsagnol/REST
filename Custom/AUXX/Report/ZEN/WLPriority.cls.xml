@@ -1,0 +1,168 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.AUXX.Report.ZEN.WLPriority">
+<Super>Custom.AUXX.Report.ZEN.Abstract</Super>
+<TimeCreated>61600,59685.351745</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/AUXX/Report/ZEN/WLPriority.xml#1 $</Default>
+</Parameter>
+
+<UDLText name="T">
+<Content><![CDATA[
+// Report Name: Trak Waiting List By Priority <br>
+
+]]></Content>
+</UDLText>
+
+<UDLText name="T">
+<Content><![CDATA[
+// Report Code: Trak.WLT0004 <br>
+
+]]></Content>
+</UDLText>
+
+<UDLText name="T">
+<Content><![CDATA[
+// LOGTRAK Number: 72458 <br>
+
+]]></Content>
+</UDLText>
+
+<Property name="Facility">
+<Type>%String</Type>
+<Parameter name="ZENURL" value="P1"/>
+</Property>
+
+<Property name="Specialty">
+<Type>%String</Type>
+<Parameter name="ZENURL" value="P2"/>
+</Property>
+
+<Property name="WLType">
+<Type>%String</Type>
+<Parameter name="ZENURL" value="P3"/>
+</Property>
+
+<XData name="ReportDefinition">
+<XMLNamespace>http://www.intersystems.com/zen/report/definition</XMLNamespace>
+<Data><![CDATA[
+<report xmlns='http://www.intersystems.com/zen/report/definition'
+   queryClass='Custom.AUXX.Report.ZEN.StoredProc.WLPriority' queryName='WLPriority' name='WLPriority'>
+  <parameter expression='..Facility'/>
+  <parameter expression='..Specialty'/>
+  <parameter expression='..WLType'/>
+  
+  <attribute name='facility' expression='..GetHospListDesc(..Facility)'/>
+  <attribute name='specialty' expression='..GetSpecialtyListDesc(..Specialty)'/>
+  <attribute name='WLType' expression='..GetWLWaitingListDesc(..WLType)'/>
+  <attribute name='timestamp' expression='$zdt($h,2,2)'/>  
+  <attribute name='username' expression='..Username'/>
+  <attribute name='reporttitle' expression='$$$Text("@WaitingListbyPriority@Waiting List by Priority")'/>
+ 
+  <group name="facility" breakOnField="HOSPDesc">
+  <attribute name="description" field="HOSPDesc" />   
+  <aggregate name='SumAttend' type='SUM' field='TotalAttend'/>
+  <aggregate name='HospTot0' type='SUM' field='PriorTot0'/>
+  <aggregate name='HospTot1' type='SUM' field='PriorTot1'/>
+  <aggregate name='HospTot2' type='SUM' field='PriorTot2'/>
+  <aggregate name='HospTot3' type='SUM' field='PriorTot3'/>
+  <aggregate name='HospTot4' type='SUM' field='PriorTot4'/>
+  <aggregate name='HospTotX' type='SUM' field='PriorTotX'/>
+  <aggregate name='HospAll' type='SUM' field='PriorAll'/>
+      <group name='Detail'>
+       <attribute field='HOSPDesc' name='HOSPDesc'/>
+       <attribute field='WLTDesc' name='WLTDesc'/>
+       <attribute field='CTLOCDesc' name='CTLOCDesc'/>
+       <attribute field='PriorTot0' name='PriorTot0'/>
+       <attribute field='PriorTot1' name='PriorTot1'/>
+       <attribute field='PriorTot2' name='PriorTot2'/>
+       <attribute field='PriorTot3' name='PriorTot3'/>
+       <attribute field='PriorTot4' name='PriorTot4'/>
+       <attribute field='PriorTotX' name='PriorTotX'/>
+       <attribute field='PriorAll' name='PriorAll'/>
+      </group>
+    </group>
+  </report>
+]]></Data>
+</XData>
+
+<XData name="ReportDisplay">
+<XMLNamespace>http://www.intersystems.com/zen/report/display</XMLNamespace>
+<Data><![CDATA[
+<report xmlns='http://www.intersystems.com/zen/report/display'
+xmlns:auxxstyle='http://www.intersystems.com/zen/report/display/auxx/style'
+xmlns:auxx='http://www.intersystems.com/zen/report/display/auxx'
+  name='WLPriority'>
+<document width= "#(..ReportWidth)#" height="#(..ReportHeight)#" marginLeft="#(..DocMarginLeft)#" marginRight="#(..DocMarginRight)#" 
+marginTop="#(..DocMarginTop)#" marginBottom="#(..DocMarginBottom)#" footerHeight="#(..DocFooterHeight)#" headerHeight="#(..DocHeaderHeight)#" 
+regionBeforeExtent="#(..DocHeaderHeight)#" regionAfterExtent="#(..DocFooterHeight)#" >
+<auxxstyle:auxxgroupheader/>
+<auxxstyle:auxxgroupsummary/>
+<auxxstyle:auxxhospitalheader/>
+<auxxstyle:auxxpageheader/>
+<auxxstyle:auxxpagefooter />
+<auxxstyle:auxxparameterheader/>
+<auxxstyle:auxxreporttitle/>
+<auxxstyle:auxxtablecolumn/>
+</document>
+<auxx:PageHeader pagetitle='@reporttitle'/>
+<auxx:PageFooter username='@username' timestamp='@timestamp'/>
+
+<body>
+<!-- REPORT HEADER -->
+<auxx:ReportHeader reporttitle='@reporttitle'/>
+<auxx:ReportParameterHeader label='@Facility:@Facility:' field='@facility' xcondition="string-length(@facility)>0"/>
+<auxx:ReportParameterHeader label='@Specialty:@Specialty:' field='@specialty' xcondition="string-length(@specialty)>0"/>
+<auxx:ReportParameterHeader label='@WaitingListType:@Waiting List Type:' field='@WLType' xcondition="string-length(@WLType)>0"/>
+<line pattern="solid" width="100%"/>
+<line pattern="empty" width="100%"/>  
+<auxx:NoResults xcondition="not(facility)" />
+<group name='facility' pagebreak="true">
+ <auxx:GroupHospitalHeader label="@Facility:@Facility:" field="@description" />
+ <line pattern="empty" lineHeight="2mm" />
+    <table class='auxxtablecolumn' group='Detail' >
+        <item field='@WLTDesc' width="15%" caption='@WaitingListType@Waiting List Type' style="text-align:left"/>
+        <item field='@CTLOCDesc' width="17%" caption='@Specialty@Specialty' style="text-align:left"/>
+        <item field='@PriorTot0' width="8%" style="text-align:right" caption='@NoPriority@No Priority'/>
+        <item value=' ' width="2%" />
+        <item field='@PriorTot1' width="8%" style="text-align:right" caption='@PriorityLevel1@Priority Level 1'/>
+        <item value=' ' width="2%" />
+        <item field='@PriorTot2' width="8%" style="text-align:right" caption='@PriorityLevel2@Priority Level 2'/>
+        <item value=' ' width="2%" />
+        <item field='@PriorTot3' width="8%" style="text-align:right" caption='@PriorityLevel3@Priority Level 3'/>
+        <item value=' ' width="2%" />
+        <item field='@PriorTot4' width="8%" style="text-align:right" caption='@PriorityLevel4@Priority Level 4'/>
+        <item value=' ' width="2%" />
+        <item field='@PriorTotX' width="8%" style="text-align:right" caption='@PriorityOther@Priority Other'/>
+        <item value=' ' width="2%" />
+        <item field='@PriorAll' width="8%" style="text-align:right" caption='@Total@Total'/>
+    </table>
+    <line pattern="solid" width="100%" thickness="0.5mm"/>
+    <table class='auxxtablecolumn' >
+	    <item value='@Totalsfor:@Totals for: ' width="7%" style='font-weight:bold;text-align:left'/>
+        <item field='@description' width="25%" style="font-weight:bold;text-align:left"/>
+        <item field='HospTot0' width="8%" style="font-weight:bold;text-align:right" />
+        <item value=' ' width="2%" />
+        <item field='HospTot1' width="8%" style="font-weight:bold;text-align:right" />
+        <item value=' ' width="2%" />
+        <item field='HospTot2' width="8%" style="font-weight:bold;text-align:right" />
+        <item value=' ' width="2%" />
+        <item field='HospTot3' width="8%" style="font-weight:bold;text-align:right" />
+        <item value=' ' width="2%" />
+        <item field='HospTot4' width="8%" style="font-weight:bold;text-align:right" />
+        <item value=' ' width="2%" />
+        <item field='HospTotX' width="8%" style="font-weight:bold;text-align:right" />
+        <item value=' ' width="2%" />
+        <item field='HospAll' width="8%" style="font-weight:bold;text-align:right" />
+ 	</table> 
+    <line pattern="solid" width="100%" thickness="0.5mm"/>
+   </group>
+   </body>
+</report>
+]]></Data>
+</XData>
+</Class>
+</Export>

@@ -1,0 +1,184 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.AUXX.Report.ZEN.DischargesListByWard">
+<Super>Custom.AUXX.Report.ZEN.Abstract</Super>
+<TimeCreated>61520,85400.392121</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/AUXX/Report/ZEN/DischargesListByWard.xml#1 $</Default>
+</Parameter>
+
+<UDLText name="T">
+<Content><![CDATA[
+// Report Name: Trak Discharges List by Ward <br>
+
+]]></Content>
+</UDLText>
+
+<UDLText name="T">
+<Content><![CDATA[
+// Report Code: AUXX.ATD0009 <br>
+
+]]></Content>
+</UDLText>
+
+<UDLText name="T">
+<Content><![CDATA[
+// LOGTRAK Number: 72143 <br>
+
+]]></Content>
+</UDLText>
+
+<Property name="DateFrom">
+<Type>%String</Type>
+<Parameter name="ZENURL" value="P1"/>
+</Property>
+
+<Property name="DateTo">
+<Type>%String</Type>
+<Parameter name="ZENURL" value="P2"/>
+</Property>
+
+<Property name="Facility">
+<Type>%String</Type>
+<Parameter name="ZENURL" value="P3"/>
+</Property>
+
+<Property name="Ward">
+<Type>%String</Type>
+<Parameter name="ZENURL" value="P4"/>
+</Property>
+
+<XData name="ReportDefinition">
+<XMLNamespace>http://www.intersystems.com/zen/report/definition</XMLNamespace>
+<Data><![CDATA[
+<report xmlns='http://www.intersystems.com/zen/report/definition'
+   queryClass='Custom.AUXX.Report.ZEN.StoredProc.DischargesListByWard' queryName='DischargesListByWard' name='DischargesListByWard' >
+  <parameter expression='..DateFrom'/>
+  <parameter expression='..DateTo'/>
+  <parameter expression='..Facility'/>
+  <parameter expression='..Ward'/>
+  <attribute name='datefrom' expression='..DisplayDate(..DateFrom)'/>
+  <attribute name='dateto' expression='..DisplayDate(..DateTo)'/>
+  <attribute name="facility" expression="..GetHospListDesc(..Facility)"/>
+  <attribute name="ward" expression="..GetWardListDesc(..Ward)" />
+  <attribute name='ReportTitle' expression='$$$Text("@DischargesListByWard@Discharges List By Ward")'/>
+  <attribute name='CaptionOne' expression='$$$Text("@DischargeCareProvider@Discharge Clinician")'/>
+  <attribute name='timestamp' expression='$ZDATETIME($H, 2, 2)'/>  
+  <attribute name='username' expression='..Username'/> 
+
+ <group name="facility" breakOnField="HOSPDesc">
+ <attribute name="description" field="HOSPDesc" />
+   <aggregate name='TotalHosp' type='CUSTOM' field='PAADMADMNo' class='%ZEN.Report.Aggregate.CountDistinct'/>
+ <group name="ward" breakOnField="WARDDesc" >
+  <attribute name="description" field="WARDDesc" />
+   <aggregate name='TotalWard' type='CUSTOM' field='PAADMADMNo' class='%ZEN.Report.Aggregate.CountDistinct'/>
+   <element name='CaptionOne' expression='"Discharge"_$C(13,10)_"Clinician"' />
+  <group name='Detail'>  
+  <attribute field='PAADMDischgDate' name='DischargeDate' expression='..DisplayDate(%val)'/>
+  <attribute field='PAADMDischgTime' name="DischargeTime" expression="..FormatTime(%val)" />
+  <attribute field='PAPMINo' name='PAPMINo' />
+  <attribute field='PAADMADMNo' name='PAADMADMNo' />
+  <attribute fields='PAPMIName,PAPMIName2,PAPMIName3' name='PatientName' expression='..DisplayName(%val("PAPMIName"),%val("PAPMIName2"),%val("PAPMIName3"))'/>
+  <attribute field='CTSEXCode' name='Sex' />
+  <attribute field='PAPMIDOB' name='DOB' />
+  <attribute fields='PAPMIDOB,PAADMDischgDate' name='Age' expression='..GetAge(%val("PAPMIDOB"),%val("PAADMDischgDate"))'/>
+  <attribute field='DDESTCode' name='DDESTCode' />
+  <attribute field='ADSOUCode' name='ADSOUCode' />
+  <attribute field='CurrentPayor' name='CurrentPayor' />
+  <attribute field='CTLOCCode' name='CTLOCCode' />
+  <attribute field='CTPCPDesc' name='CTPCPDesc' />
+  <attribute field='LOS' name='LOS' />
+  </group>
+</group>
+</group>
+</report>
+]]></Data>
+</XData>
+
+<XData name="ReportDisplay">
+<XMLNamespace>http://www.intersystems.com/zen/report/display</XMLNamespace>
+<Data><![CDATA[
+<report xmlns='http://www.intersystems.com/zen/report/display'
+xmlns:auxxstyle='http://www.intersystems.com/zen/report/display/auxx/style'
+xmlns:auxx='http://www.intersystems.com/zen/report/display/auxx'
+  name='DischargesListByWard'>
+ <document width= "#(..ReportWidth)#" height="#(..ReportHeight)#" marginLeft="#(..DocMarginLeft)#" marginRight="#(..DocMarginRight)#" 
+	marginTop="#(..DocMarginTop)#" marginBottom="#(..DocMarginBottom)#" footerHeight="#(..DocFooterHeight)#" headerHeight="#(..DocHeaderHeight)#" 
+	regionBeforeExtent="#(..DocHeaderHeight)#" regionAfterExtent="#(..DocFooterHeight)#">
+<auxxstyle:auxxgroupheader/>
+<auxxstyle:auxxgroupsummary/>
+<auxxstyle:auxxhospitalheader/>
+<auxxstyle:auxxpageheader/>
+<auxxstyle:auxxpagefooter/>
+<auxxstyle:auxxparameterheader/>
+<auxxstyle:auxxreporttitle/>
+<auxxstyle:auxxtablecolumn/>
+</document>
+<auxx:PageHeader pagetitle='@ReportTitle'/>
+<auxx:ReportFooter username='@username' timestamp='@timestamp'/>
+
+<body>
+<!-- REPORT HEADER -->
+<auxx:ReportHeader reporttitle='@ReportTitle'/>
+<auxx:ReportParameterHeader label='@Facility:@Facility:' field='@facility'  xcondition="string-length(@facility)>0"/>
+<auxx:ReportParameterHeader label='@Ward:@Ward:' field='@ward'  xcondition="string-length(@ward)>0"/>
+<auxx:ReportDateHeader datefrom="@datefrom" dateto="@dateto" />
+
+<line pattern="solid" width="100%"/>
+<line pattern="empty" width="100%"></line> 
+<auxx:NoResults xcondition="not(facility)" />
+<group name='facility' pagebreak="true">
+<auxx:GroupHospitalHeader label="@Facility:@Facility:" field="@description" />
+<line pattern="empty" lineHeight="1mm" />
+ <group name='ward' >
+ <auxx:GroupHeader label="@Ward:@Ward:" field="@description" />
+ <line pattern="empty" lineHeight="2mm" />
+   <table class='auxxtablecolumn' group='Detail' >
+     <item field='@DischargeDate' width="7.5%" caption='@DischargeDate@Discharge Date'/>
+     <item field='@DischargeTime' width="4%" caption='@Time@Time'/>
+     <item field='@PAPMINo' width="11%" caption='@URN@URN'/>
+     <item field='@PAADMADMNo' width="10%" caption='@EpisodeNo@Episode No'/>
+     <item field='@PatientName' width="25.5%" caption="@PatientName@Patient Name" />
+     <item field='@Age' width="6%" caption='@Age@Age'/>  
+     <item field='@Sex' width="4%" style="text-align:center" caption='@Sex@Sex'/>     
+     <item field='@DDESTCode' width="8%" caption="@DischargeDestination@Discharge Destination"/>
+     <item field="@ADSOUCode" width="7%"  caption="@AdmissionSource@Admission Source"/>
+     <item field="@CurrentPayor" width="5%"  caption="@Payor@Payor"/>
+     <item field="@CTLOCCode" width="9%"  caption="@Specialty@Specialty"/>
+     
+     <item field="@LOS" width="3%" style="text-align:right" caption="@LOS@LOS"/>
+   </table>
+  <line pattern="empty" width="100%"></line> 
+  <auxx:GroupSummary label="@Totalnumberofdischargesfor@Total number of discharges for " group="@description" summaryvalue="TotalWard" />
+  <line pattern="empty" lineHeight="4mm" />
+  </group> 
+  <line pattern="empty" width="100%"></line>
+	<auxx:GroupSummary label="@Totalnumberofdischargesfor@Total number of discharges for " group="@description" summaryvalue="TotalHosp"/>
+
+ </group>
+</body>
+</report>
+]]></Data>
+</XData>
+
+<Method name="GetAge">
+<FormalSpec>dob,agedate</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	// it's possible for the patient to be missing a dob.
+	if $g(dob) = "" q ""
+	
+	s agestring =..calculateFullAgeFromDates($zdh(dob,3),$zdh(agedate,3))
+	s year = $p(agestring,"^",1)
+	if (year > 0) q year
+	s mon = $p(agestring,"^",2)
+	s day = $p(agestring,"^",3)
+	s age = mon_"m "_day_"d"
+	q age
+]]></Implementation>
+</Method>
+</Class>
+</Export>

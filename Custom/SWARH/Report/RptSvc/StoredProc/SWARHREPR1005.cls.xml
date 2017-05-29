@@ -1,0 +1,348 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.SWARH.Report.RptSvc.StoredProc.SWARHREPR1005">
+<Description><![CDATA[
+<pre>
+**************************************************************************************************************************************
+* Report Code: SWARHREPR1005
+* Report Description: Australian Stroke Registry
+* Menu Caption: AuSCR Data Export
+* Initial release: 2015-07-01
+* Developer: Ross Gladman
+* Report shows: Extract Of Data For AuSCR Website
+* Modified: 2016-02-25 - rpgladman - Changed to use PAADM_DischgDate instead of PAADM_AdmDate to filter to be consistant with checker,
+*                                    change primary ICD10 code to actually only pick the first valid code & updated ^CacheTemp 
+*                                    references
+* Modified: 2016-06-06 - rpgladman - Updated discharge classification translations as per Patrick Groot
+**************************************************************************************************************************************
+</pre>]]></Description>
+<ProcedureBlock>0</ProcedureBlock>
+<Super>Custom.SWARH.Report.RptSvc.StoredProc.Abstract</Super>
+<TimeCreated>60905,54849</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/SWARH/Report/RptSvc/StoredProc/SWARHREPR1005.xml#1 $</Default>
+</Parameter>
+
+<Method name="SWARHREPR1005QueryClose">
+<Description>
+This is the Close component of the %Library.Query.
+This is standard code and should never have to change.
+This is where all the cleanup is performed, i.e. the purging of the temporary storage global ^CacheTemp.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>QHandle:%Library.Binary</FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Clean up by purging the temporary node in ^CacheTemp global
+ New repid,ind
+ Set repid=$List(QHandle,2)
+
+ //Start Monitor (if configured to capture stats)
+ If mon Do ..MonitorEnd(mon)
+
+ Kill ^CacheTemp(..#CACHETEMPSUBSCRIPT,repid)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="SWARHREPR1005QueryExecute">
+<Description>
+This is the Execute section for the %Library.Query. 
+All of the logic will be performed here.
+A new node for the ^CacheTemp global will be created and each subscript of this global will contain
+a row for the report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,Hospital:%Library.String,DateFrom:%Date,DateTo:%Date]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Get reportid i.e. use $INCREMENT to add another node to ^CacheTemp global. 
+ // We use ^CacheTemp global because it will always use memory before disk
+ New repid,ind
+
+  // Use $Increment to get the next node
+ Set repid=$Increment(^CacheTemp(..#CACHETEMPSUBSCRIPT))
+ 
+	New Title, FirstName, LastName, MRN, MedicareNumber, DateOfBirth, Gender, ATSI, CountryOfBirth, LanguageSpokenAtHome, InterpreterNeeded
+	, HomeStreetAddress, Suburb, Postcode, State, Country, TelephoneNumber, MobileNumber, NOKEmergencyContactTitle, NOKFirstName, NOKSurname
+	, NOKStreetAddress, NOKSuburb, NOKPostcode, NOKState, NOKCountry, NOKTelephoneNumber, NOKMobileNumber, NOKRelationship
+	, NOKRelationshipOther, GPGPContactDetailsTitle, GPFirstName, GPSurname, GPStreetAddress, GPSuburb, GPPostcode, GPState, GPCountry
+	, GPTelephoneNumber, GPMobileNumber, DateOfArrival, DateOfArrivalAccuracy, TimeOfArrival, TimeOfArrivalAccuracy, DateOfAdmission
+	, DateOfAdmissionAccuracy, DateOfStrokeOnset, DateOfStrokeOnsetAccuracy, TimeOfStrokeOnset, TimeOfStrokeOnsetAccuracy
+	, DateOfDischargeKnown, DateOfDischarge, DateOfDischargeAccuracy, PatientDeceased, DateOfDeath, DateOfDeathAccuracy, DischargeDestination
+	, ICD10CodeDiagnosis, ICD10CodeMedicalCondition, ICD10CodeComplications, ICD10CodeProcedures, TransferFromAnotherHospital
+	, StrokeOccursWhileInHospital, AbleToWalkIndependentlyOnAdmission, DocumentedEvidenceOfPreviousStroke, TreatedInStrokeUnit, TypeOfStroke
+	, UseOfTPA, CauseOfStroke, DischargeOnAntihypertensiveAgent, EvidenceOfCarePlanOnDischarge, TimeOfAdmission, TimeOfAdmissionAccuracy
+	, ArrivalByAmbulance
+
+ Set (Title, FirstName, LastName, MRN, MedicareNumber, DateOfBirth, Gender, ATSI, CountryOfBirth, LanguageSpokenAtHome, InterpreterNeeded
+	, HomeStreetAddress, Suburb, Postcode, State, Country, TelephoneNumber, MobileNumber, NOKEmergencyContactTitle, NOKFirstName, NOKSurname
+	, NOKStreetAddress, NOKSuburb, NOKPostcode, NOKState, NOKCountry, NOKTelephoneNumber, NOKMobileNumber, NOKRelationship
+	, NOKRelationshipOther, GPGPContactDetailsTitle, GPFirstName, GPSurname, GPStreetAddress, GPSuburb, GPPostcode, GPState, GPCountry
+	, GPTelephoneNumber, GPMobileNumber, DateOfArrival, DateOfArrivalAccuracy, TimeOfArrival, TimeOfArrivalAccuracy, DateOfAdmission
+	, DateOfAdmissionAccuracy, DateOfStrokeOnset, DateOfStrokeOnsetAccuracy, TimeOfStrokeOnset, TimeOfStrokeOnsetAccuracy
+	, DateOfDischargeKnown, DateOfDischarge, DateOfDischargeAccuracy, PatientDeceased, DateOfDeath, DateOfDeathAccuracy, DischargeDestination
+	, ICD10CodeDiagnosis, ICD10CodeMedicalCondition, ICD10CodeComplications, ICD10CodeProcedures, TransferFromAnotherHospital
+	, StrokeOccursWhileInHospital, AbleToWalkIndependentlyOnAdmission, DocumentedEvidenceOfPreviousStroke, TreatedInStrokeUnit, TypeOfStroke
+	, UseOfTPA, CauseOfStroke, DischargeOnAntihypertensiveAgent, EvidenceOfCarePlanOnDischarge, TimeOfAdmission, TimeOfAdmissionAccuracy
+	, ArrivalByAmbulance) = ""
+
+
+ Set ind=1, END=0
+
+ //Start Monitor (if configured to capture stats)
+ Set mon=..MonitorBegin()
+ 
+ //Convert ODBC dates to cache format
+ Set DateFrom=..ConvertDateToCache(DateFrom)
+ Set DateTo=..ConvertDateToCache(DateTo)
+ 
+ // SQL Query
+ &SQL(DECLARE AUSCRCursor CURSOR FOR SELECT
+    -- NOK Relationship is not processed properly, currently it leaves this empty (indicating refer to the other field) and puts the Trak desc into that field.  As it is optional I see this as a decent compromise
+    DECODE(Q.QUESPAPatMasDR->PAPMI_Title_DR->TTL_Code,'MR','Mr','MRS','Mrs','MS','Ms','MISS','Miss','DR','Dr','MAST','Master','')
+                                                                            As Title                                -- O - Requires Filtering (Mr,Mrs,Ms,Miss,Dr,Master,Blank)
+    ,   Q.QUESPAPatMasDR->PAPMI_PAPER_DR->PAPER_Name2                       As FirstName                            -- R -
+    ,   Q.QUESPAPatMasDR->PAPMI_PAPER_DR->PAPER_Name                        As LastName                             -- R -
+    ,   Q.QUESPAPatMasDR->PAPMI_No                                          As MRN                                  -- R -
+    ,   CASE WHEN ISNUMERIC(Q.QUESPAPatMasDR->PAPMI_Medicare)=1 AND CAST(Q.QUESPAPatMasDR->PAPMI_Medicare AS INT)>=1000000000 AND CAST(Q.QUESPAPatMasDR->PAPMI_Medicare AS INT)<=9999999999 THEN Q.QUESPAPatMasDR->PAPMI_Medicare ELSE '' END
+                                                                            As MedicareNumber                       -- O - This appears to filter out all bad numbers
+    ,   CONVERT(VARCHAR(10),Q.QUESPAPatMasDR->PAPMI_PAPER_DR->PAPER_Dob,103)As DateOfBirth                          -- R -
+    ,   DECODE(Q.QUESPAPatMasDR->PAPMI_Sex_Dr->CTSex_Code,'M','1','F','2','')
+                                                                            As Gender                               -- O - Requires Filtering (1:M,2:F,Blank)
+    ,   DECODE(Q.QUESPAPatMasDR->PAPMI_IndigStat_DR->INDST_Code,5,'1',6,'2',7,'3',2,'4','')
+                                                                            As ATSI                                 -- O - Requires Filtering (1:Abor,2:Torr,3:Both,4:Neit,Blank)
+    ,   Q.QUESPAPatMasDR->PAPMI_PAPER_DR->PAPER_Nation_DR->CTNAT_Code       As CountryOfBirth                       -- O -
+        -- Use the 'TABLE-Language' page in the 'PLD1027-AuSCR - Workspace' spreadsheet to generate the values to put in below - rpgladman 
+    ,   DECODE(Q.QUESPAPatMasDR->PAPMI_PAPER_DR->PAPER_PrefLanguage_DR->PREFL_Code,'0','1403','1','3901','2','8603','3','4202','4','4901','5','8620','6','4206','7','8000','8','5201','9','6501','10','3501','11','3502','12','8181','13','6101','14','7101','15','6502','16','3503','17','3601','18','1501','19','1201','20','1601','21','9301','22','1602','23','2101','24','1301','25','9302','26','2201','27','5202','28','7102','29','4204','30','5203','31','6201','32','7107','33','3301','34','6504','35','1102','36','2401','37','7201','38','5101','39','6301','40','7301','41','8924','42','8505','43','6401','44','3101','45','3102','46','3504','47','6505','48','2501','49','7104','50','9205','51','1401','52','1503','53','4106','54','8713','55','8714','56','3602','57','2302','58','5207','59','3904','60','3402','61','9308','62','3505','63','5211','64','3603','65','3506','66','9208','67','2303','68','9211','69','1504','70','6511','71','5103','72','5104','73','7199','74','6402','75','6508','76','8117','77','9311','78','4301','79','3403','80','5212','81','6302','82','8516','83','8521','84','1103','85','8304','86','1303','95','0','96','0','97','9799','98','&&&&','93','9200','89','9214','94','6500','87','4101','91','5206','88','4102','92','7901','90','7902','')
+                                                                            As LanguageSpokenAtHome                 -- O - 
+    ,   DECODE(Q.QUESPAPatMasDR->PAPMI_PAPER_DR->PAPER_InterpreterRequired,'Y',1,'N',2,'')
+                                                                            As InterpreterNeeded                    -- O - Requires Filtering (1:Yes,2:No,Blank)
+    ,   STUFF(Q.QUESPAPatMasDR->PAPMI_PAPER_DR->PAPER_StName,1,2,'')||ISNULL(', '||QUESPAPatMasDR->PAPMI_PAPER_DR->PAPER_ForeignAddress,'')
+                                                                            As HomeStreetAddress                    -- O - May be on one or spread over both fields depending on who entered it
+    ,   Q.QUESPAPatMasDR->PAPMI_PAPER_DR->PAPER_CityCode_DR->CTCIT_Desc     As Suburb                               -- O -
+    ,   Q.QUESPAPatMasDR->PAPMI_PAPER_DR->PAPER_Zip_DR->CTZIP_Code          As Postcode                             -- O -
+    ,   Q.QUESPAPatMasDR->PAPMI_PAPER_DR->PAPER_CT_Province_DR->PROV_Desc   As State                                -- O -
+    ,   Q.QUESPAPatMasDR->PAPMI_PAPER_DR->PAPER_Country_DR->CTCOU_Code      As Country                              -- O - There is no country field in the patient editing page in Trak so this will always be blank
+    ,   CASE WHEN ISNUMERIC(Q.QUESPAPatMasDR->PAPMI_PAPER_DR->PAPER_TelH)=1 AND CAST(Q.QUESPAPatMasDR->PAPMI_PAPER_DR->PAPER_TelH AS INT)>=0100000000 AND CAST(Q.QUESPAPatMasDR->PAPMI_PAPER_DR->PAPER_TelH AS INT)<=0899999999 THEN Q.QUESPAPatMasDR->PAPMI_PAPER_DR->PAPER_TelH ELSE '' END
+                                                                            As TelephoneNumber                      -- O - Some of these are a real mess, drop anything that doesn't seem to be a phone number
+    ,   CASE WHEN ISNUMERIC(Q.QUESPAPatMasDR->PAPMI_PAPER_DR->PAPER_MobPhone)=1 AND CAST(Q.QUESPAPatMasDR->PAPMI_PAPER_DR->PAPER_MobPhone AS INT)>=0100000000 AND CAST(Q.QUESPAPatMasDR->PAPMI_PAPER_DR->PAPER_MobPhone AS INT)<=0899999999 THEN Q.QUESPAPatMasDR->PAPMI_PAPER_DR->PAPER_MobPhone ELSE '' END
+                                                                            As MobileNumber                         -- O - Some of these are a real mess, drop anything that doesn't seem to be a phone number
+    ,   CASE WHEN NOK.NOK_FirstContact='Y' THEN DECODE(NOK.NOK_Title_DR->TTL_Code,'MR','Mr','MRS','Mrs','MS','Ms','MISS','Miss','DR','Dr','MAST','Master','') ELSE '' END
+                                                                            As NOKEmergencyContactTitle             -- O - Requires Filtering (Mr,Mrs,Ms,Miss,Dr,Master,Blank)
+    ,   CASE WHEN NOK.NOK_FirstContact='Y' THEN NOK.NOK_Name2 ELSE '' END   As NOKFirstName                         -- O -
+    ,   CASE WHEN NOK.NOK_FirstContact='Y' THEN NOK.NOK_Name ELSE '' END    As NOKSurname                           -- O -
+    ,   CASE WHEN NOK.NOK_FirstContact='Y' THEN NOK.NOK_StNameLine1 || ISNULL(', '+NOK.NOK_Address2,'') ELSE '' END
+                                                                            As NOKStreetAddress                     -- O - May be on one or spread over both fields depending on who entered it
+    ,   CASE WHEN NOK.NOK_FirstContact='Y' THEN NOK.NOK_CityCode_DR->CTCIT_Desc ELSE '' END
+                                                                            As NOKSuburb                            -- O -
+    ,   CASE WHEN NOK.NOK_FirstContact='Y' THEN NOK.NOK_Zip_DR->CTZIP_Code ELSE '' END
+                                                                            As NOKPostcode                          -- O -
+    ,   CASE WHEN NOK.NOK_FirstContact='Y' THEN NOK.NOK_Province_DR->PROV_Desc ELSE '' END
+                                                                            As NOKState                             -- O -
+    ,   CASE WHEN NOK.NOK_FirstContact='Y' THEN NOK.NOK_Country_DR->CTCOU_Code ELSE '' END
+     			                                                                  As NOKCountry                           -- O - 
+    ,   CASE WHEN NOK.NOK_FirstContact='Y' THEN CASE WHEN ISNUMERIC(NOK.NOK_TelH)=1 AND CAST(NOK.NOK_TelH AS INT)>=0100000000 AND CAST(NOK.NOK_TelH AS INT)<=0899999999 THEN NOK.NOK_TelH ELSE '' END ELSE '' END
+                                                                            As NOKTelephoneNumber                   -- O - Some of these are a real mess, drop anything that doesn't seem to be a phone number
+    ,   CASE WHEN NOK.NOK_FirstContact='Y' THEN CASE WHEN ISNUMERIC(NOK.NOK_MobPhone)=1 AND CAST(NOK.NOK_MobPhone AS INT)>=0100000000 AND CAST(NOK.NOK_MobPhone AS INT)<=0899999999 THEN NOK.NOK_MobPhone ELSE '' END ELSE '' END
+                                                                            As NOKMobileNumber                      -- O - Some of these are a real mess, drop anything that doesn't seem to be a phone number
+    ,   ''                                                                  As NOKRelationship                      -- O - Cheating here, just leaving the limited option list blank and putting everything in the 'other' field instead
+    ,   CASE WHEN NOK.NOK_FirstContact='Y' THEN NOK.NOK_Relation_DR->CTRLT_Desc ELSE '' END
+                                                                            As NOKRelationshipOther                 -- O -
+    ,   DECODE(QUESPAPatMasDR->PAPMI_PAPER_DR->PAPER_FamilyDoctor_DR->REFD_Title,'Mr','Mr','MR','Mr','Ms','Ms','MS','Ms','Miss','Miss','MISS','Miss','Dr','Dr','Dr.','Dr','DR','Dr','DR.','Dr','Doctor','Dr','DOCTOR','Dr','')
+                                                                            As GPGPContactDetailsTitle              -- O - Requires Filtering (Mr,Mrs,Ms,Miss,Dr,Master,Blank), This does not use the normal TTL_Code but is straight text so there aren't any fixed values, best effort translation - otherwise return blank
+    ,   Q.QUESPAPatMasDR->PAPMI_PAPER_DR->PAPER_FamilyDoctor_DR->REFD_Forename
+                                                                            As GPFirstName                          -- O -
+    ,   Q.QUESPAPatMasDR->PAPMI_PAPER_DR->PAPER_FamilyDoctor_DR->REFD_Desc  As GPSurname                            -- O -
+    ,   Q.QUESPAPatMasDR->PAPMI_PAPER_DR->PAPER_FamilyDoctorClinic_DR->CLN_Address1||ISNULL(', '||Q.QUESPAPatMasDR->PAPMI_PAPER_DR->PAPER_FamilyDoctorClinic_DR->CLN_Address2,'')
+                                                                            As GPStreetAddress                      -- O - May be on one or spread over both fields depending on who entered it
+    ,   Q.QUESPAPatMasDR->PAPMI_PAPER_DR->PAPER_FamilyDoctorClinic_DR->CLN_City_DR->CTCIT_Desc
+                                                                            As GPSuburb                             -- O -
+    ,   Q.QUESPAPatMasDR->PAPMI_PAPER_DR->PAPER_FamilyDoctorClinic_DR->CLN_Zip_DR->CTZIP_Code
+                                                                            As GPPostcode                           -- O -
+    ,   Q.QUESPAPatMasDR->PAPMI_PAPER_DR->PAPER_FamilyDoctorClinic_DR->CLN_City_DR->CTCIT_Province_DR->PROV_Desc
+                                                                            As GPState                              -- O -
+    ,   ''                                                                  As GPCountry                            -- O - Always Blank, optional field which also does not exist in Trak
+    ,   CASE WHEN ISNUMERIC(Q.QUESPAPatMasDR->PAPMI_PAPER_DR->PAPER_FamilyDoctorClinic_DR->CLN_Phone)=1 AND CAST(Q.QUESPAPatMasDR->PAPMI_PAPER_DR->PAPER_FamilyDoctorClinic_DR->CLN_Phone AS INT)>=0100000000 AND CAST(Q.QUESPAPatMasDR->PAPMI_PAPER_DR->PAPER_FamilyDoctorClinic_DR->CLN_Phone AS INT)<=0899999999 THEN Q.QUESPAPatMasDR->PAPMI_PAPER_DR->PAPER_FamilyDoctorClinic_DR->CLN_Phone ELSE '' END
+                                                                            As GPTelephoneNumber                    -- O - Left blank as the numbers entered are a mess - PAADM_PAPMI_DR->PAPMI_PAPER_DR->PAPER_FamilyDoctorClinic_DR->CLN_Phone
+    ,   CASE WHEN ISNUMERIC(Q.QUESPAPatMasDR->PAPMI_PAPER_DR->PAPER_FamilyDoctor_DR->REFD_MobilePhone)=1 AND CAST(Q.QUESPAPatMasDR->PAPMI_PAPER_DR->PAPER_FamilyDoctor_DR->REFD_MobilePhone AS INT)>=0100000000 AND CAST(Q.QUESPAPatMasDR->PAPMI_PAPER_DR->PAPER_FamilyDoctor_DR->REFD_MobilePhone AS INT)<=0899999999 THEN Q.QUESPAPatMasDR->PAPMI_PAPER_DR->PAPER_FamilyDoctor_DR->REFD_MobilePhone ELSE '' END
+                                                                            As GPMobileNumber                       -- O - Left blank as the numbers entered are a mess - PAADM_PAPMI_DR->PAPMI_PAPER_DR->PAPER_FamilyDoctor_DR->REFD_MobilePhone
+    ,   CONVERT(varchar(10),Q.QUESPAAdmDR->PAADM_AdmDate,103)               As DateOfArrival                        -- R - AuSCR "Arrival" = Trak "Admission"
+    ,   'AAA'                                                               As DateOfArrivalAccuracy                -- R -
+    ,   CONVERT(varchar(5),Q.QUESPAAdmDR->PAADM_AdmTime,108)                As TimeOfArrival                        -- R -
+    ,   'A'                                                                 As TimeOfArrivalAccuracy                -- R -
+    ,   IFNULL(CONVERT(varchar(10),Q.QUESPAAdmDR->PAADM_TriageDate,103),CONVERT(varchar(10),Q.QUESPAAdmDR->PAADM_AdmDate,103),CONVERT(varchar(10),Q.QUESPAAdmDR->PAADM_TriageDate,103))
+                                                                            As DateOfAdmission                      -- R - AuSCR "Admission" = Trak "Triage"
+    ,   'AAA'                                                               As DateOfAdmissionAccuracy              -- R -
+    ,   CONVERT(varchar(10),QDateOfStrokeOnset,103)                         As DateOfStrokeOnset                    -- R -
+    ,   QDateOfStrokeOnsetAccurac                                           As DateOfStrokeOnsetAccuracy            -- R -
+    ,   CONVERT(varchar(5),QTimeOfStrokeOnset,108)                          As TimeOfStrokeOnset                    -- R -
+    ,   QTimeOfStrokeOnsetAccurac                                           As TimeOfStrokeOnsetAccuracy            -- R -
+    ,   CAST(QDateOfDischargeKnown AS INTEGER)                              As DateOfDischargeKnown                 -- O - Even though we can pull this data out we cannot retrieve it from the episode to whether to ask the optional questions below
+    ,   CASE WHEN QDateOfDischargeKnown=1 THEN CONVERT(varchar(10),QUESPAAdmDR->PAADM_DischgDate,103) ELSE '' END
+                                                                            As DateOfDischarge                      -- OD- If Date_Of_Discharge_Known is set then this must be entered
+    ,   CASE WHEN QDateOfDischargeKnown=1 THEN 'AAA' ELSE '' END            As DateOfDischargeAccuracy              -- RD- If Date_Of_Discharge_Known is set then this must be entered
+    ,   DECODE(Q.QUESPAPatMasDR->PAPMI_PAPER_DR->PAPER_Deceased,'Y','1','2')As PatientDeceased                      -- O - Requires Filtering (1:Yes,2:No) - This is Person related, not episode related.  If the episode is ended, and then they die afterwards and then the report is generated then it indicate they die during this episode.
+    ,   CASE WHEN DECODE(Q.QUESPAPatMasDR->PAPMI_PAPER_DR->PAPER_Deceased,'Y','1','2')='1' THEN CONVERT(varchar(10),Q.QUESPAPatMasDR->PAPMI_PAPER_DR->PAPER_Deceased_Date,103) ELSE ''  END
+                                                                            As DateOfDeath                          -- RD- If Patient_Deceased then fill this out, otherwise blank.
+    ,   CASE WHEN DECODE(Q.QUESPAPatMasDR->PAPMI_PAPER_DR->PAPER_Deceased,'Y','1','2')='1' THEN 'AAA' ELSE '' END
+                                                                            As DateOfDeathAccuracy                  -- RD- If Patient_Deceased then fill this out, otherwise blank.
+    ,   CASE
+          -- Use the 'TABLE-Discharge Destination' page in the 'PLD1027-AuSCR - Workspace' spreadsheet to generate the values to put in below - rpgladman
+          WHEN DECODE(Q.QUESPAPatMasDR->PAPMI_PAPER_DR->PAPER_Deceased,'Y','1','2')=1                                       THEN 'DIED IN HOSPITAL'             -- Special case, if we have indicated they have died then this must be set
+          WHEN CHARINDEX('~'||Q.QUESPAAdmDR->PAADM_MainMRADM_DR->MRADM_DischClassif_DR->DSCL_Code||'~','~4~17~19~20~21~26~')>0  THEN 'HOSPITAL'                 -- PAADM_MainMRADM_DR->MRADM_DischClassif_DR->DSCL_Desc[Code] in SQLUser.PAC_DischargeDestination
+          WHEN CHARINDEX('~'||Q.QUESPAAdmDR->PAADM_MainMRADM_DR->MRADM_DischClassif_DR->DSCL_Code||'~','~2~')>0             THEN 'REHABILITATION (INPATIENT)'   -- Discharge Destination - Trak has many options but AuSCR want one of 9 fixed text ones.... HOSPITAL,REHABILITATION (INPATIENT),LOW LEVEL RESIDENTIAL CARE,HIGH LEVEL RESIDENTIAL CARE,HOME WITH SUPPORTS,HOME WITHOUT SUPPORTS,TRANSITIONAL CARE SERVICES,DIED IN HOSPITAL,OTHER
+          WHEN CHARINDEX('~'||Q.QUESPAAdmDR->PAADM_MainMRADM_DR->MRADM_DischClassif_DR->DSCL_Code||'~','~24~')>0            THEN 'LOW LEVEL RESIDENTIAL CARE'
+          WHEN CHARINDEX('~'||Q.QUESPAAdmDR->PAADM_MainMRADM_DR->MRADM_DischClassif_DR->DSCL_Code||'~','~0~')>0             THEN 'HIGH LEVEL RESIDENTIAL CARE'
+          WHEN CHARINDEX('~'||Q.QUESPAAdmDR->PAADM_MainMRADM_DR->MRADM_DischClassif_DR->DSCL_Code||'~','~1~6~4~')>0         THEN 'HOME WITH SUPPORTS'
+          --WHEN CHARINDEX('~'||Q.QUESPAAdmDR->PAADM_MainMRADM_DR->MRADM_DischClassif_DR->DSCL_Code||'~','~')>0             THEN 'HOME WITHOUT SUPPORTS'        -- No fields matching this type
+          --WHEN CHARINDEX('~'||Q.QUESPAAdmDR->PAADM_MainMRADM_DR->MRADM_DischClassif_DR->DSCL_Code||'~','~')>0             THEN 'TRANSITIONAL CARE SERVICES'   -- No fields matching this type
+          WHEN CHARINDEX('~'||Q.QUESPAAdmDR->PAADM_MainMRADM_DR->MRADM_DischClassif_DR->DSCL_Code||'~','~7~9~')>0           THEN 'DIED IN HOSPITAL'
+          ELSE 'OTHER'
+        END                                                                 As DischargeDestination                 -- O - Also, if patient is deceased then this must be 'DIED IN HOSPITAL', If this is incorrect then it should be put as question really  !!!See spreadsheet for the table to generate this data!!!
+    ,   $PIECE(ISNULL((SELECT LIST(MRDIA_ICDCode_DR->MRCID_Code) FROM SQLUser.MR_Diagnos DIAG WHERE DIAG.MRDIA_MRADM_ParRef = Q.QUESPAAdmDR->PAADM_MainMRADM_DR AND MRDIA_ICDCode_DR->MRCID_Code IN ('I61.0','I61.1','I61.2','I61.3','I61.4','I61.5','I61.6','I61.8','I61.9','I62.9','I63.0','I63.1','I63.2','I63.3','I63.4','I63.5','I63.6','I63.8','I63.9','I64','G45.9') AND DIAG.MRDIA_Prefix = 'P'),''),',')
+    																																				As ICD10CodeDiagnosis                   -- R -- Referred to as Primary in Trak.  This works by looking for the first valid code in the list, if one isn't found then it leaves it blank which will cause the import to fail (in theory).  Trak can have multiple primary codes but we only take the first valid match
+    ,   CASE WHEN (SELECT COUNT(MRDIA_ICDCode_DR->MRCID_Code) FROM SQLUser.MR_Diagnos DIAG WHERE DIAG.MRDIA_MRADM_ParRef = Q.QUESPAAdmDR->PAADM_MainMRADM_DR AND DIAG.MRDIA_Prefix = 'A')>1
+    			THEN (SELECT LIST(MRDIA_ICDCode_DR->MRCID_Code) FROM SQLUser.MR_Diagnos DIAG WHERE DIAG.MRDIA_MRADM_ParRef = Q.QUESPAAdmDR->PAADM_MainMRADM_DR AND DIAG.MRDIA_Prefix = 'A') ELSE '' END
+    																																				As ICD10CodeMedicalCondition            -- O -- Referred to as Associated in Trak
+    ,   CASE WHEN (SELECT COUNT(MRDIA_ICDCode_DR->MRCID_Code) FROM SQLUser.MR_Diagnos DIAG WHERE DIAG.MRDIA_MRADM_ParRef = Q.QUESPAAdmDR->PAADM_MainMRADM_DR AND DIAG.MRDIA_Prefix = 'C')>1
+    			THEN (SELECT LIST(MRDIA_ICDCode_DR->MRCID_Code) FROM SQLUser.MR_Diagnos DIAG WHERE DIAG.MRDIA_MRADM_ParRef = Q.QUESPAAdmDR->PAADM_MainMRADM_DR AND DIAG.MRDIA_Prefix = 'C') ELSE '' END
+    																																				As ICD10CodeComplications               -- O -- Referred to as Complications in Trak
+    ,   CASE WHEN (SELECT COUNT(PROC_Operation_DR->OPER_Code) FROM SQLUser.MR_Procedures PROC WHERE PROC_ParRef = Q.QUESPAAdmDR->PAADM_MainMRADM_DR)>1
+    			THEN (SELECT LIST(PROC_Operation_DR->OPER_Code) FROM SQLUser.MR_Procedures PROC WHERE PROC_ParRef = Q.QUESPAAdmDR->PAADM_MainMRADM_DR) ELSE '' END
+    																																				As ICD10CodeProcedures                  -- O -
+    ,   CAST(QTransferFromAnotherHospi AS INTEGER)                          As TransferFromAnotherHospital          -- R - (1:Yes,2:No,9:Unknown) - PAADM_TransferFacility is a text field so it must be manually entered
+    ,   CAST(QStrokeOccursWhileInHospi AS INTEGER)                          As StrokeOccursWhileInHospital          -- R - (1:Yes,2:No,9:Unknown)
+    ,   CAST(QAbleToWalkIndependentlyO AS INTEGER)                          As AbleToWalkIndependentlyOnAdmission   -- R - (1:Yes,2:No,9:Unknown)
+    ,   CAST(QDocumentedEvidenceOfPrev AS INTEGER)                          As DocumentedEvidenceOfPreviousStroke   -- R - (1:Yes,2:No,9:Unknown)
+    ,   CAST(QTreatedInStrokeUnit AS INTEGER)                               As TreatedInStrokeUnit                  -- R - (1:Yes,2:No,9:Unknown)
+    ,   UCASE(QTypeOfStroke)                                                As TypeOfStroke                         -- R - (Text:ISCHAEMIC,HAEMORRHAGIC,TIA,UNDETERMINED)
+    ,   CAST(QUseOfTPA AS INTEGER)                                          As UseOfTPA                             --*OD- (1:Yes,2:No,9:Unknown) - If type is ISCHAEMIC then it can be 1,2 or 9.  Otherwise it must be 9 - This proviso is incorrectly described in the example spreadsheet
+    ,   UCASE(QCauseOfStroke)                                               As CauseOfStroke                        -- R - (Text:KNOWN,UNKNOWN)
+    ,   CASE WHEN QDateOfDischargeKnown=1 THEN QDischargeOnAntihypertens ELSE '' END
+                                                                            As DischargeOnAntihypertensiveAgent     --*OD- (1:Yes,2:No,9:Unknown)
+    ,   CASE WHEN QDateOfDischargeKnown=1 THEN QEvidenceOfCarePlanOnDisc ELSE '' END
+                                                                            As EvidenceOfCarePlanOnDischarge        --*OD- (1:Yes,2:No,3:Not Applicable,9:Unknown)
+    ,   ISNULL(CONVERT(varchar(5),Q.QUESPAAdmDR->PAADM_TriageTime,108),CONVERT(varchar(5),Q.QUESPAAdmDR->PAADM_AdmTime,108))
+                                                                            As TimeOfAdmission                      -- R -
+    ,   'A'                                                                 As TimeOfAdmissionAccuracy              -- R -
+    ,   CASE WHEN Q.QUESPAAdmDR->PAADM_MainMRADM_DR->MRADM_AmbulanceCase<>'' THEN '1' ELSE '2' END
+                                                                            As ArrivalByAmbulance                   -- R - If this value is <> '' then=1, else=2
+		FROM
+				questionnaire.QAUSCR Q
+				FULL OUTER JOIN SQLUser.PA_Nok NOK ON Q.QUESPAPatMasDR=NOK.NOK_PAPMI_ParRef
+		WHERE
+		    Q.QUESPAAdmDR->PAADM_Hospital_DR = :Hospital															-- Specific Hospital
+		AND
+				QConsentToReleaseInformat = 1																		-- If consent has been given then process it
+		AND
+    		--Q.QUESDate BETWEEN :DateFrom AND :DateTo														-- Specific date range
+    		Q.QUESPAAdmDR->PAADM_DischgDate BETWEEN :DateFrom AND :DateTo											-- Specific date range
+		AND (
+				NOK.NOK_RowId=(SELECT TOP 1 TEMP.NOK_RowId FROM SQLUser.PA_Nok TEMP WHERE TEMP.NOK_PAPMI_ParRef = Q.QUESPAPatMasDR ORDER BY TEMP.NOK_FirstContact DESC)
+			OR																										-- We only want one row per questionnaire, if they have multiple NOKs this will ensure you select the one with the NOK_FirstChoice of 'Y', if none are set to Y but they do have one in there in each field above it is set to return empty strings.
+       	NVL(NOK.NOK_RowId,1)=1																						-- This allows patients with no NOKs defined at all to work
+        )
+    ORDER BY Q.ID
+    )
+ &SQL(OPEN AUSCRCursor) 
+ 
+ //FETCH FIRST ROW
+ Do FetchRow
+  
+ While END=0 {
+	 Set sort = ind		// don't sort - uncomment this line if you've sorted in the query
+	 
+	 Set ^CacheTemp(..#CACHETEMPSUBSCRIPT,repid,sort)=$ListBuild(Title, FirstName, LastName, MRN, MedicareNumber, DateOfBirth, Gender, ATSI, CountryOfBirth
+	, LanguageSpokenAtHome, InterpreterNeeded, HomeStreetAddress, Suburb, Postcode, State, Country, TelephoneNumber, MobileNumber
+	, NOKEmergencyContactTitle, NOKFirstName, NOKSurname, NOKStreetAddress, NOKSuburb, NOKPostcode, NOKState, NOKCountry, NOKTelephoneNumber
+	, NOKMobileNumber, NOKRelationship, NOKRelationshipOther, GPGPContactDetailsTitle, GPFirstName, GPSurname, GPStreetAddress, GPSuburb
+	, GPPostcode, GPState, GPCountry, GPTelephoneNumber, GPMobileNumber, DateOfArrival, DateOfArrivalAccuracy, TimeOfArrival
+	, TimeOfArrivalAccuracy, DateOfAdmission, DateOfAdmissionAccuracy, DateOfStrokeOnset, DateOfStrokeOnsetAccuracy, TimeOfStrokeOnset
+	, TimeOfStrokeOnsetAccuracy, DateOfDischargeKnown, DateOfDischarge, DateOfDischargeAccuracy, PatientDeceased, DateOfDeath
+	, DateOfDeathAccuracy, DischargeDestination, ICD10CodeDiagnosis, ICD10CodeMedicalCondition, ICD10CodeComplications, ICD10CodeProcedures
+	, TransferFromAnotherHospital, StrokeOccursWhileInHospital, AbleToWalkIndependentlyOnAdmission, DocumentedEvidenceOfPreviousStroke
+	, TreatedInStrokeUnit, TypeOfStroke, UseOfTPA, CauseOfStroke, DischargeOnAntihypertensiveAgent, EvidenceOfCarePlanOnDischarge
+	, TimeOfAdmission, TimeOfAdmissionAccuracy, ArrivalByAmbulance)
+ 
+	 Set ind=ind+1
+ 
+	 //fetch rows
+	 
+	 Do FetchRow
+ }
+
+ &SQL(CLOSE AUSCRCursor)
+ 
+ // Build QHandle (AtEnd,ReportID,Index)
+ Set QHandle=$ListBuild(0,repid,0)
+
+ Quit $$$OK
+
+FetchRow
+ &SQL(FETCH AUSCRCursor INTO :Title,:FirstName,:LastName,:MRN,:MedicareNumber,:DateOfBirth,:Gender,:ATSI,
+		:CountryOfBirth,:LanguageSpokenAtHome,:InterpreterNeeded,:HomeStreetAddress,:Suburb,:Postcode,:State,
+		:Country,:TelephoneNumber,:MobileNumber,:NOKEmergencyContactTitle,:NOKFirstName,:NOKSurname,:NOKStreetAddress,
+		:NOKSuburb,:NOKPostcode,:NOKState,:NOKCountry,:NOKTelephoneNumber,:NOKMobileNumber,:NOKRelationship,
+		:NOKRelationshipOther,:GPGPContactDetailsTitle,:GPFirstName,:GPSurname,:GPStreetAddress,:GPSuburb,:GPPostcode,
+		:GPState,:GPCountry,:GPTelephoneNumber,:GPMobileNumber,:DateOfArrival,:DateOfArrivalAccuracy,:TimeOfArrival,
+		:TimeOfArrivalAccuracy,:DateOfAdmission,:DateOfAdmissionAccuracy,:DateOfStrokeOnset,:DateOfStrokeOnsetAccuracy,
+		:TimeOfStrokeOnset,:TimeOfStrokeOnsetAccuracy,:DateOfDischargeKnown,:DateOfDischarge,:DateOfDischargeAccuracy,
+		:PatientDeceased,:DateOfDeath,:DateOfDeathAccuracy,:DischargeDestination,:ICD10CodeDiagnosis,:ICD10CodeMedicalCondition,
+		:ICD10CodeComplications,:ICD10CodeProcedures,:TransferFromAnotherHospital,:StrokeOccursWhileInHospital,
+		:AbleToWalkIndependentlyOnAdmission,:DocumentedEvidenceOfPreviousStroke,:TreatedInStrokeUnit,:TypeOfStroke,
+		:UseOfTPA,:CauseOfStroke,:DischargeOnAntihypertensiveAgent,:EvidenceOfCarePlanOnDischarge,:TimeOfAdmission,
+		:TimeOfAdmissionAccuracy,:ArrivalByAmbulance)
+ 
+ If SQLCODE '= 0 Set END = 1
+ Quit
+]]></Implementation>
+</Method>
+
+<Method name="SWARHREPR1005QueryFetch">
+<Description>
+This is the Fetch component of the %Library.Query. 
+This should never have to change. It is designed to fetch the row for each subscript of the ^CacheTemp
+global and return this row to the Crystal Report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,&Row:%Library.List,&AtEnd:%Library.Integer=0]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // This fetch method should never have to change. 
+
+ // repid - Report ID
+ // ind   - sequence index which represents each row
+
+ New repid,ind
+
+ // Restore QHandle
+ Set AtEnd=$List(QHandle,1)
+ Set repid=$List(QHandle,2)
+ Set ind=$List(QHandle,3)
+
+ Set ind=$Order(^CacheTemp(..#CACHETEMPSUBSCRIPT,repid,ind))
+ If ind="" {	// if there are no more rows, finish fetching
+	 Set AtEnd=1
+	 Set Row=""
+ }
+ Else      {	// fetch row
+ 	Set Row=^CacheTemp(..#CACHETEMPSUBSCRIPT,repid,ind)
+ }
+
+ // Save QHandle
+ Set QHandle=$ListBuild(AtEnd,repid,ind)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Query name="SWARHREPR1005Query">
+<Type>%Library.Query</Type>
+<FormalSpec>Hospital:%Integer,DateFrom:%Date,DateTo:%Date</FormalSpec>
+<SqlProc>1</SqlProc>
+<Parameter name="CONTAINID" value="0"/>
+<Parameter name="ROWSPEC" value="Title:%String,FirstName:%String,LastName:%String,MRN:%String,MedicareNumber:%String,DateOfBirth:%String,Gender:%String,ATSI:%String,CountryOfBirth:%String,LanguageSpokenAtHome:%String,InterpreterNeeded:%String,HomeStreetAddress:%String,Suburb:%String,Postcode:%String,State:%String,Country:%String,TelephoneNumber:%String,MobileNumber:%String,NOKEmergencyContactTitle:%String,NOKFirstName:%String,NOKSurname:%String,NOKStreetAddress:%String,NOKSuburb:%String,NOKPostcode:%String,NOKState:%String,NOKCountry:%String,NOKTelephoneNumber:%String,NOKMobileNumber:%String,NOKRelationship:%String,NOKRelationshipOther:%String,GPGPContactDetailsTitle:%String,GPFirstName:%String,GPSurname:%String,GPStreetAddress:%String,GPSuburb:%String,GPPostcode:%String,GPState:%String,GPCountry:%String,GPTelephoneNumber:%String,GPMobileNumber:%String,DateOfArrival:%String,DateOfArrivalAccuracy:%String,TimeOfArrival:%String,TimeOfArrivalAccuracy:%String,DateOfAdmission:%String,DateOfAdmissionAccuracy:%String,DateOfStrokeOnset:%String,DateOfStrokeOnsetAccuracy:%String,TimeOfStrokeOnset:%String,TimeOfStrokeOnsetAccuracy:%String,DateOfDischargeKnown:%String,DateOfDischarge:%String,DateOfDischargeAccuracy:%String,PatientDeceased:%String,DateOfDeath:%String,DateOfDeathAccuracy:%String,DischargeDestination:%String,ICD10CodeDiagnosis:%String,ICD10CodeMedicalCondition:%String,ICD10CodeComplications:%String,ICD10CodeProcedures:%String,TransferFromAnotherHospital:%String,StrokeOccursWhileInHospital:%String,AbleToWalkIndependentlyOnAdmission:%String,DocumentedEvidenceOfPreviousStroke:%String,TreatedInStrokeUnit:%String,TypeOfStroke:%String,UseOfTPA:%String,CauseOfStroke:%String,DischargeOnAntihypertensiveAgent:%String,EvidenceOfCarePlanOnDischarge:%String,TimeOfAdmission:%String,TimeOfAdmissionAccuracy:%String,ArrivalByAmbulance:%String"/>
+<Parameter name="SELECTMODE" value="ODBC"/>
+</Query>
+</Class>
+</Export>

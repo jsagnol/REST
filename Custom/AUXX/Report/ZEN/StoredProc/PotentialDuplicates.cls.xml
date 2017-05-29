@@ -1,0 +1,349 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.AUXX.Report.ZEN.StoredProc.PotentialDuplicates">
+<ProcedureBlock>0</ProcedureBlock>
+<Super>Report.Abstract</Super>
+<TimeCreated>59388,55236.125</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/AUXX/Report/ZEN/StoredProc/PotentialDuplicates.xml#1 $</Default>
+</Parameter>
+
+<UDLText name="T">
+<Content><![CDATA[
+// Report Name: Potential Duplicates 
+
+]]></Content>
+</UDLText>
+
+<UDLText name="T">
+<Content><![CDATA[
+// Report Code: AUXX.PMI0002 
+
+]]></Content>
+</UDLText>
+
+<UDLText name="T">
+<Content><![CDATA[
+// LOGTRAK Number: 72434 
+
+]]></Content>
+</UDLText>
+
+<UDLText name="T">
+<Content><![CDATA[
+// This SP was built based on Leo's UARMCPAUSPA001 routine
+
+]]></Content>
+</UDLText>
+
+<Method name="PotentialDuplicatesClose">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>QHandle:%Library.Binary</FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Clean up by purging the temporary node in ^CacheTemp global
+ New repid
+ Set repid=$LIST(QHandle,2)
+ 
+ //Start Monitor (if configured to capture stats)
+ i mon Do ..MonitorEnd(mon)
+
+ Kill ^CacheTemp("TRAK",repid)
+ 
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="PotentialDuplicatesExecute">
+<Description>
+This is the Execute section for the %Library.Query. 
+All of the logic will be performed here.
+A new node for the ^CacheTemp global will be created and each subscript of this global will contain
+a row for the report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,DateFrom:%Library.Date,DateTo:%Library.Date,Facility:%Library.String]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+
+ // Get reportid i.e. use $INCREMENT to add another node to ^CacheTemp global. 
+ // We use ^CacheTemp global because it will always use memory before disk
+  New repid, ind
+ // Use $Increment to get the next node
+ Set repid = $I(^CacheTemp("TRAK"))
+ 
+ //Start Monitor (if configured to capture stats)
+ s mon=..MonitorBegin()
+  
+ S ind = 0
+ 
+ s DateFrom=..ConvertDateToCache(DateFrom)
+ s DateTo=..ConvertDateToCache(DateTo)
+ if $g(Facility)'="" s Facility=$zstrip(Facility,"*CW")
+
+ 
+ n PAPMIRowId,PAPMIName,PAPMIName2,PAPMIName3,CTSEXCode,PAPMIDOB
+ n PAPMIRowIdx,PAPMINamex,PAPMIName2x,PAPMIName3x,CTSEXCodex,PAPMIDOBx
+ 
+ n PAPMIAddress,URN,CURWard,Alias,DateAdded,UserID,UserLoc
+ n PAPMIAddressx,URNx,CURWardx,Aliasx,DateAddedx,UserIDx,UserLocx
+ 
+ n PAPersonAlias,RTMAVCurrentLocation 
+ n PAPersonAliasx,RTMAVCurrentLocationx
+ 
+ s (PAPMIName,PAPMIName2,PAPMIName3,PAPERSexDR,PAPMIDOBHOSPRowID)=""
+ s (PAPMINamex,PAPMIName2x,PAPMIName3x,PAPERSexDRx,PAPMIDOBHOSPRowIDx)=""
+ s (PAPMIAddress,URN,PAPMIAddressx,URNx,CURWard,Alias,CURWardx,Aliasx,DateAdded,DateAddedx)=""
+ s (UserID,UserLoc,UserIDx,UserLocx)=""
+ s (PAPersonAlias,RTMAVCurrentLocation)=""
+ s (PAPersonAliasx,RTMAVCurrentLocationx)=""
+ 
+ ;report of patients
+ 
+ k ^TMP($zn,$j)
+ k ^TMP("MVB",$j)
+ s date=DateFrom-1 f  s date=$o(^PAPERi("UpdDate",date)) q:date=""  q:date>DateTo  d
+ .s pat=0 f  s pat=$o(^PAPERi("UpdDate",date,pat)) q:pat=""  d
+ ..s rego=$p($g(^PAPER(pat,"PAT",1)),"^",1) q:rego=""
+ ..s active=$p($g(^PAPER(pat,"PAT",1)),"^",6) q:active="N"
+ ..s ^TMP($zn,$j,pat)=""
+ ..s s=$g(^PAPER(pat,"ALL")),sname=$p(s,"^"),gname=$p(s,"^",2),dob=$p(s,"^",6)
+ ..s s1=$g(^PAPER(pat,"PER",1)),city=$p(s1,"^",5),snd1=$p(s1,"^",4)
+ ..s adr1=$g(^PAPER(pat,"PER","ADD",1))
+ ..s sname=$$ALPHAUP(sname) q:sname=""
+ ..s gname=$$ALPHAUP(gname),gnamesnd=$$soundex^at182(gname)
+ ..s gn="" f  s gn=$o(^PAPERi("SGD",sname,gn)) q:gn=""  s dd="" f  s dd=$o(^PAPERi("SGD",sname,gn,dd)) q:dd=""  d
+ ...i gnamesnd'=$$soundex^at182(gn) q
+ ...s pat1="" f  s pat1=$o(^PAPERi("SGD",sname,gn,dd,pat1)) q:pat1=""  d
+ ....s rego=$p($g(^PAPER(pat1,"PAT",1)),"^",1) q:rego=""
+ ....s active=$p($g(^PAPER(pat1,"PAT",1)),"^",6) q:active="N"
+ ....q:$d(^TMP($zn,$j,pat1))
+ ....s ^TMP($zn,$j,pat1)=""
+ ....s s01=$g(^PAPER(pat1,"PER",1)),city1=$p(s01,"^",5)
+ ....s adr01=$g(^PAPER(pat1,"PER","ADD",1))
+ ....d
+ .....s flag=0
+ .....;i '(city-city1),adr1=adr01 s flag=1 q
+ .....i dd>=0 s flag=$$valdob(dob,dd)
+ ....q:'flag
+ ....s ^TMP("MVB",$j,sname,gname_" ",pat,sname,gn,pat1)=""
+ ....s ^TMP("MVB",$j,sname,gname_" ",pat)=$g(^TMP("MVB",$j,sname,gname_" ",pat))+1
+ ..q:snd1=""
+ ..s sn1="" f  s sn1=$o(^PAPERi("SGDS",snd1,sn1)) q:sn1=""  d
+ ...s gn1="" f  s gn1=$o(^PAPERi("SGDS",snd1,sn1,gn1)) q:gn1=""  s dd="" f  s dd=$o(^PAPERi("SGDS",snd1,sn1,gn1,dd)) q:dd=""  d
+ ....i gnamesnd'=$$soundex^at182(gn1) q
+ ....s pat1="" f  s pat1=$o(^PAPERi("SGDS",snd1,sn1,gn1,dd,pat1)) q:pat1=""  d
+ .....s rego=$p($g(^PAPER(pat1,"PAT",1)),"^",1) q:rego=""
+ .....s active=$p($g(^PAPER(pat1,"PAT",1)),"^",6) q:active="N"
+ .....q:$d(^TMP($zn,$j,pat1))
+ .....s ^TMP($zn,$j,pat1)=""
+ .....s s01=$g(^PAPER(pat1,"PER",1)),city1=$p(s01,"^",5)
+ .....s s0=$g(^PAPER(pat1,"ALL")),sname1=$p(s,"^")
+ .....s sname1=$$ALPHAUP(sname1) q:sname1=""
+ .....d
+ ......s flag=0
+ ......;i '(city-city1) s flag=1 q
+ ......i dd>=0 s flag=$$valdob(dob,dd)
+ .....q:'flag
+ .....s ^TMP("MVB",$j,sname,gname_" ",pat,sname1,gn1,pat1)=""
+ .....s ^TMP("MVB",$j,sname,gname_" ",pat)=$g(^TMP("MVB",$j,sname,gname_" ",pat))+1
+ 
+ ;;build records
+ s sn1="" f  s sn1=$o(^TMP("MVB",$j,sn1)) q:sn1=""  d          
+ .s gn1="" f  s gn1=$o(^TMP("MVB",$j,sn1,gn1)) q:gn1=""  d          
+ ..s pat="" f  s pat=$o(^TMP("MVB",$j,sn1,gn1,pat)) q:pat=""  s count=$g(^(pat)) d
+ ...s s=$$getpat(pat),flag=0
+ ...s PAPMIName=$p(s,"^",1), PAPMIName2=$p(s,"^",2),PAPMIName3=$p(s,"^",3)
+ ...s PAPMIDOB=$p(s,"^",4), CTSEXCode=$p(s,"^",7), PAPMIAddress=$p(s,"^",5), URN=$p(s,"^",6)
+ ...s CURWard=$$currward(pat),Alias=$p(s,"^",8),DateAdded=$p(s,"^",9)
+ ...s PAPersonAlias=$$PAPersonAlias(pat),RTMAVCurrentLocation=$$MRLoc(pat)
+ ...s UserID=$p(s,"^",10),UserLoc=$p(s,"^",11)
+ ...s ind=ind+1
+ ...Set ^CacheTemp("TRAK",repid,ind)=$LB(pat,PAPMIName3,PAPMIName2,PAPMIName,PAPMIDOB,CTSEXCode,PAPMIAddress,URN,CURWard,Alias,PAPersonAlias,RTMAVCurrentLocation,DateAdded,UserID,UserLoc,count) 
+ ...s sn2="" f  s sn2=$o(^TMP("MVB",$j,sn1,gn1,pat,sn2)) q:sn2=""  d
+ ....s gn2="" f  s gn2=$o(^TMP("MVB",$j,sn1,gn1,pat,sn2,gn2)) q:gn2=""  d
+ .....s pat1="" f  s pat1=$o(^TMP("MVB",$j,sn1,gn1,pat,sn2,gn2,pat1)) q:pat1=""  d
+ ......s s1=$$getpat(pat1)
+ ......s PAPMINamex=$p(s1,"^",1), PAPMIName2x=$p(s1,"^",2),PAPMIName3x=$p(s1,"^",3)
+ ......s PAPMIDOBx=$p(s1,"^",4),CTSEXCodex=$p(s1,"^",7),PAPMIAddressx=$p(s1,"^",5),URNx=$p(s1,"^",6)
+ ......s CURWardx=$$currward(pat1),Aliasx=$p(s1,"^",8),DateAddedx=$p(s1,"^",9)
+ ......s PAPersonAliasx=$$PAPersonAlias(pat1),RTMAVCurrentLocationx=$$MRLoc(pat1)
+ ......s UserIDx=$p(s1,"^",10),UserLocx=$p(s1,"^",11)
+ ......s ind=ind+1
+ ......Set ^CacheTemp("TRAK",repid,ind)=$LB(pat1,PAPMIName3x,PAPMIName2x,PAPMINamex,PAPMIDOBx,CTSEXCodex,PAPMIAddressx,URNx,CURWardx,Aliasx,PAPersonAliasx,RTMAVCurrentLocationx,DateAddedx,UserIDx,UserLocx)
+ 
+  // Build QHandle (AtEnd,ReportID,Index)
+ Set QHandle=$LISTBUILD(0,repid,0)
+ Quit $$$OK
+ 
+valdob(dob,dd) ;compare date of birth
+ ;1-similar,0-no
+ n (dob,dd)
+ q:'(dob-dd) 1
+ s dt=$zd(dob,1)
+ s dt1=$zd(dd,1)
+ s sum=0
+ f j=1,3 s sum=sum+($p(dt,"/",j)=$p(dt1,"/",j))
+ i sum>1 q 1
+ q 0
+ ;
+ 
+ALPHAUP(x) 
+ n (x)
+ q ##Class(%Collation).AlphaUp(x)
+ 
+getpat(pat) ;get patient data 
+ n (pat)
+ s str=$g(^PAPER(+pat,"ALL"))
+ s str1=$g(^PAPER(+pat,"PAT",1))
+ s str2=$g(^PAPER(+pat,"PER",1))
+ s name1=$p(str,"^")
+ s name2=$p(str,"^",2)
+ s name3=$p(str,"^",19)
+ s rego=$p(str1,"^")
+ s sex=$p(str,"^",7)
+ i sex s sex=$p($g(^CT("SEX",sex)),"^",1)
+ s dob=$p(str,"^",6)
+ i dob s dob=..ConvertDateToODBC(dob)
+ s city=$p(str2,"^",5)
+ i city s city=$p($g(^CT("CIT",city)),"^",2)
+ s province=$p($g(^PAPER(+pat,"PER",4)),"^",2)
+ i province s province=$p($g(^CT("PROV",province)),"^",1)
+ s street1=$g(^PAPER(+pat,"PER","ADD",1))
+ s street2=$p($g(^PAPER(+pat,"PER",1)),"^",1)
+ s zipcode=$p(str2,"^",7)
+ i zipcode s zipcode=$p($g(^CT("ZIP",zipcode)),"^",1)
+ s address=street1_" "_city_" "_province_" "_zipcode
+ i street2'="" s address=street1_" "_street2_" "_city_" "_province_" "_zipcode
+ s alias=$p($g(^PAPER(+pat,"PAT",2)),"^",1)
+ s dateadded=$p($g(^PAPER(+pat,"PER",5)),"^",17)
+ i dateadded s dateadded=..ConvertDateToODBC(dateadded)
+ s userid=$p($g(^PAPER(+pat,"PER",4)),"^",7)
+ i userid s userid=$p($g(^SSU("SSUSR",userid)),"^",1)
+ n userloc
+ s userloc=""
+ s id=$p($g(^PAPER(+pat,"PER",4)),"^",7)
+ i id'="" s userloc=$p($g(^SSU("SSUSR",id)),"^",4)
+ i userloc'="" s userloc=$p($g(^CTLOC(userloc)),"^",1)
+ q name1_"^"_name2_"^"_name3_"^"_dob_"^"_address_"^"_rego_"^"_sex_"^"_alias_"^"_dateadded_"^"_userid_"^"_userloc
+ 
+currward(pat) ;get current ward
+ n (pat)
+ s found=""
+ s ad=0 f  s ad=$o(^PAPER(+pat,"ADM","I",ad)) q:ad=""  q:found  d
+ .s s=$g(^PAADM(ad)) q:$p(s,"^",20)'="A"
+ .q:'$p(s,"^",70)  s found=1
+ .s ward=$p($g(^PAWARD(+$p(s,"^",70))),"^",2)
+ q $g(ward) 
+ 
+PAPersonAlias(pat) ;get aliases
+ 
+ s (PAPersonAlias,ali,str)=""
+ s al=0
+ q:pat="" ""
+  
+ while $g(al)'="" {
+ s al=$o(^PAPER(pat,"SUR",al)) 
+ i $g(al)'="" {
+   s str=$p($g(^PAPER(pat,"SUR",al)),"^",13) 
+   i $g(str)'="" {
+	 i $p($g(str),",",1)'="" s ali=$ZCVT($p($g(str),",",1),"U") i $p($g(str),",",2)'="" s ali=ali_","_$p($g(str),",",2) i $p($g(str),",",3)'="" s ali=ali_" "_$p($g(str),",",3)  
+     i $g(PAPersonAlias)'="" s PAPersonAlias=$g(PAPersonAlias)_";"_$CHAR(13)_$CHAR(10)_ali
+     i $g(PAPersonAlias)="" s PAPersonAlias=ali 
+   }
+ }
+}
+ s al=0
+ s (ali,str)=""
+ while $g(al)'="" {
+ s al=$o(^PAPER(pat,"ALIAS",al)) 
+ i $g(al)'="" {
+   s str=$p($g(^PAPER(pat,"ALIAS",al)),"^",11) 
+   i $g(str)'="" {
+	 i $p($g(str),",",1)'="" s ali=$ZCVT($p($g(str),",",1),"U") i $p($g(str),",",2)'="" s ali=ali_","_$p($g(str),",",2) i $p($g(str),",",3)'="" s ali=ali_" "_$p($g(str),",",3)  
+     i $g(PAPersonAlias)'="" s PAPersonAlias=$g(PAPersonAlias)_";"_$CHAR(13)_$CHAR(10)_ali
+     i $g(PAPersonAlias)="" s PAPersonAlias=ali 
+   }
+ }
+}
+
+ q PAPersonAlias
+ 
+
+MRLoc(pat) ; get current location of MR 
+ 
+ s MRCurrentLocation="" 
+ i $g(pat)'="" 
+ q:pat="" ""
+ 
+ &sql(SELECT
+      RTMAV_CurrentLoc_DR->CTLOC_Desc       
+      INTO :MRCurrentLocation 
+      FROM sqluser.RT_Master,sqluser.RT_MasVol
+      WHERE 
+      RTMAV_RTMAS_ParRef=RTMAS_RowId
+      AND RTMAS_PatNo_DR=:pat
+      AND RTMAS_Hospital_DR=:Facility
+      AND RTMAS_Active = 'Y'      
+      AND RTMAV_ActiveFlag = 'Y')
+ 
+ i $g(pat)'=""   
+ q MRCurrentLocation
+
+
+        
+apptdate(pat) ;get appointemnt date
+ n (pat)
+ s found=""
+ s res=0 f  s res=$o(^PAPERDR(+pat,"RB_Appt",res)) q:res=""  d 
+ .s as=0 f  s as=$o(^PAPERDR(+pat,"RB_Appt",res,as)) q:as=""  d
+ ..s date=$p($g(^RBAS(res,as)),"^") q:date<$h
+ ..s ap=0 f  s ap=$o(^PAPERDR(+pat,"RB_Appt",res,as,ap)) q:ap=""  d
+ ...s s1=$g(^RBAS(res,as,"APPT",ap)) q:" X H T "[(" "_$p(s1,"^",3)_" ")
+ ...s found=date
+ q:'found found
+ q $zd(found,4)
+]]></Implementation>
+</Method>
+
+<Method name="PotentialDuplicatesFetch">
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,&Row:%Library.List,&AtEnd:%Library.Integer=0]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // This fetch method should never have to change. 
+
+ New repid,ind
+
+ // Restore QHandle
+ Set AtEnd=$LI(QHandle,1)
+ Set repid=$LI(QHandle,2)
+ Set ind=$LI(QHandle,3)
+
+ Set ind=$order(^CacheTemp("TRAK",repid,ind))
+ If ind="" {	// if there are no more rows, finish fetching
+ 	Set AtEnd=1
+ 	Set Row=""
+ }  Else  {	// fetch row
+ 	Set Row=^CacheTemp("TRAK",repid,ind)
+ }
+
+ // Save QHandle
+ Set QHandle=$lb(AtEnd,repid,ind)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Query name="PotentialDuplicates">
+<Description>
+ Trak Report - Trak Potential Duplicate Registration </Description>
+<Type>%Library.Query</Type>
+<FormalSpec>DateFrom:%Library.Date,DateTo:%Library.Date,Facility:%Library.String</FormalSpec>
+<SqlProc>1</SqlProc>
+<Parameter name="CONTAINID" value="0"/>
+<Parameter name="ROWSPEC" value="PAPMIRowId:%Library.String,PAPMIName3:%Library.String,PAPMIName2:%Library.String,PAPMIName:%Library.String,PAPMIDOB:%Library.String,CTSEXCode:%Library.String,PAPMIAddress:%Library.String,URN:%Library.String,CurrentWard:%Library.String,Alias:%Library.String,PAPersonAlias:%Library.String,RTMAVCurrentLocation:%Library.String,DateAdded:%Library.String,UserID:%Library.String,UserLoc:%Library.String,count:%Integer"/>
+</Query>
+</Class>
+</Export>

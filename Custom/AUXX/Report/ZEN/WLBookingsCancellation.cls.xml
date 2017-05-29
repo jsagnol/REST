@@ -1,0 +1,187 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.AUXX.Report.ZEN.WLBookingsCancellation">
+<Super>Custom.AUXX.Report.ZEN.Abstract</Super>
+<TimeCreated>61543,54550.041409</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/AUXX/Report/ZEN/WLBookingsCancellation.xml#1 $</Default>
+</Parameter>
+
+<UDLText name="T">
+<Content><![CDATA[
+// Report Name: Trak WL Booking Cancellations <br>
+
+]]></Content>
+</UDLText>
+
+<UDLText name="T">
+<Content><![CDATA[
+// Report Code: Trak.WLT0001 <br>
+
+]]></Content>
+</UDLText>
+
+<UDLText name="T">
+<Content><![CDATA[
+// LOGTRAK Number: 72455 <br>
+
+]]></Content>
+</UDLText>
+
+<Property name="DateFrom">
+<Type>%String</Type>
+<Parameter name="ZENURL" value="P1"/>
+</Property>
+
+<Property name="DateTo">
+<Type>%String</Type>
+<Parameter name="ZENURL" value="P2"/>
+</Property>
+
+<Property name="Facility">
+<Type>%String</Type>
+<Parameter name="ZENURL" value="P3"/>
+</Property>
+
+<Property name="Specialty">
+<Type>%String</Type>
+<Parameter name="ZENURL" value="P4"/>
+</Property>
+
+<Property name="Clinician">
+<Type>%String</Type>
+<Parameter name="ZENURL" value="P5"/>
+</Property>
+
+<Property name="CancReason">
+<Type>%String</Type>
+<Parameter name="ZENURL" value="P6"/>
+</Property>
+
+<Property name="Category">
+<Type>%String</Type>
+<Parameter name="ZENURL" value="P7"/>
+</Property>
+
+<XData name="ReportDefinition">
+<XMLNamespace>http://www.intersystems.com/zen/report/definition</XMLNamespace>
+<Data><![CDATA[
+<report xmlns='http://www.intersystems.com/zen/report/definition'
+   queryClass='Custom.AUXX.Report.ZEN.StoredProc.WLBookingsCancellation' queryName='Cancellations' name='WLBookingsCancellation'>
+  <parameter expression='..DateFrom'/>
+  <parameter expression='..DateTo'/>
+  <parameter expression='..Facility'/>
+  <parameter expression='..Specialty'/>
+  <parameter expression='..Clinician'/>
+  <parameter expression='..CancReason'/>
+  <parameter expression='..Category'/>
+  
+  <attribute name='reporttitle' expression='$$$Text("@WaitingListBookingCancellations@Waiting List Booking Cancellations")'/>
+  <attribute name='timestamp' expression='$zdt($h,2,2)'/>
+  <attribute name='username' expression='..Username'/>
+  <attribute name="datefrom" expression="..DisplayDate(..DateFrom)"/>
+  <attribute name="dateto" expression="..DisplayDate(..DateTo)"/>
+  <attribute name='facility' expression="..GetHospListDesc(..Facility)"/>
+  <attribute name="specialty" expression="..GetSpecialtyListDesc(..Specialty)"/>
+ <attribute name="clinician" expression="..GetCareProvListDesc(..Clinician)" />
+  <attribute name="cancreason" expression="..GetWLCancReasonListDesc(..CancReason)"/>
+  <attribute name="Category" expression="..GetWLCatListDesc(..Category)"/>
+  
+  <group name="facility" breakOnField="HOSPDesc">
+  <attribute name="description" field="HOSPDesc" />
+    <aggregate name='HospTotal' type='CUSTOM' field='ADMRowId' class='%ZEN.Report.Aggregate.CountDistinct'/>
+  <group name="cancelreason" breakOnField="READesc">
+  <attribute name="description" field="READesc" />
+     <aggregate name='ReasTotal' type='CUSTOM' field='ADMRowId' class='%ZEN.Report.Aggregate.CountDistinct'/>
+      <group name='Detail'>           
+	  <attribute field='PAPMINo' name='PAPMINo'/>
+  	  <attribute fields='PAPMIName,PAPMIName2,PAPMIName3' name='PatientName' expression='..DisplayName(%val("PAPMIName"),%val("PAPMIName2"),%val("PAPMIName3"))'/>
+      <attribute field='PAPERAgeYr' name='PAPERAgeYr'/>
+      <attribute field='SEXCode' name='SEXCode'/>
+      <attribute field='ADMCancelDate' name='ADMCancelDate' expression='..DisplayDate(%val)'/>	 
+      <attribute field='WLRGDesc' name='WLRGDesc'/>	    
+      <attribute field='CTLOCCode' name='CTLOCCode'/>
+      <attribute field='CTPCPDesc' name='CTPCPDesc'/>
+	  <attribute field='WLPCode' name='WLPCode'/>
+	  <attribute field='ADMOperDate' name='OPERDate' expression='..DisplayDate(%val)'/>	 
+	  <attribute field='OPERDesc' name='OPERDesc'/>
+      <attribute field='TimesCancel' name='TimesCancel'/> 
+      <attribute field='PreAdmitDate' name='PreAdmitDate' expression='..DisplayDate(%val)'/> 
+    </group>
+   </group>
+  </group>
+ </report>
+]]></Data>
+</XData>
+
+<XData name="ReportDisplay">
+<XMLNamespace>http://www.intersystems.com/zen/report/display</XMLNamespace>
+<Data><![CDATA[
+<report xmlns='http://www.intersystems.com/zen/report/display'
+xmlns:auxxstyle='http://www.intersystems.com/zen/report/display/auxx/style'
+xmlns:auxx='http://www.intersystems.com/zen/report/display/auxx'
+  name='WLBookingsCancellation'>
+<document width= "#(..ReportWidth)#" height="#(..ReportHeight)#" marginLeft="#(..DocMarginLeft)#" marginRight="#(..DocMarginRight)#" 
+marginTop="#(..DocMarginTop)#" marginBottom="#(..DocMarginBottom)#" footerHeight="#(..DocFooterHeight)#" headerHeight="#(..DocHeaderHeight)#" 
+regionBeforeExtent="#(..DocHeaderHeight)#" regionAfterExtent="#(..DocFooterHeight)#" >
+<auxxstyle:auxxgroupheader/>
+<auxxstyle:auxxgroupsummary/>
+<auxxstyle:auxxhospitalheader/>
+<auxxstyle:auxxpageheader/>
+<auxxstyle:auxxpagefooter />
+<auxxstyle:auxxparameterheader/>
+<auxxstyle:auxxreporttitle/>
+<auxxstyle:auxxtablecolumn/>
+</document>
+<auxx:PageHeader pagetitle='@reporttitle'/>
+<auxx:ReportFooter username='@username' timestamp='@timestamp'/>
+
+<body>
+<!-- REPORT HEADER -->
+<auxx:ReportHeader reporttitle='@reporttitle'/>
+<auxx:ReportParameterHeader label='@Facility:@Facility:' field='@facility' xcondition="string-length(@facility)>0"/>
+<auxx:ReportParameterHeader label='@Specialty:@Specialty:' field='@specialty' xcondition="string-length(@specialty)>0"/>
+<auxx:ReportParameterHeader label='@Clinician:@Clinician:' field='@clinician' xcondition="string-length(@clinician)>0"/>
+<auxx:ReportParameterHeader label='@CancellationReason:@Cancellation Reason:' field='@cancreason' xcondition="string-length(@cancreason)>0"/>
+<auxx:ReportParameterHeader label='@Priority:@Priority:' field='@Category' xcondition="string-length(@Category)>0"/>
+<auxx:ReportDateHeader datefrom="@datefrom" dateto="@dateto"/>
+<line pattern="solid" width="100%"/>
+<line pattern="empty" width="100%"></line> 
+<auxx:NoResults xcondition="not(facility)" />
+<group name='facility' pagebreak="true">
+<auxx:GroupHospitalHeader label="@Facility:@Facility:" field="@description" />
+<line pattern="empty" lineHeight="1mm" />
+<group name='cancelreason'>
+<auxx:GroupHeader label="@CancellationReason:@Cancellation Reason:" field="@description" />
+<line pattern="empty" lineHeight="2mm" />
+     <table class='auxxtablecolumn' group='Detail' >
+        <item field='@PAPMINo' width="9%" caption='@URN@URN'  too-long-text="wrap"/>
+        <item field='@PatientName' width="11%" caption="@Name@Name" too-long-text="wrap"/>
+        <item field='@PAPERAgeYr' width="3%" caption="@Age@Age" style='text-align:center'/>
+        <item field='@SEXCode' width="3%" caption='@Sex@Sex' style='text-align:center'/> 
+        <item field='@ADMCancelDate' width="8%" caption='@DateCancelled@Date Cancelled'/> 
+        <item field='@WLRGDesc' width="11%" caption='@Initiator@Initiator' too-long-text="wrap"/>              
+        <item field='@CTLOCCode' width="6%" caption='@Specialty@Specialty'/>
+        <item field='@CTPCPDesc' width="10%" caption='@Clinician@Clinician' too-long-text="wrap"/> 
+        <item field='@WLPCode' width="6%" caption='@Priority@Priority' style='text-align:center'/> 
+        <item field='@OPERDate' width="8%" caption='@OperationDate@Operation Date'/>
+        <item field='@OPERDesc' width="11%" caption='@Operation/Procedure@Operation/Procedure' wrap-option="wrap"/>
+        <item field='@TimesCancel' width="6%" caption='@TimesCXL@Times CXL' style='text-align:center'/>         
+        <item field='@PreAdmitDate' width="8%" caption='@PreadmissionDate@Preadmission Date'/>
+      </table>
+	<line pattern="empty" lineHeight="2mm" /> 	 
+	<auxx:GroupSummary label="@Totalnumberofbookingcancellationsfor@Total number of booking cancellations for " group="@description" summaryvalue="ReasTotal" />
+	<line pattern="empty" lineHeight="4mm" /> 	 
+   </group>    
+   <line pattern="empty" width="100%"/>    
+	<auxx:GroupSummary label="@Totalnumberofbookingcancellationsfor@Total number of booking cancellations for " group="@description" summaryvalue="HospTotal" />
+   </group>
+</body>
+</report>
+]]></Data>
+</XData>
+</Class>
+</Export>

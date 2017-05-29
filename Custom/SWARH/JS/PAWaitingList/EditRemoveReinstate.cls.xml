@@ -1,0 +1,254 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.SWARH.JS.PAWaitingList.EditRemoveReinstate">
+<Description>
+Component JavaScript for: PAWaitingList.EditRemoveReinstate</Description>
+<Modified>0</Modified>
+<Super>websys.AbstractJavaScript</Super>
+<TimeCreated>63537,10518.971939</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+This Parameter is updated by Perforce</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/SWARH/JS/PAWaitingList/EditRemoveReinstate.xml#1 $</Default>
+</Parameter>
+
+<Method name="JSContent">
+<Description>
+ </Description>
+<Language>javascript</Language>
+<ClientMethod>1</ClientMethod>
+<Implementation><![CDATA[
+/*********************************************************************
+$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/SWARH/JS/PAWaitingList/EditRemoveReinstate.xml#1 $
+Version 1
+
+- General custom field validation for pawaitinglist.editremovereinstate component
+
+REMEMBER to update the versions with initials, date and description for each modification...
+- TRC174411  - 1st july changes 2014 - Add value K
+- TRC174411  - Updated value K to RCE
+- TRC206940  - Handle 3 new Reason for removal fields (READesc): RWC, REAC,RYC 	
+**********************************************************************/
+
+websys_removeListener("load","onload",BodyLoadHandler);
+websys_addListener("load","onload",CustomDocumentLoadHandler);
+function CustomDocumentLoadHandler() {
+	BodyLoadHandler();
+	var obj=document.getElementById('READesc');
+	var objTRD=document.getElementById('TRDDesc');
+	var objWLAdm=document.getElementById('WLAdmDateOtherHosp')
+	if (obj) {
+		if (obj.value=="N"||obj.value=="Transfer of waiting episode to non ESIS (public) campus"||
+			obj.value=="S"||obj.value=="Admitted to another campus by ESAS procedure received"||
+			obj.value=="T"||obj.value=="Transfer of waiting episode to another ESIS campus"||
+			obj.value=="X"||obj.value=="Admitted to another campus arranged by this campus. Procedure received under arrangement"||
+			obj.value=="RCE"||obj.value=="Received the awaited procedure at another campus under the Competitive Elective Surgery Funding Initiative") {
+			if (objTRD) {
+				EnableField('TRDDesc');
+				objTRD.className="clsRequired";
+			}
+		} else {
+			if (objTRD) {
+				DisableField('TRDDesc');
+				labelNormal('TRDDesc');
+			}
+		}
+		if (obj.value=="RWC"||obj.value=="CAM - Admitted to the intended campus and has received the awaited procedure"||
+			obj.value=="REAC"||obj.value=="CAM - Admitted and received procedure as ED admission"||
+			obj.value=="RYC"||obj.value=="CAM - Procedure received at intended campus not at planned admission (not ED)"||
+			obj.value=="I"||obj.value=="Received procedure at private campus, not arranged"||
+			obj.value=="S"||obj.value=="Admitted to another campus by ESAS procedure received"||
+			obj.value=="U"||obj.value=="Received awaited procedure at another campus unknown, not arranged"||
+			obj.value=="X"||obj.value=="Admitted to another campus arranged by this campus. Procedure received under arrangement"||
+			obj.value=="B"||obj.value=="Received procedure at another public campus, not arranged"||
+			obj.value=="M"||obj.value=="Admitted and received procedure as ED admission"||
+			obj.value=="Y"||obj.value=="Procedure received at intended campus not at planned admission (not ED)"||
+			obj.value=="RCE"||obj.value=="Received the awaited procedure at another campus under the Competitive Elective Surgery Funding Initiative") {
+			if (objWLAdm) {
+				EnableField('objWLAdm');
+				labelMandatory('WLAdmDateOtherHosp');
+				objWLAdm.className="clsRequired";
+			}
+		} else {
+			if (objWLAdm) {
+				DisableField('WLAdmDateOtherHosp');
+				labelNormal('WLAdmDateOtherHosp');
+			}
+		}
+		if (obj) obj.onkeydown=READesc_lookuphandler;
+		if (obj) obj.onkeyup=READesc_onkeyuphandler;
+		if (obj) obj.onkeypress=READesc_onkeypresshandler;
+		if (obj) obj.onchange=READesc_changehandler;
+	}
+	var obj=document.getElementById('Update1');
+    if (obj) obj.onclick=Custom_Update1_click;
+}
+function Custom_Update1_click() {
+	if (CheckInvalid()) Update1_click();
+}
+function CheckInvalid() {
+	CustomREADesc();
+	var frm = document.forms['fPAWaitingList_EditRemoveReinstate'];
+	for (i=0; i<frm.elements.length; i++) {
+		var el = frm.elements[i];
+		if ((document.getElementById(el.name).className=='clsInvalid')&&(document.getElementById(el.name).value=="")) {
+			var icn= "ld1159i" + el.name 
+			if (el) {
+				EnableField(el.name);
+				EnableField(icn);
+				document.getElementById(el.name).className='clsInvalid';
+				alert(t[el.name]+' '+t['XINVALID']);
+				websys_setfocus(el.name);
+			}
+			document.getElementById(el.name).className='clsRequired';
+			return false;
+		}
+		if ((document.getElementById(el.name).className=='clsRequired')&&(document.getElementById(el.name).value=="")) {
+			var icn= "ld1159i" + el.name 
+			if (el) {
+				EnableField(el.name);
+				EnableField(icn);
+				document.getElementById(el.name).className='clsInvalid';
+				alert(t[el.name]+' '+t['XMISSING']);
+				websys_setfocus(el.name);
+			}
+			document.getElementById(el.name).className='clsRequired';
+			return false;
+		}
+	}
+	return true;
+}
+function CustomREADesc() {
+	var obj=document.getElementById('READesc');
+	var objTRD=document.getElementById('TRDDesc');
+	var objWLAdm=document.getElementById('WLAdmDateOtherHosp');
+	if (obj) {
+		if (obj.value=="N"||obj.value=="Transfer of waiting episode to non ESIS (public) campus"||
+			obj.value=="S"||obj.value=="Admitted to another campus by ESAS procedure received"||
+			obj.value=="T"||obj.value=="Transfer of waiting episode to another ESIS campus"||
+			obj.value=="X"||obj.value=="Admitted to another campus arranged by this campus. Procedure received under arrangement"||
+			obj.value=="RCE"||obj.value=="Received the awaited procedure at another campus under the Competitive Elective Surgery Funding Initiative") {
+			if (objTRD) {
+				EnableField('TRDDesc');
+				objTRD.className="clsRequired";
+			}
+		} else {
+			if (objTRD) {
+				DisableField('TRDDesc');
+				labelNormal('TRDDesc');
+			}
+		}
+		if (obj.value=="RWC"||obj.value=="CAM - Admitted to the intended campus and has received the awaited procedure"||
+			obj.value=="REAC"||obj.value=="CAM - Admitted and received procedure as ED admission"||
+			obj.value=="RYC"||obj.value=="CAM - Procedure received at intended campus not at planned admission (not ED)"||
+			obj.value=="I"||obj.value=="Received procedure at private campus, not arranged"||
+			obj.value=="S"||obj.value=="Admitted to another campus by ESAS procedure received"||
+			obj.value=="U"||obj.value=="Received awaited procedure at another campus unknown, not arranged"||
+			obj.value=="X"||obj.value=="Admitted to another campus arranged by this campus. Procedure received under arrangement"||
+			obj.value=="B"||obj.value=="Received procedure at another public campus, not arranged"||
+			obj.value=="M"||obj.value=="Admitted and received procedure as ED admission"||
+			obj.value=="Y"||obj.value=="Procedure received at intended campus not at planned admission (not ED)"||
+			obj.value=="RCE"||obj.value=="Received the awaited procedure at another campus under the Competitive Elective Surgery Funding Initiative") {
+			if (objWLAdm) {
+				EnableField('WLAdmDateOtherHosp');
+				labelMandatory('WLAdmDateOtherHosp');
+				objWLAdm.className="clsRequired";
+			}
+		} else {
+			if (objWLAdm) {
+				DisableField('WLAdmDateOtherHosp');
+				labelNormal('WLAdmDateOtherHosp');
+			}
+		}
+	}
+}
+function READesc_lookuphandler(e) {
+    var obj=document.getElementById("READesc");
+    if ((obj)&&((obj.disabled)||(obj.readOnly))) return true;
+    if (evtName=='READesc') {
+        window.clearTimeout(evtTimer);
+        evtTimer='';
+        evtName='';
+    }
+    var type=websys_getType(e);
+    var key=websys_getKey(e);
+    if ((type=='click')||((type=='keydown')&&(key==117))) {
+        return READesc_openlookup(false);
+    }
+    var LookupOverlay=document.getElementById("LookupOverlay");
+    if ((LookupOverlay)&&(type=='keydown')&&(typeof LookupKeyDownHandler == "function")) LookupKeyDownHandler(e);
+}
+function READesc_openlookup(Predictive) {
+        var url='websys.lookup.csp';
+        url += '?ID=d1159iREADesc&CONTEXT=Kweb.PACWLReasonNotAvail:LookUpByRRRGroup&CONTEXT2='+session['CONTEXT']+'&TLUDESC='+escape(t['READesc']);
+        url += "&TLUJSF=ReasonLookup";
+        var obj=document.getElementById('READesc');
+      if (obj) {
+          var objval=obj.value;
+          if (obj.getAttribute("tDirty")==0) objval="";
+          url += "&P1=" + websys_escape(objval);
+      }
+        var obj=document.getElementById('WLRGDesc');
+      if (obj) {
+          var objval=obj.value;
+          url += "&P2=" + websys_escape(objval);
+      }
+        var obj=document.getElementById('remove');
+      if (obj) {
+          var objval=obj.value;
+          url += "&P3=" + websys_escape(objval);
+      }
+        var obj=document.getElementById('DateActive');
+      if (obj) {
+          var objval=obj.value;
+          url += "&P4=" + websys_escape(objval);
+      }
+        var obj=document.getElementById('type');
+      if (obj) {
+          var objval=obj.value;
+          url += "&P5=" + websys_escape(objval);
+      }
+        var obj=document.getElementById('READesc');
+        if (obj) obj.setAttribute('LU','1');
+      websys_LookupOverlay(tkOverlayMethod,url,"cmp_PAWaitingList_EditRemoveReinstate","READesc",Predictive)
+        return websys_cancel();
+}
+function READesc_onkeyuphandler(e) {
+    if (",117,9,13,16,17,18,27,33,34,35,36,37,38,39,40,91,".indexOf(","+websys_getKey(e)+",")!=-1) return;
+    var obj=websys_getSrcElement(e);
+    if ((obj)&&((obj.disabled)||(obj.readOnly))) return true;
+    if ((obj.getAttribute("tDirty")!=1)&&(obj.value!=obj.defaultValue)) {
+        obj.setAttribute("tDirty",1);
+    }
+    CustomREADesc();
+}
+function READesc_onkeypresshandler(e) {
+    var key=websys_getKey(e);
+    if (key==13) return false;
+    CustomREADesc();
+}
+function READesc_lookupsel(value) {
+    try {
+        var obj=document.getElementById('READesc');
+        if (obj) {
+            obj.value=unescape(value);
+            if (obj.readOnly) {obj.className='clsReadOnly'} else {obj.className=''}
+         if (doneInit) websys_nexttab('5',obj.form);
+            obj.setAttribute('LU','0');
+        }
+    } catch(e) {};
+    CustomREADesc();
+}
+function READesc_changehandler(e) {
+    evtName='READesc';
+    var obj=document.getElementById('READesc');
+    if (obj.getAttribute('LU')==1) return;
+    if (doneInit) { evtTimer=window.setTimeout("READesc_changehandlerX();",200); }
+    else { READesc_changehandlerX(); evtTimer=""; }
+    CustomREADesc();
+}
+]]></Implementation>
+</Method>
+</Class>
+</Export>

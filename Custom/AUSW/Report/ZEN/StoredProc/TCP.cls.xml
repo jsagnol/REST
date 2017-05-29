@@ -1,0 +1,250 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.AUSW.Report.ZEN.StoredProc.TCP">
+<ProcedureBlock>0</ProcedureBlock>
+<Super>Report.Abstract</Super>
+<TimeCreated>59388,55236.125</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2014/LIVE/cls/Custom/AUSW/Report/ZEN/StoredProc/TCP.xml#2 $</Default>
+</Parameter>
+
+<Method name="TCPClose">
+<Description>
+********************************************************************
+* Trak.AUSWTCP Trak SWARH TCP Extract      
+*
+* Initial release: 01/06/2012
+* 
+* TRC 104713  
+********************************************************************</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>QHandle:%Library.Binary</FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Clean up by purging the temporary node in ^CacheTemp global
+ New repid
+ Set repid=$LIST(QHandle,2)
+ 
+ //Start Monitor (if configured to capture stats)
+ i mon Do ..MonitorEnd(mon)
+
+ Kill ^CacheTemp("TRAK",repid)
+ 
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="TCPExecute">
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,DateFrom:%String,DateTo:%String,HOSP:%String]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Get reportid i.e. use $INCREMENT to add another node to ^CacheTemp global. 
+ // We use ^CacheTemp global because it will always use memory before disk
+ New repid,ind
+
+ // Use $Increment to get the next node
+ Set repid=$Increment(^CacheTemp("TRAK"))
+ 
+ //Start Monitor (if configured to capture stats)
+ s mon=..MonitorBegin()
+  
+ // Build data into ^CacheTemp("TRAK",ReportID)
+ // e.g. Set ^CacheTemp("TRAK",ReportID,Index)=$LB(f1,f2,f3)
+ New Number,String,Date,Time,c,n,VertCount,VertLabels
+ New URN,Surname,FirstName,Sex,DOB,AdmDate,Episode,Q38TCPStart,
+ Q35TCPHomeTransition,Q36TCPBedTransition,DaysSpentComm,NightsSpentRes,
+ DischargeDate,BarthelIn,BarthelOut,Specialty,TCPType,PatMasId,ValidAdm,ValidAdmDate
+ Set (PAADMRowId)=0
+ Set (URN,Surname,FirstName,Sex,DOB,AdmDate,Episode,Q38TCPStart,
+ Q35TCPHomeTransition,Q36TCPBedTransition,DaysSpentComm,NightsSpentRes,
+ DischargeDate,BarthelIn,BarthelOut,Specialty,TCPType,PatMasId,ValidAdm,ValidAdmDate)=""
+ Set ind=1
+ set ^zbenj("date") =  DateFrom
+ Set DateFrom =$ZDH(DateFrom,3)
+ Set DateTo =$ZDH(DateTo,3)
+ #SQLCOMPILE SELECT=Logical
+ &SQL(DECLARE TCP CURSOR FOR
+	SELECT QUESPAPatMasDR->PAPMI_No as "URN",
+	QUESPAPatMasDR->PAPMI_Name as "Surname",
+	QUESPAPatMasDR->PAPMI_Name2 as "First Name",
+	QUESPAPatMasDR->PAPMI_SEX_DR->CTSEX_Code as "Sex",
+	QUESPAAdmDR->PAADM_ADMNO as "Episode",
+	QSACS38 as "Q38 TCP Start", /* using ‘Hospital Discharge Date’ for this */
+	QSACS35 as "Q35 TCP Home Transition",
+	QSACS36 as "Q36 TCP Bed Transition",
+	datediff(day,QSACS35,QUESPAAdmDR->PAADM_DischgDate) as "DaysSpentComm",
+	datediff(day,QSACS36,QUESPAAdmDR->PAADM_DischgDate) as "NightsSpentRes",
+	QUESPAAdmDR->PAADM_DischgDate as "Discharge Date",
+	QUESPAAdmDR->PAADM_BarthelScore as "Barthel In",
+	QUESPAAdmDR->PAADM_DischargeBarthelScore as "Barthel Out",
+	QUESPAAdmDR->PAADM_DepCode_DR->CTLOC_Desc as "Specialty",
+	'RES' as "TCPType",
+	QUESPAPatMasDR->PAPMI_DOB as "DOB",
+	QUESPAAdmDR->PAADM_ADMDate as "EpisodeDate",
+	QUESPAAdmDR,
+	QUESPAPatMasDR
+	FROM questionnaire.qAUXXVINAH
+	where
+	(
+		QUESPAAdmDR->PAADM_Type='O'
+	and QUESPAAdmDR->PAADM_PAAdm2_DR->PAADM2_NFMICategDepart_DR->DEP_Code='V1101')
+	and (
+			QSACS35 >= :DateFrom - 112
+			or
+			QSACS36 >= :DateFrom - 112
+		)
+ 	and (:HOSP is null or QUESPAAdmDR->PAADM_Hospital_DR = :HOSP)
+ 	)
+ 	
+ &SQL(OPEN TCP)
+ 
+ for
+ {
+	&SQL(FETCH TCP into :URN,:Surname,:FirstName,:Sex,:Episode,:Q38TCPStart,
+	:Q35TCPHomeTransition,:Q36TCPBedTransition,:DaysSpentComm,:NightsSpentRes,
+	:DischargeDate,
+	:BarthelIn,:BarthelOut,:Specialty,:TCPType,:DOB,:AdmDate,:EpisodeId,:PatMasId)
+	quit:SQLCODE'=0  
+
+	set DaysSpentComm = ..GetOverlap(DateFrom,DateTo,Q35TCPHomeTransition,$s(Q36TCPBedTransition>Q35TCPHomeTransition:..Max(DischargeDate,Q36TCPBedTransition),1:DischargeDate))
+	if (Q35TCPHomeTransition <= DateTo) && (Q35TCPHomeTransition >= DateFrom)
+	{
+		set DaysSpentComm = DaysSpentComm - 1
+	}
+	set NightsSpentRes = ..GetOverlap(DateFrom,DateTo,Q36TCPBedTransition,$s(Q35TCPHomeTransition>Q36TCPBedTransition:..Max(DischargeDate,Q35TCPHomeTransition),1:DischargeDate))
+	&sql(
+	select top 1 QUESScore 
+	into :BarthelIn 
+	 from questionnaire.QAUB 
+	 where QUESPAAdmDR = :EpisodeId 
+	 and QAUB1 = 1 
+	 order by ID desc)
+	&sql(
+	select top 1 QUESScore 
+	into :BarthelOut 
+	 from questionnaire.QAUB 
+	 where QUESPAAdmDR = :EpisodeId
+	  and QAUB1 = 2 
+	  order by ID desc)
+	&SQL(
+	SELECT COUNT(*) 
+	INTO :ValidAdm
+	FROM SQLUSER.PA_ADM
+	WHERE PAADM_DISCHGDATE = :AdmDate
+	AND PAADM_PAPMI_DR=:PatMasId
+	AND (PAADM_TYPE = 'I' OR PAADM_TYPE='E')
+	)
+	set ValidAdmDate = AdmDate
+	if ValidAdm < 1
+	{
+		set ValidAdmDate = ""
+	}
+	if (DaysSpentComm+NightsSpentRes >0)
+	{
+		do BuildRow
+	}
+
+ }
+ 
+ &SQL(CLOSE TCP)
+   
+ // Build QHandle (AtEnd,ReportID,Index)
+ Set QHandle=$LISTBUILD(0,repid,0)
+ Quit $$$OK
+  
+  
+BuildRow
+ s ^CacheTemp("TRAK",repid,ind)=$LB(URN,Surname,FirstName,Sex,Episode,
+ ..ConvertDate4(Q38TCPStart),
+ ..ConvertDate4(Q35TCPHomeTransition),
+ ..ConvertDate4(Q36TCPBedTransition),DaysSpentComm,NightsSpentRes,
+ ..ConvertDate4(DischargeDate),
+ BarthelIn,BarthelOut,Specialty,TCPType,
+ ..ConvertDate4(DOB),..ConvertDate4(AdmDate),
+ ..ConvertDate4(DateFrom),..ConvertDate4(DateTo),..ConvertDate4(ValidAdmDate))
+ s ind=$i(ind)
+ quit
+]]></Implementation>
+</Method>
+
+<Method name="TCPFetch">
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,&Row:%Library.List,&AtEnd:%Library.Integer=0]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // This fetch method should never have to change. 
+
+ // repid - Report ID
+ // ind   - sequence index which represents each row
+
+ New repid,ind
+
+ // Restore QHandle
+ Set AtEnd=$LI(QHandle,1)
+ Set repid=$LI(QHandle,2)
+ Set ind=$LI(QHandle,3)
+
+ Set ind=$order(^CacheTemp("TRAK",repid,ind))
+ If ind="" {	// if there are no more rows, finish fetching
+ 	Set AtEnd=1
+ 	Set Row=""
+ }  Else  {	// fetch row
+ 	Set Row=^CacheTemp("TRAK",repid,ind)
+ }
+
+ // Save QHandle
+ Set QHandle=$lb(AtEnd,repid,ind)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Query name="TCP">
+<Description>
+Patient Labels Sheet</Description>
+<Type>%Library.Query</Type>
+<FormalSpec>DateFrom:%String,DateTo:%String,HOSP:%String</FormalSpec>
+<SqlProc>1</SqlProc>
+<Parameter name="CONTAINID" value="0"/>
+<Parameter name="ROWSPEC" value="URN,Surname,FirstName,Sex,Episode,Q38TCPStart,Q35TCPHomeTransition,Q36TCPBedTransition,DaysSpentComm,NightsSpentRes,DischargeDate,BarthelIn,BarthelOut,Specialty,TCPType,DOB,AdmDate,DateFrom,DateTo,ValidAdmDate"/>
+</Query>
+
+<Method name="GetOverlap">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>DateFrom:%Integer,DateTo:%Integer,TransitionDate:%Integer,DischargeDate:%Integer</FormalSpec>
+<Implementation><![CDATA[
+	if (DischargeDate = 0) || (DischargeDate = "") set DischargeDate = $ZDH("2999-01-01",3) 
+	if (TransitionDate = 0) || (TransitionDate="") quit 0
+	if (TransitionDate-DateFrom > 112) quit 0
+	quit ..Max(0,..Min(DateTo+1,DischargeDate)-..Max(DateFrom,TransitionDate))
+]]></Implementation>
+</Method>
+
+<Method name="Min">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>Int1:%Integer,Int2:%Integer</FormalSpec>
+<Implementation><![CDATA[	quit $s(Int1 <= Int2:Int1,1:Int2)
+]]></Implementation>
+</Method>
+
+<Method name="Max">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>Int1:%Integer,Int2:%Integer</FormalSpec>
+<Implementation><![CDATA[	quit $s(Int1 >= Int2:Int1,1:Int2)
+]]></Implementation>
+</Method>
+
+<Method name="ConvertDate4">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>Date:%String</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+ If Date Set Date=$ZD(Date,4,,4)
+ Quit Date
+]]></Implementation>
+</Method>
+</Class>
+</Export>

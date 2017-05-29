@@ -1,0 +1,244 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.SWARH.Report.RptSvc.StoredProc.SWARHRNAP1034">
+<Description><![CDATA[
+<pre>
+***************************************************************************************************************************************
+* Report Code:SWARHRNAP1034
+* Report Description: Returns NAP contact data
+* Menu Caption: Contact Data
+* Initial Release:04/04/2017 Developer:Michael Welsh
+* Modified:06/04/2017 - MW - Filtered by TotalTime > 0.
+* 	08/05/2017 - MW - Added Contact ID to field list, changed SpecialtyID parameter to String.
+***************************************************************************************************************************************
+</pre>]]></Description>
+<ProcedureBlock>0</ProcedureBlock>
+<Super>Custom.SWARH.Report.RptSvc.StoredProc.Abstract</Super>
+<TimeCreated>60905,54849</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)</Description>
+<Default>$Id$</Default>
+</Parameter>
+
+<Method name="SWARHRNAP1034Execute">
+<Description>
+This is the Execute section for the %Library.Query. 
+All of the logic will be performed here.
+A new node for the ^CacheTemp global will be created and each subscript of this global will contain
+a row for the report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,HospitalID:%Integer,DateFrom:%Date,DateTo:%Date,SpecialtyID:%String,ProgramID:%String]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Get reportid i.e. use $INCREMENT to add another node to ^CacheTemp global. 
+ // We use ^CacheTemp global because it will always use memory before disk
+ New repid,ind
+
+ // Use $Increment to get the next node
+ Set repid=$INCREMENT(^CacheTemp(..#CACHETEMPSUBSCRIPT))
+ 
+ New URNo,EpisodeNo,Surname,GivenName,OtherGivenName,DOB,EpisodeProgram,ContactProgram,ContactPayor,ContactPlan,ContactDate,ContactTime
+ 	,Duration,IndirectTime,TravelTime,InterpretTime,NonReportableIndirectTime,TotalTime,Specialty,OrderItem,Subcategory,ContactMethod,CareProvider,ContactStreet,ContactCity
+ 	,ContactPostCode,EpisodeInsuranceContactName,EpisodeInsuranceContactAddress,EpisodeInsuranceContactAddress2,EpisodeInsuranceContactCity
+ 	,EpisodeInsuranceContactPostCode,ContactID
+
+ Set (URNo,EpisodeNo,Surname,GivenName,OtherGivenName,DOB,EpisodeProgram,ContactProgram,ContactPayor,ContactPlan,ContactDate,ContactTime
+ 	,Duration,IndirectTime,TravelTime,InterpretTime,NonReportableIndirectTime,TotalTime,Specialty,OrderItem,Subcategory,ContactMethod,CareProvider,ContactStreet,ContactCity
+ 	,ContactPostCode,EpisodeInsuranceContactName,EpisodeInsuranceContactAddress,EpisodeInsuranceContactAddress2,EpisodeInsuranceContactCity
+ 	,EpisodeInsuranceContactPostCode,ContactID)=""
+ 
+ Set ind=1, END=0
+
+ //Start Monitor (if configured to capture stats)
+ Set mon=..MonitorBegin()
+
+ //Convert ODBC dates to cache format  
+ Set DateFrom=..ConvertDateToCache(DateFrom)
+ Set DateTo=..ConvertDateToCache(DateTo)
+ 
+ &SQL(DECLARE SWARHRNAP1034 CURSOR FOR
+ 	 SELECT
+        con.ENQ_PAPER_DR->PAPER_PAPMI_DR->PAPMI_No AS "URNo"
+        ,adm.PAADM_ADMNo AS "EpisodeNo"
+        ,con.ENQ_PAPER_DR->PAPER_PAPMI_DR->PAPMI_Name AS "Surname"
+        ,con.ENQ_PAPER_DR->PAPER_PAPMI_DR->PAPMI_Name2 AS "GivenName"
+        ,con.ENQ_PAPER_DR->PAPER_PAPMI_DR->PAPMI_Name3 AS "OtherGivenName"
+        ,con.ENQ_PAPER_DR->PAPER_Dob AS "DOB"
+        ,con.ENQ_OEOrdItem_DR->OEORI_OEORD_ParRef->OEORD_Adm_DR->PAADM_PAADM2_DR->PAADM2_NFMICategDepart_DR->DEP_Desc AS "EpisodeProgram"
+        ,con.ENQ_GovernDepart_DR->DEP_Desc AS "ContactProgram"
+        ,con.ENQ_INSTYPE_DR->INST_DESC AS "ContactPayor"
+        ,con.ENQ_AUXINSTYPE_DR->AUXIT_DESC AS "ContactPlan"
+        ,con.ENQ_Date AS "ContactDate"
+        ,con.ENQ_Time AS "ContactTime"
+        ,coalesce(con.ENQ_Duration,0) AS "Duration"
+        ,coalesce(con.ENQ_IndirectTime,0) AS "IndirectTime"
+        ,coalesce(con.ENQ_TravelTime,0) AS "TravelTime"
+        ,coalesce(con.ENQ_InterpretingTime,0) AS "InterpretTime"
+        ,coalesce(con.ENQ_EstimMins,0) AS "NonReportableIndirectTime"
+        ,(coalesce(con.ENQ_Duration,0) + coalesce(con.ENQ_IndirectTime,0) + coalesce(con.ENQ_TravelTime,0) + coalesce(con.ENQ_InterpretingTime,0) + coalesce(con.ENQ_EstimMins,0)) AS "TotalTime"
+        ,con.ENQ_Location_DR->CTLOC_Desc AS "Specialty"
+        ,con.ENQ_OEOrdItem_DR->OEORI_ItmMast_DR->ARCIM_Desc AS "OrderItem"
+        ,con.ENQ_OEOrdItem_DR->OEORI_ItmMast_DR->ARCIM_ItemCat_DR->ARCIC_Desc AS "Subcategory" 
+        ,con.ENQ_ContMethod_DR->CONTMETH_Desc AS "ContactMethod"
+        ,con.ENQ_CTCP_DR->CTPCP_Desc AS "CareProvider"
+        ,con.ENQ_PAPER_DR->PAPER_StName AS "ContactStreet"
+        ,con.ENQ_PAPER_DR->PAPER_CityCode_DR->CTCIT_Desc AS "ContactCity"
+        ,con.ENQ_PAPER_DR->PAPER_Zip_DR->CTZIP_Code AS "ContactPostCode"
+        ,inscon.CONTACT_NAME AS "EpisodeInsuranceContactName"
+        ,inscon.CONTACT_ADDRESS1 AS "EpisodeInsuranceContactAddress"
+        ,inscon.CONTACT_ADDRESS2 AS "EpisodeInsuranceContactAddress2"
+        ,inscon.CONTACT_CITY_DR->CTCIT_DESC AS "EpisodeInsuranceContactCity"
+        ,inscon.CONTACT_ZIP_DR->CTZIP_CODE AS "EpisodeInsuranceContactPostCode"
+        ,con.ENQ_RowID AS "ContactID"
+	FROM
+        SQLUser.PA_EnquiryContact con
+                INNER JOIN SQLUser.OE_OrdItem ordItem ON (ordItem.OEORI_RowID = con.ENQ_OEOrdItem_DR)
+                LEFT OUTER JOIN SQLUser.RB_Appointment app ON (app.APPT_RowId = ordItem.OEORI_APPT_DR)
+                LEFT OUTER JOIN SQLUser.PA_Adm adm ON (adm.PAADM_RowID = app.APPT_Adm_DR)
+                LEFT OUTER JOIN (
+                	SELECT INS_RowID,INS_ParRef FROM SQLUser.PA_AdmInsurance 
+                	WHERE ins_DateTypeTo IS NULL OR ins_DateTypeTo > :DateTo)
+                AS ins ON (ins.INS_ParRef = adm.PAADM_RowID)
+                LEFT OUTER JOIN SQLUser.PA_AdmInsuranceContacts inscon ON (inscon.CONTACT_ParRef = ins.INS_RowID)
+	WHERE
+      	(con.ENQ_Hospital_DR = :HospitalID)
+	AND
+    	(con.ENQ_Date BETWEEN :DateFrom AND :DateTo)
+	AND
+        (({fn CONCAT( ',', {fn CONCAT((:SpecialtyID),',')})} [ {fn CONCAT( ',', {fn CONCAT((con.ENQ_Location_DR),',')})}) OR (:SpecialtyID IS NULL))  -- Multiple Specialties
+	AND
+        (({fn CONCAT( ',', {fn CONCAT((:ProgramID),',')})} [ {fn CONCAT( ',', {fn CONCAT((con.ENQ_GovernDepart_DR),',')})}) OR (:ProgramID IS NULL  )) -- Multiple Programs)
+	AND
+        (coalesce(con.ENQ_Duration,0)+coalesce(con.ENQ_IndirectTime,0)+coalesce(con.ENQ_TravelTime,0)+coalesce(con.ENQ_InterpretingTime,0)+coalesce(con.ENQ_EstimMins,0) > 0)
+ )
+ &SQL(OPEN SWARHRNAP1034)
+ 
+ //FETCH FIRST ROW
+ Do FetchRow
+  
+ While END=0 {
+  
+	 Do FormatDates
+  	 Do FormatTimes
+  	 Do FormatStrings
+  	 
+	 Set sort = ind	
+ 
+	 Set ^CacheTemp(..#CACHETEMPSUBSCRIPT,repid,sort)=$LISTBUILD(URNo,EpisodeNo,Surname,GivenName,OtherGivenName,DOB,EpisodeProgram
+	 	,ContactProgram,ContactPayor,ContactPlan,ContactDate,ContactTime,Duration,IndirectTime,InterpretTime,NonReportableIndirectTime
+	 	,TravelTime,TotalTime,Specialty,OrderItem,Subcategory,ContactMethod,CareProvider,ContactStreet,ContactCity,ContactPostCode
+	 	,EpisodeInsuranceContactName,EpisodeInsuranceContactAddress,EpisodeInsuranceContactAddress2,EpisodeInsuranceContactCity
+	 	,EpisodeInsuranceContactPostCode,ContactID)
+	 Set ind=ind+1
+ 
+	 //fetch rows
+	 Do FetchRow
+ }
+
+ &SQL(CLOSE SWARHRNAP1034)
+ 
+ // Build QHandle (AtEnd,ReportID,Index)
+ Set QHandle=$LISTBUILD(0,repid,0)
+
+ Quit $$$OK
+
+FetchRow
+ &sql(FETCH SWARHRNAP1034 INTO :URNo,:EpisodeNo,:Surname,:GivenName,:OtherGivenName,:DOB,:EpisodeProgram,:ContactProgram,:ContactPayor
+ 	,:ContactPlan,:ContactDate,:ContactTime,:Duration,:IndirectTime,:TravelTime,:InterpretTime,:NonReportableIndirectTime,:TotalTime,:Specialty,:OrderItem,:Subcategory,:ContactMethod
+ 	,:CareProvider,:ContactStreet,:ContactCity,:ContactPostCode,:EpisodeInsuranceContactName,:EpisodeInsuranceContactAddress
+ 	,:EpisodeInsuranceContactAddress2,:EpisodeInsuranceContactCity,:EpisodeInsuranceContactPostCode,:ContactID)
+ If SQLCODE '= 0 Set END = 1
+ Quit
+ 
+FormatDates
+ Set DOB =..ConvertDateToODBC(DOB)
+ Set ContactDate =..ConvertDateToODBC(ContactDate)
+ 
+ Quit
+ 
+FormatTimes //Be sure to set fields in Query output as '%String' then format Reporting Services field as Time.
+ Set ContactTime =..ConvertTimeToHHMM(ContactTime) 
+ Quit
+ 
+FormatStrings
+ Set ContactStreet = $ZSTRIP(ContactStreet,"*C") //Removes control characters (0-31,127-159)
+ Set ContactStreet = $ZSTRIP(ContactStreet,"*",$CHAR(34,35,39,44,46)) //Removes 34-Quotes,35-Hash,39-Single quote,44-Comma,46-Period
+ Set ContactStreet = $ZCONVERT(ContactStreet,"U") //Converts to Uppercase
+ Set EpisodeInsuranceContactAddress = $ZSTRIP(EpisodeInsuranceContactAddress,"*C") 
+ Set EpisodeInsuranceContactAddress = $ZSTRIP(EpisodeInsuranceContactAddress,"*",$CHAR(34,35,39,44,46)) 
+ Set EpisodeInsuranceContactAddress = $ZCONVERT(EpisodeInsuranceContactAddress,"U")
+ Set EpisodeInsuranceContactAddress2 = $ZSTRIP(EpisodeInsuranceContactAddress2,"*C") 
+ Set EpisodeInsuranceContactAddress2 = $ZSTRIP(EpisodeInsuranceContactAddress2,"*",$CHAR(34,35,39,44,46)) 
+ Set EpisodeInsuranceContactAddress2 = $ZCONVERT(EpisodeInsuranceContactAddress2,"U")    
+ Quit
+]]></Implementation>
+</Method>
+
+<Method name="SWARHRNAP1034Fetch">
+<Description>
+This is the Fetch component of the %Library.Query. 
+This should never have to change. It is designed to fetch the row for each subscript of the ^CacheTemp
+global and return this row to the Crystal Report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,&Row:%Library.List,&AtEnd:%Library.Integer=0]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // This fetch method should never have to change. 
+ // repid - Report ID
+ // ind   - sequence index which represents each row
+
+ New repid,ind
+
+ // Restore QHandle
+ Set AtEnd=$LIST(QHandle,1)
+ Set repid=$LIST(QHandle,2)
+ Set ind=$LIST(QHandle,3)
+
+ Set ind=$ORDER(^CacheTemp(..#CACHETEMPSUBSCRIPT,repid,ind))
+ If ind="" {	// if there are no more rows, finish fetching
+	 Set AtEnd=1
+	 Set Row=""
+ }
+ Else      {	// fetch row
+ 	Set Row=^CacheTemp(..#CACHETEMPSUBSCRIPT,repid,ind)
+ }
+
+ // Save QHandle
+ Set QHandle=$LISTBUILD(AtEnd,repid,ind)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="SWARHRNAP1034Close">
+<Description>
+This is the Close component of the %Library.Query.
+This is standard code and should never have to change.
+This is where all the cleanup is performed, i.e. the purging of the temporary storage global ^CacheTemp.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>QHandle:%Library.Binary</FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Clean up by purging the temporary node in ^CacheTemp global
+ New repid,ind
+ Set repid=$LIST(QHandle,2)
+
+ //Start Monitor (if configured to capture stats)
+ If mon Do ..MonitorEnd(mon)
+ 
+ Kill ^CacheTemp(..#CACHETEMPSUBSCRIPT,repid)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Query name="SWARHRNAP1034">
+<Type>%Library.Query</Type>
+<FormalSpec>HospitalID:%Integer,DateFrom:%Date,DateTo:%Date,SpecialtyID:%String,ProgramID:%String</FormalSpec>
+<SqlProc>1</SqlProc>
+<Parameter name="CONTAINID" value="0"/>
+<Parameter name="ROWSPEC" value="URNo:%String,EpisodeNo:%String,Surname:%String,GivenName:%String,OtherGivenName:%String,DOB:%Date,EpisodeProgram:%String,ContactProgram:%String,ContactPayor:%String,ContactPlan:%String,ContactDate:%Date,ContactTime:%String,Duration:%Integer,IndirectTime:%Integer,TravelTime:%Integer,InterpretTime:%Integer,NonReportableIndirectTime:%Integer,TotalTime:%Integer,Specialty:%String,OrderItem:%String,Subcategory:%String,ContactMethod:%String,CareProvider:%String,ContactStreet:%String,ContactCity:%String,ContactPostCode:%String,EpisodeInsuranceContactName:%String,EpisodeInsuranceContactAddress:%String,EpisodeInsuranceContactAddress2:%String,EpisodeInsuranceContactCity:%String,EpisodeInsuranceContactPostCode:%String,ContactID:%Integer"/>
+<Parameter name="SELECTMODE" value="ODBC"/>
+</Query>
+</Class>
+</Export>

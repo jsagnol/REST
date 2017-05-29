@@ -1,0 +1,395 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.AUXX.Report.ZEN.StoredProc.DischargebyDiagnosis">
+<ProcedureBlock>0</ProcedureBlock>
+<Super>Report.Abstract</Super>
+<TimeCreated>61030,55362.957309</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/AUXX/Report/ZEN/StoredProc/DischargebyDiagnosis.xml#1 $</Default>
+</Parameter>
+
+<UDLText name="T">
+<Content><![CDATA[
+// Report Name: Trak Discharge by Diagnosis <br>
+
+]]></Content>
+</UDLText>
+
+<UDLText name="T">
+<Content><![CDATA[
+// Report Code: Trak.CDG0004 <br>
+
+]]></Content>
+</UDLText>
+
+<UDLText name="T">
+<Content><![CDATA[
+// LOGTRAK Number: 72413 <br>
+
+]]></Content>
+</UDLText>
+
+<Method name="ICDCodeRangeClose">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>QHandle:%Binary</FormalSpec>
+<ReturnType>%Status</ReturnType>
+<Implementation><![CDATA[
+ // Clean up by purging the temporary node in ^CacheTemp global
+ New repid,ind
+ Set repid=$li(QHandle,2)
+
+ //Start Monitor (if configured to capture stats)
+ i mon Do ..MonitorEnd(mon)
+
+ Kill ^CacheTemp("TRAK",repid)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="ICDCodeRangeExecute">
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,DateFrom:%Library.Date,DateTo:%Library.Date,Hospital:%String,Location:%String,ICDCode:%Library.String,ICDRange:%Library.String]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+
+ // Get reportid i.e. use $INCREMENT to add another node to ^CacheTemp global. 
+ // We use ^CacheTemp global because it will always use memory before disk
+ New repid,ind
+
+ // Use $Increment to get the next node
+ Set repid=$I(^CacheTemp("TRAK"))
+
+ //Start Monitor (if configured to capture stats)
+ s mon=..MonitorBegin()
+ 
+ s ParamFlag=0
+ s ICD=""
+ s ICDAll=""
+ s CountOne=1
+ s ParamZero=0
+ s DateFrom=..ConvertDateToCache(DateFrom)
+ s DateTo=..ConvertDateToCache(DateTo)
+ s ICDCode=$g(ICDCode)
+ s ICDRange=$g(ICDRange)
+ s ind=1
+  
+  // Strip white space/control chars from blank variables
+ i $g(Hospital)'="" s Hospital=$ZSTRIP(Hospital,"*WC")
+ i $g(Location)'="" s Location=$ZSTRIP(Location,"*WC")
+ i $g(ICDCode)'="" s ICDCode=$ZSTRIP(ICDCode,"*WC")
+ i $g(ICDRange)'="" s ICDRange=$ZSTRIP(ICDRange,"*WC")
+ 
+ s (INSTCode,PAADMDate,PAPERAgeYr,IPATCode,PAPMIDeceased,PAADMDischgDate,CTPCPCode,PAADMAdmNo,PAPMINo,PAPMIName,PAPMIName2,PAPMIName3,INTREACode,CTSEXCode,CTLOCCode,CTLOCDesc,HOSPCode,HOSPDesc,OPERCode,OPERDesc,WardCode,PROCDRGRank,MRDIAPrefix,MRDIADRGOrder,row,PAADMAdmNoX)=""
+ s (PAADMRowId,HOSPRowid, OPERRowId, MRADMRowId,CTLOCRowID,x)=0
+ s (counter,ccounter,rcounter)=1
+ k RangeArray
+ s RangeArray(1)=""
+
+ if ICDCode '= "" {set ParamFlag = 1}
+ if ICDRange '= "" {
+	 if ParamFlag = 0 {set ParamFlag = 2}
+	 else {set ParamFlag = 3}
+ }
+ s (x)=1
+   
+ //if there's an icd code param, and an icd code in the row
+ if ICDCode '= "" { 
+ 	//set count=number of icd codes enterted
+ 	s ccounter=$length(ICDCode,";")  
+ 	set ICD=ICDCode
+ }
+ 
+ //if there is an icdrange parameter (strip CTRL chars) & the row has an icdcode 	 
+ if ICDRange '= "" { 	 
+	 //set count=number of icd range codes entered
+	 s rcounter=$length(ICDRange,";")
+ 	//loop through for each icdcode
+	 while x '> rcounter {
+		s ^RangeArray(x)= $p(ICDRange,";",x)
+	  	s x=x+1
+	 } 
+ }
+ set counter = ccounter
+ if rcounter > ccounter {set counter = rcounter}
+
+ &sql(DECLARE ICDCodeRange CURSOR FOR
+ SELECT DISTINCT
+ %EXACT(PAADM_RowId),
+ PAADM_AdmDate,
+ PAPMI_RowId->PAPER_AgeYr,
+ PAADM_InPatAdmType_DR->IPAT_Code,
+ PAPMI_Deceased, 
+ PAADM_DischgDate,
+ PAADM_AdmDocCodeDR->CTPCP_Code,
+ PAADM_AdmNo,
+ PAPMI_No,
+ PAPMI_Name,
+ PAPMI_Name2,
+ PAPMI_Name3,
+ PAADM_MainMRADM_DR->MRADM_IntentReadmit_DR->INTREA_Code,
+ PAPMI_Sex_DR->CTSEX_Code,
+ PAADM_DepCode_DR->CTLOC_RowID,
+ PAADM_DepCode_DR->CTLOC_Code,
+ PAADM_DepCode_DR->CTLOC_Desc,
+ PAADM_CurrentWard_DR->WARD_LocationDR->CTLOC_Hospital_DR->HOSP_Code,
+ PAADM_CurrentWard_DR->WARD_LocationDR->CTLOC_Hospital_DR->HOSP_Desc,
+ PAADM_CurrentWard_DR->WARD_LocationDR->CTLOC_Hospital_DR->HOSP_Rowid,
+ PAADM_MainMRADM_DR->MRADM_RowId,
+ PAADM_CurrentWard_DR->WARD_Code
+ FROM SQLUSER.PA_Adm, SQLUSER.PA_PatMas
+ WHERE PAADM_PAPMI_DR=PAPMI_RowId  
+ AND PAADM_TYPE='I' AND PAADM_VisitStatus='D'
+ AND PAADM_DischgDate BETWEEN :DateFrom AND :DateTo
+ AND (({fn CONCAT( ',', {fn CONCAT((:Hospital),',')})} [ {fn CONCAT( ',', {fn CONCAT((PAADM_CurrentWard_DR->WARD_LocationDR->CTLOC_Hospital_DR->HOSP_RowId),',')})}) OR (:Hospital IS NULL))
+ AND (({fn CONCAT( ',', {fn CONCAT((:Location),',')})} [ {fn CONCAT( ',', {fn CONCAT((PAADM_DepCode_DR->CTLOC_RowID),',')})}) OR (:Location IS NULL)))
+	
+ &sql( OPEN ICDCodeRange )
+
+ &sql(FETCH ICDCodeRange INTO :PAADMRowId,:PAADMDate,:PAPERAgeYr,:IPATCode,:PAPMIDeceased,:PAADMDischgDate,:CTPCPCode,:PAADMAdmNo,:PAPMINo,:PAPMIName,:PAPMIName2,:PAPMIName3,:INTREACode,:CTSEXCode,:CTLOCRowID,:CTLOCCode,:CTLOCDesc,:HOSPCode,:HOSPDesc,:HOSPRowid,:MRADMRowId, :WardCode )
+ 
+ while 'SQLCODE{
+	 s OPERDesc=..GetOperation(MRADMRowId)
+	 s DIAGDesc=..GetDiagnosis(MRADMRowId,ParamFlag,counter,ICD)
+	 i DIAGDesc '="" {
+		 s DIAGDesc=..GetDiagnosis(MRADMRowId,ParamZero,CountOne,ICDAll)
+	 } 
+	 s INSTCode=..GetCurrentPayor(PAADMRowId)
+	 s LOS=..LengthOfStay(PAADMRowId,PAADMDate,PAADMDischgDate)
+	 i LOS=0 s LOS=1
+	 i PAPMIDeceased'="Y" s PAPMIDeceased=""
+	 i PAPMIDeceased="Y" s PAPMIDeceased="Yes"
+	 d FormatDates
+
+ 	// build the row
+	 If DIAGDesc '="" s ^CacheTemp("TRAK",repid,$ZCVT(HOSPDesc,"U")_" "_PAPMINo_PAADMDischgDate_ind)=$lb(INSTCode,PAADMDate,PAPERAgeYr,IPATCode,PAPMIDeceased,DIAGDesc,PAADMDischgDate,CTPCPCode,PAADMAdmNo,PAPMINo,PAPMIName,PAPMIName2,PAPMIName3,INTREACode,CTSEXCode,CTLOCRowID,CTLOCCode,CTLOCDesc,HOSPCode,HOSPDesc,HOSPRowid,OPERDesc,MRADMRowId,WardCode,LOS) 
+ 	s ind=ind+1
+ 	//fetch rows
+ 
+ 	&sql(FETCH ICDCodeRange INTO :PAADMRowId,:PAADMDate,:PAPERAgeYr,:IPATCode,:PAPMIDeceased,:PAADMDischgDate,:CTPCPCode,:PAADMAdmNo,:PAPMINo,:PAPMIName,:PAPMIName2,:PAPMIName3,:INTREACode,:CTSEXCode,:CTLOCRowID,:CTLOCCode,:CTLOCDesc,:HOSPCode,:HOSPDesc,:HOSPRowid,:MRADMRowId, :WardCode )
+ }
+ 
+ &sql( CLOSE ICDCodeRange )
+ 
+ k ^RangeArray 
+ 
+ // Build QHandle (AtEnd,ReportID,Index)
+ Set QHandle=$lb(0,repid,0)
+ 
+ Quit $$$OK
+
+ 
+FormatDates
+ // Convert the dates to ODBC date format
+ If PAADMDate Set PAADMDate=..ConvertDateToODBC(PAADMDate)
+ If PAADMDischgDate Set PAADMDischgDate=..ConvertDateToODBC(PAADMDischgDate)
+ Quit
+]]></Implementation>
+</Method>
+
+<Method name="ICDCodeRangeFetch">
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Binary,&Row:%List,&AtEnd:%Library.Integer=0]]></FormalSpec>
+<ReturnType>%Status</ReturnType>
+<Implementation><![CDATA[
+ // This fetch method should never have to change. 
+
+ // repid - Report ID
+ // ind   - sequence index which represents each row
+
+ //New repid,ind
+
+ // Restore QHandle
+ Set AtEnd=$li(QHandle,1)
+ Set repid=$li(QHandle,2)
+ Set ind=$li(QHandle,3)
+
+ Set ind=$o(^CacheTemp("TRAK",repid,ind))
+ If ind="" {	// if there are no more rows, finish fetching
+ Set AtEnd=1
+ Set Row=""
+ }
+ Else      {	// fetch row
+ Set Row=^CacheTemp("TRAK",repid,ind)
+ }
+
+ // Save QHandle
+ s QHandle=$lb(AtEnd,repid,ind)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Query name="ICDCodeRange">
+<Type>%Library.Query</Type>
+<FormalSpec>DateFrom:%Date,DateTo:%Date,Hospital:%String,Location:%String,ICDCode:%String,ICDRange:%String</FormalSpec>
+<SqlProc>1</SqlProc>
+<Parameter name="CONTAINID"/>
+<Parameter name="ROWSPEC" value="INSTCode:%Library.String,PAADMDate:%Date,PAPERAgeYr:%Library.String,IPATCode:%Library.String,PAPMIDeceased:%Library.String,DIAGDesc:%Library.String,PAADMDischgDate:%Date,CTPCPCode:%Library.String,PAADMAdmNo:%Library.String,PAPMINo:%Library.String,PAPMIName:%Library.String,PAPMIName2:%Library.String,PAPMIName3:%Library.String,INTREACode:%Library.String,CTSEXCode:%Library.String,CTLOCRowID:%Library.Integer,CTLOCCode:%Library.String,CTLOCDesc:%Library.String,HOSPCode:%Library.String,HOSPDesc:%Library.String,HOSPRowid:%Library.Integer,OPERDesc:%Library.String,MRADMRowId:%Library.Integer,WardCode:%Library.String,LOS:%Library.Integer"/>
+</Query>
+
+<Method name="GetOperation">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>MRADMRowId:%Integer</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+ s (Count,PROCChildsub,PROCDRGRank,OPERRowId)=0
+ s (OPERConcat,OPERCode,OPERDesc,OPERCodeDesc,key)=""  
+ k ^OPERList
+ 
+ i $g(MRADMRowId) = "" q ""  
+  
+ s PROCChildsub=$o(^MR(MRADMRowId,"PROC",PROCChildsub),1) 
+ 
+ WHILE(PROCChildsub) '="" { 
+  
+  s Count=Count-1 
+  s OPERRowId=$p($g(^MR(MRADMRowId,"PROC",PROCChildsub)),"^",1)
+  s PROCDRGRank=$p($g(^MR(MRADMRowId,"PROC",PROCChildsub)),"^",3)  
+  i OPERRowId '="" { 
+  s OPERCode=$p($g(^ORC("OPER",OPERRowId)),"^",1)   
+  s OPERDesc=$p($g(^ORC("OPER",OPERRowId)),"^",2)
+  i OPERCode '="" s OPERConcat=OPERCode_": "_OPERDesc
+  i PROCDRGRank '="" 
+  {s ^OPERList(PROCDRGRank) = OPERConcat}
+  else {set ^OPERList(Count)=OPERConcat} 
+  }
+  s PROCChildsub=$o(^MR(MRADMRowId,"PROC",PROCChildsub),1)  
+ }    
+  
+   Set key=""
+   Set key = $o(^OPERList(""))       
+   While (key '= "") {               
+        if OPERCodeDesc '= "" {set OPERCodeDesc = OPERCodeDesc_$CHAR(10)_$CHAR(13)_^OPERList(key)}
+        else {set OPERCodeDesc=^OPERList(key)}                     
+        Set key=$o(^OPERList(key)) // next subscript                  
+ }       
+ q OPERCodeDesc
+]]></Implementation>
+</Method>
+
+<Method name="GetDiagnosis">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>MRADMRowId:%Integer,ParamFlag:%String,counter:%Integer,ICD:%String</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+ 
+ set (Count,DIAGChildsub,DIAGDRGRank,DIAGRowId,y,key,Rec1)=0
+ set (DIAGConcat,DIAGCode,DIAGDesc,DIAGCodeDesc)=""
+ k ^DIAGList
+ 
+ i $g(MRADMRowId) = "" q "" 
+ 	s DIAGChildsub=$o(^MR(MRADMRowId,"DIA",DIAGChildsub),1)
+   	WHILE (DIAGChildsub '="") {
+    	set y=1
+  		set Count=Count-1 	  
+  		set DIAGRowId=$p($g(^MR(MRADMRowId,"DIA",DIAGChildsub)),"^",1)    
+  		set DIAGPrefix=$p($g(^MR(MRADMRowId,"DIA",DIAGChildsub,1)),"^",13)
+  		set DIAGDRGRank=$p($g(^MR(MRADMRowId,"DIA",DIAGChildsub)),"^",11)
+   		if DIAGRowId {     
+ 			s DIAGCode=$p($g(^MRC("ID",DIAGRowId)),"^",1)  
+			while y '> counter  {
+	  			set Rec1=0
+   				if (ParamFlag > 1) && (y '> rcounter) {
+   					if DIAGCode]$zstrip($p($g(^RangeArray(y)),"-",1),"*C") 
+   						{set Rec1=1 }
+    				if DIAGCode=$zstrip($p($g(^RangeArray(y)),"-",1),"*C") 
+    					{set Rec1=1 }
+    				if DIAGCode']$zstrip($p($g(^RangeArray(y)),"-",2),"*C") 
+    					{ if Rec1 '= 1 set Rec1=0}
+          			else {set Rec1=0}	      
+      			} 
+   				if (ParamFlag = 1) || (ParamFlag = 3) { 
+   					if (y '> ccounter) {
+   						if DIAGCode=$p(ICD,";",y) {set Rec1=1}
+   					}
+   				}
+    			if (Rec1 = 1) || (ParamFlag = 0) {
+				    set DIAGDesc=$p($g(^MRC("ID",DIAGRowId)),"^",2)  
+   					if DIAGCode '="" set DIAGConcat=DIAGCode_": "_DIAGDesc
+    				if (DIAGDRGRank '="" ) {set ^DIAGList(DIAGDRGRank) = DIAGConcat}
+    			} else { 
+				    	set ^DIAGList(Count) = DIAGConcat}     
+   				set y=y+1  
+ 			}   
+ 		}
+ 		set (DIAGPRefix,DIAGRowId,DIAGConcat,DIAGDesc,DIAGCode,DIAGDRGRank)=""  
+  		set DIAGChildsub=$o(^MR(MRADMRowId,"DIA",DIAGChildsub),1)
+  	}
+  	Set key=""
+   	Set key = $o(^DIAGList(""))    
+   	While (key '= "") {               
+        if DIAGCodeDesc '= "" {set DIAGCodeDesc = DIAGCodeDesc_$CHAR(10)_$CHAR(13)_^DIAGList(key)}
+        else {set DIAGCodeDesc=^DIAGList(key)}             
+        Set key=$o(^DIAGList(key)) // next subscript    
+   }  
+   q DIAGCodeDesc
+]]></Implementation>
+</Method>
+
+<Method name="GetCurrentPayor">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>PAADMRowId:%String</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+
+            n payor,admins,data
+            s (payor,data)="",admins=0
+            
+            i $g(PAADMRowId)="" q ""
+            s admdate=$p(^PAADM(PAADMRowId),"^",6)
+            
+            f  s admins=$o(^PAADM(PAADMRowId,"INS",admins),1,data) q:admins=""  d  q:payor'=""
+            .i $p(data,"^",3)=admdate s payor=$p(data,"^",1)
+            .i $p(data,"^",3)="" s payor=$p(data,"^",1)
+            
+            i payor'="" s payor=$p($g(^ARC("INST",payor)),"^",2)
+            
+            q payor
+]]></Implementation>
+</Method>
+
+<Method name="LengthOfStay">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>PAADMRowId:%Integer,PAADMAdmDate:%Date,PAADMDischgDate:%Date</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+ n LOS,LEAVE,END
+ n ZADMLGoingOutDate,ZADMLActualDateReturn
+ s LOS=0
+ i PAADMRowId'="" {
+	 &sql( DECLARE LEAVE CURSOR FOR
+	 SELECT
+	 ADML_GoingOutDate,
+	 ADML_ActualDateReturn
+	 FROM sqluser.PA_AdmLeave
+	 WHERE ADML_ParRef=:PAADMRowId
+ 	 ORDER BY ADML_GoingOutDate)
+ 
+	 &sql(OPEN LEAVE)
+
+	 s (ZADMLGoingOutDate,ZADMLActualDateReturn)=0
+	 s (LOS,LEAVE,END)=0
+	 s LOS=PAADMDischgDate-PAADMAdmDate
+	 d FetchLOS
+
+	 WHILE 'END {
+     	s LEAVE=0
+     	i $g(ZADMLActualDateReturn),$g(ZADMLGoingOutDate) s LEAVE=ZADMLActualDateReturn-ZADMLGoingOutDate
+     	s LOS=LOS-LEAVE
+     	d FetchLOS
+ 	}
+    
+ 	;i LOS=0 s LOS=1
+ }
+
+ q LOS
+FetchLOS
+ &sql(FETCH LEAVE INTO :ZADMLGoingOutDate,:ZADMLActualDateReturn)
+ i SQLCODE s END=1 &sql(CLOSE LEAVE)
+ q
+]]></Implementation>
+</Method>
+</Class>
+</Export>

@@ -1,0 +1,1090 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.SWARH.JS.PAAdm.DRGCoding">
+<Description>
+Component JavaScript for: PAAdm.DRGCoding</Description>
+<Modified>0</Modified>
+<Super>websys.AbstractJavaScript</Super>
+<TimeCreated>63537,10516.841528</TimeCreated>
+
+<Method name="JSContent">
+<Description>
+ </Description>
+<Internal>0</Internal>
+<Language>javascript</Language>
+<ClientMethod>1</ClientMethod>
+<Implementation><![CDATA[
+/*********************************************************************
+$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/SWARH/JS/PAAdm/DRGCoding.xml#2 $
+Version 1.1
+
+- General custom field validation for paadm.drgcoding component
+
+REMEMBER to update the versions with initials, date and description for each modification...
+   Who   When       	Log 		Desc
+   AJI   07/11/03    	40447		ValidateDiagAddCodeReqmt method
+   cjb   01/03/04				commented out websys_setfocus("ICUHours");
+   ab    28/05/04		44035
+   cjb   02/06/04		44201 	1 July 2004 statutory changes 
+   kk    29/06/04		44201		Added CheckCPAPHoursAgainstAge,CheckCCUHours,CheckMRADMWeightAgainstAge,CheckPAADMAdmSrc 
+					  	functions to ValidateProcAddCodeReqmt() function. This is to make the validation effective
+					  	when the update and run gruper button is clicked.
+					  	This change is done in the Custom js to avoid patching.
+   cjb   23/07/04		45361		changed the script so it recognises the frames (w642 was one frame)
+   kk	   28/09/04		46111		placed verified flag=checked within try...catch()
+   md	   03/12/04	      47657		Admission Weight edit check 
+   kk    12/01/05		48813		Check invalid diag code before update or group
+   md	 17/01/05		48982		Modification for admission weight range	
+   cjb   31/10/2005		52701		pass &admType=I to the episode list
+   PJC   30/06/09		Changed objDischargeDate to cacheDischargeDate as it was overwriting core script value
+   OH    01/07/2009		Put in the procedure ValidateProcDate, which had been put into the custom script for the July 1 2009 
+				changes, and changed 'objDischargeDate.value' to 'DischargeDateobj.value' in that procedure
+   **** PLEASE NOTE ****	Should the Standard script's code for the procedure ValidateProcDate be changed, 
+   *********************	ensure that the changes are also reflected in this custom script.
+   GX 	15/03/2012		TRC 098348 	Allow blank prefixes for Morphology codes. This also needs Custom.PAAdm.cls to be applied.						
+   JP	17/12/2015 		TRC 196323 Added CutOffDate2015 to stop error no longer required after 01/07/2015
+   AR	01/06/2016    	TRC 205396 Disable A prefix post 01 July 16 - currently using 01 March for testing
+   AR	01/06/2016		TRC 205397 New function to enforce mandatory Start Time where Procedure Date is mandatory
+   RPG	30/11/2016		T2016 Upgrade (SWARH) - HTML5 compliance changes
+**********************************************************************/
+
+var objICUHours=document.getElementById("ICUHours");
+var objMechVentHours=document.getElementById("MechVentHours");
+var objCCUHours=document.getElementById("CCUHours");
+var objCPAPHours=document.getElementById("CPAPHours");
+var objVerified=document.getElementById("Verified");
+var objMRADMWeight=document.getElementById("MRADMWeight");
+var lblMRADMWeight=document.getElementById("cMRADMWeight");
+var objAgeOnAdmission=document.getElementById("AgeOnAdmission");
+var objAdmissionAgeInYears=document.getElementById("AdmissionAgeInYears");
+var objPAADMAdmSrc=document.getElementById("PAADMAdmSrc");
+var objCARETYCode=document.getElementById("CARETYCode");
+var objEpisodeList=document.getElementById("EpisodeList");
+var cacheDischargeDate=document.getElementById("DischargeDate$H");
+
+if (cacheDischargeDate=="") cacheDischargeDate="99999" // if not discharged, make sure date validation passes
+var CutOffDate="59717"   // = 01/07/2004 this is the date when the new vaidations come into effect
+var CutOffDate2015="63734" // = new validation as of 01/07/015
+var MsgAlreadyShown="";
+
+
+
+function CustomDocumentLoadHandler() {
+	PAAdmDRGBodyLoadHandler();
+
+	// SA 2.4.03 - log 33784: All hours fields will be now remain blank if value is "". This previously used to display "0000".
+	//KK 12/sep/2002 Log 28290
+	if ((objICUHours)&&(objICUHours.value!="")) {
+		//alert("objICUHours.value="+objICUHours.value);
+		objICUHours.value="0000"+objICUHours.value;
+		objICUHours.value=objICUHours.value.substring(objICUHours.value.length-4,objICUHours.value.length);
+	}
+	if ((objMechVentHours)&&(objMechVentHours.value!="")) {
+		objMechVentHours.value="0000"+objMechVentHours.value;
+		objMechVentHours.value=objMechVentHours.value.substring(objMechVentHours.value.length-4,objMechVentHours.value.length);
+	}
+	if ((objCCUHours)&&(objCCUHours.value!="")) {
+		objCCUHours.value="0000"+objCCUHours.value;
+		objCCUHours.value=objCCUHours.value.substring(objCCUHours.value.length-4,objCCUHours.value.length);
+	}
+	if ((objCPAPHours)&&(objCPAPHours.value!="")) {
+		objCPAPHours.value="0000"+objCPAPHours.value;
+		objCPAPHours.value=objCPAPHours.value.substring(objCPAPHours.value.length-4,objCPAPHours.value.length);
+	}
+	
+	//AR 205397 Enforcing mandatory ProCTimeStart for July 1 2016 changes
+	var obj=document.getElementById('DRGupdate');
+	
+	if (obj) {
+		obj.onclick=UpdateCustom;
+	}
+	if (tsc['DRGupdate']) 
+	{
+		websys_sckeys[tsc['DRGupdate']]=UpdateCustom;
+	}
+	//if (tsc['DRGupdate']) websys_sckeys[tsc['DRGupdate']]=SubmitForms
+	var objAge=document.getElementById("Age");
+	// RQG 25.07.03 L37676: Age should be calculated on admission and not on current date.
+	
+	// ab 28.05.04 - 44035
+	var daysInYear=365;
+	var year=new Date().getFullYear();
+	if (((year % 4) == 0) && (((year % 100) != 0) || ((year % 400) == 0))) daysInYear=366;
+	
+	// RQG 04.07.03 L36701: To disable admission weight when patients age is more than 1 year	
+	if ((objAgeOnAdmission)&&(objAgeOnAdmission.value!="")) {
+		if (objAgeOnAdmission.value < daysInYear) {
+			if (objMRADMWeight) objMRADMWeight.className="clsRequired";
+			if (lblMRADMWeight) lblMRADMWeight.className="clsRequired";
+		} else {
+			if (objMRADMWeight) DisableField('MRADMWeight');
+		}
+	} else {
+		if (objMRADMWeight) objMRADMWeight.className="";
+	}
+
+	// SA 2.4.03 - log 33784: Leading zeroes will no longer be set (onblurs shouldn't be used anyway!!!).
+	if (objICUHours) objICUHours.onblur=SetLeadingZeroes;
+	if (objMechVentHours) objMechVentHours.onblur=SetLeadingZeroes;
+	if (objCCUHours) objCCUHours.onblur=SetLeadingZeroes;
+	if (objCPAPHours) objCPAPHours.onblur=SetLeadingZeroes;
+
+	//SA 18.11.02 - log 30372: Verefied checkbox to be auto checked.
+	try {objVerified.checked=true; } catch(e) {}
+	
+	// cjb 20/09/2004 46346 - copied from QH script
+	if (objEpisodeList) objEpisodeList.onclick=SetURLParameters;
+	SetOpStartTime();
+}
+
+function CheckAdmissionWeightField() {
+	//MD 48982 no longer hardcoded in component
+	//now set in custom script
+	var objMinAdmWeight=125;
+	var objMaxAdmWeight=9999;
+	if (objMRADMWeight) {
+		if (objMRADMWeight.value > 0) {
+			var wtnum= new Number(objMRADMWeight.value);
+		} else if (objMRADMWeight.value == "") {
+			alert(t['ADMWEIGHT_BLANK']);
+			websys_setfocus("MRADMWeight");
+			return false;
+		} else {
+			alert(t['ADMWEIGHT_REQD']);
+			websys_setfocus("MRADMWeight");
+			return false;
+		}
+	}
+	if ((objMinAdmWeight)&&(objMaxAdmWeight)) {
+		if ((wtnum < objMinAdmWeight)||(wtnum > objMaxAdmWeight)) {
+		      alert(t['ADMWEIGHT_ERR']+' <'+objMinAdmWeight+' - '+objMaxAdmWeight+'>');		
+		     websys_setfocus("MRADMWeight");
+		     return false;
+		}	
+	}
+	return true;
+}
+
+
+// cjb 31/05/2004 44201 - warning message when the age at admission is 28 days or over and the NIV Hours (CPAPHours) is greater than 300 hours
+function CheckCPAPHoursAgainstAge() {
+	if (cacheDischargeDate<CutOffDate) return true;
+	if ((objCPAPHours)&&(objCPAPHours.value>300)&&(objAgeOnAdmission)&&(objAgeOnAdmission.value>27)) {
+		MsgAlreadyShown="1";
+		if (!confirm(t['CPAPHours']+" "+t['CPAP_HOURS_HIGH'])) return false;
+	}
+	return true;
+}
+// cjb 31/05/2004 44201 - warning message when the CCU Hours is greater than 300 hours
+function CheckCCUHours() {
+	if (cacheDischargeDate<CutOffDate) return true;
+	if ((objCCUHours)&&(objCCUHours.value>300)) {
+		MsgAlreadyShown="1";
+		if (!confirm(t['CCUHours']+" "+t['CCU_HOURS_HIGH'])) return false;
+	}
+	return true;
+}
+// cjb 31/05/2004 44201 - warning message when the age at admission is less than 365 days (or 366 if a leap year) and the admission weight (MRADMWeight) is less than 400 grams
+function CheckMRADMWeightAgainstAge() {
+	//md 47657
+	//if (!(CheckAdmissionWeightField())) {
+	if ((objAdmissionAgeInYears)&&(objAdmissionAgeInYears.value==0)&&(!CheckAdmissionWeightField())) {
+				return false;
+			}
+	//md 47657
+	if (cacheDischargeDate<CutOffDate) return true;
+	if ((objMRADMWeight)&&(objMRADMWeight.value<400)&&(objAdmissionAgeInYears)&&(objAdmissionAgeInYears.value==0)) {
+		MsgAlreadyShown="1";
+		if (!confirm(t['MRADMWeight']+" "+t['MRADM_WEIGHT_LOW'])) return false;
+	}
+	return true;
+}
+// cjb 01/06/2004 44201 - warning message when the Admission Source (ADSOUDesc) is TE, TJ, TW or TX and there is 0 hours in CCU hours (CCUHours) or ICU hours (ICUHours)
+function CheckPAADMAdmSrc() {
+	if (cacheDischargeDate<CutOffDate) return true;
+	if ((objPAADMAdmSrc) && ((objPAADMAdmSrc.value=="TE")||(objPAADMAdmSrc.value=="TJ")||(objPAADMAdmSrc.value=="TW")||(objPAADMAdmSrc.value=="TX"))) {
+		if ((objCCUHours.value=="0000")||(objCCUHours.value=="")) {
+			MsgAlreadyShown="1";
+			if (!confirm(t['CCUHours']+" "+t['ADM_SRC'])) return false;
+		}
+		if ((objICUHours.value=="0000")||(objICUHours.value=="")) {
+			MsgAlreadyShown="1";
+			if (!confirm(t['ICUHours']+" "+t['ADM_SRC'])) return false;
+		}
+	}
+	return true;
+}
+
+
+
+function DiagnosesEnteredWithProcsCheck() {
+	// SA 24114: ARMC custom - Procedures cannot be entered without diagnoses.
+	var objDT=document.getElementById('DiagnosTotal');
+	var objPT=document.getElementById('TotalProcedures');
+	if ((objDT)&&(websys_getText(objDT)=="0")) {
+		if ((objPT)&&(websys_getText(objPT)!="0")) {
+			alert(t['NO_PROCS_WITHOUT_DIAGS']);
+			return false;
+		}
+	}
+	return true;
+}
+
+function DiagnosesEnteredWithPrefixCheck() {
+	if (parent.frames["MRDiagnosEditDRG"]) {
+		var tframe=parent.frames["MRDiagnosEditDRG"];
+		var tbl=tframe.document.getElementById("tMRDiagnos_EditDRG");
+		if (tbl) {
+			var arrInput=tbl.getElementsByTagName("INPUT");
+			for (var i=0; i<arrInput.length; i++) {
+				var objdesc=tframe.document.getElementById("MRDIAICDCodeDRDescz"+i);
+				var objprefix=tframe.document.getElementById("MRDIAPrefixz"+i);
+				if ((objdesc)&&(objdesc.value!="")) {
+					if ((objprefix)&&(objprefix.value=="")) {
+						//GX TRC98348 15/03/2012
+						var isEmptyPrefixOk=false;
+						var objDiagCode=tframe.document.getElementById("MRDIAICDCodeDRCodez"+i);
+						if ((objDiagCode)&&(objDiagCode.value!="")&&(objDiagCode.value.charAt(0)=='M')) {
+							if (tkMakeServerCall('Custom.PAAdm','IsMorphologyCode',objDiagCode.value)=='1'){
+								isEmptyPrefixOk=true;
+							}
+						}
+						if (!isEmptyPrefixOk){
+							alert(t['PREFIX_BLANK']+'\n(this excludes Morphology codes)');
+							websys_setfocus("MRDIAPrefixz"+i);
+							return false;
+						}
+                	}
+                	//AR TRC 205396 Disable A prefix post 01 July 16 - currently using 01 March for testing
+					var DischargeDate=document.getElementById("DischargeDate$H")
+					var July16=DateStringTo$H("01/07/2016");
+					if ((objprefix)&&(objprefix.value=="A")&&(DischargeDate.value>=July16)) {
+			     			alert("A is an invalid Prefix");
+					     	websys_setfocus("MRDIAPrefixz"+i);
+					     	return false;
+					}
+					//KK L:48813
+					if (objdesc.className=='clsInvalid') {
+						alert(objdesc.value + "  " + t['INVALID_DIAGCODE']);
+						return false;
+					}
+				}
+			}	
+		}
+	}
+	return true;
+}
+
+// RQG,Log25417:
+function ValidateDRGFields() {
+	var MechVenthr=0;
+	var ICUhr=0;
+	var CCUhr=0;
+	var CPAPhr=0;
+	var LengthOfStay=0;
+	var objAdmType=document.getElementById("InPatientAdmType");
+
+	// SA 10.6.03 - log 36017: This previously took the days rounded down and multiplied by 24 to get hours,
+	// but this wasn't correct (eg. 28 hours rounded to 1 day, then back to 24hrs), as we needed the exact hours. 
+	// We now get the exact hours to make these comparisons. 
+	var objLengthOfStay=document.getElementById("TotalLengthOfStayHours");
+
+	if (objICUHours) ICUhr = new Number(objICUHours.value);
+	if (objMechVentHours) MechVenthr = new Number(objMechVentHours.value);
+	if (objCCUHours) CCUhr = new Number(objCCUHours.value);
+	if (objCPAPHours) CPAPhr = new Number(objCPAPHours.value);
+	if (objLengthOfStay) LengthOfStay = new Number(objLengthOfStay.value);
+	if (LengthOfStay < 0) LengthOfStay=0;
+	
+	//KK 24/Jan/2003 Log 32226 - TotalLengthofStay value converted to days from hours(TotalLengthofStay\24) in the component. 
+	//Converting it back to hours to compare with MV, ICU and CCU hours.
+
+	// SA 10.6.03 - log 36017: This previously took the days rounded down and multiplied by 24 to get hours,
+	// but this wasn't correct (eg. 28 hours rounded to 1 day, then back to 24hrs), as we needed the exact hours. 
+	// We now get the exact hours to make these comparisons. Line below commented as component field is already in hrs.
+	//if (LengthOfStay > 0) LengthOfStay=LengthOfStay * 24 ;
+
+	//alert((ICUhr+CCUhr) + "^" + (CPAPhr+MechVenthr));
+	// SA 28.5.03 - log 36017: ICU/CCU/MV hours are all rounded up to next hour, so checks below
+	// must take this into account. Have agreed on "+hr" amounts with Karen
+
+	if ((ICUhr+CCUhr) > (LengthOfStay+2)){
+		alert(t['ICU_CCU_HRS']);
+		return false;
+	}
+
+	if (ICUhr > (LengthOfStay+1)) {	// SA 28.5.03 - log 36017: See note above
+     		alert(t['ICUHRS_GREATER_TLS']);
+		return false;
+	}
+	
+	if (MechVenthr > (LengthOfStay+1)) {	// SA 28.5.03 - log 36017: See note above
+     		alert(t['MECHVENT_GTR_TLS']);
+		websys_setfocus("MechVentHours");
+		return false;
+	}
+
+	// TW 03.9.03 - SITE : MV / ICU check re-instated by Tony W.
+	if (MechVenthr > (ICUhr+1)) {		// SA 28.5.03 - log 36017: See note above
+     		alert(t['MECHVENT_ERR']);
+		websys_setfocus("MechVentHours");
+		return false;
+	}
+
+	if (CCUhr > (LengthOfStay+1)) {	// SA 28.5.03 - log 36017: See note above
+     		alert(t['CCUHRS_ERR']);
+		websys_setfocus("CCUHours");
+		return false;
+	}
+
+	// SA 6.5.03 - log 33784: MV Hours must be entered when the ICU hours have been entered (even when entered value equates to zero).
+	if ((objICUHours)&&(objICUHours.value!="")) {
+		if ((objMechVentHours)&&(objMechVentHours.value=="")) {
+	     		alert(t['ICU_MV_HRS']);
+			websys_setfocus("MechVentHours");
+			return false;
+		}
+	}
+	
+	
+	if (parent.frames["MRDiagnosEditDRG"]) {
+		var tframe=parent.frames["MRDiagnosEditDRG"];
+		var tbl=tframe.document.getElementById("tMRDiagnos_EditDRG");
+	
+		// RQG 29.01.03 Log28856: Validation of ICD Codes will now be done down the column instead of across the row.
+		var rowLen=tbl.rows.length;
+		var prefix; var code; var code1; var codenum;
+		var subprefix; var subprefix1; var subcode; var subcode1; var subcodenum;
+		var message=""; var err_focus=""; var notok=1; // 0=false 1=true 
+		err_focus="MRDIAICDCodeDRCodez1";
+	
+		// Check for Diagnosis code with prefix of "S,T,V,Y" on row1
+		var objPos1Code=tframe.document.getElementById("MRDIAICDCodeDRCodez1");
+   		if (objPos1Code) {
+			prefix=objPos1Code.value.substring(0,1);
+			code=objPos1Code.value.substring(1,3);
+			code1=objPos1Code.value.substring(1,4);
+			codenum=new Number(code);
+			if ((prefix=="S") || (prefix=="T") || (prefix=="V") || (prefix=="Y")) {
+			   for (var i=2;i<rowLen;i++) {
+				var objSubseqCode=tframe.document.getElementById("MRDIAICDCodeDRCodez"+i);
+				if (objSubseqCode) {
+					subprefix=objSubseqCode.value.substring(0,1);
+					subprefix1=objSubseqCode.value.substring(0,3);
+					subcode=objSubseqCode.value.substring(1,3);
+					subcode1=objSubseqCode.value.substring(1,4);
+					subcodenum=new Number(subcode);
+	
+			 		switch (prefix) {
+				  	  case "S": case "T":
+						message="DIAGCODE_ERR1";
+						if (subprefix=="V" || subprefix=="Y") {
+							notok=0;
+						}
+						break;
+				  	  case "V": case "Y":
+						if ((prefix=="Y") && (codenum<35)) {
+							message="DIAGCODE_ERR3";
+							if ((subprefix1=="U50") || (subprefix1=="U73")) {
+								notok=0;
+							}
+						}
+	
+						if ((prefix=="Y") && (codenum>34) && (codenum<90)) {
+							message="DIAGCODE_ERR2";
+							if ((subprefix1=="Y92")) {
+								notok=0;
+							}
+						}
+	
+						if (prefix=="V") {
+							message="DIAGCODE_ERR";
+							if ((subprefix1=="U50") || (subprefix1=="U73")) {
+								notok=0;
+							}
+						}
+					}
+				}
+			   }
+			}
+		}
+	}
+	if (notok==1) {
+		if (message!="") {
+		   alert(t[message]);
+		   websys_setfocus(err_focus);
+		   return false;
+		}
+	}
+
+	//If admission type="G", must have Diagnosis code of Z755 or Z742
+	if ((objAdmType)&&(objAdmType.value=="G")) {
+	      message="INPATIENTADM_ERR";
+		for (var i=1;i<rowLen;i++) {
+			var objCode=document.getElementById("MRDIAICDCodeDRCodez"+i);
+			if (objCode) {
+				prefix=objCode.value.substring(0,1);
+				code=objCode.value.substring(1,3);
+				code1=objCode.value.substring(1,4);
+				codenum=new Number(code);
+				if ((prefix=="Z")&&((code1=="755")||(code1=="742"))) {
+					notok=0;
+				}
+			}
+		}
+	}
+
+	if (notok==1) {
+		if (message!="") {
+		   alert(t[message]);
+		   websys_setfocus(err_focus);
+		   return false;
+		}
+	}
+
+	//Check for admission weight and associated Diagnosis code
+	if ((objMRADMWeight)&&(objMRADMWeight.value!="")) {
+		var admweight=new Number(objMRADMWeight.value);
+		for (var i=1;i<rowLen;i++) {
+			var objCode=document.getElementById("MRDIAICDCodeDRCodez"+i);
+			if (objCode) {
+				prefix=objCode.value.substring(0,1);
+				code=objCode.value.substring(1,objCode.value.length); //get the full code without the prefix
+				code=code.replace('.','');  //remove the '.' in the code
+
+				if (admweight<1000) {
+					message="ADMWEIGHT_ERR1";
+					if (prefix=="P") {
+						if ((code=="0701")||(code=="0702")||(code=="0703")||(code=="0721")||(code=="0722")||(code=="050")||(code=="051")||(code=="052")||(code=="059")||(code=="964")||(code=="018")) {
+							notok=0;
+						}
+					}
+				}
+				if ((admweight > 999)&&(admweight < 2500)) {
+					message="ADMWEIGHT_ERR2";
+					if (prefix=="P") {
+						if ((code=="0711")||(code=="0712")||(code=="0713")||(code=="0730")||(code=="0732")||(code=="051")||(code=="052")||(code=="059")||(code=="964")||(code=="018")) {
+							notok=0;
+						}
+					}
+				}
+			}
+		}
+	}
+
+	if (notok==1) {
+		if (message!="") {
+		   alert(t[message]);
+		   websys_setfocus(err_focus);
+		   return false;
+		}
+	}
+
+	// RQG 04.07.03 L36701:
+	// Warning message if Care Type not 'Acute' and there is a value in ICU hour field
+	if (ICUhr > 0) {
+		if ((objCARETYCode)&&(objCARETYCode.value != 4)) {
+			var cont=confirm(t['CARETYP_NOT_ACUTE']+ '\n' + t['OK_CANCEL']);
+			if (!(cont)) return false;
+		}	
+	}
+	var ICDOk="No";
+	if ((objCARETYCode)&&(objCARETYCode.value == 8)) {
+	   if (tbl) {
+		for (var i=1; i<tbl.rows.length; i++) {
+			var diag="";
+			var arrfld=tbl.rows[i].getElementsByTagName('INPUT');
+			for (var j=0; j<arrfld.length; j++) {
+				if (arrfld[j].id.indexOf("MRDIAICDCodeDRCodez")==0) diag=arrfld[j].value;
+			}
+			if (diag!="") {
+				diag=diag.replace('.','');  //remove the '.' in the code
+				if (diag=="Z515") ICDOk="Yes";
+			}
+		}
+		// Error message when care type='Palliative Care Program' without Diagnosis Code of Z51.5
+		if (ICDOk=="No") {
+		   alert(t['PALLIATIVE_DIAG_NOT_ENTERED']);
+		   websys_setfocus(err_focus);
+		   return false;	
+		}
+	   }
+	}
+
+	return true;
+}
+
+
+//KK 12/Sep/2002 Log 28290
+function SetLeadingZeroes(e) {
+	var eSrc = websys_getSrcElement(e);
+	var temp=document.getElementById(eSrc.name);
+	
+	if (isNaN(temp.value)) {
+	   alert(t['INVALID_VALUE']);
+	   websys_setfocus(eSrc.name);
+	   return false;
+	}
+
+	if (temp) {
+		if (temp.value.length < 4) {
+			// SA 2.4.03 - log 33784: All hours fields will be now remain blank if value is "".
+			if (temp.value!="") {
+				temp.value="0000"+temp.value;
+				temp.value=temp.value.substring(temp.value.length-4,temp.value.length);
+			} else {
+				temp.value="";
+			}
+		}
+	}
+}
+
+
+// RQG 28.05.03 L36023: The ff. codes were changed as the icd/procedure additional code requirement should be checked
+//  	for all positions in the row and not only for the primary position.
+function ValidateDiagAddCodeReqmt() {
+	var pcode=""; var scode=""; var prevcode=""; var icdcode=""; var diagcode="";
+	var PlaceActivityCode=""; var ExternalCauseCode=""; var PalliativeDiag=""; var ok = false;
+	if (parent.frames["MRDiagnosEditDRG"]) {
+		var tframe=parent.frames["MRDiagnosEditDRG"];
+		var tbl=tframe.document.getElementById("tMRDiagnos_EditDRG");
+		var rowLen = tbl.rows.length;
+		var arrCode = new Array(rowLen);
+		var Y92Code="";
+		
+		if (tbl) {
+			for (var x=1; x<rowLen; x++) {
+				var reqmt=""; var diag="";
+				var arrfld=tbl.rows[x].getElementsByTagName('INPUT');
+				for (var i=0; i<arrfld.length; i++) {
+					if (arrfld[i].id.indexOf("AddCodeRqmtz")==0) reqmt=arrfld[i];
+					if (arrfld[i].id.indexOf("MRDIAICDCodeDRDescz")==0) diag=arrfld[i].value;
+					//RQG 07.10.03 L39699
+					if (x==1 && arrfld[i].id.indexOf("MRDIAICDCodeDRCodez")==0) icdcode=arrfld[i].value;
+					if (arrfld[i].id.indexOf("MRDIAICDCodeDRCodez")==0) diagcode=arrfld[i].value;
+					
+				}
+				if (diag!="") {
+					arrCode[x]=reqmt.value;
+					if (x==1) var prim=reqmt.value;
+					
+					// cjb 02/06/2004 44201
+					// KK  24/06/2004 44201 - Added "X" and "W" to the External cause code validation
+					if ((diagcode.substr(0,1)=="X")||(diagcode.substr(0,1)=="W")||(diagcode.substr(0,1)=="V")||(diagcode.substr(0,2)=="Y0")||(diagcode.substr(0,2)=="Y1")||(diagcode.substr(0,2)=="Y2")||(diagcode.substr(0,3)=="Y30")||(diagcode.substr(0,3)=="Y31")||(diagcode.substr(0,3)=="Y32")||(diagcode.substr(0,3)=="Y33")||(diagcode.substr(0,3)=="Y34")) ExternalCauseCode=1
+					//if ((ExternalCauseCode!=1)&&(diagcode.substr(0,3)=="Y92")||(diagcode.substr(0,2)=="U5")||(diagcode.substr(0,2)=="U6")||(diagcode.substr(0,3)=="U70")||(diagcode.substr(0,3)=="U71")||(diagcode.substr(0,3)=="U72")||(diagcode.substr(0,3)=="U73")) PlaceActivityCode=1
+					if (ExternalCauseCode!=1){
+						//KK Set PlaceActivityCode=1	only if there is a Y92 code and a code from range U50-U73
+						if (diagcode.substr(0,3)=="Y92") Y92Code=1;
+						if ((Y92Code==1)&&((diagcode.substr(0,2)=="U5")||(diagcode.substr(0,2)=="U6")||(diagcode.substr(0,3)=="U70")||(diagcode.substr(0,3)=="U71")||(diagcode.substr(0,3)=="U72")||(diagcode.substr(0,3)=="U73"))){ 
+							PlaceActivityCode=1
+						}
+					}
+				} else {
+					arrCode[x]="";
+				}
+			}
+		}
+	}
+	
+	// cjb 02/06/2004 44201 - error message when the episode has a diagnosis code (MRDIACDCodeDRCode) of any Y92 code and a code from the range U50-U73 but there is no code from the range V01 - Y34 earlier in the string of codes
+	if (cacheDischargeDate>=CutOffDate) {
+		if ((ExternalCauseCode!=1)&&(PlaceActivityCode==1)) {
+			alert(t['PLACE_WITHOUT_ACTIVITY']);
+			return false;
+		}
+	}
+	
+	// cjb 01/06/2004 44201 - warning message when the caretype (CARETYPDesc) is 2,6,7,J or K and the principal diagnosis is not a code from the Z50 range
+	// jcp TRC 196323 Added cutoffdate2015 to stop warning appearing for patients remaining in or discharged after 01/07/2015
+	if ((cacheDischargeDate.value>=CutOffDate) && (cacheDischargeDate.value<CutOffDate2015)) {
+		if ((icdcode.substr(0,3)!="Z50") && ((objCARETYCode.value=="2")||(objCARETYCode.value=="6")||(objCARETYCode.value=="7")||(objCARETYCode.value=="J")||(objCARETYCode.value=="K"))) {
+			if (!confirm(t['CARETYPE_DIAG']+" "+objCARETYCode.value)) return false;
+			
+		}
+	}
+	
+	if (arrCode.length > 0) {
+		//RQG 07.10.03 L39699: No need to check for Additional Code requirement if Principal code = "Z50.9"
+		// cjb 02/06/2004 44201 - from 01/07/2004 no longer need to exclude Z509
+		if (!((icdcode=="Z509" || icdcode=="Z50.9")&&(cacheDischargeDate<CutOffDate))) {
+		   for (var y=1; y<arrCode.length; y++) {
+
+			ok = false;          //beginning of loop must always set this to false - AJI 40447;
+			var placecode=""; var actvtycode="";
+			pcode=arrCode[y];
+
+			if (pcode!="") {
+				//Check for External Cause, Activity Code and Place Code
+				for (var z=y+1; z<arrCode.length; z++) {
+	  				scode=arrCode[z];
+					if (  (pcode=="1" && (scode=="2" || scode=="6" || scode=="7" || scode=="8")) ||
+						(pcode=="6" && scode=="P") ||
+						(pcode=="7" && scode=="A") ) {
+						ok=true;
+					}
+					if (pcode=="8") {
+						if (scode=="A") actvtycode=scode;
+						if (scode=="P") placecode=scode;
+						if ((actvtycode!="")&&(placecode!="")) ok=true;
+					}
+				}
+				if (!ok && pcode!="") {
+					var msg="";
+ 					switch (pcode) {
+				  		case "1":
+							msg=t['EXTCAUSE_CODE_REQD'];
+							break;
+				  		case "6":
+							msg=t['CODE_NEED_PLACECODE'];
+							break;
+						case "7":
+							msg=t['CODE_NEED_ACTVTYCODE'];
+							break;
+						case "8":
+							msg=t['CODE_NEED_PLACEACTVTYCODE'];
+							break;
+					}
+					if ((pcode=="1") || (pcode=="6") || (pcode=="7") || (pcode=="8")) {
+						alert(msg);
+						return false;
+					}
+				}
+			}
+		   }
+		}
+		//Check for Cancer site and Morphology Codes
+		var bothcancer=""; var bothmorph="";
+		for (var y=1; y<arrCode.length; y++) {
+			ok=false;
+			pcode=arrCode[y];
+			if (pcode=="3") {
+				var x=y+1;
+			    	if (x < arrCode.length) {
+					scode=arrCode[x];
+					if ((scode=="3") || (scode=="4")) {
+						ok=true;
+						if (scode=="3") bothcancer="yes";
+						if (scode=="4") bothcancer="";
+					}
+				}
+				if (!ok) {
+					var msg=t['MORPH_CODE_REQD'];
+					alert(msg);
+					return false;
+				}
+			}
+
+			if (pcode=="4") {
+				var x=y+1;
+			    	if (x < arrCode.length) {
+					scode=arrCode[x];
+					if (scode=="4") {
+						bothmorph="yes"
+					}
+					if (scode=="3") {
+						ok=true;
+						}
+					
+				}
+				if (prevcode=="3") ok=true;
+			
+				if ((prevcode=="4")&&(bothmorph=="yes")) { ok=true; }
+
+				if (prim=="4") {
+					msg=t['MORPH_INVALID_POS'];
+					alert(msg);
+					return false;
+				}
+
+				if (!ok) {
+					var msg="Cancer Code Required"
+					alert(msg);
+					return false;
+				}
+			}
+			prevcode=pcode;
+
+		}
+		if (bothcancer=="yes") {
+			msg=t['MORPH_CODE_REQD'];
+			alert(msg);
+			return false;
+		}
+	}
+	return true;
+}
+
+function ValidateProcAddCodeReqmt() {
+	var msg=""; var pcode=""; var scode=""; var prevcode=""; var ok=""; 
+	if (parent.frames["MRProceduresEditDRG"]) {
+		var tframe=parent.frames["MRProceduresEditDRG"];
+		tbl=tframe.document.getElementById("tMRProcedures_EditDRG");
+	
+		var rowLen=tbl.rows.length;
+		var arrCode=new Array(rowLen);
+		if (tbl) {
+			for (var x=1; x<rowLen; x++) {
+				var arrfld=tbl.rows[x].getElementsByTagName('INPUT');
+				for (var i=0; i<arrfld.length; i++) {
+					
+					if (arrfld[i].id.indexOf("AddProcCodeRqmtz")==0) {
+						arrCode[x]=arrfld[i].value;
+						if (x==1) var prim=arrfld[i].value
+					}
+				}
+			}	
+		}
+	}
+	
+	if (msg!="") {
+		alert(msg);
+		return false;
+	}
+
+	for (var y=1; y<arrCode.length; y++) {
+		ok="no";
+		pcode=arrCode[y];
+		var placecode=""; var actvtycode="";
+		if (pcode!="") {
+		  for (var z=y; z<=arrCode.length; z++) {
+			if (z < arrCode.length)	{
+				scode=arrCode[z+1];
+			} else {
+				scode="";
+			}
+
+			if (((pcode=="1") && ((scode=="2")||(scode=="6")||(scode=="7")||(scode=="8"))) ||
+			   ((pcode=="6") && (scode=="P")) ||
+			   ((pcode=="7")&&(scode=="A"))) {
+				ok="yes";
+			}
+
+			if (pcode=="8") {
+				if (scode=="A") actvtycode=scode;
+				if (scode=="P") placecode=scode;
+				if ((actvtycode!="")&&(placecode!="")) ok="yes";
+			}
+
+			if (pcode=="3") {
+				if ((prevcode=="") && ((scode=="3") || (scode=="4"))) {
+					ok="yes";
+					prevcode=pcode;
+				} else {
+					if (prevcode=="3") ok="yes";
+				}
+			}
+			if (pcode=="4") {
+				if ((prevcode=="")&&(scode=="4")) {
+					ok="yes";
+					prevcode=pcode;
+				} else {
+					if ((prevcode=="3") || (prevcode=="4")) {
+						ok="yes";
+					}
+				}
+				if (prim==pcode) {
+					ok="no";
+				}
+			}
+		  }
+
+		  if ((ok=="no")&&(pcode!="")) {
+			
+ 			switch (pcode) {
+		  	case "1":
+				msg=t['EXTCAUSE_CODE_REQD'];
+				break;
+			case "3":
+				msg=t['MORPH_CODE_REQD'];
+				break;
+			case "4":
+				if (prim==pcode) {
+					msg=t['MORPH_INVALID_POS'];
+				} else {
+					msg=t['MORPH_CODE_REQD'];
+				}
+				break;
+		  	case "6":
+				msg=t['CODE_NEED_PLACECODE'];
+				break;
+			case "7":
+				msg=t['CODE_NEED_ACTVTYCODE'];
+				break;
+			case "8":
+				msg=t['CODE_NEED_PLACEACTVTYCODE'];
+				break;
+			default:
+				pcode="";
+			}
+			if ((pcode=="1") || (pcode=="6") || (pcode=="7") || (pcode=="8")) {
+				alert(msg);
+				return false;
+			}
+			if (pcode=="3") {
+				var cont=confirm(msg);
+				if (!(cont)) return false;
+			}
+			if  (pcode=="4") {
+				if (prim==pcode) {
+					alert(msg);
+					return false;
+				} else {
+					var cont=confirm(msg);
+					if (!(cont)) return false;
+				}
+			}
+		  }
+		}
+	}
+	
+	if ((objAgeOnAdmission)&&(objAgeOnAdmission.value!="")&&(objAgeOnAdmission.value<365)) {
+	//md 47657
+	if (!(CheckAdmissionWeightField())) {
+				return false;
+			}
+	//md 47657
+	}
+	if (MsgAlreadyShown!="1"){
+		// cjb 31/05/2004 44201 - warning message when the age at admission is 28 days or over and the NIV Hours (CPAPHours) is greater than 300 hours
+		if (!(CheckCPAPHoursAgainstAge())) {
+			return false;
+		}
+		// cjb 31/05/2004 44201 - warning message when the CCU Hours is greater than 300 hours
+		if (!(CheckCCUHours())) {
+			return false;
+		}
+		// cjb 31/05/2004 44201 - warning message when the age at admission is less than 365 days (or 366 if a leap year) and the admission weight (MRADMWeight) is less than 400 grams
+		//md
+		if ((objAgeOnAdmission)&&(objAgeOnAdmission.value!="")&&(objAgeOnAdmission.value<365)) {
+			if (!(CheckMRADMWeightAgainstAge())) {
+				return false;
+			}
+		}
+		// cjb 01/06/2004 44201 - warning message when the Admission Source (ADSOUDesc) is TE, TJ, TW or TX and there is 0 hours in CCU hours (CCUHours) or ICU hours (ICUHours)
+		if (!(CheckPAADMAdmSrc())) {
+			return false;
+		}
+	}
+	return true;
+}
+
+// RQG 15.04.03 L33658: This will validate Diagnosis code from the form and if nothing is entered, it will uncheck Verified Flag field.
+function CheckDiagnosisCode() {
+	var bChecked="";
+	if (objVerified) {
+		// RQG 16.10.03 L39979:
+		bChecked=objVerified.checked;
+		objVerified.checked=false;
+		
+		if (parent.frames["MRDiagnosEditDRG"]) {	// 39979
+			var tframe=parent.frames["MRDiagnosEditDRG"];
+			var tbl=tframe.document.getElementById("tMRDiagnos_EditDRG");
+			var rowLen=tbl.rows.length;
+			for (var i=0;i<rowLen;i++) {
+				var objDiagCode=tframe.document.getElementById("MRDIAICDCodeDRCodez"+i);
+				if ((objDiagCode)&&(objDiagCode.value!="")) {
+					
+					if (bChecked) {
+						
+						try {objVerified.checked=true; } catch(e) {}		//KK 46111
+						if (objVerified.checked==true) return true;
+						
+					} else {		// cjb 04/08/2005 51034 - if there are diag codes but the verified un-ticked, show warning
+						if(confirm("This episode has a current status of uncoded, do you want to save?")) {
+							return true;
+						} else {
+							return false;
+						}
+					}
+				}
+			}
+		}
+	}
+	return true;
+}
+
+function DisableField(fldName) {
+	var fld = document.getElementById(fldName);
+	var lbl = document.getElementById('c'+fldName);
+	if ((fld)&&(fld.tagName=="INPUT")) {
+		fld.value = "";
+		fld.disabled = true;
+		fld.className = "disabledField";
+		if (lbl) lbl = lbl.className = "";
+	}
+}
+
+// cjb 20/09/2004 46346 - copied from QH script, and removed  + "&admType=I" + "&VERIFIED=N" + "&VISITSTATUS=D" from url
+function SetURLParameters() {
+	var patientid=""; var episodeid=""; CONTEXT=""; 
+	var objPatientID=document.getElementById('PatientID');
+	if (objPatientID) patientid=objPatientID.value;
+	var objEpisodeID=document.getElementById('EpisodeID');
+	if (objEpisodeID) episodeid=objEpisodeID.value;
+	CONTEXT=session['CONTEXT'];
+	
+	var url="websys.default.csp?WEBSYS.TCOMPONENT=PAAdm.List&PatientID=" + patientid + "&CodeEpisode=" + episodeid + "&admType=I" + "&CONTEXT=" + CONTEXT + "&PatientBanner=1";
+	websys_lu(url,false,'top=30,left=20,width=750,height=480');
+}
+
+// RQG 17.02.03 LOG32517: New function to sanity check Pocedure date against admission and discharge dates
+// RQG 24.06.03 L32770:	Allow any date before admission date and after discharged date if episode is contracted
+function ValidateProcDate() {
+	
+	var objIsContracted=document.getElementById("IsContracted");
+	if ((objIsContracted)&&(objIsContracted.value==1)) return true;
+	
+	var frmproc= parent.frames["MRProceduresEditDRG"].document.forms["fMRProcedures_EditDRG"];
+	if (frmproc) {
+		// RG 2016/11/30 - HTML5 Compliance fix on the following 3 lines: frmproc.document.getElementById ~> document.getElementById
+		var objProcCode1=document.getElementById("PROCOperationDRDescz1");
+		var objWarnProcDate=document.getElementById("WarnProcDate");
+		var tbl=document.getElementById("tMRProcedures_EditDRG");
+		// AR 205397 Following line added in to toggle post 1 July date as needed
+		var July16=DateStringTo$H("01/07/2016");
+		if (tbl) {
+			var arrInput=tbl.getElementsByTagName("INPUT");
+			// start at the first Procedures Date and work through each row
+			for (var i=0; i<arrInput.length-1; i++) {
+				var arrId=arrInput[i].id.split('z');
+				if (arrId[0]=="ProcDateMandatory") datemandatory=arrInput[i].value;
+				if (arrId[0]=="PROCProcDate") {
+					var procdate="";
+					procdate=arrInput[i].value;
+					// RQG 25.06.03 L32770: Display message if procedure code is mandatory and date is left blank
+					if ((objProcCode1)&&(objProcCode1.value!="")) {
+						//Kong TRC 31192
+						var firstPROCProcDate=arrId[1];
+						var DischargeDateobj=document.getElementById("DischargeDate");
+						var DateCompare=DateStringCompare(DischargeDateobj.value,"30/06/2009");
+						if ((firstPROCProcDate==1)&&(DateCompare==1)&&(procdate.length==0)&&(datemandatory=="Y")) {
+							alert(t['PROCDATE_MANDATORY']);
+							arrInput[i].focus();
+							return false;
+						} 
+						// End TRC 31192
+					}
+					var compstr="";
+					
+					if (procdate!="") compstr = DateStringCompare(procdate,objAdmDate.value);
+					
+					if (compstr == -1) {
+						// cjb 18/10/2004 46434 - if the system param is not on, use alert, otherwise use confirm instead
+						if (objWarnProcDate.value!="Y") {
+							// Procedure Date is less than Admission Date
+							alert(t['PROCDATE_LESS_ADMDATE']);
+							arrInput[i].focus();
+							return false;
+						} else {
+							if (!(confirm(t['PROCDATE_LESS_ADMDATE']))) {
+								arrInput[i].focus();
+								return false;
+							} 
+						}
+					}
+
+					if (procdate!="") compstr = DateStringCompare(procdate,DischargeDateobj.value); //OH 01.07.2009
+					// if (procdate!="") compstr = DateStringCompare(procdate,cacheDischargeDate);
+					if (compstr == 1) {
+						// cjb 18/10/2004 46434 - if the system param is not on, use alert, otherwise use confirm instead
+						if (objWarnProcDate.value!="Y") {
+							// Procedure Date is greater than Discharged Date
+							alert(t['PROCDATE_GREATER_DISCHDATE']);
+							arrInput[i].focus();
+							return false;
+						} else {
+							if (!(confirm(t['PROCDATE_GREATER_DISCHDATE']))) {
+								arrInput[i].focus();
+								return false;
+							} 
+						}
+					}
+				}
+			}
+		}
+	}
+	if (!ValidateStartTime()) return false;
+	return true;
+}
+
+//AR TRC 205397 Enforces a time value in 'Start Time' field where the Date is mandatory for a procedure
+function UpdateCustom() {
+	if (!ValidateStartTime()) return false;
+	SubmitForms();
+}
+
+//AR TRC 205397 Enforces a time value in 'Start Time' field where the Date is mandatory for a procedure
+
+function ValidateStartTime() {
+	var frmproc = parent.frames["MRProceduresEditDRG"].document.forms["fMRProcedures_EditDRG"];
+	if(frmproc) {
+		var objWarnProcDate=frmproc.elements["WarnProcDate"];
+		var tbl=parent.frames["MRProceduresEditDRG"].document.getElementById("tMRProcedures_EditDRG");
+		var DischargeDate=document.getElementById("DischargeDate$H")
+		//AR TRC 205552 Date temp set to 1st March for test instead of 1st July
+		var July16=DateStringTo$H("01/07/2016");
+		if (tbl) {
+			var arrInput=tbl.getElementsByTagName("INPUT");
+			// start at the first Procedures Date and work through each row
+			for (var i=0; i<arrInput.length-1; i++) {
+				var arrId=arrInput[i].id.split('z');
+				if (arrId[0]=="ProcDateMandatory") datemandatory=arrInput[i].value;
+				if (arrId[0]=="PROCTimeStart") {
+					var PROCTimeStart=arrInput[i].value;
+					if ((datemandatory=="Y")&&(PROCTimeStart=="")&&(DischargeDate.value>=July16)) {
+						alert("The procedure time is mandatory for this procedure");
+						arrInput[i].focus();
+						return false;
+					}
+				}
+				
+			}
+		}
+	}
+	return true;
+}
+//BZ TRC 205397 
+function SetOpStartTime() {
+	var frmproc = parent.frames["MRProceduresEditDRG"].document.forms["fMRProcedures_EditDRG"];
+	if(frmproc) {
+		var objWarnProcDate=frmproc.elements["WarnProcDate"];
+		var tbl=parent.frames["MRProceduresEditDRG"].document.getElementById("tMRProcedures_EditDRG");
+		var DischargeDate=document.getElementById("DischargeDate$H")
+		//AR TRC 205552 Date temp set to 1st March for test instead of 1st July
+		var July16=DateStringTo$H("01/07/2016");
+		var paadmidobj = document.getElementById("EpisodeID")
+		var paadmid = paadmidobj.value
+		if (tbl) {
+			var arrInput=tbl.getElementsByTagName("INPUT");
+			// start at the first Procedures Date and work through each row
+			for (var i=0; i<arrInput.length-1; i++) {
+				var arrId=arrInput[i].id.split('z');
+				if (arrId[0]=="ProcDateMandatory") datemandatory=arrInput[i].value;
+				if (arrId[0]=="PROCOperationDRCode") opcode = arrInput[i].value;
+				if (arrId[0]=="PROCProcDate") opdate = arrInput[i].value;
+				if (arrId[0]=="PROCTimeStart") {
+					var PROCTimeStart=arrInput[i].value;
+					if (opcode != "" && opdate !="" && PROCTimeStart == "")
+					{
+						//alert(paadmid+'^'+opcode);
+						arrInput[i].value = tkMakeServerCall('Custom.AUXXUtilities','GetOpStartTime',paadmid,opcode)
+					}
+				}
+				
+			}
+		}
+	}
+	return true;
+}
+
+websys_addListener("load","onload",CustomDocumentLoadHandler);
+]]></Implementation>
+</Method>
+
+<Parameter name="SrcVer">
+<Description>
+This Parameter is updated by Perforce</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/SWARH/JS/PAAdm/DRGCoding.xml#2 $</Default>
+</Parameter>
+</Class>
+</Export>

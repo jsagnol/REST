@@ -1,0 +1,171 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.AUXX.Report.ZEN.ESISChecker">
+<Super>Custom.AUXX.Report.ZEN.Abstract</Super>
+<TimeCreated>61543,54494.035066</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/AUXX/Report/ZEN/ESISChecker.xml#1 $</Default>
+</Parameter>
+
+<UDLText name="T">
+<Content><![CDATA[
+// This Parameter should be updated when synced from Perforce
+
+]]></Content>
+</UDLText>
+
+<UDLText name="T">
+<Content><![CDATA[
+//Parameter SrcVer = "$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/AUXX/Report/ZEN/ESISChecker.xml#1 $";
+
+]]></Content>
+</UDLText>
+
+<UDLText name="T">
+<Content><![CDATA[
+// Report Name: ESIS Checker<br>
+
+]]></Content>
+</UDLText>
+
+<UDLText name="T">
+<Content><![CDATA[
+// Report Code: Trak.AUXX.WLT0001 <br>
+
+]]></Content>
+</UDLText>
+
+<UDLText name="T">
+<Content><![CDATA[
+// Logtrak Number:  <br>
+
+]]></Content>
+</UDLText>
+
+<UDLText name="T">
+<Content><![CDATA[
+// TRC Number:  70182 <br>
+
+]]></Content>
+</UDLText>
+
+<Property name="DateFrom">
+<Type>%String</Type>
+<Parameter name="ZENURL" value="P1"/>
+</Property>
+
+<Property name="DateTo">
+<Type>%String</Type>
+<Parameter name="ZENURL" value="P2"/>
+</Property>
+
+<Property name="Hospital">
+<Type>%String</Type>
+<Parameter name="ZENURL" value="P3"/>
+</Property>
+
+<XData name="ReportDefinition">
+<XMLNamespace>http://www.intersystems.com/zen/report/definition</XMLNamespace>
+<Data><![CDATA[
+<report xmlns='http://www.intersystems.com/zen/report/definition'
+   queryClass='Custom.AUXX.Report.ZEN.StoredProc.ESISChecker' queryName='GetRecords' name='ESISChecker'>
+
+  <parameter expression='..DateFrom'/>
+  <parameter expression='..DateTo'/>
+  <parameter expression='..Hospital'/>
+  
+  <attribute name='datefrom' expression='..DisplayDate(..DateFrom)'/>
+  <attribute name='dateto' expression='..DisplayDate(..DateTo)'/>
+  <attribute name='hospital' expression='..GetHospListDesc(..Hospital)'/>
+
+  <attribute name='ReportTitle' expression='$$$Text("@ESISChecker1@ESIS Checker")'/>
+  <attribute name='timestamp' expression='$ZDATETIME($H, 2, 2)'/>
+  <attribute name='username' expression='..Username'/>
+
+  <group name="hospital" breakOnField="HOSPDesc">
+ <attribute name="description" field="HOSPDesc" />
+
+ <element name='CaptionOne' expression='"Date of"_$C(13,10)_"Birth"' />
+ <element name='CaptionTwo' expression='"Date"_$C(13,10)_"Registered"' />
+ <element name='CaptionThree' expression='"Date off"_$C(13,10)_"List"' />
+
+
+<group name='Detail'>
+            <element field='Message' name='Message'/>
+            <attribute field='CTSEXCode' name='CTSEXCode'/>
+            <attribute field='WLSCode' name='WLSCode'/>
+            <attribute field='WLPCode' name='WLPCode'/>          
+            <attribute field='PAPMINo' name='PAPMINo'/>           
+            <attribute fields='PAPMIName,PAPMIName2' name='PatientName' expression='..DisplayName(%val("PAPMIName"),%val("PAPMIName2"))'/>
+             <attribute field='WLDate' name='WLDate' expression='..DisplayDate(%val)'/>
+            <attribute  field="WLDateofList" name="WLDateofList" expression='..DisplayDate(%val)'/>
+            <attribute field='PAPMIDOB' name='PAPMIDOB' expression='..DisplayDate(%val)'/>		  
+			</group>
+ 		  </group>
+
+   	  </report>
+]]></Data>
+</XData>
+
+<XData name="ReportDisplay">
+<XMLNamespace>http://www.intersystems.com/zen/report/display</XMLNamespace>
+<Data><![CDATA[
+<report xmlns='http://www.intersystems.com/zen/report/display'
+xmlns:auxxstyle='http://www.intersystems.com/zen/report/display/auxx/style'
+xmlns:auxx='http://www.intersystems.com/zen/report/display/auxx'
+   name='ESISChecker'>
+ <document width= "#(..ReportWidth)#" height="#(..ReportHeight)#" marginLeft="#(..DocMarginLeft)#" marginRight="#(..DocMarginRight)#" 
+marginTop="#(..DocMarginTop)#" marginBottom="#(..DocMarginBottom)#" footerHeight="#(..DocFooterHeight)#" headerHeight="#(..DocHeaderHeight)#" 
+regionBeforeExtent="#(..DocHeaderHeight)#" regionAfterExtent="#(..DocFooterHeight)#">
+<auxxstyle:auxxgroupheader/>
+<auxxstyle:auxxgroupsummary/>
+<auxxstyle:auxxhospitalheader/>
+<auxxstyle:auxxpagefooter/>
+<auxxstyle:auxxpageheader/>
+<auxxstyle:auxxparameterheader/>
+<auxxstyle:auxxreporttitle/>
+<auxxstyle:auxxtablecolumn/>
+</document>
+<auxx:PageHeader pagetitle='@ReportTitle'/>
+<auxx:ReportFooter username='@username' timestamp='@timestamp'/>
+<body>
+<!-- REPORT HEADER -->
+<auxx:ReportHeader reporttitle='@ReportTitle'/>
+<auxx:ReportParameterHeader label='@Hospital:@Hospital:' field='@hospital' xcondition="string-length(@hospital)>0"/>
+<auxx:ReportDateHeader datefrom="@datefrom" dateto="@dateto" />
+<auxx:NoResults xcondition="not(hospital)" />
+
+<group name='hospital' pagebreak="true">
+<auxx:GroupHospitalHeader label="@Hospital:@Hospital:" field="@description" />
+<line pattern="empty" lineHeight="1mm" />
+  
+     <table class='auxxtablecolumn' group='Detail'>
+        <item field='@PAPMINo' width="10%"  caption="URN" /> 
+        <item field='@PatientName' width="15%" caption='@PatientName@Patient Name'/>
+        <item field='@PAPMIDOB' width="9%" displayCaption="true" breakOnLineFeed="true">
+        <caption field='CaptionOne' breakOnLineFeed="true"  />
+        </item>
+        <item field='@CTSEXCode' width="5%" caption='@Sex@Sex'/>   
+        <item field='@WLDate' width="9%" displayCaption="true" breakOnLineFeed="true">
+        <caption field='CaptionTwo' breakOnLineFeed="true"  />
+        </item> 
+        <item field='@WLDateofList' width="9%" displayCaption="true" breakOnLineFeed="true">
+        <caption field='CaptionThree' breakOnLineFeed="true"  />
+        </item>
+         <item field='@WLSCode' width="7%" caption='@Status@Status'/> 
+         <item field='@WLPCode' width="7%" caption='@Priority@Priority'/> 
+
+       <item field='Message' width="29%" breakOnLineFeed="true" caption='@Messages@Messages' />    
+</table>
+<line pattern="empty" lineHeight="2mm" />
+	
+</group>
+</body>
+</report>
+]]></Data>
+</XData>
+</Class>
+</Export>

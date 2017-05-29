@@ -1,0 +1,297 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.AUXX.Report.ZEN.StoredProc.TheatreRole">
+<ProcedureBlock>0</ProcedureBlock>
+<Super>Report.Abstract</Super>
+<TimeCreated>59388,55236.125</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/AUXX/Report/ZEN/StoredProc/TheatreRole.xml#1 $</Default>
+</Parameter>
+
+<UDLText name="T">
+<Content><![CDATA[
+// Report Name: AUXX Theatre Roles <br>
+
+]]></Content>
+</UDLText>
+
+<UDLText name="T">
+<Content><![CDATA[
+// Report Code: AUXX.OPT0006 <br>
+
+]]></Content>
+</UDLText>
+
+<UDLText name="T">
+<Content><![CDATA[
+// Report Description: Identifies the number of times a care provider 
+
+]]></Content>
+</UDLText>
+
+<UDLText name="T">
+<Content><![CDATA[
+// performed a particular role by surgical operation within a date range.
+
+]]></Content>
+</UDLText>
+
+<UDLText name="T">
+<Content><![CDATA[
+// This is the Close component of the %Library.Query.
+
+]]></Content>
+</UDLText>
+
+<Method name="TheatreRoleClose">
+<Final>0</Final>
+<ClassMethod>1</ClassMethod>
+<CodeMode>code</CodeMode>
+<FormalSpec>QHandle:%Library.Binary</FormalSpec>
+<Private>0</Private>
+<ReturnType>%Library.Status</ReturnType>
+<SqlProc>0</SqlProc>
+<Implementation><![CDATA[
+ // Clean up by purging the temporary node in ^CacheTemp global
+ New repid
+ Set repid=$LIST(QHandle,2)
+ 
+ //Start Monitor (if configured to capture stats)
+ i mon Do ..MonitorEnd(mon)
+
+ Kill ^CacheTemp("TRAK",repid)
+ 
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<UDLText name="T">
+<Content><![CDATA[
+// This is the Execute section for the %Library.Query. 
+
+]]></Content>
+</UDLText>
+
+<Method name="TheatreRoleExecute">
+<Final>0</Final>
+<ClassMethod>1</ClassMethod>
+<CodeMode>code</CodeMode>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,DateFrom:%Library.Date,DateTo:%Library.Date,Hospital:%Library.String,CareProvider:%Library.String,Procedure:%Library.String]]></FormalSpec>
+<Private>0</Private>
+<ReturnType>%Library.Status</ReturnType>
+<SqlProc>0</SqlProc>
+<Implementation><![CDATA[
+ // Get reportid i.e. use $INCREMENT to add another node to ^CacheTemp global. 
+ // We use ^CacheTemp global because it will always use memory before disk
+ New repid,ind,END
+
+ // Use $Increment to get the next node
+ Set repid=$Increment(^CacheTemp("TRAK"))
+
+ //Start Monitor (if configured to capture stats)
+ s mon=..MonitorBegin()
+ 
+ if $g(Hospital)'="" s Hospital = $ZSTRIP(Hospital,"*CW")
+ if $g(CareProvider)'="" s CareProvider = $ZSTRIP(CareProvider,"*CW")
+ if $g(Procedure)'="" s Procedure = $ZSTRIP(Procedure,"*CW")
+ 	 	
+ set DateFrom=..ConvertDateToCache(DateFrom)
+ set DateTo=..ConvertDateToCache(DateTo)
+ 
+ new OPASCareType,HOSPDesc,OPERDesc,HOSPRowId,OPERRowId,OPERCode,ANAOPParRef,ANAOPRowId,ANAOPSurg,ANAOPAnaes 
+ set (OPASCareType,HOSPDesc,OPERDesc,HOSPRowId,OPERRowId,OPERCode,ANAOPParRef,ANAOPRowId,ANAOPSurg,ANAOPAnaes)=""
+
+ new SurgMain,AnaeMain,SurgPrin,SurgAss1,SurgAss2,AnaePrin,AnaeAss1,CircNurse,ScrubNurse,Other
+ new TotSurgMain,TotAnaeMain,TotSurgPrin,TotSurgAss1,TotSurgAss2,TotAnaePrin,TotAnaeAss1,TotCircNurse,TotScrubNurse,TotOther
+ set (SurgMain,AnaeMain,SurgPrin,SurgAss1,SurgAss2,AnaePrin,AnaeAss1,CircNurse,ScrubNurse,Other)=0
+ set (TotSurgMain,TotAnaeMain,TotSurgPrin,TotSurgAss1,TotSurgAss2,TotAnaePrin,TotAnaeAss1,TotCircNurse,TotScrubNurse,TotOther)=0
+ new LastHospital,LastOperation,NextHospital,NextOPeration
+ set (LastHospital,LastOperation,NextHospital,NextOperation)=""
+ new FirstTime
+ set FirstTime="Y"
+
+ do GetData
+   
+  // Build QHandle (AtEnd,ReportID,Index)
+ Set QHandle=$lb(0,repid,0)
+ Quit $$$OK 
+  
+GetData
+ &SQL(DECLARE OperationData CURSOR FOR 
+ SELECT 
+	ANAOP_Par_Ref,
+	ANAOP_RowId,
+	ANAOP_Surgeon_DR->CTPCP_RowId,
+ 	ANAOP_Par_Ref->ANA_Anaesthetist_DR,
+	ANAOP_StatePPP_DR,
+	ANAOP_StatePPP_DR->SPPP_Code,
+	ANAOP_StatePPP_DR->SPPP_Desc,
+	ANAOP_UpdateHospital_DR,
+	ANAOP_UpdateHospital_DR->hosp_desc
+ INTO :ANAOPParRef,:ANAOPRowId,:ANAOPSurg,:ANAOPAnaes,:OPERRowId,:OPERCode,:NextOperation,:HOSPRowId,:NextHospital
+ FROM SQLUser.OR_Anaest_Operation
+ WHERE ANAOP_OPStartDate BETWEEN :DateFrom AND :DateTo
+ AND (({fn CONCAT( ',', {fn CONCAT((:Hospital),',')})} [ {fn CONCAT( ',', {fn CONCAT((ANAOP_UpdateHospital_DR->HOSP_RowId),',')})}) OR (:Hospital IS NULL))
+ AND (({fn CONCAT( ',', {fn CONCAT((:Procedure),',')})} [ {fn CONCAT( ',', {fn CONCAT((ANAOP_StatePPP_DR->SPPP_RowId),',')})}) OR (:Procedure IS NULL))
+ ORDER BY ANAOP_UpdateHospital_DR->hosp_desc,
+ 			ANAOP_StatePPP_DR->SPPP_Desc)
+
+ &SQL(OPEN OperationData)
+ f  &SQL(FETCH OperationData) q:SQLCODE'=0  do ProcessData
+ 
+ if FirstTime = "N" {
+	do FormatOutput
+ 	do BuildRow
+ }
+ &SQL(CLOSE OperationData)
+ q
+ 
+ProcessData
+ if NextHospital = "" {set NextHospital = "Unknown Hospital" }
+ if NextOperation = "" {set NextOperation = "Unknown Operation" }
+ if FirstTime = "Y" {
+	do SetLast
+ }
+ if ((LastHospital = NextHospital) && (LastOperation = NextOperation)){
+	do AccumTots
+ }
+ else {
+	do FormatOutput
+ 	do BuildRow
+	do SetLast
+	do AccumTots
+ }
+ q 
+  
+SetLast 
+ set FirstTime = "N"
+ set LastHospital = NextHospital
+ set LastOperation = NextOperation  
+ set (TotSurgMain,TotAnaeMain,TotSurgPrin,TotSurgAss1,TotSurgAss2,TotAnaePrin,TotAnaeAss1,TotCircNurse,TotScrubNurse,TotOther)=0
+ q
+  
+AccumTots 
+ set (SurgMain,AnaeMain,SurgPrin,SurgAss1,SurgAss2,AnaePrin,AnaeAss1,CircNurse,ScrubNurse,Other)=0
+ if ANAOPSurg = CareProvider { set SurgMain = 1 }
+ if ANAOPAnaes = CareProvider { set AnaeMain = 1 }
+ do GetOperData
+ do GetAnaeData
+ set TotSurgMain = TotSurgMain + SurgMain
+ set TotAnaeMain = TotAnaeMain + AnaeMain
+ set TotSurgPrin = TotSurgPrin + SurgPrin
+ set TotSurgAss1 = TotSurgAss1 + SurgAss1
+ set TotSurgAss2 = TotSurgAss2 + SurgAss2
+ set TotAnaePrin = TotAnaePrin + AnaePrin
+ set TotAnaeAss1 = TotAnaeAss1 + AnaeAss1
+ set TotCircNurse = TotCircNurse + CircNurse
+ set TotScrubNurse = TotScrubNurse + ScrubNurse
+ set TotOther = TotOther + Other
+ q
+  
+GetOperData
+ &SQL(DECLARE OperStaff CURSOR FOR 
+ SElECT
+	OPAS_CareProvType  
+ INTO :OPASCareType
+ FROM SQLUser.OR_An_Oper_Additional_Staff
+ WHERE OPAS_ParRef = :ANAOPRowId
+ AND OPAS_CareProv_DR = :CareProvider)
+ &SQL(OPEN OperStaff)
+ f  &SQL(FETCH OperStaff) q:SQLCODE'=0  do SetOper
+ 
+ &SQL(CLOSE OperStaff)
+ q
+  
+GetAnaeData
+ &SQL(DECLARE AnaeStaff CURSOR FOR 
+ SElECT
+	ANAAS_CareProvType  
+ INTO :OPASCareType
+ FROM SQLUser.OR_AnaestAdditionalStaff
+ WHERE ANAAS_ParRef = :ANAOPParRef
+ AND ANAAS_CareProv_DR = :CareProvider)
+ &SQL(OPEN AnaeStaff)
+ f  &SQL(FETCH AnaeStaff) q:SQLCODE'=0  do SetAnae
+ 
+ &SQL(CLOSE AnaeStaff)
+ q
+  
+SetOper
+ if (OPASCareType = "PS") { set SurgPrin = SurgPrin + 1 }
+ elseif (OPASCareType = "FSA") { set SurgAss1 = SurgAss1 + 1 }
+ elseif (OPASCareType = "SA") { set SurgAss2 = SurgAss2 + 1 }
+ elseif (OPASCareType = "A") { set AnaePrin = AnaePrin + 1 }
+ elseif (OPASCareType = "AA") { set AnaeAss1 = AnaeAss1 + 1 }
+ elseif (OPASCareType = "CN") { set CircNurse = CircNurse + 1 }
+ elseif (OPASCareType = "SN") { set ScrubNurse = ScrubNurse + 1 }
+ else { set Other = Other + 1 } 
+ q
+  
+SetAnae
+ if ((OPASCareType = "PS") && (SurgPrin = 0)) { set SurgPrin = 1 }
+ elseif ((OPASCareType = "FSA") && (SurgAss1 = 0)) { set SurgAss1 = 1 }
+ elseif ((OPASCareType = "SA") && (SurgAss2 = 0)) { set SurgAss2 = 1 }
+ elseif ((OPASCareType = "A") && (AnaePrin = 0)) { set AnaePrin = 1 }
+ elseif ((OPASCareType = "AA") && (AnaeAss1 = 0)) { set AnaeAss1 = 1 }
+ elseif ((OPASCareType = "CN") && (CircNurse = 0)) { set CircNurse = 1 }
+ elseif ((OPASCareType = "SN") && (ScrubNurse = 0)) { set ScrubNurse = 1 }
+ elseif (((",PS,FSA,SA,A,AA,CN,SN,")'[(","_OPASCareType_",")) && (Other = 0)) { set Other = 1 }
+ q
+
+FormatOutput
+ set HOSPDesc = LastHospital
+ set OPERDesc = LastOperation
+ q
+
+BuildRow
+ if (TotSurgMain + TotAnaeMain + TotSurgPrin + TotSurgAss1 + TotSurgAss2 + TotAnaePrin + TotAnaeAss1 + TotCircNurse + TotScrubNurse + TotOther) > 0 {
+ 	s ind=$i(ind) 
+	set ^CacheTemp("TRAK",repid,ind)=$LB(HOSPDesc,OPERDesc,TotSurgMain,TotAnaeMain,TotSurgPrin,TotSurgAss1,TotSurgAss2,TotAnaePrin,TotAnaeAss1,TotCircNurse,TotScrubNurse,TotOther)
+ }
+ q
+]]></Implementation>
+</Method>
+
+<Method name="TheatreRoleFetch">
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,&Row:%Library.List,&AtEnd:%Library.Integer=0]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // This fetch method should never have to change. 
+
+ // repid - Report ID
+ // ind   - sequence index which represents each row
+
+ New repid,ind
+
+ // Restore QHandle
+ Set AtEnd=$LI(QHandle,1)
+ Set repid=$LI(QHandle,2)
+ Set ind=$LI(QHandle,3)
+
+ Set ind=$order(^CacheTemp("TRAK",repid,ind))
+ If ind="" {	// if there are no more rows, finish fetching
+ 	Set AtEnd=1
+ 	Set Row=""
+ }  Else  {	// fetch row
+ 	Set Row=^CacheTemp("TRAK",repid,ind)
+ }
+
+ // Save QHandle
+ Set QHandle=$lb(AtEnd,repid,ind)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Query name="TheatreRole">
+<Type>%Library.Query</Type>
+<FormalSpec>DateFrom:%Library.Date,DateTo:%Library.Date,Hospital:%Library.String,CareProvider:%Library.String,Procedure:%Library.String</FormalSpec>
+<SqlProc>1</SqlProc>
+<Parameter name="CONTAINID" value="0"/>
+<Parameter name="ROWSPEC" value="HOSPDesc:%String,OPERDesc:%String,TotSurgMain:%Integer,TotAnaeMain:%Integer,TotSurgPrin:%Integer,TotSurgAss1:%Integer,TotSurgAss2:%Integer,TotAnaePrin:%Integer,TotAnaeAss1:%Integer,TotCircNurse:%Integer,TotScrubNurse:%Integer,TotOther:%Integer"/>
+</Query>
+</Class>
+</Export>

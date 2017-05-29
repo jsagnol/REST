@@ -1,0 +1,1316 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.SWARH.JS.PAPerson.Edit">
+<Description>
+Component JavaScript for: PAPerson.Edit</Description>
+<Modified>0</Modified>
+<Super>websys.AbstractJavaScript</Super>
+<TimeCreated>63537,10518.450525</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+This Parameter is updated by Perforce</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/SWARH/JS/PAPerson/Edit.xml#1 $</Default>
+</Parameter>
+
+<Method name="JSContent">
+<Description>
+ </Description>
+<Language>javascript</Language>
+<ClientMethod>1</ClientMethod>
+<Implementation><![CDATA[
+/*********************************************************************
+$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/SWARH/JS/PAPerson/Edit.xml#1 $
+Version 2
+
+- General custom field validation for paperson.edit component
+
+REMEMBER to update the versions with initials, date and description for each modification...
+	IF		12/09/2011		Merged AUXX with SWARH script
+	MH		03/03/2012		Allow Given Name (PAPERName2) to contain 2 spaces
+	KW		19/04/2016		Implement the moving of the RAPID number to the MR Numbers to allow for IHI
+	PJC     11/11/2016      fix for TRC I72697
+
+**********************************************************************/
+
+//CODE AND DESCRIPTIONS USED FOR DEFAULTING CODETABLE DESCRIPTIONS.
+//DESCRIPTIONS USED ARE AS APPEARS IN CODETABLE DEFINITIONS.
+
+//PAYOR
+var PAY0 = "REPATRIATION PRIVATE OP"
+var PAY1 = "SERVICES(ARMY,NAVY,AIR FORCE)"
+//md 26.04.2003
+//var preflangnc=""
+//PREFERED LANGUAGE
+var PL19= "English"
+var PL95= "Other Languages"
+var PL96= "Inadequately Described"
+var PL98= "Not stated"
+
+function CustomDocumentLoadHandler() {
+    DocumentLoadHandler();
+    setMedicareSuffix();
+    setDeceased();
+    checkSingleChar();
+
+    obj = document.getElementById('PAPERTelH');
+    if (obj) obj.onchange = phoneChangeHandler;
+
+    obj = document.getElementById('PAPERTelO');
+    if (obj) obj.onchange = phoneChangeHandler;
+
+    obj = document.getElementById('PAPERSecondPhone');
+    if (obj) obj.onchange = phoneChangeHandler;
+
+    obj = document.getElementById('PAPERMobPhone');
+    if (obj) obj.onchange = phoneChangeHandler;
+
+    obj = document.getElementById('PAPMIMedicare');
+    if (obj) obj.onchange = checkValidMedicare;
+
+    obj = document.getElementById('PAPMIMedicareCode');
+    //if (obj) obj.onblur=codeChangeHandler;
+    if (obj) obj.onchange = codeChangeHandler;
+
+    obj = document.getElementById('PAPERName');
+    if (obj) obj.onchange = surnameChangeHandler;
+
+    obj = document.getElementById('PAPERName2');
+    if (obj) obj.onchange = nameChangeHandler;
+
+    obj = document.getElementById('PAPERName3');
+    if (obj) obj.onchange = nameChangeHandler;
+
+    obj = document.getElementById('PAPERStNameLine1');
+    if (obj) obj.onchange = convertAddress;
+
+    obj = document.getElementById('PAPERForeignAddress');
+    if (obj) obj.onchange = convertAddress;
+
+    obj = document.getElementById('MedicareExpDate')
+    //if (obj) obj.onchange=checkValidMedicareExp;
+    if (obj) obj.onblur = checkValidMedicareExp;
+
+    //obj=document.getElementById('OtherAddresses')
+    //if (obj) obj.onclick = setOtherAddress;
+
+    obj = document.getElementById('SafetyCardNo');
+    if (obj) obj.onchange = SafetyNetCardCheck;
+
+    obj = document.getElementById('ConcessionCardNo');
+    if (obj) obj.onchange = ConcessionCardCheck;
+
+    //obj=document.getElementById('DVANumber');
+    //if (obj) obj.onchange=checkValidDVA;
+    //if (obj) obj.onblur=checkValidDVA;
+
+    //md 30/09/2003 
+    var obj1 = document.getElementById('DVACardType');
+    var obj2 = document.getElementById('DVANumber');
+    if ((obj1) && (obj2)) { LinkMandatoryFields("DVACardType", "DVANumber"); }
+    if (obj1) obj1.onblur = CheckIfCleared;
+    if (obj2) obj2.onblur = checkValidDVA;
+    //md 30/09/2003
+
+
+    obj = document.getElementById('PAPERDeceasedDate')
+    if (obj) obj.onchange = checkDeceasedDate;
+
+    obj = document.getElementById('PAPERDob')
+    if (obj) obj.onchange = DobChangeHandler;
+
+    obj = document.getElementById('printLabel')
+    if (obj) obj.onclick = PrintLabel;
+
+    obj = document.getElementById("CTMARDesc");
+    if (obj) obj.onblur = CTMARDescBlurHandler;
+
+    //obj=document.getElementById('INSTDesc')
+    //if (obj) obj.onchange = PayorChangeHandler;
+
+    //md 26.05.2003
+    //obj=document.getElementById('PAPERInterpreterRequired')
+    //if (obj) obj.onchange = InterpreterReqChangeHandler;	
+	
+	obj=document.getElementById('CTSEXDesc');
+	if (obj) obj.onblur=CheckTypes;
+
+    obj = document.getElementById('update1');
+    if (obj) obj.onclick = UpdateCustom;
+    if (tsc['update1']) websys_sckeys[tsc['update1']] = UpdateCustom;
+}
+
+//document.body.onload = CustomDocumentLoadHandler;
+
+//setRegistration()
+
+// PERFORM ALL CUSTOM CHECKING, THEN CALL STANDARD SCRIPT UPDATE CHECK
+function UpdateCustom() {
+
+	codeChangeHandler();
+
+	if (!CheckMandatoryFields()) { return }
+	//if (!ValidateRego()) { return }
+	if (!Validations()) { return }
+	//md  24/-7/--3
+	//if (!Validations2()) { return }
+	if (!Validations3()) { return }
+	if (!Validations4()) {return false;}
+	ConvertNameCase();
+	// ab 04.04.02 - concession card date is conditionally mandatory on entry of cc num
+ 	//var objCCNum=document.getElementById('ConcessionCardNo');
+ 	//var objCCExp=document.getElementById('ConcessionExpDate');
+ 	//if (objCCNum&&objCCExp&&(objCCNum.value!="")&&(objCCExp.value==""))
+ 	//{
+	//	alert("You must enter a concession card expiry date");
+	//	objCCExp.focus();
+ 	//}
+ 	//else
+		UpdateAll();
+
+	//return update1_click(); //UpdateAll from scripts directory should do this already
+	
+	return false;
+}
+
+function Validations() {
+	// martial status vs age
+	var objAge=document.getElementById("PAPERAge");
+	var objMS=document.getElementById("CTMARCode");
+	if ((objAge)&&(objMS)) {
+		if ((objAge.value<15)&&(objMS.value!="1")&&(objMS.value!="")) {
+			//alert(t["AgeMS"]);
+			if (confirm(t["AgeMS"])) {return true;}
+			else {return false;}
+		}
+	}
+	
+	return true;
+}
+//md 24/-7/--3no longer in use validations2 moved in UDFs
+function Validations2() {
+	// sex vs age
+	var objAge=document.getElementById("PAPERAge");
+	var objAge1=document.getElementById("AgeDynamic");
+	var objAge2=document.getElementById("AgeUnits");
+	var objSex=document.getElementById("CTSEXDesc");
+	var objCntr=document.getElementById("CTCOUDesc");
+	if ((objAge)&&(objSex)&&(objAge1)&&(objAge2)) {
+		if ((objAge.value==0)&&(objSex.value=="Indeterminate")&&(objAge2.value!="Yrs")&&(objAge2.value!="Mnths")) {
+			if (confirm(t["AgeSex"])) {return true;}
+			else {return false;}
+		}
+	}
+	if ((objAge)&&(objCntr)&&(objAge1)&&(objAge2)) {
+		if ((objAge.value==0)&&((objCntr.value!="")&&(objCntr.value!="Australia"))&&(objAge2.value=="Day(s)")&&(objAge1.value==0)) {
+			if (confirm(t["AgeCountry"])) {return true;}
+			else {return false;}
+		}
+	}
+	return true;
+}
+//no longer in use validations2 moved in UDFs
+function Validations3() {
+	// medicare vs age
+	var objAge=document.getElementById("PAPERAge");
+	var objAge1=document.getElementById("AgeDynamic");
+	var objAge2=document.getElementById("AgeUnits");
+	var strNum =document.getElementById('PAPMIMedicare')
+	var arrMedicare = new Array()
+	var size = 10
+	var j;
+	if ((strNum)&&(strNum.value != "")) {
+		for (j=0; j < size; j++) {
+			arrMedicare[j]= parseInt(strNum.value.charAt(j),10);
+					}
+					    }
+	//alert(arrMedicare[9]);
+	//alert(objAge.value);
+	//alert(objAge1.value);
+	//alert(objAge2.value);
+	if ((objAge)&&(strNum)&&(objAge1)&&(objAge2)) {
+		if ((arrMedicare[9]==0)&&((objAge2.value=="Yrs")||((objAge2.value=="Mnths")&&(objAge.value==1)))) {
+			alert(t["AgeMedicare"]);
+			return false;
+		}else if ((arrMedicare[9]==0)&&(objAge2.value=="Mnths")&&(objAge1.value>6)) {
+			if (confirm(t["AgeMedicare"])) {return true;}
+			else {return false;}
+		}
+	}
+	return true;
+}
+
+function Validations4() {
+	// IHI NUMBER MUST BE OF LENGTH = 16
+	var strNum =document.getElementById('PAPERID')
+
+	if ((strNum)&&(strNum.tagName!="LABEL") && (strNum.value!="")) {		// 2016-11-14 (rpgladman) - HTML 5 Compliance, cannot use .value on a label
+		if (strNum.value.length!=16)  {
+			alert("\'" + t['PAPERID'] + "\' " + t['XINVALID'] + "\n");
+			strNum.focus();
+			return false;
+		} 
+	}
+	return true;
+}
+
+function CTMARDescLookupSelect(str) {
+	var lu=str.split("^");
+	var objMS=document.getElementById("CTMARCode");
+	if (objMS) objMS.value=lu[2];
+}
+
+function CTMARDescBlurHandler() {
+	var obj=document.getElementById("CTMARDesc");
+	var objMS=document.getElementById("CTMARCode");
+	if ((obj)&&(objMS)&&(obj.value=="")) {
+		objMS.value="";
+	}
+}
+
+function PrintLabel() {
+	if (!ValidateRego()) { return false }
+	PrintLabelUpdate()
+	return false;
+}
+
+
+function checkDeceasedDate() {
+	//alert("start")
+	PAPERDeceasedDate_changehandler(e)
+	var obj=document.getElementById('PAPERDeceasedDate')
+	var dob=document.getElementById('PAPERDob')
+	if ((obj)&&(obj.value!="")) {
+		var decdate=SplitDateStr(obj.value)
+		var dtdec = new Date(decdate["yr"], decdate["mn"]-1, decdate["dy"]);
+		//alert(dtdec)
+		var tydate = new Date()
+		//alert(tydate)
+		if (dtdec > tydate) {
+			alert("\'" + t['PAPERDeceasedDate'] + "\' " + t['XINVALID'] + "\n");
+			obj.value=""
+			obj.focus()
+			return
+		}
+		if ((dob)&&(dob.value!="")) {
+			var dobdate=SplitDateStr(dob.value)
+			var dtdob = new Date(dobdate["yr"], dobdate["mn"]-1, dobdate["dy"]);
+			//alert(dtdob)
+			if (dtdob > dtdec) {
+				alert("\'" + t['PAPERDeceasedDate'] + "\' " + t['XINVALID'] + "\n");
+				obj.value=""
+				obj.focus()
+				return
+			}
+		}
+
+	}
+
+}
+function DobChangeHandler() {
+	DOBChangeHandler()
+	var obj=document.getElementById('PAPERDeceasedDate')
+	var dob=document.getElementById('PAPERDob')
+	//var decdate=SplitDateStr(obj.value)
+	//var dobdate=SplitDateStr(dob.value)
+	if ((obj)&&(obj.value!="")) {
+		var decdate=SplitDateStr(obj.value)
+		var dtdec = new Date(decdate["yr"], decdate["mn"]-1, decdate["dy"]);
+		//alert(dtdec)
+		if ((dob)&&(dob.value!=""))
+		var dobdate=SplitDateStr(dob.value)
+		var dtdob = new Date(dobdate["yr"], dobdate["mn"]-1, dobdate["dy"]);
+		//alert(dtdob)
+		if (dtdob > dtdec) {
+			alert("\'" + t['PAPERDob'] + "\' " + t['XINVALID'] + "\n");
+			dob.value=""
+			dob.focus()
+			return
+		}
+	}
+}
+
+// Log#25938 HP 19/07/02: If DVA number entered, confirmed when any payor apart from PREP or Services entered.
+function PayorChangeHandler() {
+	var obj=document.getElementById('INSTDesc');
+	var DVANum=document.getElementById('DVANumber');
+	
+	if ((obj)&&(obj.value!="")) {
+		if ((obj.value!=PAY0)&&(obj.value!="PREP")&&(obj.value!=PAY1)&&(obj.value!="SER")) {
+			if ((DVANum)&&(DVANum.value!="")) {
+				if (!confirm("The patient has a DVA Number: Do you wish to continue?")) {
+					obj.value="";
+					obj.focus();
+				}
+			}
+		}
+	}
+}
+
+function SplitDateStr(strDate) {
+ 	var arrDateComponents = new Array(3);
+ 	var arrDate = strDate.split(dtseparator);
+ 	switch (dtformat) {
+  		case "YMD":
+   			arrDateComponents["yr"] = arrDate[0];
+   			arrDateComponents["mn"] = arrDate[1];
+   			arrDateComponents["dy"] = arrDate[2];
+   			break;
+  		case "MDY":
+   			arrDateComponents["yr"] = arrDate[2];
+   			arrDateComponents["mn"] = arrDate[0];
+   			arrDateComponents["dy"] = arrDate[1];
+   			break;
+  		default:
+   			arrDateComponents["yr"] = arrDate[2];
+   			arrDateComponents["mn"] = arrDate[1];
+   			arrDateComponents["dy"] = arrDate[0];
+   			break;
+ 	}
+	return arrDateComponents;
+}
+
+function nameChangeHandler(evt) {
+	var obj = websys_getSrcElement(evt);
+	var name="";
+
+	var stripSpace = /^(\s)*|(\s)*$/g ;
+	var validChars=/^((([a-zA-Z]|[0-9])+([a-zA-Z]|[0-9]|\'|\-|\s)?(([a-zA-Z]|[0-9])+))+(([a-zA-Z]|[0-9]|\'|\-|\s)?(([a-zA-Z]|[0-9])+))$)|^([a-zA-Z]|[0-9])*$/
+		
+
+	if ((obj)&&(obj.value!="")) {
+		name=obj.value
+		name=name.replace(stripSpace,"")
+
+		if (!(validChars.test(name))) {
+		alert("\'" + 'Name: ' + "\' " + t['XINVALID'] + "\n");
+		return
+		}
+	if (obj.id=='PAPERName2') {
+	if (!checkSingle('PAPERName2'))
+	{
+	 setfocus('PAPERName2') 	
+	 return false;
+	}
+	}
+
+	}
+	setAlias(evt);
+}
+
+//Log#24572 HP 2/5/2002: Enable surname to have one or more single spaces
+//Log 43367 md 04/2003: allow numeric into surname
+function surnameChangeHandler(evt) {
+	var obj = websys_getSrcElement(evt);
+	var name="";
+
+	var stripSpace = /^(\s)*|(\s)*$/g ;
+	//var validChars = /^(([a-zA-Z]+([a-zA-Z]|\'|\-|\s)?([a-zA-Z]+))+(([a-zA-Z]|\'|\-|\s)?([a-zA-Z]+))$)|^[a-zA-Z]*$/
+        var validChars=/^((([a-zA-Z]|[0-9])+([a-zA-Z]|[0-9]|\'|\-|\s)?(([a-zA-Z]|[0-9])+))+(([a-zA-Z]|[0-9]|\'|\-|\s)?(([a-zA-Z]|[0-9])+))$)|^([a-zA-Z]|[0-9])*$/
+		
+	// one or more normal chars or num  + zero or one char or num /'/-/" " + one or more chars or num 
+	// or one or more chars or num  from start to finish, where char means a-z/A-Z
+	
+	if ((obj)&&(obj.value!="")) {
+		name=obj.value
+		name=name.replace(stripSpace,"")
+		if (!(validChars.test(name))) {
+		alert("\'" + t['PAPERName'] + "\' " + t['XINVALID'] + "\n");
+		return;
+		}
+	if (!checkSingle('PAPERName'))
+	{
+	 setfocus('PAPERName') 	
+	 return false;
+	}
+	}
+	setAlias(evt);
+}
+
+//Log#24572 HP 2/5/2002: Test for valid surname that have one or more single spaces
+//Log 43367 md 04/2003: allow numeric into surname
+function isValidSurname(fld) {
+	//var validChars = /^(([a-zA-Z]+([a-zA-Z]|\'|\-|\s)?([a-zA-Z]+))+(([a-zA-Z]|\'|\-|\s)?([a-zA-Z]+))$)|^[a-zA-Z]*$/
+	var validChars=/^((([a-zA-Z]|[0-9])+([a-zA-Z]|[0-9]|\'|\-|\s)?(([a-zA-Z]|[0-9])+))+(([a-zA-Z]|[0-9]|\'|\-|\s)?(([a-zA-Z]|[0-9])+))$)|^([a-zA-Z]|[0-9])*$/
+
+	if ((fld)&&(fld.value!="")) {
+		if (!(validChars.test(fld.value))) return false;
+	}
+	return true;
+}
+
+function isValidName(fld) {
+	var validChars=/^([a-zA-Z]+([a-zA-Z]|\'|\-|\s)?([a-zA-Z]+)$)|^[a-zA-Z]*$/
+	if ((fld)&&(fld.value!="")) {
+		if (!(validChars.test(fld.value))) return false;
+	}
+	return true;
+}
+
+function checkSingleChar() {
+	
+	var singlesurname=true;
+	var singlename=true;
+	singlesurname=checkSingle('PAPERName');
+	if (!singlesurname) {
+	var obj=document.getElementById('PAPERName');
+	if (obj) obj.value=""
+	}
+	singlename=checkSingle('PAPERName2');
+	if (!singlename) {
+	var obj=document.getElementById('PAPERName2');
+	if (obj) obj.value=""
+	}
+	return true;
+
+}
+
+function checkSingle(str) {
+	var obj=document.getElementById(str);
+	if ((obj)&&(obj.value.length==1)&&(!confirm(t[str]+t['FieldOneChar']))){
+	return false;
+	}
+	return true;
+}
+
+function setfocus(objName) {
+	setTimeout('setfocus2(\''+objName+'\')',50);
+}
+function setfocus2(objName) {
+	var obj=document.getElementById(objName);
+	if (obj) {
+		try {
+			obj.focus();
+			obj.select();
+		} catch(e) {}
+	}
+}
+
+// CONVERT ADDRESS LINE 1 AND 2 TO TITLE CASE
+function convertAddress(e) {
+	var obj=websys_getSrcElement(e);
+	var ischar=/^[A-Za-z]/
+	if ((obj)&&(obj.value!="")) {
+		var toTitle=obj.value.split(" ")
+		for (var i=0;i<toTitle.length;i++) {
+			if (ischar.test(toTitle[i])) {
+			obj.value=obj.value.replace(toTitle[i],toTitle[i].charAt(0).toUpperCase()+ toTitle[i].slice(1).toLowerCase());
+
+			}
+		}
+	}
+	if (obj.defaultValue!="") registeringAddressChange();
+}
+
+// CONVERT SURNAME AND INITIAL LETTER OF OTHER NAMES TO UPPERCASE, OTHER LETTERS TO LOWER CASE
+function ConvertNameCase() {
+	var obj;
+	var name="";
+	var stripSpace = /^(\s)*|(\s)*$/g ;
+	obj=document.getElementById('PAPERName');
+	if ((obj)&&(obj.value!="")) {
+		name=obj.value
+		name=name.replace(stripSpace,"")
+		obj.value = name.toUpperCase();
+
+	}
+	var obj=document.getElementById('PAPERName2');
+	if ((obj)&&(obj.value!="")) {
+		name = obj.value;
+		name=name.replace(stripSpace,"")
+		obj.value = name.charAt(0).toUpperCase() + name.slice(1).toLowerCase();
+		//alert("b"+obj.value)
+	}
+	var obj=document.getElementById('PAPERName3');
+	if ((obj)&&(obj.value!="")) {
+		name = obj.value;
+		name=name.replace(stripSpace,"")
+		obj.value = name.charAt(0).toUpperCase() + name.slice(1).toLowerCase();
+	}
+}
+
+
+
+// NO LONGER USED - REGISTRATION VALIDATION DONE IN 'UARMCPAAdm' ON BEFORE SAVE.
+function ValidateRego() {
+	var valid=true;
+	var msg="";
+	var obj=document.getElementById('RegistrationNumber');
+	if ((obj)&&(obj.value!="")) {
+		var reg=obj.value;
+		var tmp="";
+		if (reg.length>8) {
+			msg += "\'" + t['RegistrationNumber'] + "\' " + t['XINVALID'];
+			valid=0;
+		}
+		if ((reg.length<6)&&(!isNaN(reg))) {
+			var tmplen=6-reg.length;
+			for (var i=0; i<tmplen; i++) {
+				tmp=tmp+"0";
+			}
+		}
+		if (valid) {
+			reg = "" + tmp + reg;
+			obj.value = reg.toUpperCase();
+		}
+	}
+	if (msg != "") {
+		alert(msg);
+	}
+	return valid;
+}
+
+
+// SET DISABLE DECEASED DATE AND TIME FOR DECEASED PATIENTS
+function setDeceased() {
+	var obj=document.getElementById('PAPERDeceasedFlag');
+	if ((obj)&&(obj.value=="Y")) {
+		var objd=document.getElementById('PAPERDeceasedDate');
+		if(objd)
+			objd.disabled=true;
+		var objt=document.getElementById('PAPERDeceasedTime');
+		if(objt)
+			objt.disabled=true;		
+	}
+}
+
+// SET DISABLE REGISTRATION NUMBERS FOR EXISTING PATIENTS
+function setRegistration() {
+	var obj=document.getElementById('RegNumHidden');
+	if ((obj)&&(obj.defaultValue!="")) {
+		var objr=document.getElementById('RegistrationNumber');
+		if (objr)
+			objr.disabled=true;
+	}
+}
+
+
+// SET DISABLE MEDICARE SUFFIX FIELD IF MEDICARE NUMBER EXISTS, ELSE LABEL MANDATORY
+function setMedicareSuffix() {
+	var strNum =document.getElementById('PAPMIMedicare')
+	var strCode =document.getElementById('PAPMIMedicareCode')
+	if ((strNum)&&(strNum.value!="")&&(strCode)&&(strCode.value!="0")) {
+		DisableField('MEDSUFDesc');
+                DisableLookup('ld49iMEDSUFDesc');
+		//EnableField('MedicareExpDate')
+		} else {
+		EnableField('MEDSUFDesc');
+		EnableLookup('ld49iMEDSUFDesc');	
+		//DisableField('MedicareExpDate')
+
+	}
+}
+
+// STANDARD LOOKUP FUNCTIONS REQUIRED TO READ DESCRIPTION AS A VALUE
+
+function suffixLookUp(str) {
+	var lu = str.split("^");
+	var obj
+	obj=document.getElementById('MEDSUFDesc')
+	if (!suffixChangeHandler(null))
+		if (obj) obj.value = lu[0];
+}
+function PREFLDescLookUp(str) {
+	var lu = str.split("^");
+	var obj
+	obj=document.getElementById('PREFLDesc');
+	var objVEMD=document.getElementById('PREFLVEMDCode');
+	var objIR=document.getElementById('PAPERInterpreterRequired');
+	if ((lu[3]==19))
+	{
+	if (objIR) objIR.value="No"
+	}
+	//window.focus();
+	if (obj) obj.value = lu[0];
+	if (objVEMD) objVEMD.value = lu[3];
+	InterpreterReqChangeHandler(null)
+	websys_nextfocus(obj.sourceIndex);
+}
+
+function InterpreterReqLookUp(str) {
+	var lu = str.split("^");
+	var obj
+	obj=document.getElementById('PAPERInterpreterRequired');
+	window.focus();
+	//if (obj) obj.value = lu[0];
+	InterpreterReqChangeHandler(null);
+	if (obj) obj.value = lu[0];
+	websys_nextfocus(obj.sourceIndex);
+}
+//md 26.05.2003
+function InterpreterReqChangeHandlerOld(e) {
+	
+	var obj=document.getElementById('PREFLDesc');		
+	var objIR=document.getElementById('PAPERInterpreterRequired');  	
+	var msg=""
+	
+	//alert(obj.value);
+	//alert(objIR.value);	
+
+	if (obj) {
+		if ((obj.value!="")&&(objIR)&&(objIR.value!="")) {
+			if ((obj.value==PL19)&&(objIR.value!="No")) {
+			msg += "\'" + t['PAPERInterpreterRequired'] + "\' " + t['XINVALID'] + "\n";
+			}
+			if (((obj.value==PL95)||(obj.value==PL96)||(obj.value==PL98))&&(objIR.value!="NotStated")) {
+			msg += "\'" + t['PAPERInterpreterRequired'] + "\' " + t['XINVALID'] + "\n";
+			}
+		}
+	}
+	if (msg != "") {
+		alert(msg)
+		//return false;
+		//} else {
+		//return true;
+	}
+}
+//md 11/05/2003
+function InterpreterReqChangeHandler(e) {
+	
+	var obj=document.getElementById('PREFLVEMDCode');		
+	var objIR=document.getElementById('PAPERInterpreterRequired');  
+	var objdesc=document.getElementById('PREFLDesc');	
+	var msg=""
+	
+		
+	//alert(objIR.value);	
+	if ((objdesc)&&(objdesc.value=="")) {if (obj) obj.value="";}
+	if (obj) {
+		if ((obj.value!="")&&(objIR)&&(objIR.value!="")) {
+			if ((obj.value==19)&&(objIR.value!="No")) {
+			msg += "\'" + t['PAPERInterpreterRequired'] + "\' " + t['XINVALID'] + "\n";
+			}
+			if (((obj.value==95)||(obj.value==96)||(obj.value==98))&&(objIR.value!="NotStated")) {
+			msg += "\'" + t['PAPERInterpreterRequired'] + "\' " + t['XINVALID'] + "\n";
+			}
+		}
+	}
+	
+	if (msg != "") {
+		alert(msg)
+		//return false;
+		//} else {
+		//return true;
+	}
+}
+//used to validate the length of text fields entered
+function setMaxLength(obj,limit) {
+	var maxLength = limit;
+	var fld = obj.value.length;
+	if (fld > maxLength) {
+		return false;
+	} else {
+	return true;
+	}
+}
+
+function SafetyNetCardCheck(e) {
+	maxChars = 11
+	var obj =document.getElementById('SafetyCardNo')
+	if ((obj)&&(obj.value!="")) {
+		labelMandatory('SafetyCardExp')
+		if (!setMaxLength(obj,maxChars)) {
+		alert("\'" + t['SafetyCardNo'] + "\'" + " must be no more than " + maxChars + " characters\n");
+		obj.focus();
+		}
+	}
+	if ((obj)&&(obj.value=="")) {
+		labelNormal('SafetyCardExp')
+	}
+}
+
+function ConcessionCardCheck(e) {
+	maxChars = 11
+	var obj =document.getElementById('ConcessionCardNo')
+	if ((obj)&&(obj.value!="")) {
+		labelMandatory('ConcessionExpDate')
+		if (!setMaxLength(obj,maxChars)) {
+		alert("\'" + t['ConcessionCardNo'] + "\'" + " must be no more than " + maxChars + " characters\n");
+			obj.focus()
+		}
+	}
+	if ((obj)&&(obj.value=="")) {
+		labelNormal('ConcessionExpDate')
+	}
+}
+
+
+// STANDARD CHANGE HANDLERS
+
+function phoneChangeHandler() {
+	var eSrc = websys_getSrcElement(e);
+	var lbl = document.getElementById('c' + eSrc)
+	if ((eSrc)&&(eSrc.value!="")) {
+		if (!isTelephone(eSrc)) {
+		alert("\'" + 'Telephone number: ' + "\' " + t['XINVALID'] + "\n");
+		}
+	}
+}
+//LOG 24277 BC 5-7-2002
+function codeChangeHandler(e) {
+	var eSrc = websys_getSrcElement(e);
+	var obj = document.getElementById('MEDSUFDesc');
+	var bdobj=document.getElementById('PAPERDob');
+	var udobj=document.getElementById('PAPERUpdateDate');
+	var objMedi=document.getElementById("PAPMIMedicareCode");
+	//alert(bdobj.value+","+udobj.value);
+	if ((bdobj)&&(bdobj.value!="")) {
+		var dob=SplitDateStr(bdobj.value);
+		var dateob= new Date(dob["yr"], dob["mn"]-1, dob["dy"]);
+	} else {
+		var dateob= new Date();
+	}
+	if ((udobj)&&(udobj.innerText!="")&&(udobj.innerText!=" ")) {
+        var ud=SplitDateStr(udobj.innerText);
+		var dateou=new Date(ud["yr"], ud["mn"]-1, ud["dy"]);
+	} else {
+		var dateou=new Date();
+	}
+	var datediff=dateou.getTime()-dateob.getTime();
+	var tendays=10*24*60*60*1000; //10 days in milliseconds (need 10 days to ensure 9 days from DOB)
+	//alert(datediff+","+tendays+","+ (datediff-tendays) );
+
+	if ((obj)&&(eSrc)) {
+		if ((eSrc.value=="")||(eSrc.value==0)) {
+			EnableField('MEDSUFDesc');
+			EnableLookup('ld49iMEDSUFDesc');
+			} else {
+            if ((!objMedi)||((objMedi)&&(objMedi.value!=0))) {
+		DisableField('MEDSUFDesc');
+ 		DisableLookup('ld49iMEDSUFDesc');
+		if (objMedi) websys_nexttab(objMedi.tabIndex,document.fPAPerson_Edit);
+		}
+		}
+		if ((eSrc.value!="")&&(eSrc.value==0)) {
+			//LOG 24277 24-6-2002 Populate Medicare Suffix with "BAB" the code for a newborn yonger than 9 days old. 
+			// rather than "BABY" which causes and "invalid code" error
+            if (datediff<tendays) {
+              obj.value = "BAB"
+            } else if (datediff>=tendays) {
+              alert(t["BadMediCode"]);
+              eSrc.value="";
+			  obj.value = "";
+			  websys_setfocus("PAPMIMedicareCode");
+            }
+		}
+	}
+}
+
+function suffixChangeHandler(e) {
+	var sufNum =document.getElementById('MEDSUFDesc')
+	var strNum =document.getElementById('PAPMIMedicare')
+	var clear = false
+	if ((strNum)&&(strNum.value!="")) {
+		//LOG 24277 24-6-2002 Populate Medicare Suffix with "BAB" the code for a newborn yonger than 9 days old. 
+		// rather than "BABY" which causes and "invalid code" error
+		if ((sufNum)&&((sufNum.value!="")&&(sufNum.value!="BAB"))) {
+			alert("\'" + t['MEDSUFDesc'] + "\' "+ " and " + "\' "+ t['PAPMIMedicare'] +"\' " + " combination " + t['XINVALID'] + "\n");
+			clear = true
+			sufNum.value= "";
+			sufNum.focus()
+			return clear
+		}
+	}
+}
+
+// CHECK VALID FUNCTIONS
+
+// CHECK FOR A VALID TELEPHONE NUMBER - ACCEPTS NUMERALS, (, ), +, - IN ANY ORDER
+function isTelephone(fld) {
+	var reTele = /^[\d\+\(\)\-\s]*$/
+	var obj=fld.value
+	if ((obj)&&(obj.value!="")) {
+		if (!(reTele.test(obj))) {
+  		return false
+		} else {
+		return true;
+		}
+	}
+}
+
+// MEDICARE NUMBER MUST BE OF LENGTH = 10, FIRST NUMBER BETWEEN 2 AND 6
+// MEDICARE SUFFIX CAN ONLY EXIST IF MEDICARE CODE = 0, ELSE MEDICARE SUFFIX = BLANK
+function checkValidMedicare() {
+	var strNum =document.getElementById('PAPMIMedicare')
+	var strCode =document.getElementById('PAPMIMedicareCode')
+	var obj =document.getElementById('MEDSUFDesc')
+	
+	if ((strNum)&&(strNum.value!="")) {
+	//LOG 24277 24-6-2002 Populate Medicare Suffix with "BAB" the code for a newborn yonger than 9 days old. 
+		// rather than "BABY" which causes and "invalid code" error
+		if ((obj)&&(!(obj.value=="")||(obj.value=="BAB"))) {
+			alert("\'" + t['MEDSUFDesc'] + "\' "+ " and " + "\' "+ t['PAPMIMedicare'] +"\' " + " combination " + t['XINVALID'] + "\n");
+			strNum.value=""
+			strCode.value=""
+			strNum.focus()
+			//DisableField('MedicareExpDate')
+			return
+			}
+		if ((strNum.value.length!=10)||(strNum.value.charAt(0)<2)||(strNum.value.charAt(0)>6)||(!checkDigit()))  {
+			alert("\'" + t['PAPMIMedicare'] + "\' " + t['XINVALID'] + "\n");
+			} else {
+			return true
+		}
+		
+	}
+	if ((strNum)&&(strNum.value=="")) {
+		EnableField("MEDSUFDesc")
+		EnableLookup("ld49iMEDSUFDesc");
+		//if (obj) obj.value=""
+		if (strCode) strCode.value=""
+		
+	}
+	
+	
+}
+
+function checkValidMedicareExp() {
+	var obj =document.getElementById('MedicareExpDate')
+	//MedicareExpDate_changehandler(e)
+	var valid=IsValidDate(obj);
+	if ((obj)&&(obj.value!="")&&(valid)) {
+		//var expdate=SplitDateStr(obj.value)
+		var expdate=DateStringToArray(obj.value)
+		var dtexp = new Date(expdate["yr"], expdate["mn"]-1, expdate["dy"]);
+		var tydate = new Date()
+		if (dtexp < tydate) {
+				alert("\'" + t['MedicareExpDate'] + "\' " + t['XINVALID'] + "\n");
+				obj.value=""
+				//obj.focus()
+				//websys_nextfocus(obj.sourceIndex);
+				//websys_nexttab(obj.sourceIndex,obj.form);
+				websys_setfocus(obj.id);
+				return
+				    }
+		var mth= tydate.getMonth()
+		var dt=tydate.setMonth(mth+1)
+		if (dtexp < tydate) {
+				alert("\'" + t['MedicareExpDate'] + "\' " + " within one month " + "\n");
+				//obj.value=""
+				//obj.focus()
+					//websys_nextfocus(obj.sourceIndex);
+					websys_nexttab(obj.sourceIndex,obj.form);
+				return
+				    }
+					      }
+	if (!valid) {
+			obj.className="clsInvalid";
+			alert("\'" + t[obj.id] + "\' " + t['XDATE']);
+			websys_setfocus(obj.id);
+			return websys_cancel();
+		} 
+
+}
+
+
+// MEDICARE CHECKDIGIT TO DETERMINE VALID MEDICARE NUMBER - E.G. 2123456701
+function checkDigit() {
+	var strNum =document.getElementById('PAPMIMedicare')
+	var arrMedicare = new Array()
+	var size = 10
+	var j;
+	if ((strNum)&&(strNum.value != "")) {
+		for (j=0; j < size; j++) {
+			arrMedicare[j]= parseInt(strNum.value.charAt(j),10)
+		}
+		var check = arrMedicare[8]
+		var temp=(((arrMedicare[0]) +
+			   (arrMedicare[1] * 3) +
+		      	   (arrMedicare[2] * 7) +
+			   (arrMedicare[3] * 9) +
+			   (arrMedicare[4]) +
+			   (arrMedicare[5] * 3) +
+			   (arrMedicare[6] * 7) +
+			   (arrMedicare[7] * 9)) % 10)
+		if (temp != check) {
+			//DisableField('MedicareExpDate')
+			return false;
+			} else {
+			//EnableField('MedicareExpDate')
+			return true;
+		}
+	}
+}
+
+function checkValidDVA(e) {
+	var strNum =document.getElementById('DVANumber')
+	if ((strNum)&&(validDVA(strNum))) {
+		//md 30/09/2003 Log 39511
+		LinkMandatoryFieldsCall(e);
+		return true;
+		} else {
+		alert("\'" + t['DVANumber'] + "\' " + t['XINVALID'] + "\n");
+		strNum.focus();
+		return false;
+	}
+}
+
+function validDVA(strNum) {
+
+
+	var reDVA = /^[QNVTSW]([A-Z]{3}|[A-Z]{2}[\d]{1}|[A-Z]{1}[\d]{2}|[\d]{3})([\d]{0,3})([\d]{0,1}|[A-Z]{0,1})([A-Z]{0,1})$/
+  	if ((strNum)&&(strNum.value!="")) {
+			var re=/\s/g;
+			strNum.value=strNum.value.replace(re,"")
+			strNum.value=strNum.value.toUpperCase()
+  			if(reDVA.test(strNum.value)) {
+				//alert(strNum.value.toUpperCase())
+				return true
+				} else {
+				return false
+         	   	}
+	} return true
+}
+
+function labelMandatory(fld) {
+	var lbl = document.getElementById('c' + fld)
+	if (lbl) {
+		lbl=lbl.className = "clsRequired";
+	}
+}
+
+function labelNormal(fld) {
+	var lbl = document.getElementById('c' + fld)
+	if (lbl) {
+		lbl=lbl.className = "";
+	}
+}
+function CheckMandatoryFields() {
+
+	var msg="";
+
+	var strNum =document.getElementById('PAPMIMedicare')
+	var objSuffix=document.getElementById('MEDSUFDesc')
+	var objCode=document.getElementById('PAPMIMedicareCode')
+	var exp=document.getElementById('MedicareExpDate')
+
+	if(((strNum)&&(strNum.value==""))&&((objCode)&&(objCode.value==""))) {
+		if ((objSuffix)&&(objSuffix.value=="")) {
+			msg += "\'" + t['MEDSUFDesc'] + "\' " + t['XMISSING'] + "\n";
+		}
+	}
+	if(((strNum)&&(strNum.value!=""))&&((objCode)&&(objCode.value=="0"))) {
+		if ((objSuffix)&&(objSuffix.value=="")) {
+			msg += "\'" + t['MEDSUFDesc'] + "\' " + t['XMISSING'] + "\n";
+		}
+	}
+	if(((strNum)&&(strNum.value!=""))&&((objCode)&&(objCode.value==""))) {
+		msg += "\'" + t['PAPMIMedicareCode'] + "\' " + t['XMISSING'] + "\n";
+	}
+	//if(((strNum)&&(strNum.value!=""))&&((exp)&&(exp.value==""))) {
+	//	msg += "\'" + t['MedicareExpDate'] + "\' " + t['XMISSING'] + "\n";
+	//}
+	if(((objCode)&&(objCode.value!=""))&&((strNum)&&(strNum.value==""))) {
+		msg += "\'" + t['PAPMIMedicare'] + "\' " + t['XMISSING'] + "\n";
+	}
+
+	if((strNum)&&(strNum.value != "")) {
+		if ((strNum.value.length!=10)||(strNum.value.charAt(0)<2)||(strNum.value.charAt(0)>6)||(!checkDigit()))  {
+			msg += "\'" + t['PAPMIMedicare'] + "\' " + t['XINVALID'] + "\n";
+		}
+	}
+	var obj=document.getElementById('SafetyCardNo')
+	var objM=document.getElementById('SafetyCardExp')
+	if(((obj)&&(obj.value!=""))&&((objM)&&(objM.value==""))) {
+		msg += "\'" + t['SafetyCardExp'] + "\' " + t['XMISSING'] + "\n";
+	}
+
+	var obj=document.getElementById('ConcessionCardNo')
+	var objM=document.getElementById('ConcessionExpDate')
+	if(((obj)&&(obj.value!=""))&&((objM)&&(objM.value==""))) {
+		msg += "\'" + t['ConcessionExpDate'] + "\' " + t['XMISSING'] + "\n";
+	}
+	var obj = document.getElementById('PAPERTelH');
+	if ((obj)&&(obj.value!="")) {
+		if (!isTelephone(obj)) {
+			msg += "\'" + t['PAPERTelH'] + "\' " + t['XINVALID'] + "\n";
+		}
+	}
+	var obj = document.getElementById('PAPERTelO');
+	if ((obj)&&(obj.value!="")) {
+		if (!isTelephone(obj)) {
+			msg += "\'" + t['PAPERTelO'] + "\' " + t['XINVALID'] + "\n";
+		}
+	}
+	var obj = document.getElementById('PAPERSecondPhone');
+	if ((obj)&&(obj.value!="")) {
+		if (!isTelephone(obj)) {
+			msg += "\'" + t['PAPERSecondPhone'] + "\' " + t['XINVALID'] + "\n";
+		}
+	}
+	var obj = document.getElementById('PAPERMobPhone');
+	if ((obj)&&(obj.value!="")) {
+		if (!isTelephone(obj)) {
+			msg += "\'" + t['PAPERMobPhone'] + "\' " + t['XINVALID'] + "\n";
+		}
+	}
+	var obj = document.getElementById('PAPERName');
+	if ((obj)&&(obj.value!="")) {
+		if (!isValidSurname(obj)) {
+			msg += "\'" + t['PAPERName'] + "\' " + t['XINVALID'] + "\n";
+		}
+	}
+
+	var obj = document.getElementById('PAPERName2');
+	if ((obj)&&(obj.value!="")) {
+		if (!isValidSurname(obj)) {
+			msg += "\'" + t['PAPERName2'] + "\' " + t['XINVALID'] + "\n";
+		}
+	}
+
+	var obj = document.getElementById('PAPERName3');
+	if ((obj)&&(obj.value!="")) {
+		if (!isValidName(obj)) {
+			msg += "\'" + t['PAPERName3'] + "\' " + t['XINVALID'] + "\n";
+		}
+	}
+
+	var obj = document.getElementById('SafetyCardNo');
+	var maxChars = 11;
+	if ((obj)&&(!setMaxLength(obj,maxChars))) {
+		msg += "\'" + t['SafetyCardNo'] + "\' " + t['XINVALID'] + "\n";
+	}
+
+	var obj = document.getElementById('ConcessionCardNo');
+	var maxChars = 11;
+	if ((obj)&&(!setMaxLength(obj,maxChars))) {
+		msg += "\'" + t['ConcessionCardNo'] + "\' " + t['XINVALID'] + "\n";
+	}
+
+	//md 30/09/2003
+	var msg2=CheckLinkMandatoryFields("DVACardType","DVANumber");
+	if (msg2!="") {msg+=msg2}
+	//md 30/09/2003
+
+	if (msg != "") {
+		alert(msg)
+		return false;
+	} else {
+		return true;
+	}
+}
+
+//function to enable one field from the pair if other field has value and vice versa
+function LinkMandatoryFields(fld1,fld2) {
+
+	var obj1=document.getElementById(fld1);
+	var obj2=document.getElementById(fld2);
+	if ((obj1)&&(obj2)) {
+	if (obj1.value=="") {labelNormal(fld2);}
+	if (obj2.value=="") {labelNormal(fld1);}
+	if (obj1.value!="") {labelMandatory(fld2);}
+	if (obj2.value!="") {labelMandatory(fld1);}
+	}
+}
+
+//based on field id that triger the function call same function with different parameters
+function LinkMandatoryFieldsCall(e) {
+
+	var eSrc = websys_getSrcElement(e);
+	//if ((eSrc.id=="PENSTYPEDesc")||(eSrc.id=="PAPERGovernCardNo")) {LinkMandatoryFields("PENSTYPEDesc","PAPERGovernCardNo");}
+	if ((eSrc.id=="DVACardType")||(eSrc.id=="DVANumber")) {LinkMandatoryFields("DVACardType","DVANumber");}
+}
+
+//check pair of fields that need to be enable one to another
+function CheckLinkMandatoryFields(fld1,fld2) {
+
+	var msgtot =""
+	var obj1=document.getElementById(fld1);
+	var obj2=document.getElementById(fld2);
+	if ((obj1)&&(obj2)) {
+	if ((obj1.value!="")&&(obj2.value=="")) 
+	{
+	msgtot += "\'" + t[fld2] + "\' " + t['XMISSING'] + "\n";
+	}
+	if ((obj2.value!="")&&(obj1.value=="")) 
+	{
+	msgtot += "\'" + t[fld1] + "\' " + t['XMISSING'] + "\n";
+	}
+	}
+	return msgtot;
+		
+}
+
+
+function DVACardTypeLoookup() {
+	
+	LinkMandatoryFields("DVACardType","DVANumber");
+}
+
+function CheckIfCleared() {
+	var obj1=document.getElementById("DVACardType");
+	if ((obj1)&&(obj1.value=="")) {LinkMandatoryFields("DVACardType","DVANumber");}
+}
+
+
+function EnableField(fldName) {
+	var fld = document.getElementById(fldName);
+	var lbl = document.getElementById('c'+fldName);
+	if ((fld)&&(fld.tagName=="INPUT")) {
+		fld.disabled = false;
+		fld.className = "";
+		if (lbl) lbl = lbl.className = "";
+	}
+}
+function DisableField(fldName) {
+	var fld = document.getElementById(fldName);
+	var lbl = document.getElementById('c'+fldName);
+	if ((fld)&&(fld.tagName=="INPUT")) {
+		fld.value = "";
+		fld.disabled = true;
+		fld.className = "disabledField";
+		if (lbl) lbl = lbl.className = "";
+	}
+}
+function labelMandatory(fld) {
+	var lbl = document.getElementById('c' + fld)
+	if (lbl) {
+		lbl.className = "clsRequired";
+	}
+}
+
+function labelNormal(fld) {
+	var lbl = document.getElementById('c' + fld)
+	if (lbl) {
+		lbl.className = "";
+	}
+}
+
+
+function DisableLookup(fldName)
+{
+	
+	var obj=document.getElementById(fldName);
+	if (obj) obj.disabled=true;
+}
+
+function EnableLookup(fldName)
+{
+	
+	var obj=document.getElementById(fldName);
+	if (obj) obj.disabled=false;
+}
+
+
+function DisableLink(fldName) {
+	var fld = document.getElementById(fldName);
+	if (fld) {
+		fld.value = "";
+		fld.disabled = true;
+		fld.className = "disabledField";
+	}
+}
+
+function CheckTypes() {
+	var femalelist=",MISS,MRS,MS,LADY,SR,SISTER,";
+	var malelist=",MSTR,MASTER,MR,SIR,BR,BROTHER,";
+	
+	Sobj=document.getElementById('CTSEXDesc');
+	if (Sobj) {
+		if ((Sobj.value.toUpperCase()=="M")&&(Sobj.className!="clsInvalid")) {
+			Tobj=document.getElementById('TTLDesc');
+			if (Tobj) {
+				if (femalelist.indexOf(","+Tobj.value.toUpperCase()+",")!=-1) {
+					Sobj.className='clsInvalid';
+					websys_setfocus('CTSEXDesc');
+				}
+			}
+		}
+		
+		if ((Sobj.value.toUpperCase()=="MALE")&&(Sobj.className!="clsInvalid")) {
+			Tobj=document.getElementById('TTLDesc');
+			if (Tobj) {
+				if (femalelist.indexOf(","+Tobj.value.toUpperCase()+",")!=-1) {
+					Sobj.className='clsInvalid';
+					websys_setfocus('CTSEXDesc');
+					alert("Title and Sex mismatchs.");
+				}
+			}
+		}
+		if ((Sobj.value.toUpperCase()=="F")&&(Sobj.className!="clsInvalid")) {
+			Tobj=document.getElementById('TTLDesc');
+			if (Tobj) {
+				if (malelist.indexOf(","+Tobj.value.toUpperCase()+",")!=-1) {
+					Sobj.className='clsInvalid';
+					websys_setfocus('CTSEXDesc');
+				}
+			}
+		}
+		
+		if ((Sobj.value.toUpperCase()=="FEMALE")&&(Sobj.className!="clsInvalid")) {
+			Tobj=document.getElementById('TTLDesc');
+			if (Tobj) {
+				if (malelist.indexOf(","+Tobj.value.toUpperCase()+",")!=-1) {
+					Sobj.className='clsInvalid';
+					websys_setfocus('CTSEXDesc');
+					alert("Title and Sex mismatchs.");
+				}
+			}
+		}
+	}
+}
+
+TTLDesc_lookupsel= (function (e) {
+        var obj=document.getElementById('TTLDesc');
+	if ((obj)&&(typeof TTLDesc_lookupsel=="function")) {
+		var cached_TTLDesclookupsel=TTLDesc_lookupsel;
+		return function (e) {
+			cached_TTLDesclookupsel(e);
+			CheckTypes();
+		}
+	}
+}())
+
+var obj=document.getElementById('TTLDesc');
+if (obj) websys_addListener("blur","onblur",CheckTypes,obj);
+
+CTSEXDesc_lookupsel= (function (e) {
+        var obj=document.getElementById('CTSEXDesc');
+	if ((obj)&&(typeof CTSEXDesc_lookupsel=="function")) {
+		var cached_CTSEXDesclookupsel=CTSEXDesc_lookupsel;
+		return function (e) {
+			cached_CTSEXDesclookupsel(e);
+			CheckTypes();
+		}
+	}
+}())
+
+
+var obj=document.getElementById('CTSEXDesc');
+if (obj) websys_addListener("blur","onblur",CheckTypes,obj);
+
+websys_removeListener("load","onload",DocumentLoadHandler); 
+websys_addListener("load","onload",CustomDocumentLoadHandler);
+
+
+//tknoll-miller (SWARH) 2009-09-16 Load authorise script
+var authcfg = {
+   'buttons':  [
+      'update1'
+   ],
+   'fields': {
+      'username': 'UserCode',
+      'password': 'PIN'
+   }
+};
+
+//tknoll-miller (SWARH) 2009-09-16 Load authorise script
+// Scope variables
+(function() {
+   var loadScript = function(type, src) {
+      var head = document.getElementsByTagName('head')[0];
+      var script = document.createElement('script');
+      script.type = type;
+      script.src = src;
+      head.appendChild(script);
+      websys_addListener('load', 'onload', function(){document.isLoaded=true});
+      return script;
+   };
+
+   loadScript('text/javascript', '../custom/SWARH/scripts/authorise4.js');
+})();
+//end tknoll-miller (SWARH) 2009-09-16 Load authorise script
+]]></Implementation>
+</Method>
+</Class>
+</Export>

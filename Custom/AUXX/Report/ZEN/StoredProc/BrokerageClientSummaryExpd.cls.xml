@@ -1,0 +1,316 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.AUXX.Report.ZEN.StoredProc.BrokerageClientSummaryExpd">
+<ProcedureBlock>0</ProcedureBlock>
+<Super>Report.Abstract</Super>
+<TimeCreated>61093,56478.893328</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/AUXX/Report/ZEN/StoredProc/BrokerageClientSummaryExpd.xml#1 $</Default>
+</Parameter>
+
+<Method name="GetRecordsClose">
+<Description>
+********************************************************************
+* AUXX.BRO0011 Brokerage Client Summary Expenditure    
+*
+* Initial release: 01/06/2012
+* 
+* TRC Number: 108683
+********************************************************************</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>QHandle:%Library.Binary</FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Clean up by purging the temporary node in ^CacheTemp global
+ New repid 
+ Set repid=$li(QHandle,2)
+ 
+ //Start Monitor (if configured to capture stats)
+ i mon Do ..MonitorEnd(mon)
+ 
+ Kill ^CacheTemp("TRAK",repid)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="GetRecordsExecute">
+<ClassMethod>1</ClassMethod>
+<CodeMode>code</CodeMode>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,DateFrom:%Date,DateTo:%Date,Hospital:%String,CareProv:%String,Vendor:%String,Program:%String]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+
+ // Get reportid i.e. use $INCREMENT to add another node to ^CacheTemp global. 
+ // We use ^CacheTemp global because it will always use memory before disk
+ New repid,ind
+
+ // Use $Increment to get the next node
+ Set repid=$I(^CacheTemp("TRAK"))
+ 
+ //Start Monitor (if configured to capture stats)
+ s mon=..MonitorBegin()
+
+ // Build data into ^CacheTemp(ReportID)
+ // e.g. Set ^CacheTemp(ReportID,Index)=$LB(f1,f2,f3)
+ New Number,String,Date,Time,c,n,cpwid,orderid,oeorichild,itemstatid,statcode,isbrok,OEORIRowId
+ n HOSPDesc,CTLOCDesc,CTPCPDesc,CPWDesc,CPWGoalText,CPWDate,DEPDesc,Duration,PAPMIRowId,PAPMINo,PAPMIName2,PAPMIName,OEORIRowId,ItmID,NGODesc,arcimdesc,OSTATCode,OSTATDesc,OEORISttdat,OEORIEndDate,OEORIPhQtyOrd,PHCDUDesc1,OEORIPrice,OEORINumberperWeek,OEORIApplyTimeFrame,VendorID,VendorRate,LinkToOrder,Scheduled,SchedA,SchedB,BaseUnit,Exec,ActualUnits,ORRate
+ s (HOSPDesc,CTLOCDesc,CTPCPDesc,CPWDesc,CPWGoalText,CPWDate,DEPDesc,Duration,PAPMINo,PAPMIName2,PAPMIName,OEORIRowId,ItmID,NGODesc,arcimdesc,OSTATCode,OSTATDesc,OEORISttdat,OEORIEndDate,PHCDUDesc1,OEORIApplyTimeFrame,VendorID,LinkToOrder,Scheduled,BaseUnit,Exec)=""
+ s (PAPMIRowId,OEORIPhQtyOrd,OEORIPrice,OEORINumberperWeek,VendorRate,SchedA,SchedB,ActualUnits,ORRate)=0
+
+ n UnitsDel,UnitsUndel,ActualSpend,PlannedSpend,Group,BudgetVariance,PlanSpendUndel,Sort
+ s (UnitsDel,UnitsUndel,ActualSpend,PlannedSpend,BudgetVariance,PlanSpendUndel)=0
+ s (Group,Sort)=""
+ 
+ s ind=1
+
+  //Convert ODBC dates to cache format
+ s DateFrom=..ConvertDateToCache(DateFrom)
+ s DateTo=..ConvertDateToCache(DateTo)
+ s Hospital=$zstrip(Hospital,"*CW")
+ s CareProv=$zstrip(CareProv,"*CW")
+ s Vendor=$zstrip(Vendor,"*CW")
+ s Program=$zstrip(Program,"*CW")
+
+ s cpwid=""     
+		 f {
+			 s cpwid=$o(^OEORDi(0,"CPW",cpwid)) q:cpwid=""
+			 s orderid=0
+			 f {
+			 	s orderid=$o(^OEORDi(0,"CPW",cpwid,orderid)) q:orderid=""
+				s oeorichild=0
+			 	f {
+				 	s oeorichild=$o(^OEORDi(0,"CPW",cpwid,orderid,oeorichild)) q:oeorichild=""
+				 	s OEORIRowId=orderid_"||"_oeorichild
+				 	s isbrok=$p($g(^OEORD(orderid,"I",oeorichild,13)),"^",5)
+				 		i isbrok="Y"
+					 		{
+					 		s itemstatid=$p(^OEORD(orderid,"I",oeorichild,1),"^",13)
+					 		s statcode=$p(^OEC("OSTAT",itemstatid),"^",1)
+					 		i (",E,I,")[statcode	
+					 			{	 		
+			 			 		d GetData
+					 			}
+					 		}
+			 			}
+			 	}
+		 }
+
+ // Build QHandle (AtEnd,ReportID,Index)
+ Set QHandle=$lb(0,repid,0)
+
+ Quit $$$OK
+
+BuildRow
+ // build the row
+ i NGODesc'="" Set ^CacheTemp("TRAK",repid,Group_" "_CTPCPDesc_" "_NGODesc_" "_DEPDesc_ind)=$LB(HOSPDesc,CTLOCDesc,CTPCPDesc,CPWDesc,CPWGoalText,CPWDate,DEPDesc,Duration,PAPMIRowId,PAPMINo,PAPMIName2,PAPMIName,OEORIRowId,ItmID,NGODesc,arcimdesc,OSTATCode,OSTATDesc,OEORISttdat,OEORIEndDate,OEORIPhQtyOrd,PHCDUDesc1,OEORIPrice,OEORINumberperWeek,OEORIApplyTimeFrame,VendorID,VendorRate,LinkToOrder,Sort,Scheduled,SchedA,SchedB,BaseUnit,Exec,ActualUnits,ORRate,UnitsDel,UnitsUndel,ActualSpend,PlannedSpend,PlanSpendUndel,BudgetVariance,Group)
+ s ind=ind+1
+
+
+GetData
+ &sql(declare GetBrokOrders cursor for
+select
+OEORI_RECDEP_DR->CTLOC_Hospital_DR->HOSP_Desc,
+OEORI_RECDEP_DR->CTLOC_Desc,
+CPW_CareProvider_DR->CTPCP_Desc,
+cpw_pathway_Dr->CPW_Desc,
+CPW_GoalText,
+CPW_ProblemStartDate,
+case when OEORI_ItemStat_DR->OSTAT_Code='E' then enq_governdepart_DR->dep_DESC else cpw_governdepart_DR->dep_DESC end,
+ENQ_Duration,
+OEORD_Adm_DR->PAADM_PAPMI_DR,
+OEORD_Adm_DR->PAADM_PAPMI_dR->PAPMI_No,
+OEORD_Adm_DR->PAADM_PAPMI_dR->PAPMI_Name2,
+OEORD_Adm_DR->PAADM_PAPMI_dR->PAPMI_Name,
+%Exact(OEORI_RowId),
+OEORI_ItmMast_Dr,
+OEORI_BrokerageVendor_DR->vend_ngo_Dr->NGO_Desc,
+oeori_itmmast_Dr->arcim_desc,
+OEORI_ItemStat_DR->OSTAT_Code,
+OEORI_ItemStat_DR->OSTAT_Desc,
+OEORI_Sttdat,
+OEORI_EndDate,
+OEORI_PhQtyOrd,
+OEORI_RMDURAT_dR->PHCDU_Desc1,
+OEORI_Price,
+OEORI_NumberperWeek,
+OEORI_ApplyTimeFrame,
+OEORI_BrokerageVendor_DR,
+OEORI_BrokerageVendorRate_DR->RATE_Cost,
+OEORI_OEORI_dr,
+'A'
+from SQLUSER.oe_order, SQLUSER.oe_orditem, SQLUSER.mr_clinicalpathways,SQLUSER.PA_EnquiryContact
+where 
+cpw_Rowid=:cpwid and
+oeori_Rowid=:OEORIRowId and
+CPW_ProblemStartDate between :DateFrom and :DateTo
+ AND (({fn CONCAT( ',', {fn CONCAT((:Hospital),',')})} [ {fn CONCAT( ',', {fn CONCAT((oeori_orddept_dr->CTLOC_Hospital_DR->HOSP_RowId),',')})}) OR (:Hospital IS NULL))
+ AND (({fn CONCAT( ',', {fn CONCAT((:CareProv),',')})} [ {fn CONCAT( ',', {fn CONCAT((CPW_CareProvider_DR->CTPCP_RowId),',')})}) OR (:CareProv IS NULL))
+ AND (({fn CONCAT( ',', {fn CONCAT((:Vendor),',')})} [ {fn CONCAT( ',', {fn CONCAT((OEORI_BrokerageVendor_DR->vend_ngo_Dr->NGO_RowId),',')})}) OR (:Vendor IS NULL))
+ AND (({fn CONCAT( ',', {fn CONCAT((:Program),',')})} [ {fn CONCAT( ',', {fn CONCAT((case when OEORI_ItemStat_DR->OSTAT_Code='E' then enq_governdepart_DR->dep_rowid else cpw_governdepart_DR->dep_rowid end),',')})}) OR (:Program IS NULL)) and
+oeori_clinpathways_dr=cpw_Rowid and oeori_Rowid=*enq_oeorditem_Dr and 
+oeord_Rowid=oeori_oeord_parref)
+ &sql(open GetBrokOrders)
+
+
+ //fetch first row
+ &sql(fetch GetBrokOrders into :HOSPDesc,:CTLOCDesc,:CTPCPDesc,:CPWDesc,:CPWGoalText,:CPWDate,:DEPDesc,:Duration,:PAPMIRowId,:PAPMINo,:PAPMIName2,:PAPMIName,:OEORIRowId,:ItmID,:NGODesc,:arcimdesc,:OSTATCode,:OSTATDesc,:OEORISttdat,:OEORIEndDate,:OEORIPhQtyOrd,:PHCDUDesc1,:OEORIPrice,:OEORINumberperWeek,:OEORIApplyTimeFrame,:VendorID,:VendorRate,:LinkToOrder,:Sort)
+
+ while 'SQLCODE{
+
+ d FormatDates
+ d GetBaseUnit
+ 
+ s CPWGoalText=##class(websys.Conversions).ListLogicalToHtml(CPWGoalText,$char(10,13))
+ s Scheduled=##Class(web.MRClinicalPathWays).GetTotalNumberOfSchedule(OEORIRowId)
+ s SchedA=$p(Scheduled,"/") 
+ s SchedB=$p(Scheduled,"/",2)
+ s ActualUnits=Duration
+ s ORRate=..vendorrate(OEORIRowId)
+ i BaseUnit=0 s UnitsDel=0
+ i BaseUnit>0 s UnitsDel=ActualUnits/BaseUnit
+ s PlannedSpend=VendorRate*OEORIPhQtyOrd
+ i UnitsDel=0 s UnitsUndel=SchedB
+ i UnitsDel>SchedB s UnitsUndel=0
+ i UnitsDel<=SchedB s UnitsUndel=SchedB-UnitsDel
+ i OSTATCode'="E" s ORRate=""
+ i BaseUnit="" s BaseUnit=0
+ i ((OSTATCode="E")&&(BaseUnit'=0)) s ActualSpend=(ActualUnits/BaseUnit)*(ORRate/OEORIPhQtyOrd)
+ i ActualUnits=0 s PlanSpendUndel=PlannedSpend
+ i PlannedSpend<=ActualSpend s PlanSpendUndel=0
+ i PlannedSpend>ActualSpend s PlanSpendUndel=PlannedSpend-ActualSpend
+ s BudgetVariance=ActualSpend-PlannedSpend
+ s Group=CPWDesc_" "_PAPMINo
+ d BuildRow
+ 
+ //fetch rows
+ &sql(fetch GetBrokOrders into :HOSPDesc,:CTLOCDesc,:CTPCPDesc,:CPWDesc,:CPWGoalText,:CPWDate,:DEPDesc,:Duration,:PAPMIRowId,:PAPMINo,:PAPMIName2,:PAPMIName,:OEORIRowId,:ItmID,:NGODesc,:arcimdesc,:OSTATCode,:OSTATDesc,:OEORISttdat,:OEORIEndDate,:OEORIPhQtyOrd,:PHCDUDesc1,:OEORIPrice,:OEORINumberperWeek,:OEORIApplyTimeFrame,:VendorID,:VendorRate,:LinkToOrder,:Sort)}
+
+ &sql(close GetBrokOrders)
+
+GetBaseUnit
+ Set (BaseUnit) = 0
+
+ &sql(SELECT
+	ITM_BaseUnit
+	INTO :BaseUnit
+	FROM SQLUser.MRC_VendorItem
+	WHERE	ITM_ParRef=:VendorID and
+	ITM_ARCIM_dR=:ItmID	 	  	      			
+)
+ Quit
+
+FormatDates
+ // Convert the dates to ODBC date format
+ If CPWDate Set CPWDate=..ConvertDateToODBC(CPWDate)
+ If OEORISttdat Set OEORISttdat=..ConvertDateToODBC(OEORISttdat)
+ If OEORIEndDate Set OEORIEndDate=..ConvertDateToODBC(OEORIEndDate)
+ Quit
+]]></Implementation>
+</Method>
+
+<Method name="GetRecordsFetch">
+<Final>0</Final>
+<ClassMethod>1</ClassMethod>
+<CodeMode>code</CodeMode>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,&Row:%Library.List,&AtEnd:%Library.Integer=0]]></FormalSpec>
+<Private>0</Private>
+<ReturnType>%Library.Status</ReturnType>
+<SqlProc>0</SqlProc>
+<Implementation><![CDATA[
+ // This fetch method should never have to change. 
+
+ // repid - Report ID
+ // ind   - sequence index which represents each row
+
+ New repid,ind
+
+ // Restore QHandle
+ Set AtEnd=$li(QHandle,1)
+ Set repid=$li(QHandle,2)
+ Set ind=$li(QHandle,3)
+
+ Set ind=$o(^CacheTemp("TRAK",repid,ind))
+ If ind="" {	// if there are no more rows, finish fetching
+ Set AtEnd=1
+ Set Row=""
+ }
+ Else      {	// fetch row
+ Set Row=^CacheTemp("TRAK",repid,ind)
+ }
+
+ // Save QHandle
+ s QHandle=$lb(AtEnd,repid,ind)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Query name="GetRecords">
+<Type>%Library.Query</Type>
+<FormalSpec>DateFrom:%Date,DateTo:%Date,Hospital:%String,CareProv:%String,Vendor:%String,Program:%String</FormalSpec>
+<SqlProc>1</SqlProc>
+<Parameter name="CONTAINID" value="0"/>
+<Parameter name="ROWSPEC" value="HOSPDesc:%String(MAXLEN=999),CTLOCDesc:%String(MAXLEN=999),CTPCPDesc:%String(MAXLEN=999),CPWDesc:%String(MAXLEN=999),CPWGoalText:%String(MAXLEN=999),CPWDate:%Date,DEPDesc:%String(MAXLEN=999),Duration:%String(MAXLEN=999),PAPMIRowId:%Integer,PAPMINo:%String(MAXLEN=99),PAPMIName2:%String(MAXLEN=999),PAPMIName:%String(MAXLEN=999),OEORIRowId:%String,ItmID:%String,NGODesc:%String(MAXLEN=999),arcimdesc:%String(MAXLEN=999),OSTATCode:%String(MAXLEN=99),OSTATDesc:%String(MAXLEN=999),OEORISttdat:%Date,OEORIEndDate:%Date,OEORIPhQtyOrd:%Integer,PHCDUDesc1:%String(MAXLEN=999),OEORIPrice:%Float,OEORINumberperWeek:%Integer,OEORIApplyTimeFrame:%String(MAXLEN=999),VendorID:%String,VendorRate:%Float,LinkToOrder:%String,Sort:%String,Scheduled:%String,SchedA:%Integer,SchedB:%Integer,BaseUnit:%String(MAXLEN=99),Exec:%String(MAXLEN=99),ActualUnits:%Integer,ORRate:%Float,UnitsDel:%Float,UnitsUndel:%Float,ActualSpend:%Float,PlannedSpend:%Float,PlanSpendUndel:%Float,BudgetVariance:%Float,Group:%String"/>
+</Query>
+
+<Method name="vendorrate">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>oeitm:%String</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	n (oeitm) 
+	q:'oeitm ""
+	s (OrigOrd,rate)=""
+	s OrdQty=""
+	s OrdQty=$p($g(^OEORD(+oeitm,"I",+$p(oeitm,"||",2),1)),"^",12)
+	i OrdQty="" s OrdQty=1
+	s OrigOrd=$p($g(^OEORD(+oeitm,"I",+$p(oeitm,"||",2),12)),"^",51)
+	i $g(OrigOrd)'="" d
+	. s OrigOrdRate=$p($g(^OEORD($p($g(OrigOrd),"||",1),"I",$p($g(OrigOrd),"||",2),3)),"^",25)
+	. i $g(OrigOrdRate)'="" s rate=OrigOrdRate
+	i rate'="" s rate=rate*OrdQty q rate
+	s stdate=$p($g(^OEORD(+oeitm,"I",+$p(oeitm,"||",2),1)),"^",9)
+	s sttime=$p($g(^OEORD(+oeitm,"I",+$p(oeitm,"||",2),1)),"^",10)
+	s enddate=$p($g(^OEORD(+oeitm,"I",+$p(oeitm,"||",2),9)),"^",9)
+	s endtime=$p($g(^OEORD(+oeitm,"I",+$p(oeitm,"||",2),9)),"^",10)
+	i enddate>stdate s endtime=endtime+86400
+	s paenq=$o(^PAENQi("OEORI",oeitm,""))
+	i paenq {
+		s stdate=$p($g(^PAENQ(paenq)),"^",1),sttime=$p($g(^PAENQ(paenq)),"^",2)
+		s dur=$p($g(^PAENQ(paenq)),"^",15)
+		i dur'="" s enddate=$p($g(^PAENQ(paenq)),"^",1),endtime=sttime+dur
+	}
+	s arcim=$p($g(^OEORD(+oeitm,"I",+$p(oeitm,"||",2),1)),"^",2)
+	s ven=$p($g(^OEORD(+oeitm,"I",+$p(oeitm,"||",2),12)),"^",73)
+	s epid=$p($g(^OEORD(+oeitm)),"^",1)
+	s eptype=""
+	i $g(epid)'="" s eptype=$p($g(^PAADM(epid)),"^",2)
+	q:'arcim ""
+	q:'ven ""
+	s:'stdate stdate=+$h,sttime=$p($h,",",2)
+	s dow=$$daynum^SSUTIL4(stdate)
+	s ratetype=$$ratetype^COEOrdItem18(ven,arcim,stdate,sttime)
+	s timeto=$p(ratetype,"^",2),ratetype=$p(ratetype,"^")
+	s pubhol=$$pubhol^MVBCTPHL(stdate,"",eptype) 
+	i pubhol s ratetype="PH"
+	q:ratetype="" ""
+	s rate=$$itemrate^COEOrdItem18(ven,arcim,stdate,ratetype)
+	;b  
+	i endtime,'pubhol d  q (rate2*OrdQty)
+	.s err=$$ratetype^COEOrdItem18(ven,arcim,stdate,sttime,endtime)
+	.i $g(FOUND)=1 s rate2=rate q
+	.s rate2=0,ind="" f  s ind=$o(FOUND(ind)) q:ind=""  d
+	..s ratetype=$p(ind,"^"),timefrom=$p(ind,"^",2),timeto=$p(ind,"^",3)
+	..s rate=$$itemrate^COEOrdItem18(ven,arcim,stdate,ratetype)
+	..s dur=$s(endtime>timeto:timeto,1:endtime)-$s(timefrom>sttime:timefrom,1:sttime) q:'dur
+	..;w !,dur/60
+	..s rate2=dur/3600*rate+rate2
+	
+	i rate'="" s rate=rate*OrdQty
+	q rate
+]]></Implementation>
+</Method>
+</Class>
+</Export>

@@ -1,0 +1,208 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.AUXX.Report.ZEN.StoredProc.PatientLabels">
+<ProcedureBlock>0</ProcedureBlock>
+<Super>Report.Abstract</Super>
+<TimeCreated>59388,55236.125</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/AUXX/Report/ZEN/StoredProc/PatientLabels.xml#1 $</Default>
+</Parameter>
+
+<UDLText name="T">
+<Content><![CDATA[
+// Report Name: Trak Patient Labels Sheet <br>
+
+]]></Content>
+</UDLText>
+
+<UDLText name="T">
+<Content><![CDATA[
+// Report Code: AUXX.PMI0001 <br>
+
+]]></Content>
+</UDLText>
+
+<UDLText name="T">
+<Content><![CDATA[
+// LOGTRAK Number: 72433 <br>
+
+]]></Content>
+</UDLText>
+
+<UDLText name="T">
+<Content><![CDATA[
+// Report Description: Sheet of patient labels for use on paperwork 
+
+]]></Content>
+</UDLText>
+
+<Method name="PatientLabelsClose">
+<Description>
+This is the Close component of the %Library.Query.
+This is standard code and should never have to change.
+This is where all the cleanup is performed, i.e. the purging of the temporary storage global ^CacheTemp.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>QHandle:%Library.Binary</FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Clean up by purging the temporary node in ^CacheTemp global
+ New repid
+ Set repid=$LIST(QHandle,2)
+ 
+ //Start Monitor (if configured to capture stats)
+ i mon Do ..MonitorEnd(mon)
+
+ Kill ^CacheTemp("TRAK",repid)
+ 
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="PatientLabelsExecute">
+<Description>
+This is the Execute section for the %Library.Query. 
+All of the logic will be performed here.
+A new node for the ^CacheTemp global will be created and each subscript of this global will contain
+a row for the report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,PatientID:%String,UserHospital:%String]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Get reportid i.e. use $INCREMENT to add another node to ^CacheTemp global. 
+ // We use ^CacheTemp global because it will always use memory before disk
+ New repid,ind
+
+ // Use $Increment to get the next node
+ Set repid=$Increment(^CacheTemp("TRAK"))
+ 
+ //Start Monitor (if configured to capture stats)
+ s mon=..MonitorBegin()
+    
+ // Build data into ^CacheTemp("TRAK",ReportID)
+ // e.g. Set ^CacheTemp("TRAK",ReportID,Index)=$LB(f1,f2,f3)
+ New Number,String,Date,Time,c,n,URNDetails,VertCount,VertLabels
+ New PAPMIMedicareExpDate,PAPERStName,PAPERAddress2,PAPERForeignAddress,CTCITDesc,CTZIPCode,PAPERTelH,PAPMIName,PAPMIName2,PAPMIName3,CTSEXCode,PAPERAgeYr,PAPMIDOB,PAPERMobPhone,PAPMIRowId,PAPMIVIPFlag,PAPERTelO,PAPMIMedicare,PAPMIMedicareCode,RTMASNo,HOSPDesc,BarCodeData
+ Set (PAPMIRowId)=0
+ Set (PAPMIMedicareExpDate,PAPERStName,PAPERAddress2,PAPERForeignAddress,CTCITDesc,CTZIPCode,PAPERTelH,PAPMIName,PAPMIName2,PAPMIName3,CTSEXCode,PAPERAgeYr,PAPMIDOB,PAPERMobPhone,PAPMIVIPFlag,PAPERTelO,PAPMIMedicare,PAPMIMedicareCode,RTMASNo,HOSPDesc,BarCodeData)=""
+
+ Set ind=1
+ Set VertCount=0
+ Set VertLabels=6 ; Print 12 labels on an A4 sheet
+
+ i $g(PatientID)'="" s PatientID=$zstrip(PatientID,"*C")
+ i $g(UserHospital)'="" s UserHospital=$zstrip(UserHospital,"*C")
+ 
+ &SQL(DECLARE PatientLabel CURSOR FOR
+ SELECT 
+ PAPMI_MedicareExpDate,
+ PAPMI_PAPER_DR->PAPER_StName,
+ PAPMI_PAPER_DR->PAPER_Address2,
+ PAPMI_PAPER_DR->PAPER_ForeignAddress,
+ PAPMI_PAPER_DR->PAPER_CityCode_DR->CTCIT_Desc,
+ PAPMI_PAPER_DR->PAPER_Zip_DR->CTZIP_Code,
+ PAPMI_PAPER_DR->PAPER_TelH,
+ PAPMI_Name,
+ PAPMI_Name2,
+ PAPMI_Name3,
+ PAPMI_PAPER_DR->PAPER_Sex_DR->CTSEX_Code,
+ PAPMI_PAPER_DR->PAPER_AgeYr,
+ PAPMI_DOB,
+ PAPMI_PAPER_DR->PAPER_MobPhone,
+ PAPMI_RowId,
+ PAPMI_VIPFlag,
+ PAPMI_PAPER_DR->PAPER_TelO,
+ PAPMI_Medicare,
+ PAPMI_MedicareCode,
+ PAPMI_No
+ INTO :PAPMIMedicareExpDate,:PAPERStName,:PAPERAddress2,:PAPERForeignAddress,:CTCITDesc,:CTZIPCode,:PAPERTelH,:PAPMIName,:PAPMIName2,:PAPMIName3,:CTSEXCode,:PAPERAgeYr,:PAPMIDOB,:PAPERMobPhone,:PAPMIRowId,:PAPMIVIPFlag,:PAPERTelO,:PAPMIMedicare,:PAPMIMedicareCode,:URNDetails
+ FROM SQLUser.PA_PatMas
+ WHERE PAPMI_RowId=:PatientID)
+ 
+ &SQL(OPEN PatientLabel)
+ 
+ f  &SQL(FETCH PatientLabel) q:SQLCODE'=0  d
+ . set BarCodeData = "*"_URNDetails_"*"
+ . ;do GetHospDesc
+ . do ProcessData
+ 
+ &SQL(CLOSE PatientLabel)
+   
+ // Build QHandle (AtEnd,ReportID,Index)
+ Set QHandle=$LISTBUILD(0,repid,0)
+ Quit $$$OK
+  
+ProcessData
+ set PAPMIDOB=..ConvertDateToODBC(PAPMIDOB)
+ set PAPMIMedicareExpDate=..ConvertDateToODBC(PAPMIMedicareExpDate)
+ set HOSPDesc=UserHospital
+ //directly get the Address 1 from the global
+ set PAPERStName=$g(^PAPER(PAPMIRowId,"PER","ADD",1))
+ set PAPERAddress2=$zstrip(PAPERAddress2,"*C")
+ set PAPERForeignAddress=$zstrip(PAPERForeignAddress,"*C")
+ set VertCount = 0
+ while VertCount < VertLabels {
+	 do BuildRow
+	 set VertCount = VertCount + 1
+ }
+ quit
+  
+GetHospDesc
+ &sql(SELECT 
+ 	%exact(HOSP_Desc)
+ 	INTO :HOSPDesc
+ 	FROM SQLUser.CT_Hospital
+ 	WHERE HOSP_RowId=:UserHospital)
+ quit
+
+BuildRow
+ s ^CacheTemp("TRAK",repid,ind)=$LB(HOSPDesc,URNDetails,PAPMIMedicareExpDate,$ZCVT(PAPERStName,"U"),$ZCVT(PAPERAddress2,"U"),$ZCVT(PAPERForeignAddress,"U"),CTCITDesc,CTZIPCode,PAPERTelH,$ZCVT(PAPMIName,"U"),PAPMIName2,PAPMIName3,CTSEXCode,PAPERAgeYr,PAPMIDOB,PAPERMobPhone,PAPMIRowId,PAPMIVIPFlag,PAPERTelO,PAPMIMedicare,PAPMIMedicareCode,RTMASNo,BarCodeData)
+ s ind=$i(ind)
+ quit
+]]></Implementation>
+</Method>
+
+<Method name="PatientLabelsFetch">
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,&Row:%Library.List,&AtEnd:%Library.Integer=0]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // This fetch method should never have to change. 
+
+ // repid - Report ID
+ // ind   - sequence index which represents each row
+
+ New repid,ind
+
+ // Restore QHandle
+ Set AtEnd=$LI(QHandle,1)
+ Set repid=$LI(QHandle,2)
+ Set ind=$LI(QHandle,3)
+
+ Set ind=$order(^CacheTemp("TRAK",repid,ind))
+ If ind="" {	// if there are no more rows, finish fetching
+ 	Set AtEnd=1
+ 	Set Row=""
+ }  Else  {	// fetch row
+ 	Set Row=^CacheTemp("TRAK",repid,ind)
+ }
+
+ // Save QHandle
+ Set QHandle=$lb(AtEnd,repid,ind)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Query name="PatientLabels">
+<Description>
+Patient Labels Sheet</Description>
+<Type>%Library.Query</Type>
+<FormalSpec>PatientID:%String,UserHospital:%String</FormalSpec>
+<SqlProc>1</SqlProc>
+<Parameter name="CONTAINID" value="0"/>
+<Parameter name="ROWSPEC" value="HOSPDesc:%String(MAXLEN=255),URNDetails:%String(MAXLEN=12),PAPMIMedicareExpDate:%Date,PAPERStName:%String(MAXLEN=255),PAPERAddress2:%String(MAXLEN=255),PAPERForeignAddress:%String(MAXLEN=255),CTCITDesc:%String(MAXLEN=255),CTZIPCode:%String(MAXLEN=255),PAPERTelH:%String(MAXLEN=255),PAPMIName:%String(MAXLEN=255),PAPMIName2:%String(MAXLEN=255),PAPMIName3:%String(MAXLEN=255),CTSEXCode:%String(MAXLEN=255),PAPERAgeYr:%String(MAXLEN=255),PAPMIDOB:%Date,PAPERMobPhone:%String(MAXLEN=255),PAPMIRowId:%Integer,PAPMIVIPFlag:%String(MAXLEN=255),PAPERTelO:%String(MAXLEN=255),PAPMIMedicare:%String(MAXLEN=255),PAPMIMedicareCode:%String(MAXLEN=255),RTMASNo:%String(MAXLEN=255),BarCodeData:%String(MAXLEN=255)"/>
+</Query>
+</Class>
+</Export>

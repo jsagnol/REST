@@ -1,0 +1,149 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.AUXX.Report.ZEN.MRMovements">
+<Super>Custom.AUXX.Report.ZEN.Abstract</Super>
+<TimeCreated>61758,55383.214444</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/AUXX/Report/ZEN/MRMovements.xml#1 $</Default>
+</Parameter>
+
+<UDLText name="T">
+<Content><![CDATA[
+// Report Name: AUXX Medical Record Movements <br>
+
+]]></Content>
+</UDLText>
+
+<UDLText name="T">
+<Content><![CDATA[
+// Report Code: AUXX.MED0003 <br>
+
+]]></Content>
+</UDLText>
+
+<Property name="DateFrom">
+<Type>%String</Type>
+<Parameter name="ZENURL" value="P1"/>
+</Property>
+
+<Property name="DateTo">
+<Type>%String</Type>
+<Parameter name="ZENURL" value="P2"/>
+</Property>
+
+<Property name="Facility">
+<Type>%String</Type>
+<Parameter name="ZENURL" value="P3"/>
+</Property>
+
+<Property name="User">
+<Type>%String</Type>
+<Parameter name="ZENURL" value="P4"/>
+</Property>
+
+<XData name="ReportDefinition">
+<XMLNamespace>http://www.intersystems.com/zen/report/definition</XMLNamespace>
+<Data><![CDATA[
+<report xmlns='http://www.intersystems.com/zen/report/definition'
+   queryClass='Custom.AUXX.Report.ZEN.StoredProc.MRMovements' queryName='MRMovements' name='MRMovements'>
+  <parameter expression='..DateFrom'/>
+  <parameter expression='..DateTo'/>
+  <parameter expression='..Facility'/>
+  <parameter expression='..User'/> 
+  <attribute name='datefrom' expression='..DisplayDate(..DateFrom)'/>
+  <attribute name='dateto' expression='..DisplayDate(..DateTo)'/>
+  <attribute name='facility' expression='..GetHospListDesc(..Facility)'/>
+  <attribute name='user' expression='..GetUserListDesc(..User)'/>
+  <attribute name='ReportTitle' expression='$$$Text("@MedicalRecordMovements@Medical Record Movements")'/>
+  <attribute name='timestamp' expression='$ZDATETIME($H, 2, 2)'/>  
+  <attribute name='username' expression='..Username'/>
+  
+  <group name="facility" breakOnField="HOSPDesc">
+ <attribute name="description" field="HOSPDesc" />
+   <aggregate name='TotalHospMove' type='CUSTOM' field='RTMVTRowId' class='%ZEN.Report.Aggregate.CountDistinct'/>
+ <group name="user" breakOnField="SSUSRName">
+<attribute name="description" field="SSUSRName" />
+  <aggregate name='TotalUserMove' type='CUSTOM' field='RTMVTRowId' class='%ZEN.Report.Aggregate.CountDistinct'/>
+      <group name='Detail'>
+       <attribute field='HOSPDesc' name='HOSPDesc'/> 
+       <attribute field='SSUSRName' name='SSUSRName'/>
+       <attribute field='RTMVTRowId' name='RTMVTRowId'/>
+       <attribute field='PAPMINo' name='PAPMINo'/>
+       <attribute field='RTMASMRNO' name='RTMASMRNO'/>
+       <attribute field='TYPCode' name='TYPCode'/>
+       <attribute field='RTMAVVolDesc' name='RTMAVVolDesc'/>
+       <attribute field='RTMVTDate' name='RTMVTDate' expression='..DisplayDate(%val)'/>
+       <attribute field='RTMVTTime' name='RTMVTTime' expression='..DisplayTime(%val)'/>
+       <attribute field='LocFromDesc' name='LocFromDesc'/>
+       <attribute field='LocToDesc' name='LocToDesc'/>
+      </group>
+    </group>
+   </group>
+ </report>
+]]></Data>
+</XData>
+
+<XData name="ReportDisplay">
+<XMLNamespace>http://www.intersystems.com/zen/report/display</XMLNamespace>
+<Data><![CDATA[
+<report xmlns='http://www.intersystems.com/zen/report/display'
+xmlns:auxxstyle='http://www.intersystems.com/zen/report/display/auxx/style'
+xmlns:auxx='http://www.intersystems.com/zen/report/display/auxx'
+  name='MRMovements'>
+<document width= "210mm" height="297mm" marginLeft="#(..DocMarginLeft)#" marginRight="#(..DocMarginRight)#" 
+marginTop="#(..DocMarginTop)#" marginBottom="#(..DocMarginBottom)#" footerHeight="#(..DocFooterHeight)#" headerHeight="#(..DocHeaderHeight)#" 
+regionBeforeExtent="#(..DocHeaderHeight)#" regionAfterExtent="#(..DocFooterHeight)#" >
+<auxxstyle:auxxgroupheader/>
+<auxxstyle:auxxgroupsummary/>
+<auxxstyle:auxxhospitalheader/>
+<auxxstyle:auxxpagefooter/>
+<auxxstyle:auxxpageheader/>
+<auxxstyle:auxxparameterheader/>
+<auxxstyle:auxxreporttitle/>
+<auxxstyle:auxxtablecolumn/>
+</document>
+<auxx:PageHeader pagetitle='@ReportTitle'/>
+<auxx:ReportFooter username='@username' timestamp='@timestamp'/>
+
+<body>
+<!-- REPORT HEADER -->
+<auxx:ReportHeader reporttitle='@ReportTitle'/>
+<auxx:ReportParameterHeader label='@Facility:@Facility:' field='@facility' xcondition="string-length(@facility)>0"/>
+<auxx:ReportParameterHeader label='@User:@User:' field='@user' xcondition="string-length(@user)>0"/>
+<auxx:ReportDateHeader datefrom="@datefrom" dateto="@dateto" />
+
+<line pattern="solid" width="100%"/>
+<line pattern="empty" width="100%"></line> 
+<auxx:NoResults xcondition="not(facility)" />
+<group name='facility' pagebreak="true">
+<auxx:GroupHospitalHeader label="@Facility:@Facility:" field="@description" />
+<line pattern="empty" lineHeight="1mm" />
+<group name='user'>
+<auxx:GroupHeader label="@User:@User:" field="@description" />
+<line pattern="empty" lineHeight="2mm" />
+     <table class='auxxtablecolumn' group='Detail'>
+        <item field='@PAPMINo' width="11%" caption='@URN@URN'/>
+        <item field='@RTMASMRNO' width="11%" caption='@MRN@MRN'/>
+        <item field='@TYPCode' width="9%" caption="@MRType@MR Type" />
+        <item field='@RTMAVVolDesc' width="8%" caption='@MRVolume@MR Volume'/>
+        <item field='@RTMVTDate' width="11%" caption='@MovementDate@Movement Date'/> 
+        <item field='@RTMVTTime' width="11%" caption='@MovementTime@Movement Time'/>
+        <item field='@LocFromDesc' width="20%" caption='@FromLocation@From Specialty'/> 
+        <item field='@LocToDesc' width="19%" caption='@ToLocation@To Specialty'/> 
+     </table>
+     <line pattern="empty" width="100%"></line> 
+	<auxx:GroupSummary label="@TotalNo.ofMedicalRecordMovementsfor@Total No. of Medical Record Movements for" group="@description" summaryvalue="TotalUserMove" />
+	<line pattern="empty" lineHeight="4mm" />
+   </group> 
+   <line pattern="empty" width="100%"></line> 
+  <auxx:GroupSummary label="@TotalNo.ofMedicalRecordMovementsfor@Total No. of Medical Record Movements for" group="@description" summaryvalue="TotalHospMove" />
+</group>
+</body>
+</report>
+]]></Data>
+</XData>
+</Class>
+</Export>

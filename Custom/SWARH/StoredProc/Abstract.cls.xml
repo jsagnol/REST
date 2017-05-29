@@ -1,0 +1,1707 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.SWARH.StoredProc.Abstract">
+<Description><![CDATA[
+<pre>
+***************************************************************************************************************************************
+* Class Description: Lists Class Methods common across SWARH reports, accessed by extending a report class.
+* 	ie: "Extends Custom.SWARH.Report.RptSvc.StoredProc.Abstract [ Not ProcedureBlock ]"
+* Developer: Timshel Knoll-Miller
+* Modified: 21/10/2013 - TKM - Added CalculateAge ClassMethods to calculate the age of a patient when passed two dates.
+* Modified: 22/10/2013 - PH  - Added GetLeaveDaysForEpisode ClassMethod to calculate the number of leave days for an episode.
+* Modified: 09/12/2014 - MW  - Added EscapeXML classmethod to convert strings to XML format and optionally replace "$C(13,10)" with "&#x2028;".
+* Modified: 03/03/2015 - BS  - Added ConvertDateToDDMMYYYY method to convert horolog date to DDMMYYYY
+* Modified: 20/04/2015 - BS  - Fix GetAdmWardForEpisode to only filter out Rejections
+* Modified: 24/04/2015 - JS  - Altered GetLastContactForEpisode to use globals
+* Modified: 08/10/2015 - TKM - Added parameter 'CACHETEMPSUBSCRIPT' which is a subscript of ^CacheTemp to use for storage of temporary query data
+* Modified: 02/11/2015 - TKM - Modified GetPreAdmWardForEpisode and GetMidnightWardForEpisode to ignore AdmTransactions with a status of 'Rejected'
+* Modified: 28/03/2017 - PH  - Modified EscapeXML to remove quotation marks that are rendered instead of white spaces at the start of a new line
+							   but keep quotation marks in the text (spaces at the start of new lines not rendered)
+***************************************************************************************************************************************
+</pre>]]></Description>
+<Abstract>1</Abstract>
+<Super>Report.ZEN.StoredProc.Abstract</Super>
+<TimeCreated>62517,43764.713143</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/SWARH/StoredProc/Abstract.xml#1 $</Default>
+</Parameter>
+
+<Parameter name="CACHETEMPSUBSCRIPT">
+<Description>
+Subscript of ^CacheTemp to use for storage of temporary query data.
+All references to ^CacheTemp should have ..#CACHETEMPSUBSCRIPT as the first subscript (item within the parentheses),
+This can be overridden in child classes if needed, by re-definining the parameter, eg:
+Parameter CACHETEMPSUBSCRIPT = "SomeOtherValue";</Description>
+<Default>SWARH</Default>
+</Parameter>
+
+<Method name="GetICD10CodeListPrefix">
+<Description>
+Get ICD10 Codes (only with a certain prefix) for an episode (as a comma separated string)</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>MRADMRowId,Prefix</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+ s ICDCodeList=""
+ &sql(DECLARE ICD10CursorP CURSOR FOR 
+ SELECT MRDIA_ICDCode_DR->MRCID_Code as ICDCode 
+ FROM SQLUser.MR_Diagnos where 
+ MRDIA_MRADM_ParRef=:MRADMRowId
+ and MRDIA_Prefix=:Prefix
+ order by MRDIA_DRGOrder asc
+ )
+ &SQL(OPEN ICD10CursorP)
+ &sql(FETCH ICD10CursorP INTO :ICDCode)
+ while 'SQLCODE {
+	s ICDCodeList = ICDCodeList_","_ICDCode
+	&sql(FETCH ICD10CursorP INTO :ICDCode)
+ }
+ &SQL(CLOSE ICD10CursorP)
+ Quit $e(ICDCodeList,2,*)
+]]></Implementation>
+</Method>
+
+<Method name="GetICD10CodeList">
+<Description>
+Get ICD10 Codes List for an episode (as a comma separated string)</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>MRADMRowId</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+ s ICDCodeList=""
+ &sql(DECLARE ICD10Cursor CURSOR FOR 
+ SELECT
+ MRDIA_ICDCode_DR->MRCID_Code as ICDCode FROM
+ SQLUser.MR_Diagnos where MRDIA_MRADM_ParRef=:MRADMRowId
+ order by MRDIA_DRGOrder asc
+ )
+ &SQL(OPEN ICD10Cursor)
+ &sql(FETCH ICD10Cursor INTO :ICDCode)
+ while 'SQLCODE {
+	s ICDCodeList = ICDCodeList_","_ICDCode
+	&sql(FETCH ICD10Cursor INTO :ICDCode)
+ }
+ &SQL(CLOSE ICD10Cursor)
+ Quit $e(ICDCodeList,2,*)
+]]></Implementation>
+</Method>
+
+<Method name="GetICD10DetailsList">
+<Description>
+Get ICD10 Rank,Prefix,Code and Description List for an episode (as a comma separated string)</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>MRADMRowId</FormalSpec>
+<ReturnType>%Integer</ReturnType>
+<Implementation><![CDATA[
+ s (ICDDetailsList,ICDRank,ICDPrefix,ICDCode,ICDDesc)=""
+ &sql(DECLARE ICD10CursorD CURSOR FOR 
+ SELECT
+ 	MRDIA_DRGOrder,
+ 	MRDIA_Prefix,
+ 	MRDIA_ICDCode_DR->MRCID_Code,
+    MRDIA_ICDCode_DR->MRCID_Desc 	
+ FROM
+ 	SQLUser.MR_Diagnos WHERE MRDIA_MRADM_ParRef = :MRADMRowId
+ ORDER BY MRDIA_DRGOrder ASC
+ )
+ &SQL(OPEN ICD10CursorD)
+ &sql(FETCH ICD10CursorD INTO :ICDRank,:ICDPrefix,:ICDCode,:ICDDesc)
+ WHILE 'SQLCODE {
+	s ICDDetailsList = ICDDetailsList_ICDRank_"  "_ICDPrefix_"  "_ICDCode_"  "_ICDDesc_$CHAR(13)_$CHAR(10) //Adds line feed/s
+	&sql(FETCH ICD10CursorD INTO :ICDRank,:ICDPrefix,:ICDCode,:ICDDesc)
+ }
+ &SQL(CLOSE ICD10CursorD)
+ Quit $e(ICDDetailsList,0,*-2)
+]]></Implementation>
+</Method>
+
+<Method name="GetProcDetailsList">
+<Description>
+Get Procedure Rank,Code and Description List for an episode (as a comma separated string)</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>MRADMRowId</FormalSpec>
+<ReturnType>%Integer</ReturnType>
+<Implementation><![CDATA[
+ s (ProcDetailsList,ProcRank,ProcCode,ProcDesc)=""
+ &sql(DECLARE ProcCursorD CURSOR FOR 
+ SELECT
+ 	PROC_DRGRank,
+ 	PROC_Operation_DR->OPER_Code,
+ 	PROC_Operation_DR->OPER_Desc
+ FROM
+ 	SQLUser.MR_Procedures WHERE PROC_ParRef= :MRADMRowId
+ ORDER BY PROC_DRGRank ASC
+ )
+ &SQL(OPEN ProcCursorD)
+ &sql(FETCH ProcCursorD INTO :ProcRank,:ProcCode,:ProcDesc)
+ WHILE 'SQLCODE {
+	s ProcDetailsList = ProcDetailsList_ProcRank_"  "_ProcCode_"  "_ProcDesc_$CHAR(13)_$CHAR(10) //Adds line feed/s
+	//s ProcDetailsList = ProcDetailsList_ProcRank_"  "_ProcCode_"  "_ProcDesc
+	
+	&sql(FETCH ProcCursorD INTO :ProcRank,:ProcCode,:ProcDesc)
+ }
+ &SQL(CLOSE ProcCursorD)
+ Quit $e(ProcDetailsList,0,*-2)
+]]></Implementation>
+</Method>
+
+<Method name="GetPrimaryInsChildsubForEpisode">
+<Description>
+Lookup the childsub of the primary insurance type code for an episode</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>PAADMRowId:%Integer</FormalSpec>
+<ReturnType>%Integer</ReturnType>
+<Implementation><![CDATA[
+	
+	Set (Childsub, SelChildsub, MinRank, InsType) = ""
+	// Loop through the episode's insurance records and find the one with the lowest INS_Rank
+	For {
+		Set Childsub = $O(^PAADM(PAADMRowId,"INS",Childsub))
+		Quit:(Childsub="")
+		Set Rank = $NUM($P(^PAADM(PAADMRowId,"INS",Childsub),"^",27)) // INS_Rank
+		If (MinRank="") || (Rank<MinRank) {
+			Set MinRank = Rank
+			Set SelChildsub = Childsub
+		}
+	}
+
+	Quit SelChildsub
+]]></Implementation>
+</Method>
+
+<Method name="GetPrimaryInsTypeForEpisode">
+<Description>
+Lookup the financial code for an episode</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>PAADMRowId:%Integer</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	Set InsType=""
+	Set Childsub = ..GetPrimaryInsChildsubForEpisode(PAADMRowId)
+	Set:(Childsub'="") InsType = $P(^PAADM(PAADMRowId,"INS",Childsub),"^",1) // PA_AdmInsurance Piece 1: INS_InsType_DR
+
+	Quit InsType
+]]></Implementation>
+</Method>
+
+<Method name="GetPrimaryInsTypeDescForEpisode">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>PAADMRowId:%Integer</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	Set InsTypeDesc=""
+	Set InsType=..GetPrimaryInsTypeForEpisode(PAADMRowId)
+	Set:(InsType'="") InsTypeDesc=$P(^ARC("INST",InsType),"^",2)
+	Quit InsTypeDesc
+]]></Implementation>
+</Method>
+
+<Method name="GetVitalFINCodeForEpisode">
+<Description>
+Lookup the migrated Vital financial code for an episode (if one exists)</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>PAADMRowId:%Integer</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	Set (Childsub, SelChildsub, MinRank, InsType, FINCode) = ""
+	// Loop through the episode's insurance records and find the one with the lowest INS_Rank
+	For {
+		Set Childsub = $O(^PAADM(PAADMRowId,"INS",Childsub))
+		Quit:(Childsub="")
+		Set InsType = $P(^PAADM(PAADMRowId,"INS",Childsub),"^",1) // INS_InsType_DR
+		// Find ACC payor record. ^ARC("INST",<rowid>) piece 1 = ARC_InsuranceType->INST_Code
+		If $P($G(^ARC("INST",InsType)),"^",1) = "ACC" { 
+			Set AuxInstType = $P(^PAADM(PAADMRowId,"INS",Childsub),"^",10) // PA_AdmInsurance->INS_AuxInsType_DR
+			Set FINCode = $P($G(^ARC("AUXIT",AuxInstType)),"^",1) // ARC_AuxilInsurType->AUXIT_Code
+			Quit
+		}
+	}
+
+	Quit FINCode
+]]></Implementation>
+</Method>
+
+<Method name="GetInvoiceTotalForEpisode">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>PAADMRowID</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+ s InvTot=""
+ &sql(DECLARE InvTotCursor CURSOR FOR 
+  SELECT sum(ARPBL_TotalInsCo) as Total
+  FROM SQLUser.AR_PatientBill
+  WHERE ARPBL_PAADM_DR = :PAADMRowID
+ )
+ &SQL(OPEN InvTotCursor)
+ &sql(FETCH InvTotCursor INTO :InvTot)
+ &SQL(CLOSE InvTotCursor)
+ Quit InvTot
+]]></Implementation>
+</Method>
+
+<Method name="GetFinDetailsForEpisode">
+<Description>
+Lookup the patient financial class for an episode</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>PAADMRowId:%Integer</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	Set (FinClass,INSChildsub, INSTRowId, INSTCode, PGRPRowId, PGRPCode, AUXITRowId, AUXITCode, AUXITPlanGroup5) = ""
+	
+	Set INSChildsub = ..GetPrimaryInsChildsubForEpisode(PAADMRowId)
+
+	If (INSChildsub'="") {
+		Set INSTRowId = $P(^PAADM(PAADMRowId,"INS",INSChildsub),"^",1) // PA_AdmInsurance Piece 1: INS_InsType_DR
+		Set AUXITRowId = $P(^PAADM(PAADMRowId,"INS",INSChildsub),"^",10) // PA_AdmInsurance Piece 10: INS_AuxInsType_DR
+	}
+	Set:(INSTRowId'="") INSTCode = $P($G(^ARC("INST",INSTRowId)),"^",1) // ARC_InsuranceType Piece 1: INST_Code
+	Set:(INSTRowId'="") PGRPRowId = $P($G(^ARC("INST",INSTRowId)),"^",24) // ARC_InsuranceType Piece 24: INST_PayorGroup_DR
+	Set:(AUXITRowId'="") AUXITCode = $P($G(^ARC("AUXIT",AUXITRowId)),"^",1) // ARC_AuxilInsurType Piece 1: AUXIT_Code
+	Set:(AUXITRowId'="") AUXITPlanGroup5 = $P($G(^ARC("AUXIT",AUXITRowId)),"^",14) // ARC_AuxilInsurType Piece 14: AUXIT_PlanGroup5   
+
+	Set:(PGRPRowId'="") PGRPCode = $P($G(^ARC("PGRP",PGRPRowId)),"^",1) // ARC_PayorGroup Piece 1: PGRP_Code
+
+	//Set InsType = ..GetPrimaryInsTypeForEpisode(PAADMRowId)
+	
+	//Set:(InsType'="") InsPayorGroup = $P($G(^ARC("INST",InsType)),"^",24) // ARC_InsuranceType->INST_PayorGroup_DR
+	//Set:(InsPayorGroup'="") InsPayorGroupCode = $P($G(^ARC("PGRP",InsPayorGroup)),"^",1) // ARC_PayorGroup->PGRP_Code
+	;Set:(InsPayorGroup'="") InsPayorGroupDesc = $P($G(^ARC("PGRP",InsPayorGroup)),"^",2) // ARC_PayorGroup->PGRP_Desc
+
+	If (PGRPCode = "M") { // Public payors
+		Set FinClass = "PUB"
+		Set SAUXITCode = $CASE($E(AUXITCode,0,2),"SF":$E(AUXITCode,0,2),"XX":$E(AUXITCode,0,2),:AUXITCode)
+		// Patient payor:
+		Set:(INSTCode="P") FinClass = $CASE(
+					SAUXITCode
+				,	"SF"	: "SF"			// Plan codes starting with "SF" are self-funded
+				,	"XX"	: "INEL"		// Plan codes starting with "XX" are ineligible
+				,	"MF"	: "INEL"		// Ineligible - Asylum Seeker
+				,	"NEC"	: "PRIV"		// "NEC": Health Fund
+				,	"M5"	: "PUB NHT"		// Public NHT with NH5
+				,	"MN"	: "PUB NHT"		// Public NHT no NH5
+				,	"MP"	: "PUB"			// Public: Eligible
+				,	"MA"	: "PUB"			// Reciprocal Health Care Agreement
+				,	"MPP"	: ""			// Psychiatric Extended Care
+				,	"MR"	: ""			// Geriatric Respite Care
+				,			: "UNK"			// Unknown
+			)
+	} Else { // Private payor group
+		Set FinClass = INSTCode
+		If (AUXITPlanGroup5 = "NHT") { // PlanGroup5 is the Oracle plan mapping; this will be "NHT" for all nursing home type episodes with private payors
+			Set FinClass = FinClass _ " " _ AUXITPlanGroup5 // Append " NHT" to code
+		} ElseIf ((PGRPCode = "D")||(PGRPCode="V")) { // DVA payor "D" in 2010 but "V" in 2012
+			Set tPlanLastDigit = $E(AUXITCode,2)
+ 			If ((tPlanLastDigit = "5") || (tPlanLastDigit = "N")) { // V5= DVA NHT- With NH5; VN= DVA NHT- without NH5. I think that these records are meant to have NHT in PlanGroup5 as well, so if this gets fixed then this entire ElseIf block can be removed!
+				Set FinClass = FinClass _ " NHT"
+ 			}
+		}
+	}
+	
+	Quit FinClass
+]]></Implementation>
+</Method>
+
+<Method name="GetFinDetailsForEpisodeMapped">
+<Description>
+Lookup the patient financial class for an episode</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>PAADMRowId:%Integer</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	Set (FinClass,INSChildsub, INSTRowId, INSTCode, PGRPRowId, PGRPCode, AUXITRowId, AUXITCode, AUXITPlanGroup5) = ""
+	
+	Set INSChildsub = ..GetPrimaryInsChildsubForEpisode(PAADMRowId)
+
+	If (INSChildsub'="") {
+		Set INSTRowId = $P(^PAADM(PAADMRowId,"INS",INSChildsub),"^",1) // PA_AdmInsurance Piece 1: INS_InsType_DR
+		Set AUXITRowId = $P(^PAADM(PAADMRowId,"INS",INSChildsub),"^",10) // PA_AdmInsurance Piece 10: INS_AuxInsType_DR
+	}
+	Set:(INSTRowId'="") INSTCode = $P($G(^ARC("INST",INSTRowId)),"^",1) // ARC_InsuranceType Piece 1: INST_Code
+	Set:(INSTRowId'="") PGRPRowId = $P($G(^ARC("INST",INSTRowId)),"^",24) // ARC_InsuranceType Piece 24: INST_PayorGroup_DR
+	Set:(AUXITRowId'="") AUXITCode = $P($G(^ARC("AUXIT",AUXITRowId)),"^",1) // ARC_AuxilInsurType Piece 1: AUXIT_Code
+	Set:(AUXITRowId'="") AUXITPlanGroup5 = $P($G(^ARC("AUXIT",AUXITRowId)),"^",14) // ARC_AuxilInsurType Piece 14: AUXIT_PlanGroup5   
+
+	Set:(PGRPRowId'="") PGRPCode = $P($G(^ARC("PGRP",PGRPRowId)),"^",1) // ARC_PayorGroup Piece 1: PGRP_Code
+
+	//Set InsType = ..GetPrimaryInsTypeForEpisode(PAADMRowId)
+	
+	//Set:(InsType'="") InsPayorGroup = $P($G(^ARC("INST",InsType)),"^",24) // ARC_InsuranceType->INST_PayorGroup_DR
+	//Set:(InsPayorGroup'="") InsPayorGroupCode = $P($G(^ARC("PGRP",InsPayorGroup)),"^",1) // ARC_PayorGroup->PGRP_Code
+	;Set:(InsPayorGroup'="") InsPayorGroupDesc = $P($G(^ARC("PGRP",InsPayorGroup)),"^",2) // ARC_PayorGroup->PGRP_Desc
+
+	If (PGRPCode = "X") {Set FinClass = "INEL" Q FinClass}
+	If (PGRPCode = "M") { // Public payors
+		//Set FinClass = "PUB"
+		Set SAUXITCode = $CASE($E(AUXITCode,0,2),"SF":$E(AUXITCode,0,2),"XX":$E(AUXITCode,0,2),:AUXITCode)
+		// Patient payor:
+		Set:(INSTCode="P") (FinClass) = "UNK"
+		 &sql(SELECT
+	        NATC_MappedValue
+	        INTO :FinClass
+			FROM
+	        	SqlUser.PAC_NationalCodes
+			WHERE
+	        	NATC_ReportingType_DR->REPTYPE_Desc = 'Financial Code Mapping' and NATC_ActualValue = :SAUXITCode
+			)
+			
+
+	} Else { // Private payor group
+		Set FinClass = INSTCode
+		If (AUXITPlanGroup5 = "NHT") { // PlanGroup5 is the Oracle plan mapping; this will be "NHT" for all nursing home type episodes with private payors
+			Set FinClass = FinClass _ " " _ AUXITPlanGroup5 // Append " NHT" to code
+		} ElseIf ((PGRPCode = "D")||(PGRPCode="V")) { // DVA payor "D" in 2010 but "V" in 2012
+			Set tPlanLastDigit = $E(AUXITCode,2)
+ 			If ((tPlanLastDigit = "5") || (tPlanLastDigit = "N")) { // V5= DVA NHT- With NH5; VN= DVA NHT- without NH5. I think that these records are meant to have NHT in PlanGroup5 as well, so if this gets fixed then this entire ElseIf block can be removed!
+				Set FinClass = FinClass _ " NHT"
+ 			}
+		}
+	}
+	
+	Quit FinClass
+]]></Implementation>
+</Method>
+
+<Method name="GetPrimaryInsPayorGroupForEpisode">
+<Description>
+Lookup the financial code for an episode</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>PAADMRowId:%Integer</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	Set (InsType, InsPayorGroup, InsPayorGroupDesc, InsPayorGroupCode) = ""
+	
+	Set InsType = ..GetPrimaryInsTypeForEpisode(PAADMRowId)
+	
+	Set:(InsType'="") InsPayorGroup = $P($G(^ARC("INST",InsType)),"^",24) // ARC_InsuranceType->INST_PayorGroup_DR
+	Set:(InsPayorGroup'="") InsPayorGroupCode = $P($G(^ARC("PGRP",InsPayorGroup)),"^",1) // ARC_PayorGroup->PGRP_Code
+	;Set:(InsPayorGroup'="") InsPayorGroupDesc = $P($G(^ARC("PGRP",InsPayorGroup)),"^",2) // ARC_PayorGroup->PGRP_Desc
+
+	Set InsPayorGroupDesc = ##class(Custom.AUXXUtilities).GetMappedCode("ARC_PayorGroup","PGRP_Code","PGCODES",InsPayorGroupCode)
+	
+	Quit InsPayorGroupDesc
+]]></Implementation>
+</Method>
+
+<Method name="GetPrimaryInsCodeForEpisode">
+<Description>
+Lookup the primary insurance code for an episode</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>PAADMRowId:%Integer</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	Set (InsType, InsTypeCode) = ""
+	Set InsType = ..GetPrimaryInsTypeForEpisode(PAADMRowId)
+	Set:(InsType'="") InsTypeCode = $P($G(^ARC("INST",InsType)),"^",1) // ARC_InsuranceType Piece 1: INST_Code
+	 
+	Quit InsTypeCode
+]]></Implementation>
+</Method>
+
+<Method name="GetFinCodeForEpisode">
+<Description>
+Lookup the financial code for an episode</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>PAADMRowId:%Integer</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[	Quit ..GetPrimaryInsCodeForEpisode(PAADMRowId)
+]]></Implementation>
+</Method>
+
+<Method name="GetPrimaryFinCatForEpisode">
+<Description>
+Lookup the financial code for an episode</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>PAADMRowId:%Integer</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	
+	Set (InsType, InsTypeCat) = ""
+	Set InsType = ..GetPrimaryInsTypeForEpisode(PAADMRowId)
+	Set:(InsType'="") InsTypeCat = $P($G(^ARC("INST",InsType)),"^",4) // ARC_InsuranceType Piece 4: INST_Category
+	 
+	Quit InsTypeCat
+]]></Implementation>
+</Method>
+
+<Method name="GetAdmWardForEpisode">
+<Description>
+Lookup the admission ward for an episode</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>PAADMRowId:%Integer</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	
+	Set (Childsub, SelChildsub, AdmChildsub, TransDate, TransTime, WardCode, WardId) = ""
+	For { // Loop over PA_AdmTransaction entries (^PAADM(RowID,"TRANS",x))
+		Set Childsub=$O(^PAADM(PAADMRowId,"TRANS",Childsub))
+		Quit:(Childsub="")
+		Set Trans = $G(^PAADM(PAADMRowId,"TRANS",Childsub))
+		Set TransTypeDR = $P(Trans,"^",21)
+		Set TransType = $SELECT(TransTypeDR="":"", 1:$P($G(^PAC("TRANSTYP",TransTypeDR)),"^",1))
+		Set TransStatusDR = $P(Trans,"^",12)
+		Set TransStatus = $SELECT(TransStatusDR="":"", 1:$p($g(^PAC("REQST",TransStatusDR)), "^", 1))  ;# Make sure status is Done
+		  
+		if ((TransType = "M") && $P(Trans,"^",9) && (TransStatus '= "J")
+			 &&	(
+					(TransDate="")
+				||	($P(Trans,"^",1)<TransDate)
+				||	(($P(Trans,"^",1)=TransDate)&&($P(Trans,"^",2)<TransTime))
+				)
+			) {
+			Set WardId = $P(Trans,"^",9)
+			Set TransDate = $P(Trans,"^",1)
+			Set TransTime = $P(Trans,"^",2)
+		}
+	}
+	Set:(WardId'="") WardCode = $P(^PAWARD(WardId),"^",1)
+	Quit WardCode
+]]></Implementation>
+</Method>
+
+<Method name="GetPreAdmWardForEpisode">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>PAADMRowId:%Integer</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	
+	Set (Childsub, SelChildsub, AdmChildsub, TransDate, TransTime, WardCode, WardId) = ""
+	For { // Loop over PA_AdmTransaction entries (^PAADM(RowID,"TRANS",x))
+		Set Childsub=$O(^PAADM(PAADMRowId,"TRANS",Childsub))
+		Quit:(Childsub="")
+		Set Trans = $G(^PAADM(PAADMRowId,"TRANS",Childsub))
+		Set TransTypeDR = $P(Trans,"^",21)
+		Set TransType = $SELECT(TransTypeDR="":"", 1:$P($G(^PAC("TRANSTYP",TransTypeDR)),"^",1))
+		Set TransStatusDR = $P(Trans,"^",12)
+		Set TransStatus = $SELECT(TransStatusDR="":"", 1:$p($g(^PAC("REQST",TransStatusDR)), "^", 1))  ;# Make sure status is Done
+		  
+		if ((TransType = "B") && $P(Trans,"^",9) && (TransStatus '= "J")
+			 &&	(
+					(TransDate="")
+				||	($P(Trans,"^",1)<TransDate)
+				||	(($P(Trans,"^",1)=TransDate)&&($P(Trans,"^",2)<TransTime))
+				)
+			) {
+			Set WardId = $P(Trans,"^",9)
+			Set TransDate = $P(Trans,"^",1)
+			Set TransTime = $P(Trans,"^",2)
+		}
+	}
+	Set:(WardId'="") WardCode = $P(^PAWARD(WardId),"^",1)
+	Quit WardCode
+]]></Implementation>
+</Method>
+
+<Method name="GetMidnightWardForEpisode">
+<Description>
+Lookup the admission ward for an episode</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>PAADMRowId:%Integer,DateFrom:%Date</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	
+	Set (Childsub, SelChildsub, AdmChildsub, TransDate, TransTime, WardCode, WardId) = ""
+	For { // Loop over PA_AdmTransaction entries (^PAADM(RowID,"TRANS",x))
+		Set Childsub=$O(^PAADM(PAADMRowId,"TRANS",Childsub))
+		Quit:(Childsub="")
+		Set Trans = $G(^PAADM(PAADMRowId,"TRANS",Childsub))
+		Set TransTypeDR = $P(Trans,"^",21)
+		Set TransType = $SELECT(TransTypeDR="":"", 1:$P($G(^PAC("TRANSTYP",TransTypeDR)),"^",1))
+		Set TransStatusDR = $P(Trans,"^",12)
+		Set TransStatus = $SELECT(TransStatusDR="":"", 1:$p($g(^PAC("REQST",TransStatusDR)), "^", 1))  ;# Make sure status is Done
+		  
+		if ((TransType = "M") && $P(Trans,"^",9) && (TransStatus '= "J")
+			&&	(
+					($P(Trans,"^",1)<DateFrom)
+				&&	(
+						(TransDate="")
+					||	($P(Trans,"^",1)>TransDate)
+					||	(($P(Trans,"^",1)=TransDate)&&($P(Trans,"^",2)>TransTime))
+					)
+				)
+			) {
+			Set WardId = $P(Trans,"^",9)
+			Set TransDate = $P(Trans,"^",1)
+			Set TransTime = $P(Trans,"^",2)
+		}
+	}
+	Set:(WardId'="") WardCode = $P(^PAWARD(WardId),"^",1)
+	Quit WardCode
+]]></Implementation>
+</Method>
+
+<Method name="GetAdmSpecForEpisode">
+<Description>
+Lookup the admission Specialty for an episode</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>PAADMRowId:%Integer</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	
+	Set (Childsub, SelChildsub, AdmChildsub, TransDate, TransTime, WardCode, RowId) = ""
+	For { // Loop over PA_AdmTransaction entries (^PAADM(RowID,"TRANS",x))
+		Set Childsub=$O(^PAADM(PAADMRowId,"TRANS",Childsub))
+		Quit:(Childsub="")
+		Set Trans = $G(^PAADM(PAADMRowId,"TRANS",Childsub))
+		if ($P(Trans,"^",6) &&
+			(
+				(TransDate="")||
+				($P(Trans,"^",1)<TransDate))||
+				(($P(Trans,"^",1)=TransDate)&&($P(Trans,"^",2)<TransTime))
+			) 
+		{
+			Set RowId = $P(Trans,"^",6)
+			Set TransDate = $P(Trans,"^",1)
+			Set TransTime = $P(Trans,"^",2)
+		}
+	}
+	
+	Quit RowId
+]]></Implementation>
+</Method>
+
+<Method name="GetDaysCarriedForwardForEpisode">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>PAADMRowId:%Integer</FormalSpec>
+<ReturnType>%Integer</ReturnType>
+<Implementation><![CDATA[
+	
+	/* If the episode is a statistical admission, find the first non-statistical admission for the current patient stay.
+	 * Days Carried Forward (number of days spent in another hospital before transfer to the current one) is stored against
+	 * the first episode. */
+	Set PAPMIRowId = $P($G(^PAADM(PAADMRowId)),"^",1)
+	For  {
+		Set PAADMAdmDate = $P($G(^PAADM(PAADMRowId)), "^", 6)
+		Set PAADMAdmTime = $P($G(^PAADM(PAADMRowId)), "^", 7)
+		Set PAADMDischgDate = $P($G(^PAADM(PAADMRowId)), "^", 17)
+		Set PAADMHospitalDR=$P($G(^PAADM(PAADMRowId,2)), "^", 85)
+		
+		Set ADSOURowId = $P($G(^PAADM(PAADMRowId)),"^",10)	 	// PAAdm->PAADM_AdmSrc_DR
+		Write:ADSOURowId="" "Episode " _ PAADMRowId _ " PAAdm->PAADM_AdmSrc_DR NULL, quitting",!
+		Quit:ADSOURowId=""
+		Set ADSOUCode = $P($G( ^PAC("ADSOU",ADSOURowId)),"^",1)		// ADSOU_Code
+		Write:ADSOUCode'="S" "Non-statistical admission for episode " _ PAADMRowId _ ", quitting",!
+		Quit:ADSOUCode'="S"
+
+		Set ClosestPAADMRowId = ""
+		Set ClosestPrevDischgDate = 0
+		Set ClosestPrevDischgTime = 0
+		
+		// Search for previous non-cancelled inpatient episodes with statistical discharge & find the most recent to the current episode
+		Set PrevPAADMRowId = ""
+		For  {
+			Set PrevPAADMRowId = $O(^PAPERdr(PAPMIRowId,"ADM","I",PrevPAADMRowId))	// Index of episodes by patient ID
+			Quit:PrevPAADMRowId=""
+			
+			Set PrevPAADMVisitStatus = $P($G(^PAADM(PrevPAADMRowId)), "^", 20)	// PAAdm->PAADM_VisitStatus
+			Continue:PrevPAADMVisitStatus="C"		// Skip over cancelled episodes
+			Continue:PrevPAADMVisitStatus="P" 		// Skip over preadmissions
+			
+			Set PrevPAADMHospitalDR=$P($G(^PAADM(PrevPAADMRowId,2)), "^", 85)
+			Continue:PrevPAADMHospitalDR'=PAADMHospitalDR // Skip over different hospital
+			
+			Set PrevMRADMRowId = $P($G(^PAADM(PrevPAADMRowId)),"^",61)			// PAAdm->PAADM_MainMRADM_DR
+			Set PrevCTDSPRowID = $P($G(^MR(PrevMRADMRowId, "PRO", 1)),"^",11)	// MRAdm->MRADM_DischType_DR
+			If (PrevCTDSPRowID) {
+				Set CTDSPCode = $P($G(^CT("DSP",PrevCTDSPRowID)),"^",1)			// CTDisposit->CTDSP_Code
+				If (CTDSPCode '= "S") {
+					Continue													// Skip non-statistical discharges
+				}
+			}
+
+			Set PrevPAADMDischgDate = $P($G(^PAADM(PrevPAADMRowId)), "^", 17)
+			Set PrevPAADMDischgTime = $P($G(^PAADM(PrevPAADMRowId)), "^", 18)
+
+			If (PrevPAADMDischgDate < PAADMAdmDate) || ((PrevPAADMDischgDate = PAADMAdmDate) && (PrevPAADMDischgTime <= PAADMAdmTime)) {
+				If (PrevPAADMDischgDate > ClosestPrevDischgDate) || ((PrevPAADMDischgDate = ClosestPrevDischgDate) && (PrevPAADMDischgTime > ClosestPrevDischgTime)) {
+					Set ClosestPAADMRowId = PrevPAADMRowId
+					Set ClosestPrevDischgDate = PrevPAADMDischgDate
+					Set ClosestPrevDischgTime = ClosestPrevDischgTime
+				}
+			}
+		}
+		
+		If ClosestPAADMRowId {
+			Set PAADMRowId = ClosestPAADMRowId
+		} Else {
+			Quit
+		}
+	}
+	
+	// PAADMRowId will now have the row ID of the actual real hospital admission for the current patient stay
+	Set PAADMDaysCarriedForward = $P($G(^PAADM(PAADMRowId, 2)),"^", 95)	// PA_Adm->PAADM_DaysCarriedForward
+	
+	Quit PAADMDaysCarriedForward
+]]></Implementation>
+</Method>
+
+<Method name="GetLOSForPrevLinkedEpisodes">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>PAADMRowId:%Integer,IncludeThisEpisode:%Boolean=0</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	Set LOS = 0
+	
+	Set PAPMIRowId = $P($G(^PAADM(PAADMRowId)),"^",1)
+
+	// Loop for each statistical admission found
+	For  {
+ //		Set IPATRowId = $P($G(^PAADM(PAADMRowId,2)),"^",28)	 	// PAAdm->PAADM_InPatAdmType_DR
+ //		Write:IPATRowId="" "Episode " _ PAADMRowId _ " PAAdm->PAADM_InPatAdmType_DR NULL, quitting",!
+ //		Quit:IPATRowId=""
+ //		Set IPATCode = $P($G(^PAC("IPAT",IPATRowId)),"^",1)		// IPAT_Code
+ //		Write:IPATCode'="S" "Non-statistical admission for episode " _ PAADMRowId _ ", quitting",!
+ //		Quit:IPATCode'="S"
+
+		Set PAADMAdmDate = $P($G(^PAADM(PAADMRowId)), "^", 6)
+		Set PAADMAdmTime = $P($G(^PAADM(PAADMRowId)), "^", 7)
+		Set PAADMDischgDate = $P($G(^PAADM(PAADMRowId)), "^", 17)
+		
+		If IncludeThisEpisode {
+			// Calculate LOS 
+			W "LOS for episode ID " _ PAADMRowId _ " with LOS " _ (PAADMDischgDate - PAADMAdmDate),!
+			Set LOS = LOS + (PAADMDischgDate - PAADMAdmDate)
+		}
+		
+		Set ADSOURowId = $P($G(^PAADM(PAADMRowId)),"^",10)	 	// PAAdm->PAADM_AdmSrc_DR
+		Write:ADSOURowId="" "Episode " _ PAADMRowId _ " PAAdm->PAADM_AdmSrc_DR NULL, quitting",!
+		Quit:ADSOURowId=""
+		Set ADSOUCode = $P($G( ^PAC("ADSOU",ADSOURowId)),"^",1)		// ADSOU_Code
+		Write:ADSOUCode'="S" "Non-statistical admission for episode " _ PAADMRowId _ ", quitting",!
+		Quit:ADSOUCode'="S"
+
+		Write "Searching for previous episodes for " _ PAADMRowId,!
+
+		Set ClosestPAADMRowId = ""
+		Set ClosestPrevDischgDate = 0
+		Set ClosestPrevDischgTime = 0
+		
+		// Search for previous non-cancelled inpatient episodes with statistical discharge & find the most recent to the current episode
+		Set PrevPAADMRowId = ""
+		For  {
+			Set PrevPAADMRowId = $O(^PAPERdr(PAPMIRowId,"ADM","I",PrevPAADMRowId))	// Index of episodes by patient ID
+			Quit:PrevPAADMRowId=""
+			
+			Set PrevPAADMVisitStatus = $P($G(^PAADM(PrevPAADMRowId)), "^", 20)	// PAAdm->PAADM_VisitStatus
+			Continue:PrevPAADMVisitStatus="C"									// Skip over cancelled episodes
+
+			Set PrevMRADMRowId = $P($G(^PAADM(PrevPAADMRowId)),"^",61)			// PAAdm->PAADM_MainMRADM_DR
+			Set PrevCTDSPRowID = $P($G(^MR(PrevMRADMRowId, "PRO", 1)),"^",11)	// MRAdm->MRADM_DischType_DR
+			If (PrevCTDSPRowID) {
+				Set CTDSPCode = $P($G(^CT("DSP",PrevCTDSPRowID)),"^",1)			// CTDisposit->CTDSP_Code
+				If (CTDSPCode '= "S") {
+					Continue													// Skip non-statistical discharges
+				}
+			}
+
+			Set PrevPAADMDischgDate = $P($G(^PAADM(PrevPAADMRowId)), "^", 17)
+			Set PrevPAADMDischgTime = $P($G(^PAADM(PrevPAADMRowId)), "^", 18)
+
+			If (PrevPAADMDischgDate < PAADMAdmDate) || ((PrevPAADMDischgDate = PAADMAdmDate) && (PrevPAADMDischgTime <= PAADMAdmTime)) {
+				If (PrevPAADMDischgDate > ClosestPrevDischgDate) || ((PrevPAADMDischgDate = ClosestPrevDischgDate) && (PrevPAADMDischgTime > ClosestPrevDischgTime)) {
+					Set ClosestPAADMRowId = PrevPAADMRowId
+					Set ClosestPrevDischgDate = PrevPAADMDischgDate
+					Set ClosestPrevDischgTime = ClosestPrevDischgTime
+				}
+			}
+		}
+		
+		If ClosestPAADMRowId {
+			Set PAADMRowId = ClosestPAADMRowId
+		} Else {
+			Quit
+		}
+		Set IncludeThisEpisode = 1
+	}
+	
+	Quit LOS
+]]></Implementation>
+</Method>
+
+<Method name="GetLOSForEpisode">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>PAADMRowId:%Integer,EffectiveDate:%Date=0,IncludeStatDischarges:%Boolean=0</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	Set LOS = 0
+	
+	Set IPATRowId = $P($G(^PAADM(PAADMRowId,2)),"^",28)		// PAAdm->PAADM_InPatAdmType_DR
+	Set IPATCode = $P($G(^PAC("IPAT",IPATRowId)),"^",1)		// IPAT_Code
+
+	If (IncludeStatDischarges && (IPATCode = "S")) {
+		Set PAPMIRowId = $P($G(^PAADM(PAADMRowId)),"^",1)
+		Set PrevPAADMRowId = $O(^PAPERdr(PAPMIRowId,"ADM","I",PAADMRowId),-1)
+		If (PrevPAADMRowId) {
+			Set PrevMRADMRowId = $P($G(^PAADM(PrevPAADMRowId)),"^",61)			// PAAdm->PAADM_MainMRADM_DR
+			Set PrevCTDSPRowID = $P($G(^MR(PrevMRADMRowId, "PRO", 1)),"^",11)	// MRAdm->MRADM_DischType_DR
+			Set CTDSPCode = $P($G(^CT("DSP",PrevCTDSPRowID)),"^",1)				// CTDisposit->CTDSP_Code
+			If (CTDSPCode = "S") {
+				Set LOS = ..GetLOSForEpisode(PrevPAADMRowId)
+			}
+		}
+	}
+
+
+	If EffectiveDate = 0 {
+		Set EffectiveDate = $P($G(^PAADM(PAADMRowId)),"^",17)						// PAAdm->PAADM_DischgDate
+	}
+
+	Set PAADMAdmDate = $P($G(^PAADM(PAADMRowId)),"^",6)						// PAAdm->PAADM_AdmDate
+	Set LOS = LOS + (EffectiveDate - PAADMAdmDate)
+
+	Quit LOS
+]]></Implementation>
+</Method>
+
+<Method name="CalculateLOS">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>AdmDate:%Date,DischargeDate:%Date</FormalSpec>
+<ReturnType>%Integer</ReturnType>
+<Implementation><![CDATA[
+	//If (($L(AdmDate)'=$L(+AdmDate)) && ($L($P(AdmDate,","))'=$L(+AdmDate))) { // AdmDate a string, and not in horolog format; probably an ODBC date?
+	//	throw $$$ERROR("Date not in horolog format?")
+	//}
+	Set LOS = ((+DischargeDate) - (+AdmDate)) // LOS is discharge date - admdate
+	Set:(LOS=0) LOS = 1 // or 1 for same day
+	Quit LOS
+]]></Implementation>
+</Method>
+
+<Method name="CalcLOSDays">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>AdmDateH:%String,DischgDateH:%String,MinLOS:%Integer=0</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	If AdmDateH && DischgDateH {
+		Set LOSDays = ((+DischgDateH) - (+AdmDateH)) // LOS is discharge date - admdate
+		Set:LOSDays<MinLOS LOSDays = MinLOS
+	}
+	Quit LOSDays
+]]></Implementation>
+</Method>
+
+<Method name="CalcLOSHours">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>AdmDateH:%String,AdmTimeH:%String,DischgDateH:%String,DischgTimeH:%String</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	Set LOSHours = ""
+	If (AdmDateH && AdmTimeH && DischgDateH && DischgTimeH) {
+		Set LOSHours = 24 * ((+DischgDateH) - (+AdmDateH))
+		Set LOSHours = LOSHours + (((+DischgTimeH) - (+AdmTimeH))/60/60)
+	}
+	Quit LOSHours
+]]></Implementation>
+</Method>
+
+<Method name="CalcLOSDaysHours">
+<Description>
+Calculates exact days and hours duration for an episode, returns a string in the form "1d12h"</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>AdmDateH:%Date,AdmTimeH:%Time,DischgDateH:%Date,DischgTimeH:%Time</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	Set (LOSDaysHours, LOSDays, LOSHours) = ""
+
+	Set LOSHours = ..CalcLOSHours(AdmDateH, AdmTimeH, DischgDateH, DischgTimeH)
+ 	Set LOSDays = $NORMALIZE(LOSHours / 24, -1) ; Truncate to integer value
+ 	Set LOSHours = $NORMALIZE(LOSHours # 24, -1) ; Truncate to integer value
+ 
+	Set:LOSDays LOSDaysHours = LOSDays_"d"
+	Set:LOSHours LOSDaysHours = LOSDaysHours_LOSHours_"h"
+
+	Quit LOSDaysHours
+]]></Implementation>
+</Method>
+
+<Method name="ConvertHorologToDDMMYYYY">
+<Description>
+Convert the dates to DD/MM/YYYY date format</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>Date:%String</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+ If Date Set Date=$ZD(Date,4,,4)
+ Quit Date
+]]></Implementation>
+</Method>
+
+<Method name="ConvertDateTimeToHorolog">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>Date:%String,Time:%String</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	If (Date && Time) Set Date = Date _ "," _ Time
+	Quit Date
+]]></Implementation>
+</Method>
+
+<Method name="ConvertDateTimeToODBC">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>Date:%String,Time:%String</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	Set DateTime = ..ConvertDateTimeToHorolog(Date, Time)
+	If DateTime Set DateTime = ..ConvertHDateTimeToODBC(DateTime)
+	Quit DateTime
+]]></Implementation>
+</Method>
+
+<Method name="ConvertHDateTimeToODBC">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>DateTime:%String</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	If DateTime Set DateTime = $ZDATETIME(DateTime,3,1)
+	Quit DateTime
+]]></Implementation>
+</Method>
+
+<Method name="ConvertTimeToODBC">
+<Description>
+Returns HH:MM:SS</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>Time:%String</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+ If Time Set Time=$ZT(Time,1)
+ Quit Time
+]]></Implementation>
+</Method>
+
+<Method name="ConvertTimeToHHMM">
+<Description>
+Returns HH:MM</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>Time:%String</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+ If Time Set Time=$ZT(Time,2)
+ Quit Time
+]]></Implementation>
+</Method>
+
+<Method name="GetBedCount">
+<Description>
+Counts active beds after creating a active ward list for a Hospital for a given start and end date.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>HospDR:%String,StartDate:%Date,EndDate:%Date</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+ //Set wardlist = ""
+ Set TotalBeds = 0
+ &sql(DECLARE WARDCursor CURSOR FOR
+ 		SELECT DISTINCT WARD_RowId
+ 		FROM SQLUser.PAC_WARD 
+ 		WHERE WARD_LocationDR->CTLOC_Type = 'W' 
+ 		AND WARD_LocationDR->CTLOC_Hospital_DR = :HospDR
+ 		AND WARD_Active='Y'
+ 		AND ((WARD_LocationDR->CTLOC_DateActiveFrom IS NULL) OR (WARD_LocationDR->CTLOC_DateActiveFrom <= :StartDate))
+        AND ((WARD_LocationDR->CTLOC_DateActiveTo IS NULL) OR (WARD_LocationDR->CTLOC_DateActiveTo >= :EndDate))
+ 		)
+ &sql(OPEN WARDCursor)
+ &sql(FETCH WARDCursor INTO :ward)
+ while 'SQLCODE {
+	 &sql(SELECT COUNT(*) INTO :BedCount
+ 		FROM SQLUser.PAC_BED
+ 		WHERE BED_WARD_ParRef = :ward
+ 		AND ((BED_DateFrom IS NULL) OR (BED_DateFrom <= :StartDate))
+        AND ((BED_DateTo IS NULL) OR (BED_DateTo >= :EndDate))
+	)
+	 Set TotalBeds = TotalBeds+BedCount
+	 //Set wardlist = wardlist_","_ward
+	 &sql(FETCH WARDCursor INTO :ward)
+ 	}
+ &sql(CLOSE WARDCursor)
+ //Quit $e(wardlist,2,*)
+ Quit (TotalBeds)
+]]></Implementation>
+</Method>
+
+<Method name="GetWardIDForEpisode">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>PAADMRowId:%Integer</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	
+	Set (Childsub, SelChildsub, AdmChildsub, TransDate, TransTime, WardCode, WardId) = ""
+	For { // Loop over PA_AdmTransaction entries (^PAADM(RowID,"TRANS",x))
+		Set Childsub=$O(^PAADM(PAADMRowId,"TRANS",Childsub))
+		Quit:(Childsub="")
+		Set Trans = $G(^PAADM(PAADMRowId,"TRANS",Childsub))
+		if ($P(Trans,"^",9) &&
+			(
+				(TransDate="")||
+				($P(Trans,"^",1)<TransDate))||
+				(($P(Trans,"^",1)=TransDate)&&($P(Trans,"^",2)<TransTime))
+			) {
+			Set WardId = $P(Trans,"^",9)
+			Set TransDate = $P(Trans,"^",1)
+			Set TransTime = $P(Trans,"^",2)
+		}
+	}
+	Set:(WardId'="") WardCode = $P(^PAWARD(WardId),"^",1)
+	Quit WardId
+]]></Implementation>
+</Method>
+
+<Method name="GetWardList">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>xHospDR:%Integer,xStartDate:%Date,xEndDate:%Date</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+ Set xwardlist = ""
+ Set xwardID = 0
+ 
+ &sql(DECLARE xWARDCursor CURSOR FOR
+ 		SELECT DISTINCT WARD_RowId AS WardRowID
+ 		FROM SQLUser.PAC_WARD 
+ 		WHERE WARD_LocationDR->CTLOC_Type = 'W' 
+ 		AND WARD_LocationDR->CTLOC_Hospital_DR = :xHospDR
+ 		AND WARD_Active = 'Y'
+ 		AND ((WARD_LocationDR->CTLOC_DateActiveFrom IS NULL) OR (WARD_LocationDR->CTLOC_DateActiveFrom <= :xStartDate))
+        AND ((WARD_LocationDR->CTLOC_DateActiveTo IS NULL) OR (WARD_LocationDR->CTLOC_DateActiveTo >= :xEndDate))
+ 		)
+ &sql(OPEN xWARDCursor)
+ &sql(FETCH xWARDCursor INTO :xwardID)
+ while 'SQLCODE {
+	 Set xwardlist = xwardlist_","_xwardID
+	 &sql(FETCH xWARDCursor INTO :xwardID)
+ 	}
+ &sql(CLOSE xWARDCursor)
+ Quit $e(xwardlist,2,*)
+]]></Implementation>
+</Method>
+
+<Method name="GetPreviousInpatientEpisode">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>PAADMRowId</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	Set PAPMIRowId = $P($G(^PAADM(PAADMRowId)),"^",1)
+	Set PAADMAdmDate = $P($G(^PAADM(PAADMRowId)), "^", 6)
+	Set PAADMAdmTime = $P($G(^PAADM(PAADMRowId)), "^", 7)
+	Set PAADMDischgDate = $P($G(^PAADM(PAADMRowId)), "^", 17)
+	Set PAADMHosptialDR = $P($G(^PAADM(PAADMRowId,2)), "^", 85)
+	Set (ClosestPAADMRowId,PrevPAADMRowId) = ""
+	Set (ClosestPrevDischgDate,ClosestPrevDischgTime) = 0
+	
+	For  {
+			Set PrevPAADMRowId = $O(^PAPERdr(PAPMIRowId,"ADM","I",PrevPAADMRowId))	// Index of episodes by patient ID
+			Quit:PrevPAADMRowId=""
+			
+			Set PrevPAADMVisitStatus = $P($G(^PAADM(PrevPAADMRowId)), "^", 20)	// PAAdm->PAADM_VisitStatus
+			Continue:PrevPAADMVisitStatus="C"									// Skip over cancelled episodes
+			Continue:PrevPAADMVisitStatus="P"									// Skip Preadmissions
+			
+			Set PrevPAADMHosptialDR = $P($G(^PAADM(PrevPAADMRowId,2)), "^", 85)
+			Continue:PrevPAADMHosptialDR'=PAADMHosptialDR						// Skip different hospital
+			
+      		Set PrevPAADMDischgDate = $P($G(^PAADM(PrevPAADMRowId)), "^", 17)
+			Set PrevPAADMDischgTime = $P($G(^PAADM(PrevPAADMRowId)), "^", 18)
+			
+			
+
+			If (PrevPAADMDischgDate < PAADMAdmDate) || ((PrevPAADMDischgDate = PAADMAdmDate) && (PrevPAADMDischgTime <= PAADMAdmTime)) {
+				If (PrevPAADMDischgDate > ClosestPrevDischgDate) || ((PrevPAADMDischgDate = ClosestPrevDischgDate) && (PrevPAADMDischgTime > ClosestPrevDischgTime)) {
+					Set ClosestPAADMRowId = PrevPAADMRowId
+					Set ClosestPrevDischgDate = PrevPAADMDischgDate
+					Set ClosestPrevDischgTime = ClosestPrevDischgTime
+				}
+			}
+	}
+	If ClosestPAADMRowId 
+	{
+		Quit ClosestPAADMRowId
+	} 
+	Else 
+	{
+		Quit 0
+	}
+]]></Implementation>
+</Method>
+
+<Method name="CalculateAge">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>pDOB:%Date,pEffectiveDate:%Date</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	Set:($DATA(pEffectiveDate) = 0 || ('pEffectiveDate)) pEffectiveDate = +$H	// Putting "+" before $H makes it drop the time component
+	
+	Quit $$CalAge^at182(pDOB,pEffectiveDate)
+]]></Implementation>
+</Method>
+
+<Method name="CalculateAgeYr">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>pDOB:%Date,pEffectiveDate:%Date</FormalSpec>
+<ReturnType>%Integer</ReturnType>
+<Implementation><![CDATA[	Quit $PIECE(..CalculateAge(pDOB, pEffectiveDate), "|", 12)
+]]></Implementation>
+</Method>
+
+<Method name="CalculateAgeMth">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>pDOB:%Date,pEffectiveDate:%Date</FormalSpec>
+<ReturnType>%Integer</ReturnType>
+<Implementation><![CDATA[	Quit $PIECE(..CalculateAge(pDOB, pEffectiveDate), "|", 13)
+]]></Implementation>
+</Method>
+
+<Method name="CalculateAgeDay">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>pDOB:%Date,pEffectiveDate:%Date</FormalSpec>
+<ReturnType>%Integer</ReturnType>
+<Implementation><![CDATA[	Quit $PIECE(..CalculateAge(pDOB, pEffectiveDate), "|", 14)
+]]></Implementation>
+</Method>
+
+<Method name="GetLeaveDaysForEpisode">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>PAADMRowId:%Integer</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	s numLeaveDays = 0
+	Set (Childsub) = 0
+	For {
+		Set Childsub = $O(^PAADM(PAADMRowId,"LEA",Childsub))
+		Quit:(Childsub="")
+		s numLeaveDays = numLeaveDays + $p($G(^PAADM(PAADMRowId,"LEA",Childsub)),"^",9)-$p($G(^PAADM(PAADMRowId,"LEA",Childsub)),"^",2)
+	}
+ 	q numLeaveDays
+]]></Implementation>
+</Method>
+
+<Method name="GetLastContact">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>PAPERRowID:%Integer</FormalSpec>
+<ReturnType>%Integer</ReturnType>
+<Implementation><![CDATA[
+ Set ContactID = 0
+ &sql(DECLARE ContactCursor CURSOR FOR
+    SELECT TOP 1 ENQ_RowID
+    FROM SQLUser.PA_EnquiryContact
+    WHERE ENQ_PAPER_DR = :PAPERRowID
+    ORDER BY ENQ_Date DESC, ENQ_Time DESC
+ )
+ &sql(OPEN ContactCursor)
+ &sql(FETCH ContactCursor INTO :ContactID)
+ &sql(CLOSE ContactCursor)
+ Quit ContactID
+]]></Implementation>
+</Method>
+
+<Method name="GetLastContactForEpisode">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>PAADMRowID:%Integer</FormalSpec>
+<ReturnType>%Integer</ReturnType>
+<Implementation><![CDATA[
+ ;Set ContactID = 0
+ ;&sql(DECLARE LastContactForEpisodeCursor CURSOR FOR
+ ; SELECT
+ ;               TOP 1 ENQ.ENQ_RowID
+ ; FROM
+ ;               SQLUser.PA_EnquiryContact ENQ
+ ; WHERE
+ ;           --    ENQ.ENQ_PAPER_DR = 44610 AND
+ ;               ENQ.ENQ_OEOrdItem_DR->OEORI_OEORD_ParRef->OEORD_Adm_DR = :PAADMRowID
+ ;ORDER BY
+ ;               ENQ.ENQ_Date DESC
+ ;       ,       ENQ.ENQ_Time DESC
+ ;)
+ ;&sql(OPEN LastContactForEpisodeCursor)
+ ;&sql(FETCH LastContactForEpisodeCursor INTO :ContactID)
+ ;&sql(CLOSE LastContactForEpisodeCursor)
+ ;Quit ContactID
+ 
+ 	s LastContactDate=0
+	s CurrentContactDate=0
+	s LastContact=0
+	s oe=0
+	f {
+		s oe=$o(^OEORD(0,"Adm",PAADMRowID,oe))
+
+		q:oe=""
+		s oei=0
+		f {
+			s oei=$o(^OEORD(oe,"I",oei))
+			q:oei=""
+			i $d(^PAENQi("OEORI",oe_"||"_oei)) {
+				s enqid=$o(^PAENQi("OEORI",oe_"||"_oei,""))
+				s CurrentContactDate = $P($G(^PAENQ(enqid)),"^",1)
+				i (CurrentContactDate>LastContactDate) {
+					s LastContactDate=CurrentContactDate
+					s LastContact=enqid	
+				}
+				
+			}
+		}
+	}
+	q LastContact
+]]></Implementation>
+</Method>
+
+<Method name="GetLOSForOPEpisode">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>PAADMRowId:%Integer,EffectiveDate:%Date=0,IncludeStatDischarges:%Boolean=0</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	Set LOS = 0
+	
+	If EffectiveDate = 0 {
+		Set EffectiveDate = $P($G(^PAADM(PAADMRowId)),"^",17)						// PAAdm->PAADM_DischgDate
+	}
+
+	Set PAADMAdmDate = $P($G(^PAADM(PAADMRowId)),"^",6)						// PAAdm->PAADM_AdmDate
+	Set LOS = LOS + (EffectiveDate - PAADMAdmDate)
+
+	Quit LOS
+]]></Implementation>
+</Method>
+
+<Method name="GetImpairmentOnsetDate">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>PAADMRowID:%Integer</FormalSpec>
+<ReturnType>%Date</ReturnType>
+<Implementation><![CDATA[
+	s ImpairmentOnsetDate = ""
+	s qid=$o(^questionnaire.QAUXXVINAHI("IndexPAAdmID",PAADMRowID,""))
+ 	s vinah=##class(questionnaire.QAUXXVINAH).%OpenId(qid)
+ 	i vinah {s ImpairmentOnsetDate=vinah.QSACS37}
+	Quit ImpairmentOnsetDate
+]]></Implementation>
+</Method>
+
+<Method name="GetReferralRecievedDate">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>PAADMRowID:%Integer</FormalSpec>
+<ReturnType>%Date</ReturnType>
+<Implementation><![CDATA[
+	s ReferralRecievedDate = ""
+	s ReferralRecievedDate = $P($G(^PAADM(PAADMRowID,2)), "^", 9)
+	q ReferralRecievedDate
+]]></Implementation>
+</Method>
+
+<Method name="GetReferralAcknowledgeDate">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>PAADMRowID:%Integer</FormalSpec>
+<ReturnType>%Date</ReturnType>
+<Implementation><![CDATA[
+	s ackdate=""
+	s wlid=$P($G(^PAADM(PAADMRowID,1)),"^",18)
+	i wlid{
+		s wlprior =$P($G(^PAWL(wlid)),"^",2)
+		i wlprior'=3 { 
+			s wlidcs=0
+			s (ackdate,wlstatus)=""
+			f {
+				s wlidcs=$o(^PAWL(wlid,"TRANS",wlidcs)) q:wlidcs=""
+				s wlpriortrans=$P($G(^PAWL(wlid,"TRANS",wlidcs)),"^",5)
+				i (wlpriortrans'=3) ||(wlpriortrans'=""){
+					s ackdate=$P($G(^PAWL(wlid,"TRANS",wlidcs)),"^",10)
+					q
+				}
+			}
+		}
+	}
+ q ackdate
+]]></Implementation>
+</Method>
+
+<Method name="GetAddedToWLDate">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>PAADMRowID:%Integer</FormalSpec>
+<ReturnType>%Date</ReturnType>
+<Implementation><![CDATA[
+	s AddedToWLDate=""
+	s WaitListDR = $P($G(^PAADM(PAADMRowID,1)), "^", 18)
+	i WaitListDR{
+		s AddedToWLDate = $P($G(^PAWL(WaitListDR)), "^", 13)
+	}
+	q AddedToWLDate
+]]></Implementation>
+</Method>
+
+<Method name="GetFirstAppointmentBookedDate">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>PAADMRowID:%Integer</FormalSpec>
+<ReturnType>%Date</ReturnType>
+<Implementation><![CDATA[
+	s (FirstAppointmentBookedDate,AppointmentBookedDate) = ""
+	s res=0
+	f {	
+		;loop throug all appointments for the episode.
+		s res=$o(^RBAS("ADM",PAADMRowID,res)) q:res="" 
+		s as=0
+		f {
+			s as=$o(^RBAS("ADM",PAADMRowID,res,as)) q:as=""
+			i $d(^RBAS(res,as)) {
+				s appasparref=res_"||"_as
+				s AppointmentBookedDate = $p($g(^RBAS(+appasparref,+$p(appasparref,"||",2))),"^")
+				i (FirstAppointmentBookedDate="")||(AppointmentBookedDate<FirstAppointmentBookedDate) ;get the earlist appointment.
+				{
+					s FirstAppointmentBookedDate=AppointmentBookedDate
+				}
+			}
+		}
+	}
+	Quit FirstAppointmentBookedDate
+]]></Implementation>
+</Method>
+
+<Method name="GetLastAppointmentForEpisode">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>PAADMRowID:%Integer</FormalSpec>
+<ReturnType>%Date</ReturnType>
+<Implementation><![CDATA[
+	;Last Non-Cancelled Appoinment for episode.
+	s (LastAppointmentBookedDate,AppointmentBookedDate) = ""
+	s res=0
+	f {	
+		;loop throug all appointments for the episode.
+		s res=$o(^RBAS("ADM",PAADMRowID,res)) q:res="" 
+		s as=0
+		f {
+			s as=$o(^RBAS("ADM",PAADMRowID,res,as)) q:as=""
+			s appt=0
+			f {
+				s appt=$o(^RBAS("ADM",PAADMRowID,res,as,appt)) q:appt=""
+				s status = $P($G(^RBAS(res,as,"APPT",appt)),"^",3)
+				i status'= "X" {
+					i $d(^RBAS(res,as)) {
+						s appasparref=res_"||"_as
+						s AppointmentBookedDate = $p($g(^RBAS(+appasparref,+$p(appasparref,"||",2))),"^")
+						i (LastAppointmentBookedDate="")||(AppointmentBookedDate>LastAppointmentBookedDate) ;get the lastest appointment.
+						{
+							s LastAppointmentBookedDate=AppointmentBookedDate
+						}
+					}
+				}
+			}
+		}
+	}
+	Quit LastAppointmentBookedDate
+]]></Implementation>
+</Method>
+
+<Method name="GetApptsForDateRange">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>DateFrom:%Date,DateTo:%Date</FormalSpec>
+<Implementation><![CDATA[
+ ;^RBAS("APPT_Date",{RB_Resource.RES_RowId},{APPT_DateComp},{APPT_TimeComp},{RB_ApptSchedule.AS_ChildSub},{APPT_ChildSub})
+ 
+  s (RESRowId,Date,Time,ASchild,APPTchild,APPTRowId)=""
+ f  s RESRowId=$o(^RBAS(RESRowId)) q:RESRowId=""  d
+ . s Date=DateFrom-1
+ . f  s Date=Date+1 q:Date>DateTo  d
+ . . f  s Time=$o(^RBAS("APPT_Date",RESRowId,Date,Time)) q:Time=""  d
+ . . . f  s ASchild=$o(^RBAS("APPT_Date",RESRowId,Date,Time,ASchild)) q:ASchild=""  d
+ . . . . f  s APPTchild=$o(^RBAS("APPT_Date",RESRowId,Date,Time,ASchild,APPTchild)) q:APPTchild=""  d
+ . . . . . s APPTRowId=RESRowId_"||"_ASchild_"||"_APPTchild	
+ . . . . . w Date,": ",APPTRowId,!
+]]></Implementation>
+</Method>
+
+<Method name="GetFirstContactDate">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>PAADMRowID:%Integer</FormalSpec>
+<ReturnType>%Date</ReturnType>
+<Implementation><![CDATA[
+	s FirstContactDate=""
+	s oe=0
+	f {
+		s oe=$o(^OEORD(0,"Adm",PAADMRowID,oe))
+		q:oe=""
+		s oei=0
+		f {
+			s oei=$o(^OEORD(oe,"I",oei))
+			q:oei=""
+			i $d(^PAENQi("OEORI",oe_"||"_oei)) {
+				s enqid=$o(^PAENQi("OEORI",oe_"||"_oei,""))
+				s FirstContactDate = $P($G(^PAENQ(enqid)),"^",1)
+				q
+			}
+		}
+	}
+	q FirstContactDate
+]]></Implementation>
+</Method>
+
+<Method name="GetClientNotifiedDate">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>PAADMRowID:%Integer</FormalSpec>
+<ReturnType>%Date</ReturnType>
+<Implementation><![CDATA[
+	s ClientNotifiedDate = ""
+	s hist=0
+	f {
+		 s hist=$o(^PAADM(PAADMRowID,"REFHIS",hist)) q:hist=""
+		 s ClientNotifiedDate=$P($G(^PAADM(PAADMRowID,"REFHIS",hist)),"^",1)
+		 q
+	}
+	Quit ClientNotifiedDate
+]]></Implementation>
+</Method>
+
+<Method name="GetAdmDate">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>PAADMRowID:%Integer</FormalSpec>
+<ReturnType>%Date</ReturnType>
+<Implementation><![CDATA[
+	s AdmDate=""
+	s AdmDate = $P($G(^PAADM(PAADMRowID)), "^", 6)
+	q AdmDate
+]]></Implementation>
+</Method>
+
+<Method name="GetOPAdmDate">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>PAADMRowID:%Integer</FormalSpec>
+<ReturnType>%Date</ReturnType>
+<Implementation><![CDATA[
+	;Referral status from episode
+	s OPAdmDate=""
+ 	s RefStatDR=$P($G(^PAADM(PAADMRowID,2)),"^",14) 
+
+ 	;check referral status is either Accepted (8) or Waiting List (1)
+ 	i ((RefStatDR'=1) && (RefStatDR'=8)) {q OPAdmDate}
+
+ 	;loop throug ref status history to find date changed to 1 or 8
+	s REFHISCS=0
+	s OPAdmDate=""
+	f {
+		s REFHISCS=$o(^PAADM(PAADMRowID,"REFHIS",REFHISCS)) q:REFHISCS="" 
+		s REFHISStatDR=$P($G(^PAADM(PAADMRowID,"REFHIS",REFHISCS)),"^",3)
+		i ((REFHISStatDR=1) || (REFHISStatDR=8)) {
+			s OPAdmDate=$P($G(^PAADM(PAADMRowID,"REFHIS",REFHISCS)),"^",1)	
+			q
+		}	
+	}
+	;if no ref status history, date must be episode adm date 
+	i OPAdmDate="" {
+		s OPAdmDate=$P($G(^PAADM(PAADMRowID)),"^",6) 
+	}
+	q OPAdmDate
+]]></Implementation>
+</Method>
+
+<Method name="GetCSEForEpisodeDateRange">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>PAADMRowID:%Integer,DateFrom:%Date,DateTo:%Date</FormalSpec>
+<ReturnType>%Integer</ReturnType>
+<Implementation><![CDATA[
+	s (CSE)=""
+	S df=$zdh(DateFrom,3)
+	S dt=$zdh(DateTo,3)
+	s CSECount = 0
+	&sql(DECLARE CSECursor CURSOR FOR
+	 	SELECT ENQ_RowID
+        FROM SQLUser.PA_EnquiryContact
+        LEFT JOIN SQLUser.OE_OrdItem ON ENQ_OEOrdItem_DR=OEORI_RowID
+        LEFT JOIN SQLUser.OE_Order ON OEORI_OEORD_ParRef=OEORD_RowID
+        WHERE OEORD_Adm_DR=:PAADMRowID
+        AND ENQ_Duration > 0
+        AND ENQ_RequestStatus_DR = 2
+        AND Enq_Date Between :df and :dt
+        GROUP BY ENQ_PAPER_DR, ENQ_Date, ENQ_GovernDepart_DR, ENQ_ContDelivMode_DR, ENQ_ContDelivSetting_DR
+	)
+	&sql(OPEN CSECursor)
+	&sql(FETCH CSECursor INTO :CSE)
+	while 'SQLCODE {
+		
+			s CSECount=CSECount+1
+		
+		&sql(FETCH CSECursor INTO :CSE)
+	}
+	&SQL(CLOSE CSECursor)
+	q CSECount
+]]></Implementation>
+</Method>
+
+<Method name="GetContactCountForEpisodeDateRange">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>PAADMRowID:%Integer,DateFrom:%Date,DateTo:%Date</FormalSpec>
+<ReturnType>%Integer</ReturnType>
+<Implementation><![CDATA[
+	s (Contact,ContDate)=""
+	S df=$zdh(DateFrom,3)
+	S dt=$zdh(DateTo,3)
+	s ContactCount = 0
+	&sql(DECLARE ContactCountCursor CURSOR FOR
+	 	SELECT ENQ_RowID
+        FROM SQLUser.PA_EnquiryContact
+        LEFT JOIN SQLUser.OE_OrdItem ON ENQ_OEOrdItem_DR=OEORI_RowID
+        LEFT JOIN SQLUser.OE_Order ON OEORI_OEORD_ParRef=OEORD_RowID
+        WHERE OEORD_Adm_DR=:PAADMRowID
+        AND ENQ_Duration > 0
+        AND ENQ_RequestStatus_DR = 2
+        AND Enq_Date Between :df and :dt
+    )
+	&sql(OPEN ContactCountCursor)
+	&sql(FETCH ContactCountCursor INTO :Contact)
+	while 'SQLCODE {
+		
+			s ContactCount=ContactCount+1
+		
+		&sql(FETCH ContactCountCursor INTO :Contact)
+	}
+	&SQL(CLOSE ContactCountCursor)
+	q ContactCount
+]]></Implementation>
+</Method>
+
+<Method name="GetINIDate">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>PAADMRowID:%Integer</FormalSpec>
+<ReturnType>%Date</ReturnType>
+<Implementation><![CDATA[
+	s INIDate=""
+	s INIDate=..GetFirstContactDate(PAADMRowID)
+	q INIDate
+]]></Implementation>
+</Method>
+
+<Method name="GetAssessemntDate">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>PAADMRowID:%Integer</FormalSpec>
+<ReturnType>%Date</ReturnType>
+<Implementation><![CDATA[
+	s AssessemntDate = ""
+	&sql(DECLARE AssessemntDateCursor CURSOR FOR
+	 	SELECT MAX(Q28) 
+	 	FROM questionnaire.QAUXXSCTFAS 
+	 	WHERE QUESPAAdmDR= :PAADMRowID
+	 	GROUP BY QUESPAADMDR
+	)
+	&sql(OPEN AssessemntDateCursor)
+	&sql(FETCH AssessemntDateCursor INTO :AssessemntDate)
+	&sql(CLOSE AssessemntDateCursor)
+	Quit AssessemntDate
+]]></Implementation>
+</Method>
+
+<Method name="GetDischgDate">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>PAADMRowID:%Integer</FormalSpec>
+<ReturnType>%Date</ReturnType>
+<Implementation><![CDATA[
+	s DischgDate = $P($G(^PAADM(PAADMRowID)), "^", 17)
+	q DischgDate
+]]></Implementation>
+</Method>
+
+<Method name="GetCarePlanDocumentedDate">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>PAADMRowID:%Integer</FormalSpec>
+<ReturnType>%Date</ReturnType>
+<Implementation><![CDATA[
+	s CarePlanDocumentedDate = ""
+	s qid=$o(^questionnaire.QAUXXVINAHI("IndexPAAdmID",PAADMRowID,""))
+ 	s vinah=##class(questionnaire.QAUXXVINAH).%OpenId(qid)
+ 	i vinah {s CarePlanDocumentedDate=vinah.QSACS10}
+	Quit CarePlanDocumentedDate
+]]></Implementation>
+</Method>
+
+<Method name="GetAdvancedCarePlanDocumentedDate">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>PAADMRowID:%Integer</FormalSpec>
+<ReturnType>%Date</ReturnType>
+<Implementation><![CDATA[
+	s AdvancedCarePlanDocumentedDate = ""
+	s qid=$o(^questionnaire.QAUXXVINAHI("IndexPAAdmID",PAADMRowID,""))
+ 	s vinah=##class(questionnaire.QAUXXVINAH).%OpenId(qid)
+ 	i vinah {s AdvancedCarePlanDocumentedDate=vinah.QSACS27}
+	Quit AdvancedCarePlanDocumentedDate
+]]></Implementation>
+</Method>
+
+<Method name="GetHospitalDischargeDate">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>PAADMRowID:%Integer</FormalSpec>
+<ReturnType>%Date</ReturnType>
+<Implementation><![CDATA[
+	s HospitalDischargeDate = ""
+	&sql(DECLARE HospitalDischargeDateCursor CURSOR FOR
+ 	SELECT QSACS38
+ 	FROM questionnaire.QAUXXVINAH
+	WHERE QUESPAAdmDR= :PAADMRowID
+	)
+	&sql(OPEN HospitalDischargeDateCursor)
+	&sql(FETCH HospitalDischargeDateCursor INTO :HospitalDischargeDate)
+	&sql(CLOSE HospitalDischargeDateCursor)
+	Quit AdvancedCarePlanDocumentedDate
+	s HospitalDischargeDate = ""
+]]></Implementation>
+</Method>
+
+<Method name="GetPrimaryInsPayorGroupForContact">
+<Description>
+This returns the Payor Group for the contact if it exists, else the episode Payor Group </Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>ContactID:%Integer</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	
+	Set (InsType, InsPayorGroup, InsPayorGroupDesc, InsPayorGroupCode,PAADMRowId) = ""
+	Set InsType = $P($G(^PAENQ(ContactID)),"^",22)
+	If InsType = "" {
+		Set OEORD = $P($P($G(^PAENQ(ContactID)),"^",42),"|",1)
+		If OEORD {
+			Set PAADMRowId=$P($G(^OEORD(OEORD)),"^",1)
+			If PAADMRowId '="" {
+				Set InsType = ..GetPrimaryInsTypeForEpisode(PAADMRowId)
+			}
+		}
+	}
+	Set:(InsType'="") InsPayorGroup = $P($G(^ARC("INST",InsType)),"^",24) // ARC_InsuranceType->INST_PayorGroup_DR
+	Set:(InsPayorGroup'="") InsPayorGroupCode = $P($G(^ARC("PGRP",InsPayorGroup)),"^",1) // ARC_PayorGroup->PGRP_Code
+	// Map short codes to appropriate (more readable) codes
+	Set InsPayorGroupDesc = ##class(Custom.AUXXUtilities).GetMappedCode("ARC_PayorGroup","PGRP_Code","PGCODES",InsPayorGroupCode)
+	Quit InsPayorGroupDesc
+]]></Implementation>
+</Method>
+
+<Method name="GetAuxInsTypeForContact">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>ContactID:%Integer</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	
+	Set (AuxInsType, AuxInsCode, INSChildSub, OEORD,PAADMRowId) = ""
+	Set AuxInsType = $P($G(^PAENQ(ContactID)),"^",23)
+	If AuxInsType = "" {
+		Set OEORD = $P($P($G(^PAENQ(ContactID)),"^",42),"|",1)
+		If OEORD {
+			Set PAADMRowId=$P($G(^OEORD(OEORD)),"^",1)
+			If PAADMRowId '="" {
+				Set INSChildSub=$o(^PAADM(PAADMRowId,"INS",0))
+				If INSChildSub {
+					Set AuxInsType=$P($G(^PAADM(PAADMRowId,"INS", INSChildSub)),"^",10)
+				}
+			}
+		}
+	}
+	Set:(AuxInsType'="") AuxInsCode=$P($G(^ARC("AUXIT",AuxInsType)),"^",1)
+	
+	Quit AuxInsCode
+]]></Implementation>
+</Method>
+
+<Method name="SetMedicalStreamProgram">
+<Description>
+If a doctor or nurse practioner is the Care Provider for any contact in the service activity, set MedicalStream=1.
+Although DNAs aren't reported as a service event, they need to be included in this check, IE If a Doctor or NP was 
+the Care Provider for a DNA and the client had an appointment later in the same day with a non medical care 
+provider, the service event should then be included in the Medical Stream.
+
+Using 'Program' Service Event definition (AIMS S11, S2 305)
+Using 'Specialty' Service Event definition (AIMS S10)
+</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>PAPERID,ENQDate,Program,Mode,Setting</FormalSpec>
+<ReturnType>%Integer</ReturnType>
+<Implementation><![CDATA[
+	s (contID,Medical)=0
+	s (ContENQDate,ENQGovernDepartDR,ENQContDelivModeDR,ENQContDelivSettingDR,ENQCTCPDR,CTPCPCarPrvTpDR,CTCPTCode)=""
+	f{
+		q:PAPERID=""
+		s contID=$o(^PAENQi("Person",PAPERID,contID))
+		q:contID=""
+		s ContENQDate=$P($G(^PAENQ(contID)),"^",1)
+		i ContENQDate=ENQDate
+		{
+			s ENQGovernDepartDR=$P($G(^PAENQ(contID)),"^",62)
+			s ENQContDelivModeDR=$P($G(^PAENQ(contID)),"^",52)
+			s ENQContDelivSettingDR=$P($G(^PAENQ(contID)),"^",53)
+			s ENQCTCPDR=$P($G(^PAENQ(contID)),"^",8)
+			i ENQCTCPDR'=""{
+				s CTPCPCarPrvTpDR=$P($G(^CTPCP(ENQCTCPDR,1)),"^",4)
+				s CTCPTCode=$P($G(^CT("CPT",CTPCPCarPrvTpDR)),"^",1)
+	
+				i ((Program=ENQGovernDepartDR) && (Mode=ENQContDelivModeDR) && (Setting=ENQContDelivSettingDR)) {
+					i ((CTCPTCode="DR") || (CTCPTCode="NP")) {
+						s Medical=1
+					}
+				}
+			}
+		}	
+	}
+	q Medical
+]]></Implementation>
+</Method>
+
+<Method name="SetMedicalStreamSpecialty">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>PAPERID,ENQDate,Specialty,Mode,Setting</FormalSpec>
+<ReturnType>%Integer</ReturnType>
+<Implementation><![CDATA[
+	s (contID,Medical)=0
+	s (ContENQDate,CTLOCDR,ENQContDelivModeDR,ENQContDelivSettingDR,ENQCTCPDR,CTPCPCarPrvTpDR,CTCPTCode)=""
+	f{
+		q:PAPERID=""
+		s contID=$o(^PAENQi("Person",PAPERID,contID)) 
+		q:contID="" 
+		s ContENQDate=$P($G(^PAENQ(contID)),"^",1)
+		i ContENQDate=ENQDate 
+		{
+			s CTLOCDR=$P($G(^PAENQ(contID)),"^",45)
+			s ENQContDelivModeDR=$P($G(^PAENQ(contID)),"^",52)
+			s ENQContDelivSettingDR=$P($G(^PAENQ(contID)),"^",53)
+			s ENQCTCPDR=$P($G(^PAENQ(contID)),"^",8)
+			i ENQCTCPDR'=""{
+				s CTPCPCarPrvTpDR=$P($G(^CTPCP(ENQCTCPDR,1)),"^",4)
+				s CTCPTCode=$P($G(^CT("CPT",CTPCPCarPrvTpDR)),"^",1)
+		
+				i ((Specialty=CTLOCDR) && (Mode=ENQContDelivModeDR) && (Setting=ENQContDelivSettingDR)) {
+					i ((CTCPTCode="DR") || (CTCPTCode="NP")) {
+						s Medical=1
+					}
+				}
+			}
+		}
+	}
+	q Medical
+]]></Implementation>
+</Method>
+
+<Method name="IsContactAdminTime">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>ENQRowID</FormalSpec>
+<ReturnType>%Integer</ReturnType>
+<Implementation><![CDATA[
+	s AdminTime=0
+	s ARCICRowID=$P($G(^PAENQ(ENQRowID)),"^",39)
+	i ARCICRowID
+	{
+		s AdminTime=$P($G(^ARC("IC",ARCICRowID)),"^",2)["Admin " //Sets AdminTime to 1 if true
+	}
+	q AdminTime
+]]></Implementation>
+</Method>
+
+<Method name="EscapeXML">
+<Description>
+Converts string to XML format for escape passthru and if ConvertNewLines is True then replaces XML linefeed with XSL-FO line feed code.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>CurrentString,ConvertNewLines</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	s NewString = ""
+	If '(ConvertNewLines = "True") {s ConvertNewLines = "False"}
+	
+	If (ConvertNewLines = "True") {s NewString = $REPLACE($ZCONVERT(CurrentString, "O", "XML"),$C(13,10),"&#x2028;")
+	// the rendering seems to put double quotation marks where there are spaces at a start of a new line
+	s NewString = $REPLACE(NewString,"&quot;&quot;","""") 	// this is to make sure quotation marks are shown as quotation marks
+	s NewString = $REPLACE(NewString,"&quot;","")			// this is to remove the rendered quotation marks / spaces at the start of a new line
+	}
+		Else {s NewString = $ZCONVERT(CurrentString, "O", "XML")}	
+
+	q NewString
+]]></Implementation>
+</Method>
+</Class>
+</Export>

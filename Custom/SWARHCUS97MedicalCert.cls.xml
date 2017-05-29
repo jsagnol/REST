@@ -1,0 +1,203 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.SWARHCUS97MedicalCert">
+<ClassType/>
+<ProcedureBlock>0</ProcedureBlock>
+<Super>%Library.RegisteredObject</Super>
+<TimeCreated>61997,36383.515904</TimeCreated>
+
+<UDLText name="T">
+<Content><![CDATA[
+//Medical Certificate for printing and giving to patient
+
+]]></Content>
+</UDLText>
+
+<Method name="MedicalCertClose">
+<Description>
+This is the Close component of the %Library.Query.
+This is standard code and should never have to change.
+This is where all the cleanup is performed, i.e. the purging of the temporary storage global ^CacheTemp.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>QHandle:%Library.Binary</FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Clean up by purging the temporary node in ^CacheTemp global
+ New repid
+ Set repid=$li(QHandle,2)
+ Kill ^CacheTemp(repid)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="MedicalCertExecute">
+<Description>
+This is the Execute section for the %Library.Query. 
+All of the logic will be performed here.
+A new node for the ^CacheTemp global will be created and each subscript of this global will contain
+a row for the report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,QID:%Integer]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Get reportid i.e. use $INCREMENT to add another node to ^CacheTemp global. 
+ // We use ^CacheTemp global because it will always use memory before disk
+ New repid,ind
+
+ // Use $Increment to get the next node
+ Set repid=$I(^CacheTemp)
+
+ // Build data into ^CacheTemp(ReportID)
+ // e.g. Set ^CacheTemp(ReportID,Index)=$LB(f1,f2,f3)
+ New Number,String,Date,Time,c,n
+ n ID,QDATEISSUED,QDATESEEN,QDOCTOR,CTPCPDesc,QFROM,QTO,QHOSPID,QUESCreateDate,QUESCreateTime,QUESCreateUserDR,QUESDate,PAPMINo,TTLDesc,PAPMIName,PAPMIName2, 
+ 	PAPERStName,CTCITDesc,ProvCode,CTZIPCode,PAADMAdmNo,PAPMISexDR,QUESSSUserDefWindowDR,QUESStatusDR,QUESTime,QUESUserDR,HOSPDesc,HOSPPhone,HOSPAddress,HospCity,
+ 	HospState, HospZip
+
+ s (ID)=0
+ s (QDATEISSUED,QDATESEEN,QDOCTOR,CTPCPDesc,QFROM,QTO,QHOSPID,QUESCreateDate,QUESCreateTime,QUESCreateUserDR,QUESDate,PAPMINo,TTLDesc,PAPMIName,PAPMIName2,
+ 	PAPERStName,CTCITDesc,ProvCode,CTZIPCode,PAADMAdmNo,PAPMISexDR,QUESSSUserDefWindowDR,QUESStatusDR,QUESTime,QUESUserDR,HOSPDesc,HOSPPhone,HOSPAddress,HospCity,
+ 	HospState, HospZip)=""
+
+ s ind=1
+
+ &sql(declare MedicalCert cursor for
+ select
+ID,
+QDATEISSUED,
+QDATESEEN,
+QDOCTOR,
+CTPCP_Desc,
+QFROM,
+QTO,
+QHOSPID,
+QUESCreateDate, QUESCreateTime, QUESCreateUserDR,
+QUESDate,
+QUESPAPatMasDR->PAPMI_No,
+QUESPAPatMasDR->PAPMI_Title_DR->TTL_Desc,
+QUESPAPatMasDR->PAPMI_Name,
+QUESPAPatMasDR->PAPMI_Name2,
+QUESPAPatMasDR->PAPMI_PAPER_DR->PAPER_StName,
+QUESPAPatMasDR->PAPMI_PAPER_DR->PAPER_CityCode_DR->CTCIT_Desc,
+QUESPAPatMasDR->PAPMI_PAPER_DR->PAPER_CT_Province_DR->Prov_Code,
+QUESPAPatMasDR->PAPMI_PAPER_DR->PAPER_Zip_DR->CTZIP_Code,
+QUESPAAdmDR->PAADM_AdmNo,
+QUESPAPatMasDR->PAPMI_Sex_DR,
+QUESSSUserDefWindowDR, QUESStatusDR,
+QUESTime,
+QUESUserDR,
+HOSP_Desc,
+HOSP_Phone,
+HOSP_Address,
+HOSP_City->CTCIT_Desc AS HospCity,
+HOSP_Province_DR->Prov_Code As HospState,
+HOSP_ZipDR->CTZIP_Code as HospZip
+from questionnaire.QMEDCERT, SQLUSER.CT_Hospital, SQLUSER.CT_CareProv
+where QHOSPID = CT_Hospital.HOSP_RowId and
+      QDoctor = CT_CareProv.CTPCP_RowID and
+      ID = :QID)
+ &sql(open MedicalCert)
+
+
+ //fetch first row
+ &sql(fetch MedicalCert into :ID,:QDATEISSUED,:QDATESEEN,:QDOCTOR,:CTPCPDesc,:QFROM,:QTO,:QHOSPID,:QUESCreateDate,:QUESCreateTime,:QUESCreateUserDR,:QUESDate,:PAPMINo,:TTLDesc,:PAPMIName,:PAPMIName2,
+ 	:PAPERStName,:CTCITDesc,:ProvCode,:CTZIPCode,:PAADMAdmNo,:PAPMISexDR,:QUESSSUserDefWindowDR,:QUESStatusDR,:QUESTime,:QUESUserDR,:HOSPDesc,:HOSPPhone,:HOSPAddress,:HospCity,
+ 	:HospState, :HospZip)
+
+ while 'SQLCODE{
+ d FormatDates
+ //d FormatTimes
+ s PAPERStName=$zstrip(PAPERStName,"<C")
+ if $extract(PAPERStName,2)=$char(1) {
+	 s PAPERStName=$zstrip($extract(PAPERStName,2,$length(PAPERStName)),"<C")
+ }
+ s PAPERStName=$zstrip(PAPERStName,"*C")
+ // build the row
+ Set ^CacheTemp(repid,ind)=$LB(ID,QDATEISSUED,QDATESEEN,QDOCTOR,CTPCPDesc,QFROM,QTO,QHOSPID,QUESCreateDate,QUESCreateTime,QUESCreateUserDR,QUESDate,PAPMINo,TTLDesc,PAPMIName,PAPMIName2,
+ 	PAPERStName,CTCITDesc,ProvCode,CTZIPCode,PAADMAdmNo,PAPMISexDR,QUESSSUserDefWindowDR,QUESStatusDR,QUESTime,QUESUserDR,HOSPDesc,HOSPPhone,HOSPAddress,HospCity,
+ 	HospState, HospZip)
+ s ind=ind+1
+ //fetch rows
+ &sql(fetch MedicalCert into :ID,:QDATEISSUED,:QDATESEEN,:QDOCTOR,:CTPCPDesc,:QFROM,:QTO,:QHOSPID,:QUESCreateDate,:QUESCreateTime,:QUESCreateUserDR,:QUESDate,:PAPMINo,:TTLDesc,:PAPMIName,:PAPMIName2,
+ 	:PAPERStName,:CTCITDesc,:ProvCode,:CTZIPCode,:PAADMAdmNo,:PAPMISexDR,:QUESSSUserDefWindowDR,:QUESStatusDR,:QUESTime,:QUESUserDR,:HOSPDesc,:HOSPPhone,:HOSPAddress,:HospCity,
+ 	:HospState, :HospZip)
+ }
+
+ &sql(close MedicalCert)
+
+ // Build QHandle (AtEnd,ReportID,Index)
+ Set QHandle=$lb(0,repid,0)
+
+ Quit $$$OK
+
+FormatDates
+ // Convert the dates to ODBC date format
+ If QDATEISSUED Set QDATEISSUED=$ZD(QDATEISSUED,3)
+ If QDATESEEN Set QDATESEEN=$ZD(QDATESEEN,3)
+ if QFROM Set QFROM=$ZD(QFROM,3)
+ if QTO Set QTO=$ZD(QTO,3)
+ IF QUESCreateDate Set QUESCreateDate=$ZD(QUESCreateDate,3)
+
+ Quit
+
+FormatTimes
+ // Convert the times to ODBC time format
+ If PAADMAdmTime Set PAADMAdmTime=$ZT(PAADMAdmTime,2)
+ If PAADMDischgTime Set PAADMDischgTime=$ZT(PAADMDischgTime,2)
+ Quit
+]]></Implementation>
+</Method>
+
+<Method name="MedicalCertFetch">
+<Description>
+This is the Fetch component of the %Library.Query. 
+This should never have to change. It is designed to fetch the row for each subscript of the ^CacheTemp
+global and return this row to the Crystal Report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,&Row:%Library.List,&AtEnd:%Library.Integer=0]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // This fetch method should never have to change. 
+
+ // repid - Report ID
+ // ind   - sequence index which represents each row
+
+ New repid,ind
+
+ // Restore QHandle
+ Set AtEnd=$li(QHandle,1)
+ Set repid=$li(QHandle,2)
+ Set ind=$li(QHandle,3)
+
+ Set ind=$o(^CacheTemp(repid,ind))
+ If ind="" {	// if there are no more rows, finish fetching
+ Set AtEnd=1
+ Set Row=""
+ }
+ Else      {	// fetch row
+ Set Row=^CacheTemp(repid,ind)
+ }
+
+ // Save QHandle
+ s QHandle=$lb(AtEnd,repid,ind)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Query name="MedicalCert">
+<Description>
+SWARH Local Doc List Stored Proc
+It expects 2 parameter of type ADMIT date and will return a list of records:
+Field1 - Integer
+Field2 - String(MAXLEN=255)
+Field3 - Date
+Field4 - Time</Description>
+<Type>%Library.Query</Type>
+<FormalSpec>QID:%Integer</FormalSpec>
+<SqlProc>1</SqlProc>
+<Parameter name="CONTAINID" value="0"/>
+<Parameter name="ROWSPEC" value="ID:%Integer,QDATEISSUED:%Date,QDATESEEN:%Date,QDOCTOR:%String(MAXLEN=255),CTPCPDesc:%String(MAXLEN=255),QFROM:%Date,QTO:%Date,QHOSPID:%String(MAXLEN=255),QUESCreateDate:%Date,QUESCreateTime:%String(MAXLEN=255),QUESCreateUserDR:%Integer,QUESDate:%Date,PAPMINo:%String(MAXLEN=255),TTLDesc:%String(MAXLEN=255),PAPMIName:%String(MAXLEN=255),PAPMIName2:%String(MAXLEN=255), PAPERStName:%String(MAXLEN=255),CTCITDesc:%String(MAXLEN=255),ProvCode:%String(MAXLEN=255),CTZIPCode:%String(MAXLEN=255),PAADMAdmNo:%String(MAXLEN=255),PAPMISexDR:%String(MAXLEN=255),QUESSSUserDefWindowDR:%String(MAXLEN=255),QUESStatusDR:%String(MAXLEN=255),QUESTime:%String(MAXLEN=255),QUESUserDR:%String(MAXLEN=255),HOSPDesc:%String(MAXLEN=255),HOSPPhone:%String(MAXLEN=255),HOSPAddress:%String(MAXLEN=255),HospCity:%String(MAXLEN=255),HospState:%String(MAXLEN=255),HospZip:%String(MAXLEN=255)"/>
+<Parameter name="SELECTMODE" value="ODBC"/>
+</Query>
+</Class>
+</Export>

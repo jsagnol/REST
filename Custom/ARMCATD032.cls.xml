@@ -1,0 +1,528 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.ARMCATD032">
+<ClassType/>
+<ProcedureBlock>0</ProcedureBlock>
+<Super>%Library.RegisteredObject,Report.Abstract</Super>
+<TimeCreated>62964,44266.85679</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/ARMCATD032.xml#1 $</Default>
+</Parameter>
+
+<Method name="ATD032Close">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>QHandle:%Binary</FormalSpec>
+<ReturnType>%Status</ReturnType>
+<Implementation><![CDATA[
+ // Clean up by purging the temporary node in ^CacheTemp global
+ New repid
+ Set repid=$li(QHandle,2)
+ 
+ //Start Monitor (if configured to capture stats)
+ i mon Do ..MonitorEnd(mon)
+
+ Kill ^CacheTemp(repid)
+ 
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="ATD032Execute">
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,dto:%Library.Date]]></FormalSpec>
+<ReturnType>%Status</ReturnType>
+<Implementation><![CDATA[
+	//Start Monitor (if configured to capture stats)
+	s mon=..MonitorBegin()
+
+ k ^zandy
+ s ^CacheTemp($zn,$j,"L1")=""
+ s ^CacheTemp($zn,$j,"L2")=""
+ s ^CacheTemp($zn,$j,"L3")=""
+ n user,work
+ n month,year,dfrom,dfrom1,dfrom2,dfrom3,zdto,TempPAADMRowID,temp
+ n monthX,yearX,daysinmonthX,monthendX,monthstartX,endofmonthX,startoflastmonthX,endoflastmonthX
+ s (monthX,yearX,daysinmonthX,monthendX,monthstartX,endofmonthX,startoflastmonthX,endoflastmonthX)=""
+ s temp=0
+ ;
+ s user=$lb(0), work=$lb(0), dto=$$intdate^SSUTIL4(dto), zdto = $zdate(dto), month=$p(zdto,"/",1), year=$p(zdto,"/",3),TempMonth=month
+ ;Mar-Dec
+ i month > 2 {
+ s month = month-2, dfrom1 = month_"/1/"_year,    dfrom1=$$intdate^SSUTIL4(dfrom1)
+ s month = month + 1, dfrom2 = month_"/1/"_year,   dfrom2=$$intdate^SSUTIL4(dfrom2)
+ s month = month + 1, dfrom3 = month_"/1/"_year,   dfrom3=$$intdate^SSUTIL4(dfrom3)
+ ;Feb
+ }elseif month-1 = 1 {
+ s month = 12, year = year-1, dfrom1 = month_"/1/"_year, dfrom1=$$intdate^SSUTIL4(dfrom1)
+ s year=year+1, month=1, dfrom2 = month_"/1/"_year, dfrom2=$$intdate^SSUTIL4(dfrom2)
+ s month = month + 1, dfrom3 = month_"/1/"_year, dfrom3=$$intdate^SSUTIL4(dfrom3)
+ ;JAN
+ }else{
+ s month = 11, year = year-1, dfrom1 = month_"/1/"_year, dfrom1=$$intdate^SSUTIL4(dfrom1)
+ s month = month + 1, dfrom2 = month_"/1/"_year, dfrom2=$$intdate^SSUTIL4(dfrom2)
+ s year=year+1, month=1, dfrom3 = month_"/1/"_year, dfrom3=$$intdate^SSUTIL4(dfrom3)
+ }
+
+
+ &sql( DECLARE ANDY CURSOR FOR
+ SELECT DISTINCT
+ PAADM_RowID, 
+ PAADM_AdmDate,
+ DATEPART(m, PAADM_DischgDate),
+ PAADM_DischgDate, 
+ PAADM_Type, 
+ PAADM_AdmSrc_DR->ADSOU_Code,
+ PAADM_AdmSrc_DR->ADSOU_code,
+ PAADM_InPatAdmType_DR->IPAT_Code,
+ PAADM_InPatAdmType_DR->IPAT_code, 
+ PAADM_DepCode_DR->CTLOC_RowId, 
+ PAADM_CurrentWard_DR->WARD_LocationDR->CTLOC_Hospital_DR->Hosp_RowId, 
+ PAADM_CurrentWard_DR->WARD_LocationDR->CTLOC_Hospital_DR->Hosp_Code,
+ PAADM_CurrentWard_DR->WARD_LocationDR->CTLOC_Hospital_DR->Hosp_code,
+ PAADM_MainMRADM_DR->MRADM_CareType_DR->CARETYP_Code,
+ PAADM_MainMRADM_DR->MRADM_CareType_DR->CARETYP_code, 
+ PAADM_CurrentWard_DR->WARD_RowID, 
+ PAADM_CurrentWard_DR->WARD_Code, 
+ PAPMI_rowid, 
+ PAPMI_rowid, 
+ PAPMI_No,
+ INS_InsType_DR->INST_Code, 
+ INS_InsType_DR->INST_code,
+ ADML_GoingOutDate,
+ ADML_ActualDateReturn,
+ INS_InsType_DR->INST_AccountClass->ACCL_Code,
+ INS_InsType_DR->INST_AccountClass->ACCL_Desc,
+ PAADM_MainMRADM_DR->MRADM_ProgrFundSource_DR->PFS_RowId, 
+ PAADM_MainMRADM_DR->MRADM_ProgrFundSource_DR->PFS_Code, 
+ PAADM_MainMRADM_DR->MRADM_ProgrFundSource_DR->PFS_code,
+ PAADM_AdmSrc_DR->ADSOU_RowId,
+ PAADM_InPatAdmType_DR->IPAT_RowId,
+ PAADM_MainMRADM_DR->MRADM_CareType_DR->CARETYP_RowId
+ FROM
+ SQLUser.PA_Adm,SQLUser.PA_AdmLeave,SQLUser.PA_PatMas,SQLUser.PA_AdmInsurance,SQLUser.PAC_LeaveCategory
+ WHERE paadm_hospital_Dr=696 and
+ PAADM_PAPMI_DR=PAPMI_RowId AND
+ PAADM_RowId =* ADML_ParRef AND
+ PAADM_RowID =* INS_ParRef AND
+ PAADM_Type = 'I' AND
+ ADML_LeaveCategory_DR =* LEACAT_RowId AND
+ (PAADM_DischgDate >= :dfrom1 AND PAADM_AdmDate <= :dto AND PAADM_VisitStatus='D') 
+ UNION
+ SELECT
+ PAADM_RowID, 
+ PAADM_AdmDate,
+ DATEPART(m, PAADM_DischgDate),
+ PAADM_DischgDate, 
+ PAADM_Type, 
+ PAADM_AdmSrc_DR->ADSOU_Code,
+ PAADM_AdmSrc_DR->ADSOU_code,
+ PAADM_InPatAdmType_DR->IPAT_Code,
+ PAADM_InPatAdmType_DR->IPAT_code, 
+ PAADM_DepCode_DR->CTLOC_RowId, 
+ PAADM_CurrentWard_DR->WARD_LocationDR->CTLOC_Hospital_DR->Hosp_RowId, 
+ PAADM_CurrentWard_DR->WARD_LocationDR->CTLOC_Hospital_DR->Hosp_Code,
+ PAADM_CurrentWard_DR->WARD_LocationDR->CTLOC_Hospital_DR->Hosp_code,
+ PAADM_MainMRADM_DR->MRADM_CareType_DR->CARETYP_Code,
+ PAADM_MainMRADM_DR->MRADM_CareType_DR->CARETYP_code, 
+ PAADM_CurrentWard_DR->WARD_RowID, 
+ PAADM_CurrentWard_DR->WARD_Code, 
+ PAPMI_rowid, 
+ PAPMI_rowid, 
+ PAPMI_No,
+ INS_InsType_DR->INST_Code, 
+ INS_InsType_DR->INST_code,
+ ADML_GoingOutDate,
+ ADML_ActualDateReturn,
+ INS_InsType_DR->INST_AccountClass->ACCL_Code,
+ INS_InsType_DR->INST_AccountClass->ACCL_code,
+ PAADM_MainMRADM_DR->MRADM_ProgrFundSource_DR->PFS_RowId, 
+ PAADM_MainMRADM_DR->MRADM_ProgrFundSource_DR->PFS_Code, 
+ PAADM_MainMRADM_DR->MRADM_ProgrFundSource_DR->PFS_code,
+ PAADM_AdmSrc_DR->ADSOU_RowId,
+ PAADM_InPatAdmType_DR->IPAT_RowId,
+ PAADM_MainMRADM_DR->MRADM_CareType_DR->CARETYP_RowId
+ FROM
+ SQLUser.PA_Adm,SQLUser.PA_AdmLeave,SQLUser.PA_PatMas,SQLUser.PA_AdmInsurance,SQLUser.PAC_LeaveCategory
+ WHERE paadm_hospital_Dr=696 and
+ PAADM_PAPMI_DR=PAPMI_RowId AND
+ PAADM_RowId =* ADML_ParRef AND
+ PAADM_RowID =* INS_ParRef AND
+ PAADM_Type = 'I' AND
+ ADML_LeaveCategory_DR =* LEACAT_RowId AND
+ PAADM_AdmDate <= :dto and 
+ (PAADM_VisitStatus='A' and PAADM_DischgDate is null)
+ ORDER BY
+ PAADM_RowID ASC,
+ PAADM_DischgDate ASC)
+ &sql(OPEN ANDY)
+
+
+ //PAADM_RowId in (1169575,1394699,849753) and 
+ //PAADM_RowId in (1462287,1462210,1462251,1462225) and 
+ n month1, month2, month3, lmonth1, lmonth2, lmonth3, currMonth, currDate, currid,FutureDischargeFlag,BlankDischargeFlag
+ ;
+ n PAADMRowID,PAADMAdmDate,month,PAADMDischgDate,PAADMType,ADSOUCode,ADSOUDesc,IPATCode,IPATDesc, PAADMDepCode,HospRowId,HospCode,HospDesc,CARETYPCode,CARETYPDesc,WARDRowID,WARDCode,PAPMIName,PAPMIName2,PAPMINo,INSTCode,INSTDesc,ADMLGoingOutDate,ADMLActualDateReturn,ACCTCode,ACCTDesc,PFSRowId,PFSCode,PFSDesc,ADSOURowId,IPATRowId,CARETYPRowId
+ s (PAADMAdmDate,PAADMDischgDate,month,PAADMType,ADSOUCode,ADSOUDesc,IPATCode,IPATDesc, PAADMDepCode,HospCode,HospDesc,CARETYPCode,CARETYPDesc,WARDRowID,WARDCode,PAPMIName,PAPMIName2,PAPMINo,INSTCode,INSTDesc,ADMLGoingOutDate,ADMLActualDateReturnACCTCode,ACCTDesc,PFSRowId,PFSCode,PFSDesc,ADSOURowId,IPATRowId,CARETYPRowId)=""
+ s (PAADMRowID,HospRowId,FutureDischargeFlag)=0
+ ;
+ n wPAADMRowID,wPAADMAdmDate,wmonth,wPAADMDischgDate,wPAADMType,wADSOUCode,wADSOUDesc,wIPATCode,wIPATDesc, wPAADMDepCode,wHospRowId,wHospCode,wHospDesc,wCARETYPCode,wCARETYPDesc,wWARDRowID,wWARDCode,wPAPMIName,wPAPMIName2,wPAPMINo,wINSTCode,wINSTDesc,wADMLGoingOutDate,wADMLActualDateReturn,wACCTCode,wACCTDesc,wPFSRowId,wPFSCode,wPFSDesc,wADSOURowId,wIPATRowId,wCARETYPRowId
+ s (wPAADMAdmDate,wmonth,wPAADMDischgDate,wPAADMType,wADSOUCode,wADSOUDesc,wIPATCode,wIPATDesc, wPAADMDepCode,wHospCode,wHospDesc,wCARETYPCode,wCARETYPDesc,wWARDRowID,wWARDCode,wPAPMIName,wPAPMIName2,wPAPMINo,wINSTCode,wINSTDesc,wADMLGoingOutDate,wADMLActualDateReturn,wACCTCode,wACCTDesc,wPFSRowId,wPFSCode,wPFSDesc,wADSOURowId,wIPATRowId,wCARETYPRowId)=""
+ s (wPAADMRowID,wHospRowId)=0
+ ;
+ s (month1, month2, month3, lmonth1, lmonth2, lmonth3)=0
+ s AtEnd=0
+ s currDate=$p($h,",",1), currMonth = $p(($zdate($h)),"/",1)
+
+
+
+ n repid,ind
+ // Use $Increment to get the next node
+ Set repid=$I(^CacheTemp)
+ s ind=0
+
+ ;first fetch
+ &sql(FETCH ANDY INTO PAADMRowID,PAADMAdmDate,month, PAADMDischgDate,PAADMType,ADSOUCode,ADSOUDesc,IPATCode,IPATDesc, PAADMDepCode,HospRowId,HospCode,HospDesc,CARETYPCode,CARETYPDesc,WARDRowID,WARDCode,PAPMIName,PAPMIName2,PAPMINo,INSTCode,INSTDesc,ADMLGoingOutDate,ADMLActualDateReturn,ACCTCode,ACCTDesc,PFSRowId,PFSCode,PFSDesc,ADSOURowId,IPATRowId,CARETYPRowId)
+ i SQLCODE s AtEnd=1 &sql(CLOSE ANDY)
+	
+	
+ while 'AtEnd {
+
+ s wPAADMRowID=PAADMRowID,wPAADMAdmDate=PAADMAdmDate,wmonth=month,wPAADMDischgDate=PAADMDischgDate,wPAADMType=PAADMType,wADSOUCode=ADSOUCode,wADSOUDesc=ADSOUDesc,wIPATCode=IPATCode,wIPATDesc=IPATDesc, wPAADMDepCode=PAADMDepCode,wHospRowId=HospRowId,wHospCode=HospCode,wHospDesc=HospDesc,wCARETYPCode=CARETYPCode,wCARETYPDesc=CARETYPDesc,wWARDRowID=WARDRowID,wWARDCode=WARDCode,wPAPMIName=PAPMIName,wPAPMIName2=PAPMIName2,wPAPMINo=PAPMINo,wINSTCode=INSTCode,wINSTDesc=INSTDesc,wADMLGoingOutDate=ADMLGoingOutDate,wADMLActualDateReturn=ADMLActualDateReturn,wACCTCode=ACCTCode,wACCTDesc=ACCTDesc,wPFSRowId=PFSRowId,wPFSCode=PFSCode,wPFSDesc=PFSDesc,wADSOURowId=ADSOURowId,wIPATRowId=IPATRowId,wCARETYPRowId=CARETYPRowId
+
+ i ($g(PAADMDischgDate)="")||($g(PAADMDischgDate)>dto)
+
+ {
+ s PAADMDischgDate=dto
+ s FutureDischargeFlag=1
+ //do CalculateBedCount
+ }	
+ else
+ {
+ s FutureDischargeFlag=0
+ }   	
+
+
+ ;calculate bed days for each calendar month for the patient
+ i PAADMAdmDate > dfrom3 { 
+
+
+ if FutureDischargeFlag =1
+ {
+ s month1=0, month2=0, month3=(PAADMDischgDate-PAADMAdmDate+1)
+ ;s ^zandy("month13")=month3         
+ } 
+ else 
+ {     		
+ s month1=0, month2=0, month3=(PAADMDischgDate-PAADMAdmDate)
+ ;s ^zandy("month13+1")=month3 
+
+ }  
+
+ i month3=0 s month3=1
+
+ }elseif PAADMAdmDate > dfrom2 
+ { 
+ i PAADMDischgDate < dfrom3 
+		 {
+ s month1=0, month2=(PAADMDischgDate-PAADMAdmDate), month3=0
+ ;s ^zandy("month22")=month2      
+ i month2=0 s month2=1
+ }
+ else
+ {
+ if FutureDischargeFlag =0
+
+ {
+ s month1=0, month2=(dfrom3-PAADMAdmDate), month3=(PAADMDischgDate-dfrom3)
+ ;s ^zandy("month32")=month2      
+ ;s ^zandy("month33")=month3      
+
+ }	
+ else
+ {
+
+ s month1=0, month2=(dfrom3-PAADMAdmDate), month3=(PAADMDischgDate-dfrom3+1)
+ ;s ^zandy("month32+1")=month2      
+ ;s ^zandy("month33+1")=month3      
+ }
+ }	
+
+ }elseif PAADMAdmDate > dfrom1
+ { 
+ i PAADMDischgDate < dfrom2 
+ {
+ s month1=(PAADMDischgDate-PAADMAdmDate), month2=0, month3=0
+ ;s ^zandy("month41")=month1      
+ i month1=0 s month1=1
+ }
+ elseif PAADMDischgDate < dfrom3 {
+	 
+	  if FutureDischargeFlag = 0
+	  {
+	 		s month1=(dfrom2-PAADMAdmDate), month2=(PAADMDischgDate-dfrom2), month3=0
+	 		;s ^zandy("month51")=month1     
+ ;s ^zandy("month52")=month2      
+	 		
+	  }
+	  else
+	  {
+	 		s month1=(dfrom2-PAADMAdmDate+1), month2=(PAADMDischgDate-dfrom2), month3=0
+	 		;s ^zandy("month51+1")=month1     
+ ;s ^zandy("month52+1")=month2   
+	 		
+	 }		
+
+ }else{
+	 
+	 if FutureDischargeFlag = 0
+
+ { 
+ s month1=(dfrom2-PAADMAdmDate), month2=(dfrom3-dfrom2), month3=PAADMDischgDate-dfrom3
+ ;s ^zandy("month61")=month1     
+ ;s ^zandy("month62")=month2   
+ ;s ^zandy("month63")=month3      
+
+ }
+ else	
+ {
+ s month1=(dfrom2-PAADMAdmDate), month2=(dfrom3-dfrom2), month3=PAADMDischgDate-dfrom3+1
+ ;s ^zandy("month61+1")=month1     
+ ;s ^zandy("month62+1")=month2   
+ ;s ^zandy("month63+1")=month3   
+
+	  		 
+ }	
+ }
+ }else{
+ i PAADMDischgDate < dfrom2 
+	 {
+		 s month1=(PAADMDischgDate-dfrom1), month2=0, month3=0
+		 ;s ^zandy("month71")=month1     
+ }
+ elseif PAADMDischgDate < dfrom3 
+ {
+ s month1=(dfrom2-dfrom1), month2=(PAADMDischgDate-dfrom2), month3=0
+ ;s ^zandy("month81")=month1     
+ ;s ^zandy("month82")=month2   
+ ;s ^zandy("month83")=month3   
+
+	}
+ else
+ {
+	if FutureDischargeFlag =0
+
+ { 
+ s month1=(dfrom2-dfrom1), month2=(dfrom3-dfrom2), month3=(PAADMDischgDate-dfrom3)
+ ;s ^zandy("month91")=month1     
+ ;s ^zandy("month92")=month2   
+ ;s ^zandy("month93")=month3   
+
+ }
+ else
+ {
+ s month1=(dfrom2-dfrom1), month2=(dfrom3-dfrom2), month3=(PAADMDischgDate-dfrom3+1)
+ ;s ^zandy("month91+1")=month1     
+ ;s ^zandy("month92+1")=month2   
+ ;s ^zandy("month93+1")=month3   
+
+ }	
+ }
+ s (lmonth1,lmonth2,lmonth3)=0
+ }
+
+
+ s currid=PAADMRowID
+ //; calculate leave days for each calendar month
+
+
+ while currid=PAADMRowID  {
+	 
+	 
+	s yearX=$p($zd(ADMLGoingOutDate,3),"-",1) 
+	i (yearX=$p($zd(dfrom1,3),"-",1)) || (yearX=$p($zd(dfrom2,3),"-",1)) || (yearX=$p($zd(dfrom3,3),"-",1)) 
+	{
+ d CalcLeaveAccrossMonths
+ d calculateleavedays
+	}
+ &sql(FETCH ANDY INTO PAADMRowID,PAADMAdmDate,month, PAADMDischgDate,PAADMType,ADSOUCode,ADSOUDesc,IPATCode,IPATDesc, PAADMDepCode,HospRowId,HospCode,HospDesc,CARETYPCode,CARETYPDesc,WARDRowID,WARDCode,PAPMIName,PAPMIName2,PAPMINo,INSTCode,INSTDesc,ADMLGoingOutDate,ADMLActualDateReturn,ACCTCode,ACCTDesc,PFSRowId,PFSCode,PFSDesc,ADSOURowId,IPATRowId,CARETYPRowId)
+ i SQLCODE s AtEnd=1 &sql(CLOSE ANDY) s currid=9999999
+ }
+ ;calculate actual beddays
+
+ ;s ^zandy("before leave",lmonth1,lmonth2)=lmonth3
+ s month1= (month1-lmonth1), month2= (month2-lmonth2), month3= (month3-lmonth3)
+ ;s ^zandy("after leave ",lmonth1,lmonth2)=lmonth3
+ s (lmonth1,lmonth2,lmonth3)=0
+ s (ADMLActualDateReturn,ADMLGoingOutDate)=""
+
+
+ ;convert dates
+ s wPAADMAdmDate=$zdate(wPAADMAdmDate,4)
+ i $g(wPAADMDischgDate)'="" s wPAADMDischgDate=$zdate(wPAADMDischgDate,4)
+ i wADMLGoingOutDate s wADMLGoingOutDate=$zdate(wADMLGoingOutDate,4)
+ i wADMLActualDateReturn s wADMLActualDateReturn=$zdate(wADMLActualDateReturn,4)
+
+
+
+
+ ;output row to report
+ s ind=ind+1
+ s ^CacheTemp(repid,ind)=$lb(wPAADMRowID,wPAADMAdmDate,wmonth,wPAADMDischgDate,wPAADMType,wADSOUCode,wADSOUDesc,wIPATCode,wIPATDesc, wPAADMDepCode,wHospRowId,wHospCode,wHospDesc,wCARETYPCode,wCARETYPDesc,wWARDRowID,wWARDCode,wPAPMIName,wPAPMIName2,wPAPMINo,wINSTCode,wINSTDesc,wADMLGoingOutDate,wADMLActualDateReturn,wACCTCode,wACCTDesc,wPFSRowId,wPFSCode,wPFSDesc,wADSOURowId,wIPATRowId,wCARETYPRowId,month1,month2,month3)
+
+ //close while 'AtEnd
+ }
+ Set QHandle=$lb(0,repid,0)
+ q $$$OK
+
+
+
+calculateleavedays
+ i ADMLGoingOutDate'="" d
+ .s monthX=$p($zd(ADMLGoingOutDate,3),"-",2)
+ .s yearX=$p($zd(ADMLGoingOutDate,3),"-",1)
+ .i (yearX=$p($zd(dfrom1,3),"-",1)) || (yearX=$p($zd(dfrom2,3),"-",1)) || (yearX=$p($zd(dfrom3,3),"-",1)) d
+ ..i (monthX=$p($zd(dfrom1,3),"-",2)) || (monthX=$p($zd(dfrom2,3),"-",2)) || (monthX=$p($zd(dfrom3,3),"-",2)) d
+ ...s endofmonthX=$$endofmonth(ADMLGoingOutDate)
+ ...i (ADMLActualDateReturn="") s ADMLActualDateReturn=endofmonthX 
+ ...i $g(^CacheTemp($zn,$j,"L1",PAADMRowID,ADMLGoingOutDate))="",(monthX=$p($zd(dfrom1,3),"-",2)) s lmonth1=lmonth1+(ADMLActualDateReturn-ADMLGoingOutDate)
+ ...i $g(^CacheTemp($zn,$j,"L2",PAADMRowID,ADMLGoingOutDate))="",(monthX=$p($zd(dfrom2,3),"-",2)) s lmonth2=lmonth2+(ADMLActualDateReturn-ADMLGoingOutDate) ;s ^zandy("cal2 leave days")=lmonth2
+ ...i $g(^CacheTemp($zn,$j,"L3",PAADMRowID,ADMLGoingOutDate))="",(monthX=$p($zd(dfrom3,3),"-",2)) s lmonth3=lmonth3+(ADMLActualDateReturn-ADMLGoingOutDate) 
+
+
+
+ q
+
+CalcLeaveAccrossMonths
+ ;q:^CacheTemp($zn,$j,"ADM",PAADMRowID,ADMLGoingOutDate)
+ s GomonthX=$zstrip($p($zd(ADMLGoingOutDate,3),"-",2),"*CW")
+ s endmth1=$zstrip($p($zd(dfrom1,3),"-",2),"*CW")
+ s endmth2=$zstrip($p($zd(dfrom2,3),"-",2),"*CW")
+ s endmth3=$zstrip($p($zd(dfrom3,3),"-",2),"*CW")
+
+ s endoflastmonthX=$$endofmonth(dfrom3)
+ s startoflastmonthX=$$startofmonth(dfrom3)
+ i ADMLGoingOutDate'="" s endofmonthX=$$endofmonth(ADMLGoingOutDate)
+ i ADMLActualDateReturn'="" s startofmonthX=$$startofmonth(ADMLActualDateReturn)
+
+ i (GomonthX=endmth1) || (GomonthX=endmth2) || (GomonthX=endmth3)
+ {
+ i GomonthX=endmth3 
+ {
+	 		
+ i ADMLActualDateReturn > endofmonthX s ^CacheTemp($zn,$j,"L3",PAADMRowID,ADMLGoingOutDate)=PAADMRowID s lmonth3=lmonth3+(endofmonthX-ADMLGoingOutDate)
+ ;s ^zandy("leave31",$zd(endofmonthX,3),$zd(ADMLGoingOutDate))=lmonth3
+ }
+ i GomonthX=endmth2 
+ {
+	 		
+ i ADMLActualDateReturn > endofmonthX 
+ {
+	 				i ADMLActualDateReturn < endoflastmonthX
+ {
+	 			        ;s ^zandy("before sec month leave 3")=lmonth3
+	 					s ^CacheTemp($zn,$j,"L2",PAADMRowID,ADMLGoingOutDate)=PAADMRowID s lmonth2=lmonth2+(endofmonthX-ADMLGoingOutDate) 
+ ;s ^zandy("first dates",$zd(ADMLActualDateReturn,3),$zd(ADMLGoingOutDate,3),$zd(endofmonthX,3),$zd(endoflastmonthX,3))=lmonth2
+ s ^CacheTemp($zn,$j,"L3",PAADMRowID,ADMLGoingOutDate)=PAADMRowID s lmonth3=lmonth3+(ADMLActualDateReturn-startofmonthX)
+ ;s ^zandy("sec month leave3")=lmonth3
+ }
+
+ i ADMLActualDateReturn > endoflastmonthX
+ {
+ s ^CacheTemp($zn,$j,"L2",PAADMRowID,ADMLGoingOutDate)=PAADMRowID s lmonth2=lmonth2+(endofmonthX-ADMLGoingOutDate) 
+ s daysinmonthX=$case($zstrip(endmth3,"*CW"),"01":"31","03":"31","04":"30","05":"31","06":"30","07":"31","08":"31","09":"30","10":"31","11":"30","12":"31",:"28")
+ ;s ^zandy("leave22")=lmonth2
+ s ^CacheTemp($zn,$j,"L3",PAADMRowID,ADMLGoingOutDate)=PAADMRowID s lmonth3=lmonth3+daysinmonthX
+ ;s ^zandy("sec dates",$zd(ADMLActualDateReturn,3),$zd(ADMLGoingOutDate,3),$zd(endoflastmonthX,3))=lmonth3
+ }	
+
+ }
+ }		
+
+ i GomonthX=endmth1 
+ {
+ i endmth2=$zstrip($p($zd(ADMLActualDateReturn,3),"-",2),"*CW") 
+ {
+ i ADMLActualDateReturn > endofmonthX s ^CacheTemp($zn,$j,"L1",PAADMRowID,ADMLGoingOutDate)=PAADMRowID s lmonth1=lmonth1+(endofmonthX-ADMLGoingOutDate) 
+ s ^CacheTemp($zn,$j,"L2",PAADMRowID,ADMLGoingOutDate)=PAADMRowID s lmonth2=lmonth2+(ADMLActualDateReturn-startofmonthX)
+ ;s ^zandy("leave23")=lmonth2
+ }	
+ i endmth3=$zstrip($p($zd(ADMLActualDateReturn,3),"-",2),"*CW") 
+ {
+ i ADMLActualDateReturn > endofmonthX s ^CacheTemp($zn,$j,"L1",PAADMRowID,ADMLGoingOutDate)=PAADMRowID s lmonth1=lmonth1+(endofmonthX-ADMLGoingOutDate) 
+ s daysinmonthX=$case($zstrip(endmth2,"*CW"),"01":"31","03":"31","04":"30","05":"31","06":"30","07":"31","08":"31","09":"30","10":"31","11":"30","12":"31",:"28")
+ s ^CacheTemp($zn,$j,"L2",PAADMRowID,ADMLGoingOutDate)=PAADMRowID s lmonth2=lmonth2+daysinmonthX
+ ;s ^zandy("leave24")=lmonth2
+ s ^CacheTemp($zn,$j,"L3",PAADMRowID,ADMLGoingOutDate)=PAADMRowID s lmonth3=lmonth3+(ADMLActualDateReturn-startofmonthX)
+ }
+ }
+ }			
+
+
+ q
+startofmonth(retval)
+ s monthX=$p($zd(retval,3),"-",2),yearX=$p($zd(retval,3),"-",1)
+ s monthstartX=$zdh(monthX_"/"_01_"/"_yearX,5)
+ ;i $e(monthX,1)=0 s monthX=$e(monthX,2)
+ q monthstartX
+
+endofmonth(eval)
+ n retdate s retdate=""
+ s monthX=$p($zd(eval,3),"-",2),yearX=$p($zd(eval,3),"-",1)
+ i monthX="02" d
+ .i $p($zd($zdh(monthX_"/28/"_yearX,5)+1,3),"-",2)'=monthX s retdate=$zdh(monthX_"/28/"_yearX,5)
+ .i retdate="" s retdate=$zdh(monthX_"/29/"_yearX,5)
+ i monthX'="02" d
+ .s daysinmonthX=$case($zstrip(monthX,"*CW"),"01":"31","03":"31","04":"30","05":"31","06":"30","07":"31","08":"31","09":"30","10":"31","11":"30","12":"31",:"28")
+ .s retdate=$zdh(monthX_"/"_daysinmonthX_"/"_yearX,5)
+ q retdate
+]]></Implementation>
+</Method>
+
+<Method name="ATD032Fetch">
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Binary,&Row:%List,&AtEnd:%Integer=0]]></FormalSpec>
+<ReturnType>%Status</ReturnType>
+<Implementation><![CDATA[
+ // This fetch method should never have to change. 
+
+ // repid - Report ID
+ // ind   - sequence index which represents each row
+
+ New repid,ind
+
+ // Restore QHandle
+ Set AtEnd=$li(QHandle,1)
+ Set repid=$li(QHandle,2)
+ Set ind=$li(QHandle,3)
+
+ Set ind=$o(^CacheTemp(repid,ind))
+ If ind="" {	// if there are no more rows, finish fetching
+ Set AtEnd=1
+ Set Row=""
+ }
+ Else      {	// fetch row
+ Set Row=^CacheTemp(repid,ind)
+ }
+
+ // Save QHandle
+ s QHandle=$lb(AtEnd,repid,ind)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Query name="ATD032">
+<Description>
+Look up temporary locations by user group locations
+
+LOG 25331 13-6-2002 BC</Description>
+<Type>%Library.Query</Type>
+<FormalSpec>dto:%Library.Date</FormalSpec>
+<SqlProc>1</SqlProc>
+<Parameter name="CONTAINID" value="0"/>
+<Parameter name="ROWSPEC" value="PAADMRowID:%Library.Integer,PAADMAdmDate:%Library.String,month:%Library.String,PAADMDischgDate:%Library.String,PAADMType:%Library.String,ADSOUCode:%Library.String,ADSOUDesc:%Library.String,IPATCode:%Library.String,IPATDesc:%Library.String, PAADMDepCode:%Library.String,HospRowId:%Library.Integer,HospCode:%Library.String,HospDesc:%Library.String,CARETYPCode:%Library.String,CARETYPDesc:%Library.String,WARDRowID:%Library.String,WARDCode:%Library.String,PAPMIName:%Library.String,PAPMIName2:%Library.String,PAPMINo:%Library.String,INSTCode:%Library.String,INSTDesc:%Library.String,ADMLGoingOutDate:%Library.String,ADMLActualDateReturn:%Library.String,ACCTCode:%Library.String,ACCTDesc:%Library.String,PFSRowId:%Library.String,PFSCode:%Library.String,PFSDesc:%Library.String,ADSOURowId:%Library.String,IPATRowId:%Library.String,CARETYPRowId:%Library.String,month1:%Library.String,month2:%Library.String,month3:%Library.String"/>
+</Query>
+</Class>
+</Export>

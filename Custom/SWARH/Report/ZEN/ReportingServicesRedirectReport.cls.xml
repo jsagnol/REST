@@ -1,0 +1,173 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.SWARH.Report.ZEN.ReportingServicesRedirectReport">
+<Super>Custom.SWARH.Report.ZEN.Abstract</Super>
+<TimeCreated>62292,52524.900268</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/SWARH/Report/ZEN/ReportingServicesRedirectReport.xml#1 $</Default>
+</Parameter>
+
+<Property name="P1">
+<Description>
+Report Parameter 1 - this should be the Reporting Services report name</Description>
+<Type>%String</Type>
+<Parameter name="ZENURL" value="P1"/>
+</Property>
+
+<Property name="P2">
+<Description>
+Report Parameter 2 - passed to the Reporting Services report as P1 (if value is not empty)</Description>
+<Type>%String</Type>
+<Parameter name="ZENURL" value="P2"/>
+</Property>
+
+<Property name="P3">
+<Description>
+Report Parameter 3 - passed to the Reporting Services report as P2 (if value is not empty)</Description>
+<Type>%String</Type>
+<Parameter name="ZENURL" value="P3"/>
+</Property>
+
+<Property name="P4">
+<Description>
+Report Parameter 4 - passed to the Reporting Services report as P3 (if value is not empty)</Description>
+<Type>%String</Type>
+<Parameter name="ZENURL" value="P4"/>
+</Property>
+
+<Property name="P5">
+<Description>
+Report Parameter 5 - passed to the Reporting Services report as P4 (if value is not empty)</Description>
+<Type>%String</Type>
+<Parameter name="ZENURL" value="P5"/>
+</Property>
+
+<Property name="P6">
+<Description>
+Report Parameter 6 - passed to the Reporting Services report as P5 (if value is not empty)</Description>
+<Type>%String</Type>
+<Parameter name="ZENURL" value="P6"/>
+</Property>
+
+<Property name="P7">
+<Description>
+Report Parameter 7 - passed to the Reporting Services report as P6 (if value is not empty)</Description>
+<Type>%String</Type>
+<Parameter name="ZENURL" value="P7"/>
+</Property>
+
+<Property name="P8">
+<Description>
+Report Parameter 8 - passed to the Reporting Services report as P7 (if value is not empty)</Description>
+<Type>%String</Type>
+<Parameter name="ZENURL" value="P8"/>
+</Property>
+
+<Property name="P9">
+<Description>
+Report Parameter 9 - passed to the Reporting Services report as P8 (if value is not empty)</Description>
+<Type>%String</Type>
+<Parameter name="ZENURL" value="P9"/>
+</Property>
+
+<Parameter name="REPORTPROTOCOL">
+<Description>
+The protocol to use for the report server request (http or https)</Description>
+<Default>http</Default>
+</Parameter>
+
+<Parameter name="REPORTSERVER">
+<Description>
+The report server host name</Description>
+<Default>SARPTH01</Default>
+</Parameter>
+
+<Parameter name="REPORTCOMMAND">
+<Default><![CDATA[rs:Command=Render&rc:Parameters=false]]></Default>
+</Parameter>
+
+<Parameter name="LOG">
+<Default>1</Default>
+</Parameter>
+
+<Parameter name="LOGFILE">
+<Default>I:\RptSvcsRedirLog.txt</Default>
+</Parameter>
+
+<Method name="%OnPreHTTP">
+<ClassMethod>1</ClassMethod>
+<ReturnType>%Boolean</ReturnType>
+<Implementation><![CDATA[
+	Set tSC = $$BuildQueryString(.tQueryString)  Quit:$$$ISERR(tSC) 1
+	
+	If ..#LOG {
+		Set tLogOpenParams = "WA" ; Write/Append
+		Set:'##class(%File).Exists(..#LOGFILE) tLogOpenParams="N"_tLogOpenParams
+	
+		Open ..#LOGFILE:tLogOpenParams
+		Use ..#LOGFILE
+	}
+	
+	// Get the current NAMESPACE to construct a URL for Reporting services
+	// Having these as parameters will not work correctly so they need to be set here.
+	
+	s NameSpace = $NAMESPACE
+	s REPORTURL = $NAMESPACE _"/Pages/ReportViewer.aspx"
+	
+	Set tURL = ..#REPORTPROTOCOL_"://" _..#REPORTSERVER
+	Set tURL = tURL_"/"_REPORTURL
+	Set tURL = tURL_ "?/"_NameSpace_"/"_ tReportName
+	Set tURL = tURL_"&"_..#REPORTCOMMAND
+	Set:tQueryString'="" tURL = tURL_tQueryString
+	
+	Write:..#LOG $ZDATETIME($H)_": "_"ReportingServicesRedirectReport: Redirecting to report at URL "_tURL,!
+	
+	Set %response.Redirect = tURL
+	
+	Close:..#LOG ..#LOGFILE
+	
+	// Return 0 (false) - stops CSP doing any more processing on this report page
+	Quit 0
+	
+BuildQueryString(tQueryString)
+	Do {
+		Set tSC = $$$OK
+		Set tDatasource=""
+		If $IsObject($G(%request)) {
+			Set tPS = $G(%request.Data("$PS",1),$$$GETPARAMETER("PS"))
+			Set tDatasource=$G(%request.Data("$DATASOURCE",1))
+		}
+		#; create instance of *this* report
+		Set tUserReport = ..%New()
+		//d ..%checkNameSpace(tEMBEDXSL, tUserReport)		
+		#; handle datasource URL parameter
+		If tDatasource'="" {
+			Set tUserReport.Datasource=tDatasource
+		}
+		#; Set null properties to parameter values
+		Set tSC = tUserReport.%InitProperties()  Quit:$$$ISERR(tSC) 
+		#; copy URL parameters into specially marked properties.
+		Set tSC = tUserReport.%ApplyURLParms()  Quit:$$$ISERR(tSC)
+		Set tSC = tUserReport.%OnBeforeReport()  Quit:$$$ISERR(tSC)
+
+		Set tReportName = tUserReport.P1
+	
+		// Iterate through properties P2-P9 and build a query string with non-empty values, renumbering them to P1-P8
+		Set qs=""  For i=2:1:9 {
+			Set tZENParamName = "P"_i,
+				tRptSvcParamName = "P"_(i-1),
+				tRptSvcParamVal = $property(tUserReport,tZENParamName)
+			// Add parameter to query string if not empty
+			Set:tRptSvcParamVal'="" qs=qs_"&"_tRptSvcParamName_"="_..EscapeURL(tRptSvcParamVal)
+		}
+
+	} While (0)
+	Set:$$$ISOK(tSC) tQueryString = qs
+	Quit tSC
+]]></Implementation>
+</Method>
+</Class>
+</Export>

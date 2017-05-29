@@ -1,0 +1,167 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.AUXX.Report.ZEN.Readmission">
+<Super>Custom.AUXX.Report.ZEN.Abstract</Super>
+<TimeCreated>61767,51522.038539</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/AUXX/Report/ZEN/Readmission.xml#1 $</Default>
+</Parameter>
+
+<UDLText name="T">
+<Content><![CDATA[
+// Report Name: AUXX Medical Record Locations for Discharges <br>
+
+]]></Content>
+</UDLText>
+
+<UDLText name="T">
+<Content><![CDATA[
+// Report Code: AUXX.MED0007 <br>
+
+]]></Content>
+</UDLText>
+
+<Property name="DateFrom">
+<Type>%String</Type>
+<Parameter name="ZENURL" value="P1"/>
+</Property>
+
+<Property name="DateTo">
+<Type>%String</Type>
+<Parameter name="ZENURL" value="P2"/>
+</Property>
+
+<Property name="Facility">
+<Type>%String</Type>
+<Parameter name="ZENURL" value="P3"/>
+</Property>
+
+<Property name="Specialty">
+<Type>%String</Type>
+<Parameter name="ZENURL" value="P4"/>
+</Property>
+
+<Property name="DaysElapsed">
+<Type>%String</Type>
+<Parameter name="ZENURL" value="P5"/>
+</Property>
+
+<XData name="ReportDefinition">
+<XMLNamespace>http://www.intersystems.com/zen/report/definition</XMLNamespace>
+<Data><![CDATA[
+<report xmlns='http://www.intersystems.com/zen/report/definition'
+   queryClass='Custom.AUXX.Report.ZEN.StoredProc.Readmission' queryName='Readmission' name='Readmission' >
+  <parameter expression='..DateFrom'/>
+  <parameter expression='..DateTo'/>
+  <parameter expression='..Facility'/>
+  <parameter expression='..Specialty'/>
+  <parameter expression='..DaysElapsed'/>
+  <attribute name='ReportTitle' expression='$$$Text("@Readmissions@Readmissions")'/>
+  <attribute name='timestamp' expression='$ZDATETIME($H, 2, 2)'/>
+  <attribute name='username' expression='..Username'/>
+  <attribute name="datefrom" expression="..DisplayDate(..DateFrom)"/>
+  <attribute name="dateto" expression="..DisplayDate(..DateTo)"/>
+  <attribute name='facility' expression="..GetHospListDesc(..Facility)"/>
+  <attribute name="specialty" expression="..GetSpecialtyListDesc(..Specialty)"/>
+  <attribute name='dayselapsed' expression='..DaysElapsed'/>
+  
+  <group name="facility" breakOnField="PrevHOSPDesc">
+  <attribute name="description" field="PrevHOSPDesc" />
+   <aggregate name='TotalHosp' type='CUSTOM' field='PrevADMADMNo' class='%ZEN.Report.Aggregate.CountDistinct'/>
+   <group name="specialty" breakOnField="PrevADMDepDesc">
+   <attribute name="description" field="PrevADMDepDesc" />
+    <aggregate name='TotalLocn' type='CUSTOM' field='PrevADMADMNo' class='%ZEN.Report.Aggregate.CountDistinct'/>
+        <group name='Detail'>
+          <attribute field='PrevHOSPDesc' name='PrevHOSPDesc'/>
+          <attribute field='PrevADMDepDesc' name='PrevADMDepDesc'/>
+          <attribute field='PrevPMINo' name='PrevPMINo'/>
+ 	      <attribute fields='PrevPMIName,PrevPMIName2,PrevPMIName3' name='PatientName' expression='..DisplayName(%val("PrevPMIName"),%val("PrevPMIName2"),%val("PrevPMIName3"))'/>
+          <attribute field='PrevADMADMNo' name='PrevADMADMNo'/>
+          <attribute field='AdmDate1' name='AdmDate1' expression='..DisplayDate(%val)'/>
+          <attribute field='PrevADSOUCode' name='PrevADSOUCode'/>
+          <attribute field='DchDate1' name='DchDate1' expression='..DisplayDate(%val)'/> 
+          <attribute field='PrevADMDepCode' name='PrevADMDepCode'/>
+          <attribute field='DaysInterval' name='DaysInterval'/>
+          <attribute field='PAADMADMNo' name='PAADMADMNo'/>
+          <attribute field='AdmDate2' name='AdmDate2' expression='..DisplayDate(%val)'/>
+          <attribute field='ADSOUCode' name='ADSOUCode'/>
+          <attribute field='DchDate2' name='DchDate2' expression='..DisplayDate(%val)'/> 
+          <attribute field='PAADMDepCode' name='PAADMDepCode'/>
+         </group>
+       </group>
+     </group>   
+   </report>
+]]></Data>
+</XData>
+
+<XData name="ReportDisplay">
+<XMLNamespace>http://www.intersystems.com/zen/report/display</XMLNamespace>
+<Data><![CDATA[
+<report xmlns='http://www.intersystems.com/zen/report/display'
+xmlns:auxxstyle='http://www.intersystems.com/zen/report/display/auxx/style'
+xmlns:auxx='http://www.intersystems.com/zen/report/display/auxx'
+  name='Readmission'>
+<document width= "#(..ReportWidth)#" height="#(..ReportHeight)#" marginLeft="#(..DocMarginLeft)#" marginRight="#(..DocMarginRight)#" 
+marginTop="#(..DocMarginTop)#" marginBottom="#(..DocMarginBottom)#" footerHeight="#(..DocFooterHeight)#" headerHeight="#(..DocHeaderHeight)#" 
+regionBeforeExtent="#(..DocHeaderHeight)#" regionAfterExtent="#(..DocFooterHeight)#" >
+<auxxstyle:auxxgroupheader/>
+<auxxstyle:auxxgroupsummary/>
+<auxxstyle:auxxhospitalheader/>
+<auxxstyle:auxxpageheader/>
+<auxxstyle:auxxpagefooter/>
+<auxxstyle:auxxparameterheader/>
+<auxxstyle:auxxreporttitle/>
+<auxxstyle:auxxtablecolumn/>
+</document>
+<auxx:PageHeader pagetitle='@ReportTitle'/>
+<auxx:ReportFooter username='@username' timestamp='@timestamp'/>
+
+<body>
+<!-- REPORT HEADER -->
+<auxx:ReportHeader reporttitle='@ReportTitle'/>
+<auxx:ReportParameterHeader label='@Facility:@Facility:' field='@facility'  xcondition="string-length(@facility)>0"/>
+<auxx:ReportParameterHeader label='@Specialty:@Specialty:' field='@specialty'  xcondition="string-length(@specialty)>0"/>
+<auxx:ReportParameterHeader label='@DaysElapsed:@Days Elapsed:' field='@dayselapsed' />
+<auxx:ReportDateHeader datefrom="@datefrom" dateto="@dateto" />
+
+<line pattern="solid" width="100%"/>
+<line pattern="empty" width="100%"></line> 
+<auxx:NoResults xcondition="not(facility)" />
+<group name='facility' pagebreak="true">
+<auxx:GroupHospitalHeader label="@Facility:@Facility:" field="@description" />
+<line pattern="empty" lineHeight="1mm" />
+<group name='specialty'>
+<auxx:GroupHeader label="@Specialty:@Specialty:" field="@description" />
+<line pattern="empty" lineHeight="2mm" />
+     <table class='auxxtablecolumn' group='Detail'>      
+        <item field='@PrevPMINo' width="8%" caption='@URN@URN' too-long-text="wrap"/>
+        <item field='@PatientName' width="15%" caption="@Name@Name" too-long-text="wrap" />
+        <item value='' width="1%" />
+        <item field='@PrevADMADMNo' width="9%" caption='@Episode No@Episode No' too-long-text="wrap" />
+        <item field='@AdmDate1' width="8%" caption='@AdmitDate@Admit Date'/> 
+        <item field='@PrevADSOUCode' width="5%" caption='@AdmitSource@Admit Source'/> 
+        <item field='@DchDate1' width="8%" caption='@DischargeDate@Discharge Date'/> 
+        <item field='@PrevADMDepCode' width="6%" caption='@Specialty@Specialty' too-long-text="wrap"/> 
+        <item field='@DaysInterval' width="3%" caption='@DaysElapsed@Days Elap- sed' style="text-align:right"/>
+        <item value='' width="1%" />
+        <item field='@PAADMADMNo' width="9%" caption='@ReadmitEpisodeNo@Readmit Episode No' too-long-text="wrap"/>
+        <item field='@AdmDate2' width="8%" caption='@ReadmitDate@Readmit Date'/> 
+        <item field='@ADSOUCode' width="5%" caption='@ReadmSource@Readm Source'/> 
+        <item field='@DchDate2' width="8%" caption='@ReadmitDischargeDate@Readmit Discharge Date'/> 
+        <item field='@PAADMDepCode' width="6%" caption='@ReadmitLocation@Readmit Specialty' too-long-text="wrap"/> 
+     </table>
+	<line pattern="empty" lineHeight="2mm" />
+	<auxx:GroupSummary label="@TotalReadmissionsfor@Total Readmissions for" group="@description" summaryvalue="TotalLocn" />
+	<line pattern="empty" lineHeight="4mm" />
+   </group>
+   <auxx:GroupSummary label="@TotalReadmissionsfor@Total Readmissions for" group="@description" summaryvalue="TotalHosp" />
+</group>
+</body>
+</report>
+]]></Data>
+</XData>
+</Class>
+</Export>

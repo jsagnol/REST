@@ -1,0 +1,488 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.SWARH.Report.ZEN.RadForm">
+<Description><![CDATA[
+<pre>
+***************************************************************************************************************************************
+* Class Description: Radiology Form ZEN report
+* Developer:Phuong-Dung HOANG
+	* Report Name: Radiology Form (Zen)<br>
+* Report Code: <br>
+* Created: 	20/09/2016 - PH
+***************************************************************************************************************************************
+</pre>]]></Description>
+<Super>Custom.SWARH.Report.ZEN.Abstract</Super>
+<TimeCreated>62381,48737.794133</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2014/UAT/cls/Custom/SWARH/Report/ZEN/RadForm.xml#1 $</Default>
+</Parameter>
+
+<Property name="EpisodeId">
+<Type>%String</Type>
+<Parameter name="ZENURL" value="P1"/>
+</Property>
+
+<Property name="LabEpisodeNo">
+<Type>%String</Type>
+<Parameter name="ZENURL" value="P2"/>
+</Property>
+
+<Property name="DocFooterHeight">
+<Type>%ZEN.Datatype.string</Type>
+<InitialExpression>"20mm"</InitialExpression>
+</Property>
+
+<XData name="ReportDefinition">
+<XMLNamespace>http://www.intersystems.com/zen/report/definition</XMLNamespace>
+<Data><![CDATA[
+<report xmlns='http://www.intersystems.com/zen/report/definition'
+   queryClass='Custom.SWARH.Report.ZEN.StoredProc.SWARHCUS77ZenRadForm' queryName='SWARHPatientDetails' name='Radiology'>
+  <parameter expression='..EpisodeId'/>
+  
+  <attribute name='ReportTitle' expression='$$$Text("@Radiology@Request for Diagnostic Imaging")'/>
+  <attribute name='timestamp' expression='$ZDATETIME($H, 2, 2)'/>
+  <attribute name='username' expression='..Username'/>
+  <attribute name='EpisodeId' expression='..EpisodeId'/>
+  <attribute name='LabEpisodeNo' expression='..LabEpisodeNo'/>
+  <attribute name='ParamVal' expression='..EpisodeId_", "_..LabEpisodeNo' />
+  <attribute name='BarCodeData' expression='"*"_..LabEpisodeNo_"*"'/>
+
+<group name="Patient" breakOnField="PAPMINo"> 
+<attribute name="URNumber" field="PAPMINo"/>
+<attribute fields='PAPMIName,PAPMIName2,PAPMIName3' name='PatientName' expression='..DisplayName(%val("PAPMIName"),%val("PAPMIName2"),%val("PAPMIName3"))'/>
+<attribute name="DOB" field="PAPMIDOB" />
+<attribute name="Sex" field="CTSEXCode" />
+<attribute name="TelH" field="PAPERTel"/>
+<attribute name="MobPhone" field="PAPERMobPhone"/>
+<attribute name="StAddress" fields="PAPERStName,PAPERForeignAddress,CTCITDesc,CTZIPCode" expression='..DisplayAddress(%val("PAPERStName"),%val("PAPERForeignAddress"),%val("CTCITDesc"),"",%val("CTZIPCode"))' />
+<attribute name="MedicareNo" fields="PAPMIMedicare,PAPMIMedicareCode" expression='%val("PAPMIMedicare")_" "_%val("PAPMIMedicareCode")' />
+<attribute name="DVANo" field="PAPMIDVANumber" />
+<attribute name="Insurance" field="INSTDesc" />
+<attribute name="HealthFund" field="HealthFund" />
+<attribute name="HealthFundNo" field="PAPMIHealthFundNo" />
+<!--<attribute name="TreatingDoc" fields="TreatingDocTitle,TreatingDoctor,HOSPRowId" expression='$S(%val("HOSPRowId")=696:"Dr Tim Baker",1:%val("TreatingDocTitle")_" "_%val("TreatingDoctor"))' />-->
+<attribute name="TreatingDoc" fields="TreatingDocTitle,TreatingDoctor,HOSPRowId,WARDCode,CTPCPDesc" expression='$S(%val("WARDCode")="ED":%val("TreatingDocTitle")_" "_%val("TreatingDoctor"),1:%val("TreatingDocTitle")_" "_%val("TreatingDoctor"))'/>
+<attribute name="ProviderNo" field="ProviderNo"/>
+<attribute name="LocalDocName" fields="REFDForename,REFDDesc" expression='$S(%val("REFDForename")="No GP nominated":%val("REFDForename"),1:%val("REFDForename")_" "_%val("REFDDesc"))' />
+<attribute name="LocalDocClinic" field="CLNDesc"/>
+<!--<attribute name="LocalDocAddr" fields="REFDAddress,FAMDCITY,FAMDZIP" expression='..DisplayAddress(%val("REFDAddress"),"",%val("FAMDCITY"),"",%val("FAMDZIP"))' />-->
+<attribute name="LocalDocAddr" fields="CLNDesc,CLNAddress1,CLNCity,CLNZip,REFDAddress,FAMDCITY,FAMDZIP" expression='..DisplayLocalDocAddress(%val("CLNDesc"),%val("CLNAddress1"),%val("CLNCity"),%val("CLNZip"),%val("REFDAddress"),%val("FAMDCITY"),%val("FAMDZIP"))' />
+<attribute name="EmployerDetails" fields="INSTCode,EmpName,EmpStName,EmpCity,EmpZip,EmpPh" expression='$S(%val("INSTCode")="Work Cover":"Employer Name: "_%val("EmpName")_$char(13)_$char(10)_"Employer Address: "_%val("EmpStName")_", "_%val("EmpCity")_" "_%val("EmpZip")_$char(13)_$char(10)_"Employer Phone: "_%val("EmpPh"),1:"")'/>
+<attribute name="CurrentInPat" fields="PAADMVisitStatus,PAADMType" expression='$S(((%val("PAADMVisitStatus")="A") &amp;&amp; (%val("PAADMType")="I")):"Yes",1:"No")' />
+<attribute name="CurrentLoc" field="WARDDesc" />
+<attribute name="AdmDate" field="PAADMAdmDate" />
+<attribute name="fromOrg" field="HOSPDesc" />
+<attribute name="fromOrgPhone" field="HOSPPhone" />
+<attribute name="CopyTo" fields="REFDForename,REFDDesc,PAPERRemark" 
+expression='$S((%val("REFDForename")="")&amp;&amp;(%val("REFDDesc")=""):%val("PAPERRemark"),%val("REFDForename")="No GP nominated": %val("REFDForename"),1:%val("REFDForename")_" "_%val("REFDDesc"))' />
+<attribute name="PresentingComplaint" field="MRADMPresentComplaint" />
+</group>
+<group name="LabEpisode" queryClass='Custom.SWARH.Report.ZEN.StoredProc.SWARHCUS77ZenRadForm' queryName='SWARHOrderDetails'>
+<parameter expression='..EpisodeId'/>
+<parameter expression='..LabEpisodeNo'/>
+<group name="Details" breakOnField="OEORILabEpisodeNo">
+<attribute name="DateTimeCreated" fields="OEORIDate,OEORITimeOrd" expression='%val("OEORIDate")_" "_%val("OEORITimeOrd")' />
+<attribute name="SeniorTreatingClinician" field="OEORIAuthoriseClinician" />
+<attribute name="OrderingClinician" fields="SSUSRTTLCode,CTPCPDesc" expression='%val("SSUSRTTLCode")_" "_%val("CTPCPDesc")' />
+<attribute name="Date" field="OEORIDate" />
+<attribute name="ToLocation" field="OrdItmRecLocDesc" />
+<attribute name="ClinicalNotes" field="OEORIDepProcNotes" />
+</group>
+</group>
+<group name="OrderItemList" queryClass='Custom.SWARH.Report.ZEN.StoredProc.SWARHCUS77ZenRadForm' queryName='SWARHOrderDetails'>
+<parameter expression='..EpisodeId'/>
+<parameter expression='..LabEpisodeNo'/>
+<group name="OrderItem" breakOnField="ARCIMCode">
+<attribute name="Code" field="ARCIMCode"/>
+<attribute name="Desc" field="ARCIMDesc"/>
+<attribute name="Spec" field="SPECCode"/>
+<attribute name="Status" field="OSTATCode"/>
+<attribute name="DateTimeRequired" fields="OEORISttDat,OEORISttTim" expression='%val("OEORISttDat")_" "_%val("OEORISttTim")' />
+<attribute name="Notes" field="OEORIRemarks"/>
+<group name="Questions" queryClass='Custom.SWARH.Report.ZEN.StoredProc.SWARHCUS77ZenRadForm' queryName='SWARHOrderQuestions' fields="QUESCode" filter='&apos;(($L(%val(""QUESCode""))=2) &amp;&amp; ($E(%val(""QUESCode""))=""R"") &amp;&amp; (+$E(%val(""QUESCode""),2)) &amp;&amp; (+$E(%val(""QUESCode""),2) &lt;= 6))'>
+<parameter expression='..LabEpisodeNo'/>
+<parameter field="ARCIMCode"/>
+<group name="Question" breakOnField="QUESCode">
+<attribute name="Code" field="QUESCode"/>
+<attribute name="Description" field="QUESDesc"/>
+<attribute name="Answer" fields="QUESControlType,QAAnswer" expression='$S(((%val("QUESControlType")="CheckBox") &amp;&amp; (%val("QAAnswer")="on")): "yes" ,1:%val("QAAnswer"))'/>
+<attribute name="ControlType" field="QUESControlType"/>
+</group>
+</group>
+</group>
+</group>
+<group name="CatQuestions" queryClass="Custom.SWARH.Report.ZEN.StoredProc.SWARHCUS77ZenRadForm" queryName="SWARHOrderCatQuestions" fields="QuesCode">
+<parameter expression="..LabEpisodeNo"/>
+<group name="Question" breakOnField="QuesCode">
+<attribute name="Code" field="QuesCode"/>
+<attribute name="Description" fields="QUESDesc" expression='%val("QUESDesc")'/>
+<attribute name="Answer" fields="QUESDesc,QAAnswer" expression='%val("QAAnswer")'/>
+</group>
+</group>
+<!--<group name="Questions" queryClass='Custom.SWARH.Report.ZEN.StoredProc.SWARHCUS77ZenRadForm' queryName='SWARHOrderQuestions' fields="QuesCode" filter='&apos;(($L(%val(""QuesCode""))=2) &amp;&amp; ($E(%val(""QuesCode""))=""R"") &amp;&amp; (+$E(%val(""QuesCode""),2)) &amp;&amp; (+$E(%val(""QuesCode""),2) &lt;= 6))'>
+<parameter expression='..LabEpisodeNo'/>
+<group name="Question" breakOnField="QuesCode">
+<attribute name="Code" field="QuesCode"/>
+<attribute name="Description" fields="QUESDesc" expression='%val("QUESDesc")'/>
+<attribute name="Answer" fields="QUESDesc,QAAnswer" expression='%val("QAAnswer")'/>
+</group>
+</group>-->
+
+</report>
+]]></Data>
+</XData>
+
+<XData name="ReportDisplay">
+<XMLNamespace>http://www.intersystems.com/zen/report/display</XMLNamespace>
+<Data><![CDATA[
+<report xmlns='http://www.intersystems.com/zen/report/display'
+xmlns:swarhstyle='http://www.intersystems.com/zen/report/display/swarh/style'
+xmlns:swarh='http://www.intersystems.com/zen/report/display/swarh'
+  name='Radiology'>
+<document width= "#(..ReportWidthPortrait)#" height="#(..ReportHeightPortrait)#" marginLeft="#(..DocMarginLeft)#" marginRight="#(..DocMarginRight)#" 
+marginTop="8mm" marginBottom="10mm" footerHeight="10mm" headerHeight="97mm" 
+regionBeforeExtent="0mm" regionAfterExtent="0mm">
+<!--<swarhstyle:swarhgroupheader/>
+<swarhstyle:swarhgroupsummary/>
+<swarhstyle:swarhhospitalheader/>
+<swarhstyle:swarhpagefooter/>
+<swarhstyle:swarhpageheader/>
+<swarhstyle:swarhparameterheader/>
+<swarhstyle:swarhreporttitle/>
+<swarhstyle:swarhtablecolumn/>-->
+</document>
+<!--<swarh:PageHeader pagetitle='@ReportTitle'  />-->
+
+<pageheader width="100%">
+<!--<table width="100%" align="center">-->
+<table width="100%">
+<block width="100%">
+<item value='Ordering Organisation: ' style="font-size:10px;"/>
+<item field='Patient/@fromOrg' style="font-size:10px;"/><item value=" Tel: " style="font-size:10px;"/>
+<item field='Patient/@fromOrgPhone' style="font-size:10px;"/>
+</block>
+</table>
+<table style="">
+<block style="">
+<table>
+<block width="83%">
+<item field='@ReportTitle' width="100%" style="font-weight:bold;"/>
+<item value=": " style="font-weight:bold;" />
+<item field='LabEpisode/Details/@ToLocation' style="font-weight:bold;"/>
+</block>
+<block width="17%" style="text-align:right;">
+<!--<item style="font-family:'Code39AzaleaRegular1'; font-size:20pt;line-height:1.5em" field='@BarCodeData' />-->
+<barcode field="@BarCodeData">
+ <barcodeOptions>
+    <![CDATA[
+    <barcode:height>8mm</barcode:height>
+    <barcode:module-width>0.2mm</barcode:module-width>
+    ]]]]><![CDATA[>
+ </barcodeOptions>
+</barcode>
+
+ </block>
+ </table>
+ <br/>
+ <table>
+	<!--<block width="50%">
+	<item value="Patient Identifiers" style="font-size:10px; text-align:left; font-weight: bold;" />
+	<br/>
+	<item value="UR No: " style="font-size:10px; font-weight: bold"/><item field='Patient/@URNumber' style="font-size:9px;" />
+	<item value="Names: " style="font-size:10px; font-weight: bold" /><item field='Patient/@PatientName' style="font-size:9px;" />
+	<br/>
+	<item value="DOB: " style="font-size:10px; font-weight: bold" /><item field='Patient/@DOB' style="font-size:9px;" />
+	<item value="Sex: " style="font-size:10px; font-weight: bold" /><item field='Patient/@Sex' style="font-size:9px;" />
+	</block>-->
+<block width="50%">
+<item value="Date and Time Order Created: " style="font-size:10px; font-weight: bold; text-align: right; "/>
+<item field='LabEpisode/Details/@DateTimeCreated' style="font-size:9px;"/>
+</block>
+<block width="50%" style="text-align: right;">
+<item value="Request Number: " style="font-size:10px; font-weight:bold;"/>
+<item field='@LabEpisodeNo' style="font-size:9px; font-weight:bold;"/>
+</block>
+</table>
+<!--<br/>
+<table>
+<block>
+<item value="Urgency: " style="font-size:10px; font-weight: bold;"/>
+<item field="CatQuestions/Question/@Answer" ifxpath='CatQuestions/Question/@Code="R1"'/>
+</block>
+</table>-->
+</block>
+</table>
+
+<line pattern="solid"/>
+<group name='Patient'>
+
+<table width="100%">
+<!--<table style="border-style:solid; border-width:0.5px; border-collapse:collapse;">-->
+<table>
+
+<block style="padding: 2px;border-style:solid; border-width:0.5px; border-collapse:collapse;">
+<item value="Patient Details" style="font-size:12px; font-weight: bold;" width="100%" />
+<br/>
+<item value="UR No: " style="font-size:10px; font-weight: bold"/><item field='@URNumber' style="font-size:10px;" />
+<br/>
+<item value="Names: " style="font-size:10px; font-weight: bold" /><item field='@PatientName' style="font-size:10px;" />
+<br/>
+<table>
+<block width="50%">
+<item value="DOB: " style="font-size:10px; font-weight: bold" /><item field='@DOB' style="font-size:10px;" />
+</block>
+<block width="50%">
+<item value="Sex: " style="font-size:10px; font-weight: bold" /><item field='@Sex' style="font-size:10px;" />
+</block>
+</table>
+<table>
+<block width="50%">
+<item value="Home Ph: " style="font-size:10px; font-weight: bold" /><item field='@TelH' style="font-size:10px;" />
+</block>
+<block width="50%">
+<item value="Mob: " style="font-size:10px; font-weight: bold" /><item field='@MobPhone' style="font-size:10px;" />
+</block>
+</table>
+<br/>
+<item value="Address: " style="font-size:10px; font-weight: bold" /><item field='@StAddress' style="font-size:10px;" />
+<br/>
+<item value="Medicare No: " style="font-size:10px; font-weight: bold" /><item field='@MedicareNo' style="font-size:10px;" />
+<br/>
+<item value="DVA No: " style="font-size:10px; font-weight: bold" /><item field='@DVANo' style="font-size:10px;" />
+<br/>
+<item value="Private Health Fund: " style="font-size:10px; font-weight: bold" /><item field='@HealthFund' style="font-size:10px;" />
+<br/>
+<item value="Health Fund No: " style="font-size:10px; font-weight: bold" /><item field='@HealthFundNo' style="font-size:10px;" />
+<br/>
+<item value="Payor: " style="font-size:10px; font-weight: bold" /><item field='@Insurance' style="font-size:10px;" />
+</block>
+</table>
+<block style="padding-left: 5px;">
+<item value="Treating Doctor: " style="font-size:10px; font-weight: bold" /><item field='@TreatingDoc' style="font-size:10px;" />
+<br/>
+<item value="Provider Number: " style="font-size:10px; font-weight: bold" /><item field='@ProviderNo' style="font-size:10px;" />
+<br/>
+<line pattern="empty" width="100%" />
+<item value="Local Doctor Details: " style="font-size:10px; font-weight: bold" />
+<br/>
+<table>
+<item value="Name: " style="font-size:10px; font-weight: bold" width="20%"/>
+<item field='@LocalDocName' style="font-size:10px;" />
+</table>
+<table>
+<item value="Address: " style="font-size:10px; font-weight: bold" width="20%"/>
+<item field='@LocalDocAddr' style="font-size:10px;" />
+</table>
+<line pattern="empty"/>
+<table>
+<block style="padding-left: 0px;">
+<table style="border-style:solid; border-width:0.5px; border-collapse:collapse;" width="100%">
+<block width="40%" style="padding: 2px;">
+<item value="Admission Date: " style="font-size:10px; font-weight: bold"/>
+<br/>
+<item value="Current In Patient: " style="font-size:10px; font-weight: bold"/>
+<br/>
+<item value="Current Location: " style="font-size:10px; font-weight: bold"/>
+</block>
+<block style="padding: 2px;">
+<item field='@AdmDate' style="font-size:10px;"/>
+<br/>
+<item field='@CurrentInPat' style="font-size:10px;"/>
+<br/>
+<item field='@CurrentLoc' style="font-size:10px;"/>
+</block>
+</table>
+<item field='@EmployerDetails' style="font-size:10px;" />
+</block>
+</table>
+</block>
+</table>
+</group>
+</pageheader>
+
+<!--<swarh:ReportFooter username='@username' timestamp='@timestamp'  />-->
+<pagefooter>
+<table>
+<block width="80%" style="font-size:8px;" >
+<item value="Report SWARHZMTED017"/>
+<item field='@ParamVal'/>
+</block>
+<block style="font-size:12px; font-weight: bold;" >
+<item value="Page"/>
+<item special="page-number-of" style="padding-left: 3px;"/>
+</block>
+</table>
+</pagefooter>
+
+<body>
+<line pattern="solid" height="1mm"/>
+<div style="font-size:10px;">
+<block>
+<item value="Presenting Complaint: " style="font-weight: bold"/>
+<item field='Patient/@PresentingComplaint'/>
+<br/>
+<item value="Clinical Notes: " style="font-weight: bold"/>
+<item field='LabEpisode/Details/@ClinicalNotes'/>
+</block>
+<line pattern="solid"/>
+<table>
+<block>
+<item value="Urgency: "/>
+<item field="CatQuestions/Question/@Answer" ifxpath='CatQuestions/Question/@Code="R1"'/>
+</block>
+</table>
+<block>
+<line pattern="empty" width="100%" height="1mm"/>
+<group name="OrderItemList">
+<line pattern="solid" width="100%" height="1mm"/>
+<table group="OrderItem">
+<thead>
+<tr style="font-weight:bold; font-size: 10px">
+<th><item value="Code" width="7%" /></th>
+<th><item value="Description" width="24%" /></th>
+<th><item value="Details" width="69%" /></th>
+<!--<th><item value="Notes" width="30%" /></th>-->
+</tr>
+</thead>
+<item value="" width="7%"/>
+<item value="" width="24%"/>
+<item value="" width="69%"/>
+<!--<item value="" width="30%"/>-->
+</table>
+<line pattern="solid" width="100%" height="1mm"/>
+
+<group name="OrderItem">
+<table style="font-size: 10px" width="100%">
+<item field="@Code"  width="7%"/>
+<item field="@Desc" width="24%"/>
+<block width="69%">
+<div style="font-style:italic; font-size: 9px;">
+<group name="Questions/Question">
+<table>
+<!--<item value="" width="6%"/>-->
+<item field="@Description" width="60%" /> <!--ifxpath='@Code="RCTSSP1" or @Code="RCTSSP2" or @Code="RCTSSP3" or @Code="RCTSSP4" or @Code="RCTSSP5"' />-->
+<item field="@Answer" width="40%"/>
+<!--<item value="&#252;" style="font-family: Wingdings"/> -->
+<br/>
+</table>
+</group>
+</div>
+</block>
+<!--<item field="@Notes" width="30%" style="font-size: 9px"/>-->
+</table>
+
+</group>
+</group>
+<!--<line pattern="solid"/>-->
+
+<!--</group>-->
+</block>
+
+</div>
+<line pattern="solid" height="1mm"/>
+<line pattern="empty" height="1mm"/>
+<group name="Patient" breakOnField="PAPMINo">
+<foblock keepCondition="keep-together.within-page='always'">
+<div style="font-size: 8px;">
+<table width="100%">
+<table style="border-style:solid; border-width:0.5px">
+<item width="10px" style="font-family: ZapfDingbats;padding:2px;" value="&#x274F;"/>
+<item value="Patient identification verified" style="padding:2px;"/>
+</table>
+<table style="border-style:solid; border-width:0.5px">
+<table>
+<item value="Protocol" style="padding:2px;" width="50%"/>
+<item value="Radiologist" style="padding:2px;" width="50%"/>
+</table>
+</table>
+</table>
+<table width="100%">
+<table style="border-style:solid; border-width:0.5px">
+<item width="10px" style="font-family: ZapfDingbats;padding:2px;" value="&#x274F;"/>
+<item value="Procedure and consent verified" style="padding:2px;"/>
+</table>
+<table style="border-style:solid; border-width:0.5px">
+<table>
+<item value="Date __/__/____" style="padding:2px;" width="50%"/>
+<item value="Radiographer" style="padding:2px;" width="50%"/>
+</table>
+</table>
+</table>
+<table width="100%">
+<table style="border-style:solid; border-width:0.5px">
+<item width="10px" style="font-family: ZapfDingbats;padding:2px;" value="&#x274F;"/>
+<item value="Correct side and site verified" style="padding:2px;"/>
+</table>
+<table style="border-style:solid; border-width:0.5px">
+<table>
+<item value="Pregnant Y/N" style="padding:2px;" width="50%"/>
+<item value="Patient" style="padding:2px;" width="50%"/>
+</table>
+</table>
+</table>
+</div>
+</foblock>
+</group>
+<line pattern="empty" width="100%" height="2mm"/>
+<table width="100%" style="text-align:left;">
+<block width="50%">
+<item value="Copy to: " style="font-size: 11px;" />
+<item field="Patient/@CopyTo" style="font-size: 10px;" />
+</block>
+<block width="50%" style="border-style:solid; border-width:1px; padding: 2px;">
+<table>
+<item value="Patient Mobility: " width="40%" style="font-size: 11px;"/>
+<div style="font-size: 10px;" width="60%">
+<group name="CatQuestions/Question">
+<table>
+<item field="@Description" width="33%" ifxpath='@Code!="R1"'/>
+<item field="@Answer" width="67%" ifxpath='@Code!="R1"'/><br/>
+</table>
+</group>
+</div>
+</table>
+</block>
+</table>
+<div xslfostyle="position: absolute; top: 260mm; bottom: 0mm; left:10mm; width: 190mm;">
+<line pattern="empty" width="100%" height="2mm"/>
+<div style="font-size:10px;">
+<table width="100%" style="text-align:left;">
+<block width="50%">
+<item value="Ordering Clinician: "/><item field='LabEpisode/Details/@OrderingClinician'/>
+</block>
+<!--<block style="text-align:right;">-->
+<block width="50%">
+<item value="Signature: __________________" />
+<item value="Date: " />
+<item field='LabEpisode/Details/@Date' />
+</block>
+</table>
+</div>
+<div style="font-size:10px;">
+<line pattern="empty" width="100%" />
+<table>
+<block width="50%">
+<item value="Senior Treating Clinician: "/><item field='LabEpisode/Details/@SeniorTreatingClinician'/>
+</block>
+<!--<block style="text-align:right;">-->
+<block width="50%">
+<item value="Signature: __________________" />
+<item value="Date: " />
+<item field='LabEpisode/Details/@Date' />
+</block>
+<br/>
+</table>
+<line pattern="empty" width="100%" />
+</div>
+
+
+</div>
+</body>
+</report>
+]]></Data>
+</XData>
+</Class>
+</Export>

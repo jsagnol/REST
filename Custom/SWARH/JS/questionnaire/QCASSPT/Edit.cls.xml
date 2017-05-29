@@ -1,0 +1,127 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.SWARH.JS.questionnaire.QCASSPT.Edit">
+<Description>
+Component JavaScript for: questionnaire.QCASSPT.Edit</Description>
+<Modified>0</Modified>
+<Super>websys.AbstractJavaScript</Super>
+<TimeCreated>63537,10519.271559</TimeCreated>
+
+<Method name="JSContent">
+<Description>
+  </Description>
+<Language>javascript</Language>
+<ClientMethod>1</ClientMethod>
+<Implementation><![CDATA[
+	//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+	// Sends result questionnaire score result back to parent window (where possible)
+	// This is used by CASSPT, DIETPT, OCCTHERPT, PHYSIOPT, PODIATRYPT, SWPT & SPEECHPT
+	// Initial Release - 2015-09-02 (rpgladman) - Tested with IE 9, FF40 & GC45
+	// Modified: 2016-04-28 (rpgladman) - Hides username/password fields on initial creation and calls Update_Click() on
+	//                                    window.opener to close questionnaire window (T363782)
+	// Modified: 2016-10-05 (rpgladman) - Changes neccessary to have it work with IE11
+	// Modified: 2017-01-16 (rpgladman) - Due to OS level lag on RemoteApp the method to bring the questionnaire to front was intermittantly
+	//                                    causing the window to go to the back so it was removed completely.
+	//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+	
+  SWARH.onReady(initialLoad);
+
+  function initialLoad(){
+	var fnDesc	= 'initialLoad(): ';
+    var tResult = Number('0'+document.getElementById('QUESScore').value); 					// For this to work the element MUST NOT BE DISPLAY ONLY - If you make it display only it becomes a label and then all browsers except IE cannot use .value on it
+    var tCode   = '';
+    var tPriorityElement;
+    var tCallOpenerUpdateClick;
+    var tRefreshSessionList = 100;
+
+    if (tResult>=10000) {																	// Calculate urgency
+      tCode = 'URG';
+    } else if (tResult>=1000) {
+      tCode = 'SEMI';
+    } else {
+      tCode = 'NORM';
+    };
+
+    /* If the first time here (just loaded the questionnaire page, it has not bounced back due to an apply or pseudoupdate) */
+    var tBaseName = document.getElementById('OEORIRowId').value;
+    if(!window.opener[tBaseName+'_AlreadyLoaded']) {										// If this is the first time here, we need to save some information for later
+      //var tActiveElementId = window.opener.document.activeElement.id;						// Get the 'z<number>' suffix and prefix it with the expected 'Priority'
+      //SWARH.log(fnDesc+'tActiveElementId='+tActiveElementId);
+      //window.opener.qDestElement = window.opener.document.getElementById('Priority'+tActiveElementId.substr(tActiveElementId.lastIndexOf('z')));
+
+      if(window.opener.document.getElementById('OECPRDesc')) {								// #### Got here via referral window ####
+        window.opener.qDestElement = window.opener.document.getElementById('OECPRDesc');	// We know the priority element name already so just get it
+        tCallOpenerUpdateClick     = true;
+      } else {																				// #### Came here direct from OEOrder.SessionList ####
+        window.opener.qDestElement = window.opener.document.getElementById('Priorityz'+window.opener['questionnaire']);
+        tCallOpenerUpdateClick     = false;
+      };
+      window.opener[tBaseName+'_AlreadyLoaded'] = true;										// Flag it so that it just uses the data already saved there
+    } else {																				// Set calculated priority value to the element on parent window and trigger change event
+      window.opener.qDestElement.value = tCode;
+      websys_fireEvent_workaround(window.opener.qDestElement,'change',document);			// Causes it to 'recalculate' the code put in there */
+      window.opener.qDestElement.focus();													// In IE focus() is what makes it remember the state of an element.  If you didn't do this and reloaded the page it would still have the default 'Normal' value */
+      tRefreshSessionList = 500;															// If you try to refresh the parent and then close() it immediately the it doesn't have enough time to complete it so we flag it for refreshing at a later point */
+    }
+    
+    // By default the username & password are hidden using CSS, if this has already been authorised then we need to show them again
+    if ((document.getElementById('QUESDate').value != '' && window.opener[tBaseName+'_PseudoUpdateInProgress'] != true) || document.getElementById('PIN').className == 'clsInvalid') {
+      document.getElementById('usernametr').style.display='';
+      document.getElementById('passwordtr').style.display='';
+      //SWARH.log(fnDesc+'Revealed username & password fields');
+      };
+
+    // If this page was loaded after the pseudoupdate button was pressed then close this window immediately
+    if (window.opener[tBaseName+'_PseudoUpdateInProgress'] == true) {
+      window.opener[tBaseName+'_PseudoUpdateInProgress']=false;
+      //SWARH.log(fnDesc+'Pseudoupdate in progress');
+
+      // Check to see if there is an error on the page, if not then close - The reason for this is if you selected update but the data was bad then it would close and not save anything
+      if (document.getElementById('PIN').className != 'clsInvalid') {
+        //SWARH.log(fnDesc+'Window closing...');
+        setTimeout(function(){window.opener.Update_click();},tRefreshSessionList);
+      };
+    };
+
+    // Hide the update button and insert our 'pseudoupdate' button in its place - First, construct the button
+    // Not using inner/outerHTML here as the html created was correct but it prevented Update/Apply from working for some reason
+    var tOriginalUpdate     = document.getElementById('update1');
+    tOriginalUpdate.accessKey = '';
+    var tPseudoUpdate       = document.createElement('input');
+    tPseudoUpdate.name      = 'pseudoupdate';
+    tPseudoUpdate.title     = 'Update';
+    tPseudoUpdate.className = 'clsButton';
+    tPseudoUpdate.id        = 'pseudoupdate';
+    tPseudoUpdate.accessKey = 'U';
+    tPseudoUpdate.onclick   = function() {window.opener[document.getElementById('OEORIRowId').value+'_PseudoUpdateInProgress']=true;document.getElementById('save1').click();};
+    tPseudoUpdate.type      = 'button';
+    tPseudoUpdate['data-theme'] = 'c';
+    tPseudoUpdate.value     = 'Update';
+    
+    tOriginalUpdate.style.display='none';													// Hide update1
+    tOriginalUpdate.parentNode.insertBefore(tPseudoUpdate,tOriginalUpdate);					// Insert pseudoupdate
+    //setTimeout(function(){window.focus();},650);											// Wait for 650ms then bring window to front - Not required but sometimes the questionnaire window goes to the back
+    
+    // websys_fireEvent is broken when using compatibility mode and fails randomly on IE11 so we have to cover all bases
+    function websys_fireEvent_workaround(element, eventType, doc) {
+      try {
+      	if (doc.createEventObject) {					// Quirks mode IE
+			element.fireEvent('on'+eventType,doc.createEventObject().button=1);
+		} else {
+			websys_fireEvent(element, 'click', doc);	// Everything else - use the existing functionality
+		}
+      } catch(err) {
+		SWARH.log(fnDesc+'Failed to fire event');
+      }
+    }
+  }
+]]></Implementation>
+</Method>
+
+<Parameter name="SrcVer">
+<Description>
+This Parameter is updated by Perforce</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/LIVE/cls/Custom/SWARH/JS/questionnaire/QCASSPT/Edit.xml#2 $</Default>
+</Parameter>
+</Class>
+</Export>

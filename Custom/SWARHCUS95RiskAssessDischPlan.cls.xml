@@ -1,0 +1,456 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.SWARHCUS95RiskAssessDischPlan">
+<ClassType/>
+<ProcedureBlock>0</ProcedureBlock>
+<Super>%Library.RegisteredObject</Super>
+<TimeCreated>61864,39419.818053</TimeCreated>
+
+<Method name="RiskAssessDischchPlanClose">
+<Description>
+This is the Close component of the %Library.Query.
+This is standard code and should never have to change.
+This is where all the cleanup is performed, i.e. the purging of the temporary storage global ^CacheTemp.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>QHandle:%Library.Binary</FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Clean up by purging the temporary node in ^CacheTemp global
+ New repid
+ Set repid=$li(QHandle,2)
+ Kill ^CacheTemp(repid)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="RiskAssessDischchPlanExecute">
+<Description>
+This is the Execute section for the %Library.Query. 
+All of the logic will be performed here.
+A new node for the ^CacheTemp global will be created and each subscript of this global will contain
+a row for the report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,HospitalID:%Integer,PatientID:%Integer,EpisodeID:%Integer]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+	
+ k ^zbernard	
+ // Get reportid i.e. use $INCREMENT to add another node to ^CacheTemp global. 
+ // We use ^CacheTemp global because it will always use memory before disk
+ New repid,ind
+
+ // Use $Increment to get the next node
+ Set repid=$I(^CacheTemp)
+ s ^zBernard("1")=(1)
+
+ // Build data into ^CacheTemp(ReportID)
+ // e.g. Set ^CacheTemp(ReportID,Index)=$LB(f1,f2,f3)
+ New Number,String,Date,Time,c,n
+ n HOSPDesc,PAPMINo,PAPMIName,PAPMIName2,PAPMIDOB,PAADMAdmNo,QUESCreateDate,QUESCreateTime,
+ QUESDate,QUESTime,UserName,CreateUserName,
+ CQRF1,QRF1Comment,CQRF2,QRF2Comment,CQRF3,QRF3Comment,CQRF4,QRF4Comment,
+ 
+ QACASRef,CQACASPtCons,QACASDate,QACASAppt,
+ QCRRefReq,CQCRPtCon,QCRRefSent,QCRAppt,
+ QCCCRefReq,CQCCCPtCon,QCCCRefSent,QCCCAppt,
+ QDERefReq,CQDEPatCon,QDERefSent,QDEAppt,
+ QDTRefReq,CQDTPatCon,QDTRefSent,QDTAppt,
+ QHARPRefReq,CQHARPPTCons,QHARPDtSent,QHARPDtAppt,
+ QOTRefReq,CQOTPtCon,QOTRefSent,QOTAppt,
+ QPHRef,CQPTPtCon,QPTRefSent,QPTAppt,
+ QPDRefReq,CQPDPtCon,QPDRefSent,QPDAppt,
+ QSWRefReq,CQSWPtCon,QSWRefSent,QSWAppt,
+ QSPRefReq,CQSPPtCon,QSPRefSent,QSPAppt,
+ QOtherRefReq,CQOtherPtCon,QOtherRefSent,QOtherAppt,
+ 
+ QCACPSAdm,CQCACPSPtCon,QCACPSDate,QCACPSDis,
+ QDNAdm,CQDNPtCon,QDNDate,QDNDis,
+ QMoWAdm,CQMoWPtCon,QMoWDate,QMoWDis,
+ QMSAdm,CQMSPtCon,QMSDate,QMSDis,
+ QPACNot,CQPACPtCon,QPACRefDt,QPACRefReqd,
+ QPCAdm,CQPCPtCon,QPCDate,QPCDis,
+ QOtherAdm,CQOtherCSPtCon,QOtherDate,QOtherDis,
+ QOther2Adm,CQOther2PtCons,QOther2DtSent,QOther2RefReqd,
+ 
+ QAntDCDest,QAntDCDate,
+ CQDCDest,QDCDestOtherDetails,
+ 
+ QCACPSDCNot,QCACPSDCDate,QCACPSDCRef,QCACPSDCPtAw,
+ QDNNot,QDNDCDate,QDNDCRef,QDNDCPtAw,
+ QMoWDCNot,QMoWDCDate,QMoWDCRef,QMoWDCPtAw,
+ QMSNot,QMSDCDate,QMSDCRef,QMSDCPtAw,
+ QPACDCNot,QPACDCDate,QPACDCRef,QPACDCPtAw,
+ QPCDCNot,QPCDCDate,QPCDCRef,QPCDCPtAw,
+ QOtherDCNot,QOtherDCDate,QOtherDCRef,QOtherDCPtAw
+ 
+ n CQDCTransArr,CQDCTransType,QDCTransTypeOther,QRELATIVE,CQMedsTaken,CQPrescr,
+ QDRAppt,QDrApptDate,QDrApptTime,QAH1Appt,QAH1ApptDate,QAH1ApptTime,
+ QAH2Appt,QAH2ApptDate,QAH2ApptTime,CQInfoForCare,QDCDate,QDCTime,
+ CQPtInvolved,CQPtSig,QPtSigDate
+ 
+ 
+ // s ()=0
+ s (HOSPDesc,PAPMINo,PAPMIName,PAPMIName2,PAPMIDOB,PAADMAdmNo,QUESCreateDate,QUESCreateTime)=""
+ s (QUESDate,QUESTime,UserName,CreateUserName,
+ CQRF1,QRF1Comment,CQRF2,QRF2Comment,CQRF3,QRF3Comment,CQRF4,QRF4Comment,
+ QACASRef,CQACASPtCons,QACASDate,QACASAppt,
+ QCRRefReq,CQCRPtCon,QCRRefSent,QCRAppt,
+ QCCCRefReq,CQCCCPtCon,QCCCRefSent,QCCCAppt,
+ QDERefReq,CQDEPatCon,QDERefSent,QDEAppt,
+ QDTRefReq,CQDTPatCon,QDTRefSent,QDTAppt,
+ QHARPRefReq,CQHARPPTCons,QHARPDtSent,QHARPDtAppt,
+ QOTRefReq,CQOTPtCon,QOTRefSent,QOTAppt,
+ QPHRef,CQPTPtCon,QPTRefSent,QPTAppt,
+ QPDRefReq,CQPDPtCon,QPDRefSent,QPDAppt,
+ QSWRefReq,CQSWPtCon,QSWRefSent,QSWAppt,
+ QSPRefReq,CQSPPtCon,QSPRefSent,QSPAppt,
+ QOtherRefReq,CQOtherPtCon,QOtherRefSent,QOtherAppt,
+ QCACPSAdm,CQCACPSPtCon,QCACPSDate,QCACPSDis,
+ QDNAdm,CQDNPtCon,QDNDate,QDNDis,
+ QMoWAdm,CQMoWPtCon,QMoWDate,QMoWDis,
+ QMSAdm,CQMSPtCon,QMSDate,QMSDis,
+ QPACNot,CQPACPtCon,QPACRefDt,QPACRefReqd,
+ QPCAdm,CQPCPtCon,QPCDate,QPCDis,
+ QOtherAdm,CQOtherCSPtCon,QOtherDate,QOtherDis,
+ QOther2Adm,CQOther2PtCons,QOther2DtSent,QOther2RefReqd,
+ 
+ QAntDCDest,QAntDCDate,
+ CQDCDest,QDCDestOtherDetails,
+ 
+ QCACPSDCNot,QCACPSDCDate,QCACPSDCRef,QCACPSDCPtAw,
+ QDNNot,QDNDCDate,QDNDCRef,QDNDCPtAw,
+ QMoWDCNot,QMoWDCDate,QMoWDCRef,QMoWDCPtAw,
+ QMSNot,QMSDCDate,QMSDCRef,QMSDCPtAw,
+ QPACDCNot,QPACDCDate,QPACDCRef,QPACDCPtAw,
+ QPCDCNot,QPCDCDate,QPCDCRef,QPCDCPtAw,
+ QOtherDCNot,QOtherDCDate,QOtherDCRef,QOtherDCPtAw)=""
+ 
+ s (CQDCTransArr,CQDCTransType,QDCTransTypeOther,QRELATIVE,CQMedsTaken,CQPrescr,
+ QDRAppt,QDrApptDate,QDrApptTime,QAH1Appt,QAH1ApptDate,QAH1ApptTime,
+ QAH2Appt,QAH2ApptDate,QAH2ApptTime,CQInfoForCare,QDCDate,QDCTime,
+ CQPtInvolved,CQPtSig,QPtSigDate)=""
+ 
+ s ind=1
+ 
+ &sql(declare RiskAssessDischchPlan cursor for 
+
+SELECT
+ HOSP_Desc,PAPMI_No,PAPMI_Name,PAPMI_Name2,PAPMI_DOB,
+ PAADM_AdmNo,
+ QUESCreateDate,QUESCreateTime,
+ QUESDate,QUESTime,
+ QUESUserDR->SSUSR_Name,QUESCreateUserDR->SSUSR_Name,
+ CQRF1,QRF1Comment,CQRF2,QRF2Comment,CQRF3,QRF3Comment,CQRF4,QRF4Comment,
+ QACASRef,CQACASPtCons,QACASDate,QACASAppt,
+ QCRRefReq,CQCRPtCon,QCRRefSent,QCRAppt,
+ QCCCRefReq,CQCCCPtCon,QCCCRefSent,QCCCAppt,
+ QDERefReq,CQDEPatCon,QDERefSent,QDEAppt,
+ QDTRefReq,CQDTPatCon,QDTRefSent,QDTAppt,
+ QHARPRefReq,CQHARPPTCons,QHARPDtSent,QHARPDtAppt,
+ QOTRefReq,CQOTPtCon,QOTRefSent,QOTAppt,
+ QPHRef,CQPTPtCon,QPTRefSent,QPTAppt,
+ QPDRefReq,CQPDPtCon,QPDRefSent,QPDAppt,
+ QSWRefReq,CQSWPtCon,QSWRefSent,QSWAppt,
+ QSPRefReq,CQSPPtCon,QSPRefSent,QSPAppt,
+ QOtherRefReq,CQOtherPtCon,QOtherRefSent,QOtherAppt,
+ QCACPSAdm,CQCACPSPtCon,QCACPSDate,QCACPSDis,
+ QDNAdm,CQDNPtCon,QDNDate,QDNDis,
+ QMoWAdm,CQMoWPtCon,QMoWDate,QMoWDis,
+ QMSAdm,CQMSPtCon,QMSDate,QMSDis,
+ QPACNot,CQPACPtCon,QPACRefDt,QPACRefReqd,
+ QPCAdm,CQPCPtCon,QPCDate,QPCDis,
+ QOtherAdm,CQOtherCSPtCon,QOtherDate,QOtherDis,
+ QOther2Adm,CQOther2PtCons,QOther2DtSent,QOther2RefReqd,
+ 
+ QAntDCDest,QAntDCDate,
+ CQDCDest,QDCDestOtherDetails,
+ 
+ QCACPSDCNot,QCACPSDCDate,QCACPSDCRef,QCACPSDCPtAw,
+ QDNNot,QDNDCDate,QDNDCRef,QDNDCPtAw,
+ QMoWDCNot,QMoWDCDate,QMoWDCRef,QMoWDCPtAw,
+ QMSNot,QMSDCDate,QMSDCRef,QMSDCPtAw,
+ QPACDCNot,QPACDCDate,QPACDCRef,QPACDCPtAw,
+ QPCDCNot,QPCDCDate,QPCDCRef,QPCDCPtAw,
+ QOtherDCNot,QOtherDCDate,QOtherDCRef,QOtherDCPtAw,
+ CQDCTransArr,CQDCTransType,QDCTransTypeOther,QRELATIVE,CQMedsTaken,CQPrescr,
+ QDRAppt,QDrApptDate,QDrApptTime,QAH1Appt,QAH1ApptDate,QAH1ApptTime,
+ QAH2Appt,QAH2ApptDate,QAH2ApptTime,CQInfoForCare,QDCDate,QDCTime,
+ CQPtInvolved,CQPtSig,QPtSigDate
+ 
+ FROM   questionnaire.QRADP, SQLUser.PA_PatMas, SQLUser.PA_Adm, SQLUser.CT_Hospital
+ WHERE  QUESPAPatMasDR=:PatientID and QUESPAPatMasDR=PAPMI_RowId and
+ QUESPAADMDR=PAADM_RowId and QHOSPITAL=*HOSP_RowId and QUESPAADMDR=:EpisodeID
+ )
+ 
+ &sql(open RiskAssessDischchPlan)
+
+  //fetch first row 
+ &sql(fetch RiskAssessDischchPlan into :HOSPDesc,:PAPMINo,:PAPMIName,:PAPMIName2,:PAPMIDOB,:PAADMAdmNo,
+ :QUESCreateDate,:QUESCreateTime,
+ :QUESDate,:QUESTime,:UserName,:CreateUserName,
+ :CQRF1,:QRF1Comment,:CQRF2,:QRF2Comment,:CQRF3,:QRF3Comment,:CQRF4,:QRF4Comment,
+ :QACASRef,:CQACASPtCons,:QACASDate,:QACASAppt,
+ :QCRRefReq,:CQCRPtCon,:QCRRefSent,:QCRAppt,
+ :QCCCRefReq,:CQCCCPtCon,:QCCCRefSent,:QCCCAppt,
+ :QDERefReq,:CQDEPatCon,:QDERefSent,:QDEAppt,
+ :QDTRefReq,:CQDTPatCon,:QDTRefSent,:QDTAppt,
+ :QHARPRefReq,:CQHARPPTCons,:QHARPDtSent,:QHARPDtAppt,
+ :QOTRefReq,:CQOTPtCon,:QOTRefSent,:QOTAppt,
+ :QPHRef,:CQPTPtCon,:QPTRefSent,:QPTAppt,
+ :QPDRefReq,:CQPDPtCon,:QPDRefSent,:QPDAppt,
+ :QSWRefReq,:CQSWPtCon,:QSWRefSent,:QSWAppt,
+ :QSPRefReq,:CQSPPtCon,:QSPRefSent,:QSPAppt,
+ :QOtherRefReq,:CQOtherPtCon,:QOtherRefSent,:QOtherAppt,
+ 
+ :QCACPSAdm,:CQCACPSPtCon,:QCACPSDate,:QCACPSDis,
+ :QDNAdm,:CQDNPtCon,:QDNDate,:QDNDis,
+ :QMoWAdm,:CQMoWPtCon,:QMoWDate,:QMoWDis,
+ :QMSAdm,:CQMSPtCon,:QMSDate,:QMSDis,
+ :QPACNot,:CQPACPtCon,:QPACRefDt,:QPACRefReqd,
+ :QPCAdm,:CQPCPtCon,:QPCDate,:QPCDis,
+ :QOtherAdm,:CQOtherCSPtCon,:QOtherDate,:QOtherDis,
+ :QOther2Adm,:CQOther2PtCons,:QOther2DtSent,:QOther2RefReqd,
+ 
+ :QAntDCDest,:QAntDCDate,
+ :CQDCDest,:QDCDestOtherDetails,
+ 
+ :QCACPSDCNot,:QCACPSDCDate,:QCACPSDCRef,:QCACPSDCPtAw,
+ :QDNNot,:QDNDCDate,:QDNDCRef,:QDNDCPtAw,
+ :QMoWDCNot,:QMoWDCDate,:QMoWDCRef,:QMoWDCPtAw,
+ :QMSNot,:QMSDCDate,:QMSDCRef,:QMSDCPtAw,
+ :QPACDCNot,:QPACDCDate,:QPACDCRef,:QPACDCPtAw,
+ :QPCDCNot,:QPCDCDate,:QPCDCRef,:QPCDCPtAw,
+ :QOtherDCNot,:QOtherDCDate,:QOtherDCRef,:QOtherDCPtAw,
+ 
+ :CQDCTransArr,:CQDCTransType,:QDCTransTypeOther,:QRELATIVE,:CQMedsTaken,:CQPrescr,
+ :QDRAppt,:QDrApptDate,:QDrApptTime,:QAH1Appt,:QAH1ApptDate,:QAH1ApptTime,
+ :QAH2Appt,:QAH2ApptDate,:QAH2ApptTime,:CQInfoForCare,:QDCDate,:QDCTime,
+ :CQPtInvolved,:CQPtSig,:QPtSigDate
+
+ )
+
+ while 'SQLCODE{
+ 
+ d FormatDates
+ d FormatTimes
+ //s PAADMChaplainChurchAddress=$zstrip(PAADMChaplainChurchAddress,"*C")
+ //s PAADMRefOrgAddress=$zstrip(PAADMRefOrgAddress,"*C")
+ s QRF1Comment=$zstrip(QRF1Comment,"<C")
+ if $extract(QRF1Comment,2)=$char(1) {
+	 s QRF1Comment=$zstrip($extract(QRF1Comment,2,$length(QRF1Comment)),"<C")
+ }
+ s QRF1Comment=$zstrip(QRF1Comment,"*C")
+ 
+ s QRF2Comment=$zstrip(QRF2Comment,"<C")
+ if $extract(QRF2Comment,2)=$char(1) {
+	 s QRF2Comment=$zstrip($extract(QRF2Comment,2,$length(QRF2Comment)),"<C")
+ }
+ s QRF2Comment=$zstrip(QRF2Comment,"*C")
+ 
+ s QRF3Comment=$zstrip(QRF3Comment,"<C")
+ if $extract(QRF3Comment,2)=$char(1) {
+	 s QRF3Comment=$zstrip($extract(QRF3Comment,2,$length(QRF3Comment)),"<C")
+ }
+ s QRF3Comment=$zstrip(QRF3Comment,"*C")
+ 
+ s QRF4Comment=$zstrip(QRF4Comment,"<C")
+ if $extract(QRF4Comment,2)=$char(1) {
+	 s QRF4Comment=$zstrip($extract(QRF4Comment,2,$length(QRF4Comment)),"<C")
+ }
+ s QRF4Comment=$zstrip(QRF4Comment,"*C")
+ 
+ // build the row
+ Set ^CacheTemp(repid,ind)=$LB(HOSPDesc,PAPMINo,PAPMIName,PAPMIName2,PAPMIDOB,PAADMAdmNo,
+ QUESCreateDate,QUESCreateTime,QUESDate,QUESTime,UserName,CreateUserName,
+ CQRF1,QRF1Comment,CQRF2,QRF2Comment,CQRF3,QRF3Comment,CQRF4,QRF4Comment,
+ QACASRef,CQACASPtCons,QACASDate,QACASAppt,
+ QCRRefReq,CQCRPtCon,QCRRefSent,QCRAppt,
+ QCCCRefReq,CQCCCPtCon,QCCCRefSent,QCCCAppt,
+ QDERefReq,CQDEPatCon,QDERefSent,QDEAppt,
+ QDTRefReq,CQDTPatCon,QDTRefSent,QDTAppt,
+ QHARPRefReq,CQHARPPTCons,QHARPDtSent,QHARPDtAppt,
+ QOTRefReq,CQOTPtCon,QOTRefSent,QOTAppt,
+ QPHRef,CQPTPtCon,QPTRefSent,QPTAppt,
+ QPDRefReq,CQPDPtCon,QPDRefSent,QPDAppt,
+ QSWRefReq,CQSWPtCon,QSWRefSent,QSWAppt,
+ QSPRefReq,CQSPPtCon,QSPRefSent,QSPAppt,
+ QOtherRefReq,CQOtherPtCon,QOtherRefSent,QOtherAppt,
+ QCACPSAdm,CQCACPSPtCon,QCACPSDate,QCACPSDis,
+ QDNAdm,CQDNPtCon,QDNDate,QDNDis,
+ QMoWAdm,CQMoWPtCon,QMoWDate,QMoWDis,
+ QMSAdm,CQMSPtCon,QMSDate,QMSDis,
+ QPACNot,CQPACPtCon,QPACRefDt,QPACRefReqd,
+ QPCAdm,CQPCPtCon,QPCDate,QPCDis,
+ QOtherAdm,CQOtherCSPtCon,QOtherDate,QOtherDis,
+ QOther2Adm,CQOther2PtCons,QOther2DtSent,QOther2RefReqd,
+ 
+ QAntDCDest,QAntDCDate,
+ CQDCDest,QDCDestOtherDetails,
+ 
+ QCACPSDCNot,QCACPSDCDate,QCACPSDCRef,QCACPSDCPtAw,
+ QDNNot,QDNDCDate,QDNDCRef,QDNDCPtAw,
+ QMoWDCNot,QMoWDCDate,QMoWDCRef,QMoWDCPtAw,
+ QMSNot,QMSDCDate,QMSDCRef,QMSDCPtAw,
+ QPACDCNot,QPACDCDate,QPACDCRef,QPACDCPtAw,
+ QPCDCNot,QPCDCDate,QPCDCRef,QPCDCPtAw,
+ QOtherDCNot,QOtherDCDate,QOtherDCRef,QOtherDCPtAw,
+ CQDCTransArr,CQDCTransType,QDCTransTypeOther,QRELATIVE,CQMedsTaken,CQPrescr,
+ QDRAppt,QDrApptDate,QDrApptTime,QAH1Appt,QAH1ApptDate,QAH1ApptTime,
+ QAH2Appt,QAH2ApptDate,QAH2ApptTime,CQInfoForCare,QDCDate,QDCTime,
+ CQPtInvolved,CQPtSig,QPtSigDate)
+ s ind=ind+1
+ //fetch rows
+ &sql(fetch RiskAssessDischchPlan into :HOSPDesc,:PAPMINo,:PAPMIName,:PAPMIName2,:PAPMIDOB,:PAADMAdmNo,
+ :QUESCreateDate,:QUESCreateTime,:QUESDate,:QUESTime,:UserName,:CreateUserName,
+ :CQRF1,:QRF1Comment,:CQRF2,:QRF2Comment,:CQRF3,:QRF3Comment,:CQRF4,:QRF4Comment,
+ :QACASRef,:CQACASPtCons,:QACASDate,:QACASAppt,
+ :QCRRefReq,:CQCRPtCon,:QCRRefSent,:QCRAppt,
+ :QCCCRefReq,:CQCCCPtCon,:QCCCRefSent,:QCCCAppt,
+ :QDERefReq,:CQDEPatCon,:QDERefSent,:QDEAppt,
+ :QDTRefReq,:CQDTPatCon,:QDTRefSent,:QDTAppt,
+ :QHARPRefReq,:CQHARPPTCons,:QHARPDtSent,:QHARPDtAppt,
+ :QOTRefReq,:CQOTPtCon,:QOTRefSent,:QOTAppt,
+ :QPHRef,:CQPTPtCon,:QPTRefSent,:QPTAppt,
+ :QPDRefReq,:CQPDPtCon,:QPDRefSent,:QPDAppt,
+ :QSWRefReq,:CQSWPtCon,:QSWRefSent,:QSWAppt,
+ :QSPRefReq,:CQSPPtCon,:QSPRefSent,:QSPAppt,
+ :QOtherRefReq,:CQOtherPtCon,:QOtherRefSent,:QOtherAppt,
+ :QCACPSAdm,:CQCACPSPtCon,:QCACPSDate,:QCACPSDis,
+ :QDNAdm,:CQDNPtCon,:QDNDate,:QDNDis,
+ :QMoWAdm,:CQMoWPtCon,:QMoWDate,:QMoWDis,
+ :QMSAdm,:CQMSPtCon,:QMSDate,:QMSDis,
+ :QPACNot,:CQPACPtCon,:QPACRefDt,:QPACRefReqd,
+ :QPCAdm,:CQPCPtCon,:QPCDate,:QPCDis,
+ :QOtherAdm,:CQOtherCSPtCon,:QOtherDate,:QOtherDis,
+ :QOther2Adm,:CQOther2PtCons,:QOther2DtSent,:QOther2RefReqd,
+ 
+ :QAntDCDest,:QAntDCDate,
+ :CQDCDest,:QDCDestOtherDetails,
+ 
+ :QCACPSDCNot,:QCACPSDCDate,:QCACPSDCRef,:QCACPSDCPtAw,
+ :QDNNot,:QDNDCDate,:QDNDCRef,:QDNDCPtAw,
+ :QMoWDCNot,:QMoWDCDate,:QMoWDCRef,:QMoWDCPtAw,
+ :QMSNot,:QMSDCDate,:QMSDCRef,:QMSDCPtAw,
+ :QPACDCNot,:QPACDCDate,:QPACDCRef,:QPACDCPtAw,
+ :QPCDCNot,:QPCDCDate,:QPCDCRef,:QPCDCPtAw,
+ :QOtherDCNot,:QOtherDCDate,:QOtherDCRef,:QOtherDCPtAw,
+ :CQDCTransArr,:CQDCTransType,:QDCTransTypeOther,:QRELATIVE,:CQMedsTaken,:CQPrescr,
+ :QDRAppt,:QDrApptDate,:QDrApptTime,:QAH1Appt,:QAH1ApptDate,:QAH1ApptTime,
+ :QAH2Appt,:QAH2ApptDate,:QAH2ApptTime,:CQInfoForCare,:QDCDate,:QDCTime,
+ :CQPtInvolved,:CQPtSig,:QPtSigDate)
+ }
+
+ &sql(close RiskAssessDischchPlan)
+
+ // Build QHandle (AtEnd,ReportID,Index)
+ Set QHandle=$lb(0,repid,0)
+
+ Quit $$$OK
+
+
+FormatDates
+ // Convert the dates to ODBC date format
+ If QUESCreateDate Set QUESCreateDate=$ZD(QUESCreateDate,3)
+ If QUESDate Set QUESDate=$ZD(QUESDate,3)
+ If QACASDate Set QACASDate=$ZD(QACASDate,4)
+ If QCRRefSent Set QCRRefSent=$ZD(QCRRefSent,4)
+ If QCCCRefSent Set QCCCRefSent=$ZD(QCCCRefSent,4)
+ If QDERefSent Set QDERefSent=$ZD(QDERefSent,4)
+ If QDTRefSent Set QDTRefSent=$ZD(QDTRefSent,4)
+ If QHARPDtSent Set QHARPDtSent=$ZD(QHARPDtSent,4)
+ If QOTRefSent Set QOTRefSent=$ZD(QOTRefSent,4)
+ If QPTRefSent Set QPTRefSent=$ZD(QPTRefSent,4)
+ If QPDRefSent Set QPDRefSent=$ZD(QPDRefSent,4)
+ If QSWRefSent Set QSWRefSent=$ZD(QSWRefSent,4)
+ If QSPRefSent Set QSPRefSent=$ZD(QSPRefSent,4)
+ If QOtherRefSent Set QOtherRefSent=$ZD(QOtherRefSent,4)
+ If QCACPSDate Set QCACPSDate=$ZD(QCACPSDate,4)
+ If QDNDate Set QDNDate=$ZD(QDNDate,4)
+ If QMoWDate Set QMoWDate=$ZD(QMoWDate,4)
+ If QMSDate Set QMSDate=$ZD(QMSDate,4)
+ If QPACRefDt Set QPACRefDt=$ZD(QPACRefDt,4)
+ If QPCDate Set QPCDate=$ZD(QPCDate,4)
+ If QOtherDate Set QOtherDate=$ZD(QOtherDate,4)
+ If QOther2DtSent Set QOther2DtSent=$ZD(QOther2DtSent,4)
+ If QAntDCDate Set QAntDCDate=$ZD(QAntDCDate,4)
+ If QCACPSDCDate Set QCACPSDCDate=$ZD(QCACPSDCDate,4)
+ If QDNDCDate Set QDNDCDate=$ZD(QDNDCDate,4)
+ If QMoWDCDate Set QMoWDCDate=$ZD(QMoWDCDate,4)
+ If QMSDCDate Set QMSDCDate=$ZD(QMSDCDate,4)
+ If QPACDCDate Set QPACDCDate=$ZD(QPACDCDate,4)
+ If QPCDCDate Set QPCDCDate=$ZD(QPCDCDate,4)
+ If QOtherDCDate Set QOtherDCDate=$ZD(QOtherDCDate,4)
+ If PAPMIDOB Set PAPMIDOB=$ZD(PAPMIDOB,3)
+ If QDrApptDate Set QDrApptDate=$ZD(QDrApptDate,4)
+ If QAH1ApptDate Set QAH1ApptDate=$ZD(QAH1ApptDate,4)
+ If QAH2ApptDate Set QAH2ApptDate=$ZD(QAH2ApptDate,4)
+ If QDCDate Set QDCDate=$ZD(QDCDate,4)
+ If QPtSigDate Set QPtSigDate=$ZD(QPtSigDate,4)
+ Quit
+
+FormatTimes
+ // Convert the times to ODBC time format
+ If QUESCreateTime Set QUESCreateTime=$ZT(QUESCreateTime,1)
+ If QUESTime Set QUESTime=$ZT(QUESTime,1)
+ If QDrApptTime Set QDrApptTime=$ZT(QDrApptTime,1)
+ If QAH1ApptTime Set QAH1ApptTime=$ZT(QAH1ApptTime,1)
+ If QAH2ApptTime Set QAH2ApptTime=$ZT(QAH2ApptTime,1)
+ If QDCTime Set QDCTime=$ZT(QDCTime,1)
+ Quit
+]]></Implementation>
+</Method>
+
+<Method name="RiskAssessDischchPlanFetch">
+<Description>
+This is the Fetch component of the %Library.Query. 
+This should never have to change. It is designed to fetch the row for each subscript of the ^CacheTemp
+global and return this row to the Crystal Report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,&Row:%Library.List,&AtEnd:%Integer=0]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // This fetch method should never have to change. 
+
+ // repid - Report ID
+ // ind   - sequence index which represents each row
+
+ New repid,ind
+
+ // Restore QHandle
+ Set AtEnd=$li(QHandle,1)
+ Set repid=$li(QHandle,2)
+ Set ind=$li(QHandle,3)
+
+ Set ind=$o(^CacheTemp(repid,ind))
+ If ind="" {	// if there are no more rows, finish fetching
+ Set AtEnd=1
+ Set Row=""
+ }
+ Else      {	// fetch row
+ Set Row=^CacheTemp(repid,ind)
+ }
+
+ // Save QHandle
+ s QHandle=$lb(AtEnd,repid,ind)
+
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Query name="RiskAssessDischchPlan">
+<Description>
+GHA List reports Stored Procedure
+It expects 2 parameter of type date and will return a list of records:
+Field1 - Integer
+Field2 - String(MAXLEN=255)
+Field3 - Date
+Field4 - Time</Description>
+<Type>%Library.Query</Type>
+<FormalSpec>HospitalID:%Integer,PatientID:%Integer,EpisodeID:%Integer</FormalSpec>
+<SqlProc>1</SqlProc>
+<Parameter name="CONTAINID" value="0"/>
+<Parameter name="ROWSPEC" value="HOSPDesc:%String(MAXLEN=255),PAPMINo:%String(MAXLEN=255),PAPMIName:%String(MAXLEN=255),PAPMIName2:%String(MAXLEN=255),PAPMIDOB:%Date,PAADMAdmNo:%String(MAXLEN=255),QUESCreateDate:%Date,QUESCreateTime:%String(MAXLEN=255),QUESDate:%Date,QUESTime:%String(MAXLEN=255),UserName:%String(MAXLEN=255),CreateUserName:%String(MAXLEN=255),CQRF1:%String(MAXLEN=255),QRF1Comment:%String(MAXLEN=255),CQRF2:%String(MAXLEN=255),QRF2Comment:%String(MAXLEN=255),CQRF3:%String(MAXLEN=255),QRF3Comment:%String(MAXLEN=255),CQRF4:%String(MAXLEN=255),QRF4Comment:%String(MAXLEN=255),QACASRef:%String(MAXLEN=255),CQACASPtCons:%String(MAXLEN=255),QACASDate:%String(MAXLEN=255),QACASAppt:%String(MAXLEN=255),QCRRefReq:%String(MAXLEN=255),CQCRPtCon:%String(MAXLEN=255),QCRRefSent:%String(MAXLEN=255),QCRAppt:%String(MAXLEN=255),QCCCRefReq:%String(MAXLEN=255),CQCCCPtCon:%String(MAXLEN=255),QCCCRefSent:%String(MAXLEN=255),QCCCAppt:%String(MAXLEN=255),QDERefReq:%String(MAXLEN=255),CQDEPatCon:%String(MAXLEN=255),QDERefSent:%String(MAXLEN=255),QDEAppt:%String(MAXLEN=255),QDTRefReq:%String(MAXLEN=255),CQDTPatCon:%String(MAXLEN=255),QDTRefSent:%String(MAXLEN=255),QDTAppt:%String(MAXLEN=255),QHARPRefReq:%String(MAXLEN=255),CQHARPPTCons:%String(MAXLEN=255),QHARPDtSent:%String(MAXLEN=255),QHARPDtAppt:%String(MAXLEN=255),QOTRefReq:%String(MAXLEN=255),CQOTPtCon:%String(MAXLEN=255),QOTRefSent:%String(MAXLEN=255),QOTAppt:%String(MAXLEN=255),QPHRef:%String(MAXLEN=255),CQPTPtCon:%String(MAXLEN=255),QPTRefSent:%String(MAXLEN=255),QPTAppt:%String(MAXLEN=255),QPDRefReq:%String(MAXLEN=255),CQPDPtCon:%String(MAXLEN=255),QPDRefSent:%String(MAXLEN=255),QPDAppt:%String(MAXLEN=255),QSWRefReq:%String(MAXLEN=255),CQSWPtCon:%String(MAXLEN=255),QSWRefSent:%String(MAXLEN=255),QSWAppt:%String(MAXLEN=255),QSPRefReq:%String(MAXLEN=255),CQSPPtCon:%String(MAXLEN=255),QSPRefSent:%String(MAXLEN=255),QSPAppt:%String(MAXLEN=255),QOtherRefReq:%String(MAXLEN=255),CQOtherPtCon:%String(MAXLEN=255),QOtherRefSent:%String(MAXLEN=255),QOtherAppt:%String(MAXLEN=255),QCACPSAdm:%String(MAXLEN=255),CQCACPSPtCon:%String(MAXLEN=255),QCACPSDate:%String(MAXLEN=255),QCACPSDis:%String(MAXLEN=255),QDNAdm:%String(MAXLEN=255),CQDNPtCon:%String(MAXLEN=255),QDNDate:%String(MAXLEN=255),QDNDis:%String(MAXLEN=255),QMoWAdm:%String(MAXLEN=255),CQMoWPtCon:%String(MAXLEN=255),QMoWDate:%String(MAXLEN=255),QMoWDis:%String(MAXLEN=255),QMSAdm:%String(MAXLEN=255),CQMSPtCon:%String(MAXLEN=255),QMSDate:%String(MAXLEN=255),QMSDis:%String(MAXLEN=255),QPACNot:%String(MAXLEN=255),CQPACPtCon:%String(MAXLEN=255),QPACRefDt:%String(MAXLEN=255),QPACRefReqd:%String(MAXLEN=255),QPCAdm:%String(MAXLEN=255),CQPCPtCon:%String(MAXLEN=255),QPCDate:%String(MAXLEN=255),QPCDis:%String(MAXLEN=255),QOtherAdm:%String(MAXLEN=255),CQOtherCSPtCon:%String(MAXLEN=255),QOtherDate:%String(MAXLEN=255),QOtherDis:%String(MAXLEN=255),QOther2Adm:%String(MAXLEN=255),CQOther2PtCons:%String(MAXLEN=255),QOther2DtSent:%String(MAXLEN=255),QOther2RefReqd:%String(MAXLEN=255),QAntDCDest:%String(MAXLEN=255),QAntDCDate:%String(MAXLEN=255),CQDCDest:%String(MAXLEN=255),QDCDestOtherDetails:%String(MAXLEN=255),QCACPSDCNot:%String(MAXLEN=255),QCACPSDCDate:%String(MAXLEN=255),QCACPSDCRef:%String(MAXLEN=255),QCACPSDCPtAw:%String(MAXLEN=255),QDNNot:%String(MAXLEN=255),QDNDCDate:%String(MAXLEN=255),QDNDCRef:%String(MAXLEN=255),QDNDCPtAw:%String(MAXLEN=255),QMoWDCNot:%String(MAXLEN=255),QMoWDCDate:%String(MAXLEN=255),QMoWDCRef:%String(MAXLEN=255),QMoWDCPtAw:%String(MAXLEN=255),QMSNot:%String(MAXLEN=255),QMSDCDate:%String(MAXLEN=255),QMSDCRef:%String(MAXLEN=255),QMSDCPtAw:%String(MAXLEN=255),QPACDCNot:%String(MAXLEN=255),QPACDCDate:%String(MAXLEN=255),QPACDCRef:%String(MAXLEN=255),QPACDCPtAw:%String(MAXLEN=255),QPCDCNot:%String(MAXLEN=255),QPCDCDate:%String(MAXLEN=255),QPCDCRef:%String(MAXLEN=255),QPCDCPtAw:%String(MAXLEN=255),QOtherDCNot:%String(MAXLEN=255),QOtherDCDate:%String(MAXLEN=255),QOtherDCRef:%String(MAXLEN=255),QOtherDCPtAw:%String(MAXLEN=255),CQDCTransArr:%String(MAXLEN=255),CQDCTransType:%String(MAXLEN=255),QDCTransTypeOther:%String(MAXLEN=255),QRELATIVE:%String(MAXLEN=255),CQMedsTaken:%String(MAXLEN=255),CQPrescr:%String(MAXLEN=255),QDRAppt:%String(MAXLEN=255),QDrApptDate:%String(MAXLEN=255),QDrApptTime:%String(MAXLEN=255),QAH1Appt:%String(MAXLEN=255),QAH1ApptDate:%String(MAXLEN=255),QAH1ApptTime:%String(MAXLEN=255),QAH2Appt:%String(MAXLEN=255),QAH2ApptDate:%String(MAXLEN=255),QAH2ApptTime:%String(MAXLEN=255),CQInfoForCare:%String(MAXLEN=255),QDCDate:%String(MAXLEN=255),QDCTime:%String(MAXLEN=255),CQPtInvolved:%String(MAXLEN=255),CQPtSig:%String(MAXLEN=255),QPtSigDate:%String(MAXLEN=255)"/>
+<Parameter name="SELECTMODE" value="ODBC"/>
+</Query>
+</Class>
+</Export>

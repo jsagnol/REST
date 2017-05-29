@@ -1,0 +1,244 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.SWARH.JS.PATrafficAccident.Edit">
+<Description>
+Component JavaScript for: PATrafficAccident.Edit</Description>
+<Modified>0</Modified>
+<Super>websys.AbstractJavaScript</Super>
+<TimeCreated>63537,10518.679271</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+This Parameter is updated by Perforce</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/SWARH/JS/PATrafficAccident/Edit.xml#1 $</Default>
+</Parameter>
+
+<Method name="JSContent">
+<Description>
+ </Description>
+<Language>javascript</Language>
+<ClientMethod>1</ClientMethod>
+<Implementation><![CDATA[
+// site: austin
+// ab 25.06.02
+// defaulting/checking of claim number
+// ab 6.11.02
+// fixed 'assign to' validation
+
+
+var payorCodes=new Array("", "1", "TACD", "TACDT", "TACH", "TACTR1", "TACTR2");
+
+
+function CustomDocumentLoadHandler() {
+    DocumentLoadHandler();
+    var objCode = document.getElementById("pay");
+    var objClaim = document.getElementById("TRFVehInsPolicy");
+    if ((objClaim) && (objCode)) {
+        if (checkArray(objCode.value, payorCodes)) labelMandatory("TRFVehInsPolicy");
+    }
+
+    obj = document.getElementById("update1")
+    obj.onclick = CustomUpdateHandler;
+    if (tsc['update1']) websys_sckeys[tsc['update1']] = CustomUpdateHandler;
+
+    //websys_firstfocus();
+}
+
+//document.body.onload = CustomDocumentLoadHandler;
+
+
+function checkClaimNumber() {
+
+var year,tacyr,tacmn,tacdy,tacdatestr,num;
+var objClaim=document.getElementById("TRFVehInsPolicy");
+var objTACDate=document.getElementById("TRFAccidentDate");
+   if (objTACDate) {
+      var tacdatestr=objTACDate.value.split("/");
+      var tacyr=tacdatestr[2];
+      var tacmn=tacdatestr[1];
+
+
+
+if (objClaim) {
+    var str=objClaim.value;
+	//27060 need to accept old format eg straight alphanumeric without the new rules if tac before 07/2002
+	
+    if ((tacyr<=2002)&&(tacmn<7)) {
+	return true
+    }
+      if (str.length!=8) {
+		return false; 
+	} 
+
+    if (str.length==8) {
+    	if (str.charAt(2)!="/") return false;
+    	var num=parseInt(str.charAt(3))+parseInt(str.charAt(4))+parseInt(str.charAt(5))+parseInt(str.charAt(6))+parseInt(str.charAt(7));
+    	//var num=parseInt(str.charAt(3)+str.charAt(4)+str.charAt(5)+str.charAt(6)+str.charAt(7));
+    	if (isNaN(num)) return false;
+	}
+    year=parseInt(str.charAt(0)+str.charAt(1));
+    if (isNaN(year)) return false;
+    if (year>50) year=1900+year;
+    if (year<=50) year=2000+year;
+
+    if (!checkFinancialYr(year)) return false;
+  }
+
+  return true;
+}
+}
+
+// check the claim number is in or before the finanical year of the traffic accident
+function checkFinancialYr(year) {
+   var objTACDate=document.getElementById("TRFAccidentDate");
+   if (objTACDate) {
+      var tacdatestr=objTACDate.value.split("/");
+      var tacyr=tacdatestr[2];
+      var tacmn=tacdatestr[1];
+      if (tacmn<=6) {
+	  	if (!((year==tacyr)||(year==tacyr-1))) { 
+      	return false 
+		}
+	}
+      if (tacmn>6) {
+		if (!((tacyr==year)||(year==tacyr+1))) {
+		return false
+		}
+    }
+}
+return true;
+}
+
+function CustomUpdateHandler(e)
+{
+ var msg="";
+  
+ //mandatory fields
+ var objCode=document.getElementById("payCode");
+ var objClaim=document.getElementById("TRFVehInsPolicy");
+ if ((objClaim)&&(objCode)&&(checkArray(objCode.value,payorCodes)))
+ {
+   if (objClaim.value=="") objClaim.value="C-U";
+   //msg+=t["TRFVehInsPolicy"]+" "+t["XMISSING"];
+   if ((objClaim.value!="C-U")&&(!checkClaimNumber()))
+   {
+     objClaim.focus();
+     //objClaim.value="";
+     msg+=t["InvalidClaim"];
+   }
+ }
+
+ if (msg != "") {
+  alert(msg);
+  return false;
+ }
+	
+ return UpdateClickHandler(e);
+}
+
+function DateBlurHandler()
+{
+  // hack so the date field always has the real date value and not 't',etc
+  var obj=document.getElementById("TRFAccidentDate");
+  if (obj)
+  {
+   var dt=obj.value;
+   obj.value="";
+   obj.value=dt;
+   obj.blur();
+  }
+}
+
+function checkArray(val,arr)
+{
+// checks if the value is in the array anywhere, retuns index
+  var i;
+  for (i=1;i<arr.length;i++)
+  {
+      //alert(val+"^"+arr[i]);
+      if (val.toUpperCase()==arr[i].toUpperCase())
+       return i;
+  }
+  return false;
+}
+
+
+//----------------------------------------
+
+function contactLookUpSelect(str) {
+	var lu=str.split("^");
+	contactChangeHandler(lu[2]);
+}
+
+	
+
+function contactChangeHandler(bill) {
+	//md 26/11/2003
+	var msg="",valid=1;
+	var obj=document.getElementById("pay")
+	var objBill=document.getElementById('assignBill');
+	if ((bill!="")&&(obj)&&(obj.value!="")) {
+		//if ((obj.value=="CL")&&((bill!="P")&&(bill!="S"))) valid=0;
+		if ((obj.value=="4")&&((bill!="P")&&(bill!="S"))) valid=0;
+		//if ((obj.value=="DVA")&&(bill!="A")) valid=0;
+		//if ((obj.value=="MAB")&&(bill!="A")) valid=0;
+		//if ((obj.value=="MCO")&&(bill!="A")) valid=0;
+		//if ((obj.value=="PREP")&&(bill!="A")) valid=0;
+		if ((obj.value=="2")&&(bill!="A")) valid=0;
+		//if ((obj.value=="SER")&&(bill!="A")) valid=0;
+		//if ((obj.value=="TAC")&&(bill!="A")) valid=0;
+		if ((obj.value=="1")&&(bill!="A")) valid=0;
+		//if ((obj.value=="INL")&&((bill!="P")&&(bill!="I"))) valid=0;
+		if ((obj.value=="5")&&((bill!="P")&&(bill!="I"))) valid=0;
+		//if ((obj.value=="RHCA")&&((bill!="P")&&(bill!="I"))) valid=0;
+		//if ((obj.value=="NAP")&&((bill!="P")&&(bill!="A"))) valid=0;
+		//if ((obj.value=="RTP")&&((bill!="P")&&(bill!="A"))) valid=0;
+		//if ((obj.value=="WC")&&((bill!="E")&&(bill!="I"))) valid=0;
+		if ((obj.value=="3")&&((bill!="E")&&(bill!="I"))) valid=0;
+		if (valid==0) msg+="\'"+t['assignBill']+"\' "+t['XINVALID']+"\n";
+		
+		if (msg != "") {
+			alert(msg)
+			if (objBill) objBill.value="";
+			//websys_firstfocus();
+			//objBill.focus();
+			return false;
+		} else {
+			return true;
+		}
+	}
+}	
+websys_removeListener("load","onload",DocumentLoadHandler); 
+websys_addListener("load","onload",CustomDocumentLoadHandler);
+
+//tknoll-miller (SWARH) 2009-09-16 Load authorise script
+var authcfg = {
+   'buttons': [
+      'update1'
+   ],
+   'fields': {
+      'username': 'UserCode',
+      'password': 'PIN'
+   }
+};
+
+//tknoll-miller (SWARH) 2009-09-16 Load authorise script
+// Scope variables
+(function() {
+   var loadScript = function(type, src) {
+      var head = document.getElementsByTagName('head')[0];
+      var script = document.createElement('script');
+      script.type = type;
+      script.src = src;
+      head.appendChild(script);
+      websys_addListener('load', 'onload', function(){document.isLoaded=true});
+      return script;
+   };
+
+   loadScript('text/javascript', '../custom/SWARH/scripts/authorise4.js');
+})();
+//end tknoll-miller (SWARH) 2009-09-16 Load authorise script
+]]></Implementation>
+</Method>
+</Class>
+</Export>

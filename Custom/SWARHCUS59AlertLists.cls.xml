@@ -1,0 +1,272 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.SWARHCUS59AlertLists">
+<ClassType/>
+<ProcedureBlock>0</ProcedureBlock>
+<Super>%Library.RegisteredObject</Super>
+<TimeCreated>61579,40584</TimeCreated>
+
+<Method name="QueryNameClose">
+<Description>
+This is the Close component of the %Library.Query.
+This is standard code and should never have to change.
+This is where all the cleanup is performed, i.e. the purging of the temporary storage global ^CacheTemp.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>QHandle:%Library.Binary</FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Clean up by purging the temporary node in ^CacheTemp global
+ New repid
+ Set repid=$li(QHandle,2)
+ 
+ //Freeze values for performance monitor and store in websys.monitor if stats capture flag is on
+ i StatsFlag=1 d Freeze
+
+ Kill ^CacheTemp("TRAK",repid)
+ 
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="QueryNameExecute">
+<Description>
+This is the Execute section for the %Library.Query. 
+All of the logic will be performed here.
+A new node for the ^CacheTemp global will be created and each subscript of this global will contain
+a row for the report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,custom4ID:%String,CreateDate:%Date,custom6ID:%Library.Integer]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Get reportid i.e. use $INCREMENT to add another node to ^CacheTemp global. 
+ // We use ^CacheTemp global because it will always use memory before disk
+ New repid,ind
+ s ind=0
+ k ^ziain
+ // Use $Increment to get the next node
+ Set repid=$I(^CacheTemp("TRAK"))
+ 
+ //Check to see of Performance Stats Flag is checked in Config Mgr
+ d CheckPerformanceStatsFlag
+ 
+ //Store initial values for performance monitor
+ i StatsFlag=1 d Init
+ 
+ //Convert ODBC dates to cache format
+ s CreateDate=$$intdate^SSUTIL4(CreateDate)
+ //s CreateDate=$zdateh(CreateDate)
+ 
+ n ALMStatus,ALMMessage,HOSPDesc,ALMExpiryDate,ALMOnsetDate, PAPMINo,PAPMIName,PAPMIName2,AlertCode,AlertDesc,ALERTCATDesc,ALMCreateDate,
+ ALMClosedFlag,ALEXPDesc
+ s (ALMStatus,ALMMessage,HOSPDesc,ALMExpiryDate,ALMOnsetDate, PAPMINo,PAPMIName,PAPMIName2,AlertCode,AlertDesc, ALERTCATDesc,ALMCreateDate,
+ ALMClosedFlag,ALEXPDesc)=""
+ 
+ //i $g(Hospital) s Hospital=$zstrip(Hospital,"*CW")
+ //i $g(Alert) s Alert=$zstrip(Alert,"*CW")
+ 
+ &sql(select ALERT_RowId into :AlertRowId from sqluser.PAC_PatientAlert
+ where ALERT_Code=:custom4ID)
+ 
+ d RunQuerySQL
+ 
+ // Build QHandle (AtEnd,ReportID,Index)
+ Set QHandle=$lb(0,repid,0)
+ Quit $$$OK
+
+RunQuerySQL
+ &SQL(DECLARE ADM CURSOR FOR
+ SELECT
+ ALM_Status,
+ ALM_Message,
+ ALM_LastUpdateHospital_DR->HOSP_Desc,
+ ALM_ExpiryDate,
+ ALM_OnsetDate,
+ ALM_PAPMI_ParRef->PAPMI_No,
+ ALM_PAPMI_ParRef->PAPMI_Name,
+ ALM_PAPMI_ParRef->PAPMI_Name2,
+ ALM_Alert_DR->Alert_Code,
+ ALM_Alert_DR->Alert_Desc,
+ ALM_Alert_DR->ALERT_AlertCategory_DR->ALERTCAT_Desc,
+ ALM_CreateDate,
+ ALM_ClosedFlag,
+ ALM_ExpiryReason_DR->ALEXP_Desc
+ FROM SQLUser.PA_AlertMsg
+ WHERE (ALM_Alert_DR =isnull(:AlertRowId,ALM_Alert_DR) AND (ALM_LastUpdateHospital_DR= :custom6ID or ALM_LastUpdateHospital_DR is null) AND ALM_CreateDate>=isnull(:CreateDate,ALM_CreateDate))
+
+ )
+ 
+ &SQL(OPEN ADM)
+ s END=0
+ while END=0 {
+	 &SQL(Fetch ADM INTO :ALMStatus,:ALMMessage,:HOSPDesc,:ALMExpiryDate,:ALMOnsetDate, :PAPMINo,:PAPMIName,:PAPMIName2,:AlertCode,:AlertDesc,:ALERTCATDesc,:ALMCreateDate,
+ :ALMClosedFlag,:ALEXPDesc)
+	 i SQLCODE s END=1
+	 i END=0 {
+		 s ALMMessage=$zstrip(ALMMessage,"*C")
+		 d FormatDates
+		 s ind=$i(ind)
+		 Set ^CacheTemp("TRAK",repid,ind)=$LB(ALMStatus,ALMMessage,HOSPDesc,ALMExpiryDate,ALMOnsetDate, PAPMINo,PAPMIName,PAPMIName2,AlertCode,AlertDesc,ALERTCATDesc,ALMCreateDate,
+ ALMClosedFlag,ALEXPDesc)
+	 }
+ }
+ &SQL(CLOSE ADM)
+ q
+
+FormatDates
+ // Convert the dates to ODBC date format
+ If ALMExpiryDate Set ALMExpiryDate=$ZD(ALMExpiryDate,3)
+ If ALMOnsetDate Set ALMOnsetDate=$ZD(ALMOnsetDate,3)
+ If ALMCreateDate Set ALMCreateDate=$ZD(ALMCreateDate,3)
+ Quit
+
+FormatTimes
+ // Convert the times to ODBC time format
+ If PAADMAdmTime Set PAADMAdmTime=$ZT(PAADMAdmTime,3)
+
+ Quit
+
+Init
+ //Set performance monitor initial values
+ s ClassQueryName=$e($zn,1,$l($zn)-2)
+ s mon=##Class(websys.Monitor).%New(ClassQueryName)
+ q
+
+Freeze
+ // Write out performance stats to websys.Monitor 
+ d mon.Freeze()
+ d mon.%Save()
+ d mon.%Close()
+ q
+ 
+CheckPerformanceStatsFlag
+ s StatsFlag=0
+ &sql(select performancestatisticscapture 
+ into :StatsFlag
+ from websys.configuration
+ where ID=1)
+ q
+]]></Implementation>
+</Method>
+
+<Method name="QueryNameFetch">
+<Description>
+This is the Fetch component of the %Library.Query. 
+This should never have to change. It is designed to fetch the row for each subscript of the ^CacheTemp
+global and return this row to the Crystal Report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,&Row:%Library.List,&AtEnd:%Library.Integer=0]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // This fetch method should never have to change. 
+
+ // repid - Report ID
+ // ind   - sequence index which represents each row
+
+ New repid,ind
+
+ // Restore QHandle
+ Set AtEnd=$li(QHandle,1)
+ Set repid=$li(QHandle,2)
+ Set ind=$li(QHandle,3)
+
+ Set ind=$o(^CacheTemp("TRAK",repid,ind))
+ If ind="" {	// if there are no more rows, finish fetching
+ Set AtEnd=1
+ Set Row=""
+ }
+ Else      {	// fetch row
+ Set Row=^CacheTemp("TRAK",repid,ind)
+ }
+
+ // Save QHandle
+ s QHandle=$lb(AtEnd,repid,ind)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Query name="QueryName">
+<Type>%Library.Query</Type>
+<FormalSpec>Alert:%String,CreateDate:%Date,Hospital:%Library.Integer</FormalSpec>
+<SqlProc>1</SqlProc>
+<Parameter name="CONTAINID" value="0"/>
+<Parameter name="ROWSPEC" value="ALMStatus:%String(MAXLEN=255),ALMMessage:%String(MAXLEN=255),HOSPDesc:%String(MAXLEN=255),ALMExpiryDate:%Date,ALMOnsetDate:%Date, PAPMINo:%String(MAXLEN=255),PAPMIName:%String(MAXLEN=255),PAPMIName2:%String(MAXLEN=255),AlertCode:%String(MAXLEN=255),AlertDesc:%String(MAXLEN=255),ALERTCATDesc:%String(MAXLEN=255),ALMCreateDate:%Date,ALMClosedFlag:%String(MAXLEN=255),ALEXPDesc:%String(MAXLEN=255)"/>
+<Parameter name="SELECTMODE" value="ODBC"/>
+</Query>
+
+<Query name="LookUpHospital">
+<Description>
+Lookup on Hospital returning all active services</Description>
+<Type>%Library.SQLQuery</Type>
+<FormalSpec>Hospital:%String</FormalSpec>
+<SqlQuery><![CDATA[SELECT HOSP_Desc, HOSP_RowId, HOSP_Code
+FROM SQLUser.CT_Hospital
+WHERE ((%ALPHAUP HOSP_Desc %STARTSWITH %ALPHAUP :Hospital) OR (%ALPHAUP HOSP_Code %STARTSWITH %ALPHAUP :Hospital))
+AND (HOSP_DateFrom <= CURRENT_DATE)
+AND ((HOSP_DateTo IS NULL) OR (HOSP_DateTo >= CURRENT_DATE))
+ORDER BY HOSP_Desc]]></SqlQuery>
+<Parameter name="CONTAINID" value="2"/>
+<Parameter name="ROWSPEC" value="Description:%String,HIDDEN:%String,Code:%String"/>
+</Query>
+
+<Method name="LookUpBrokerHospital">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>itmjs:%Library.String="",itmjsex:%Library.String="",Hospital:%Library.String=""</FormalSpec>
+<Implementation><![CDATA[
+ n id,code,desc,activedate
+
+ s (id,code,desc)=""
+
+ ; Try and find a matching code
+ &sql(SELECT	HOSP_Desc, HOSP_RowId, HOSP_Code
+ INTO	:desc, :id, :code
+ FROM	SQLUser.CT_Hospital
+ WHERE	((%ALPHAUP HOSP_Desc = %ALPHAUP :Hospital) OR (%ALPHAUP HOSP_Code = %ALPHAUP :Hospital))
+ AND (HOSP_DateFrom <= CURRENT_DATE)
+ AND ((HOSP_DateTo IS NULL) OR (HOSP_DateTo >= CURRENT_DATE))
+ )
+ ;
+ i SQLCODE s desc=Hospital q 0
+ s retval=itmjs_"('"_$ZCVT(desc,"O","JS")_"');"
+ i itmjsex'="""" s retval=retval_itmjsex_"('"_$ZCVT(desc,"O","JS")_"^"_id_"^"_$ZCVT(code,"O","JS")_"');"
+ &javascript<#(retval)#>
+ q 1
+]]></Implementation>
+</Method>
+
+<Query name="LookUpAlert">
+<Description>
+Lookup on Alerts </Description>
+<Type>%Library.SQLQuery</Type>
+<FormalSpec>Alert:%String</FormalSpec>
+<SqlQuery>SELECT Alert_Desc, Alert_RowId, Alert_Code 
+FROM SQLUser.PAC_PatientAlert
+WHERE ((%ALPHAUP Alert_Desc %STARTSWITH %ALPHAUP :Alert) OR (%ALPHAUP Alert_Code %STARTSWITH %ALPHAUP :Alert))
+ORDER BY Alert_Desc</SqlQuery>
+<Parameter name="CONTAINID" value="2"/>
+<Parameter name="ROWSPEC" value="Description:%String,HIDDEN:%String,Code:%String"/>
+</Query>
+
+<Method name="LookUpBrokerAlert">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>itmjs:%Library.String="",itmjsex:%Library.String="",Alert:%Library.String=""</FormalSpec>
+<Implementation><![CDATA[
+ n id,code,desc
+
+ s (id,code,desc)=""
+
+ ; Try and find a matching code
+ &sql(SELECT	 Alert_Desc, Alert_Code, Alert_RowId
+ INTO	:desc, :code, :id
+ FROM	SQLUser.PAC_PatientAlert
+ WHERE	((%ALPHAUP Alert_Desc = %ALPHAUP :Alert) OR (%ALPHAUP Alert_Code = %ALPHAUP :Alert))
+ )
+ ;
+ i SQLCODE s desc=Alert q 0
+ s retval=itmjs_"('"_$ZCVT(desc,"O","JS")_"');"
+ i itmjsex'="""" s retval=retval_itmjsex_"('"_$ZCVT(desc,"O","JS")_"^"_id_"^"_$ZCVT(code,"O","JS")_"');"
+ &javascript<#(retval)#>
+ q 1
+]]></Implementation>
+</Method>
+</Class>
+</Export>

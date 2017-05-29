@@ -1,0 +1,127 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.SWARH.JS.webcommon.Report.Custom.SWARHRNAP1021">
+<Description>
+Component JavaScript for: webcommon.Report.Custom</Description>
+<Modified>0</Modified>
+<Super>websys.AbstractJavaScript</Super>
+<TimeCreated>63537,10522.33441</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+This Parameter is updated by Perforce</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/SWARH/JS/webcommon/Report/Custom/SWARHRNAP1021.xml#1 $</Default>
+</Parameter>
+
+<Method name="JSContent">
+<Description>
+ </Description>
+<Language>javascript</Language>
+<ClientMethod>1</ClientMethod>
+<Implementation><![CDATA[
+	//for SWARH
+
+	//MW SWARH 18/09/08 (Copy of webcommon.Report.Custom_SWARH.MTED.075.js) 
+
+	var HObj=document.getElementById('custom6');
+	var LObj=document.getElementById('ld398iHOSPDesc');
+	var LObj1=document.getElementById('ld1906icustom6');
+	if(HObj)
+	{
+		HObj.disabled=true;
+		HObj.className="disabledField";
+	}
+	if(LObj)
+	{
+		LObj.disabled=true;
+	}
+	//disable click lookup
+	if(LObj1)
+	{
+		LObj1.disabled=true;
+	}
+	
+	var RNAP1021 = {
+		//Constants used to find fields, easier to update if they change
+		dateFrom : "date3",
+		dateTo : "date4",
+		display : "lookup6",
+		day : "single day",
+		range : "date range",
+		//Used to keep a reference to the original Date3ChangeHandler function
+		oldDate3ChangeHandler : undefined,
+		oldLOOKUP6LookUpSelect : undefined,
+		init : function() {
+			//Keep a reference to the current Date3ChangeHandler
+			this.oldLOOKUP6LookUpSelect = LOOKUP6LookUpSelect;
+			//Override the LOOKUP6LookUpSelect
+			LOOKUP6LookUpSelect = function(str) {
+				RNAP1021.oldLOOKUP6LookUpSelect(str);
+				if ("" != str) {
+					var parts = str.split("^");
+					if (1 < parts.length) RNAP1021.change.call(RNAP1021, parts[0].toLowerCase());
+					else SWARH.error("Unknown string selected, '" + str + "'");
+				}
+			}
+			//Keep a reference to the current Date3ChangeHandler
+			this.oldDate3ChangeHandler = Date3ChangeHandler;
+			//Override the Date3ChangeHandler so when in "Single Day" mode we can copy the same value into the date from field
+			Date3ChangeHandler = function(e) {
+				//If the old Date3ChangeHandler was a function, call it. Need to do this before copying the value in case they type "t" or similar
+				if ("function" === typeof RNAP1021.oldDate3ChangeHandler) RNAP1021.oldDate3ChangeHandler(e);
+				//Find elements
+				var elFrom = document.getElementById(RNAP1021.dateFrom);
+				var elTo = document.getElementById(RNAP1021.dateTo);
+				var display = document.getElementById(RNAP1021.display);
+				//Make sure all variables are valid (we found all the elements)
+				if (elFrom && elTo && display) {
+					var selection = display.value.toLowerCase();
+					if (RNAP1021.day === selection) elTo.value = elFrom.value;				
+				} else SWARH.error("Couldn't find dateFrom, dateTo and display elements");
+			}
+		},
+		change : function(selection) {
+			//Find elements
+			var elFrom = document.getElementById(this.dateFrom);
+			var elTo = document.getElementById(this.dateTo);
+			//Find labels
+			var elLabelFrom = document.getElementById("c" + this.dateFrom);
+			var elLabelTo = document.getElementById("c" + this.dateTo);
+
+			//Make sure selection is lowercase
+			selection = selection.toLowerCase();
+
+			//Make sure are variables are valid (we found all the elements)
+			if (elFrom && elTo && elLabelFrom && elLabelTo && ("" != selection)) {
+				//If selected date range and the date to field is hidden
+				if ((this.range === selection) && (elTo.style.display.toLowerCase() === "none")) {
+					elTo.value = "";
+					elTo.removeAttribute("disabled");
+					elTo.style.display = "inline";
+					t["date3"] = "Date From";
+				//If selected single day and the date to field is visible
+				} else if ((this.day === selection)  && (elTo.style.display.toLowerCase() != "none")) {  //Can't use === "inline" here as first time style = ""
+					elTo.style.display = "none";
+					elTo.nextSibling.style.display = elTo.style.display;
+					elTo.setAttribute("disabled", "disabled");
+					t["date3"] = "Date";
+				}
+
+				//Safe to do here even if changing to the same selection (not that you can - doesn't fire a change event if select the same, but everything stays the same)
+				//Show/Hide the date picker icon after the date field and the label (will set to the same visibility of the date to field)
+				elTo.nextSibling.style.display = elTo.style.display;
+				elLabelTo.style.display = elTo.style.display;
+				//Update the field label used within the validation message
+				elLabelFrom.innerHTML = t["date3"];	
+			} else {
+				SWARH.error("Could not get elements dateFrom, dateTo and selection");
+			}
+		}
+	}
+
+	//Override the Date3ChangeHandler function
+	RNAP1021.init();
+]]></Implementation>
+</Method>
+</Class>
+</Export>

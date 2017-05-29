@@ -1,0 +1,294 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.SWARH.Report.RptSvc.StoredProc.SWARHRMED1001">
+<Description>
+Class for SWARHRMED1001 Report</Description>
+<ProcedureBlock>0</ProcedureBlock>
+<Super>Custom.SWARH.Report.ZEN.StoredProc.Abstract</Super>
+<TimeCreated>62335,45574.688786</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/SWARH/Report/RptSvc/StoredProc/SWARHRMED1001.xml#1 $</Default>
+</Parameter>
+
+<UDLText name="T">
+<Content><![CDATA[
+/*
+ * ---START TEMPLATE COMMENT BLOCK---
+ * SWARH ZEN Report Template
+ * Use Tools->Copy Class in Studio to copy this template to your new Stored Procedure class,
+ * giving it your relevant Stored Procedure name (as per SWARH naming conventions), keeping itin the Custom.SWARH.Report.ZEN.StoredProc package.
+ * Find and Replace "AAATemplateStoredProcQuery" with your appropriate stored procedure name as per SWARH naming conventions
+ *
+ * All places in this class requiring modification are tagged with "TEMPLATE MODIFY" comments; search for this tag and 
+ * remove the comments as you go to ensure you've made all required changes.
+ *
+ * Modification Steps Required:
+ * 1.  Change Query name and prefix of Execute, Close and Fetch methods to desired query name:
+ *     eg. Query <MyQueryName>, ClassMethod <MyQueryName>Execute, ClassMethod <MyQueryName>Fetch, ClassMethod <MyQueryName>Close
+ * 2.  Alter the SQL query in <MyQueryName>Execute to perform the desired SQL query (use WinSQL or the Ensemble Management Portal to test your query)
+ * 3.  Alter the parameters of the Query <MyQuery> and the <MyQueryName>Execute method to suit your query's requirements
+ * 4.  In the <MyQueryName>Execute method, set up variables for your query's output fields; each variable name will be specified in at least 5 places
+ *   1.   Declare under an n/New line (eg. 'New MyField')
+ *   2.   Initialised under an s/Set line (set to "" for string/date/time fields or 0 for numeric fields) (eg. Set (MyField,MyOtherField)=""
+ *   3&4. Placed in the two 'fetch ... into ' line's output variable lists- eg. 'fetch MyReportCursor INTO :MyField,:MyOtherField'
+ *        (output fields need to be specified in the same order as they are specified in the SELECT statement)
+ *	 5.   In the ^CacheTemp row assignment $LB list, at the appropriate index for the output column.
+ *        eg. 's ^CacheTemp("TRAK",repid,sort)=$LB(MyField,MyOtherField,...) 
+ * 5.  Add appropriate conversion assignments under the FormatDates label for any date or time fields
+ * 6.  Build up the sort string on the 's sort = ' line, with desired fields to sort the output rowset on.
+ *     To ignore uppercase/lowercase characters, you need to wrap each variable in a $ZCVT(<variable>,"U") to convert it to uppercase.
+ *     Sorting here is supposedly faster than using an ORDER BY in most circumstances.
+ *     Build the string as: 's sort = $ZCVT(SortField1,"U")_" "_$ZCVT(SortField2,"U")_" "_..._" "_ind'
+ *     The sort string  should always end with 'ind', and if no sorting is required outside the SQL query, simply specify 'set sort = ind'
+ * 7.  Set up output field names and types in ROWSPEC:
+ *     Alter the ROWSPEC (under Query) to match desired output field names and types, in the correct order (as specified in the ^CacheTemp
+ *     row assignment $LB list from step 4.5).
+ * 8.  Fill out Report Name and Code in detail comment below
+ * 9.  Test the stored procedure using WinSQL (execute "CALL <Custom_SWARH_Report_ZEN_StoredProc_AAATemplateStoredProcClass.AAAAATemplateStoredProcQuery(Params) or the Ensemble System Management Portal:
+ *		 (under SQL->[select namespace]->SQL Schemas->[click "Procedures" against Custom_SWARH_Report_ZEN_StoredProc schema]->[click "Run" against appropriate stored procedure])
+ * 10. Finally, remove this comment block and you're done!
+ * ---END TEMPLATE COMMENT BLOCK---
+ */
+]]></Content>
+</UDLText>
+
+<UDLText name="T">
+<Content><![CDATA[
+/*
+ * Report Name: Audit by Location <br>
+ * Report Code: SWARHRMED1001 <br>
+ * SWARH Developer: Phuong-Dung HOANG <br>
+ */
+]]></Content>
+</UDLText>
+
+<Method name="SWARHRMED1001QueryClose">
+<Description>
+This is the Close component of the %Library.Query.
+This is standard code and should never have to change.
+This is where all the cleanup is performed, i.e. the purging of the temporary storage global ^CacheTemp.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>QHandle:%Library.Binary</FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Clean up by purging the temporary node in ^CacheTemp global
+ New repid,ind
+ Set repid=$li(QHandle,2)
+
+ //Start Monitor (if configured to capture stats)
+ i mon Do ..MonitorEnd(mon)
+
+ Kill ^CacheTemp("TRAK",repid)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="SWARHRMED1001QueryExecute">
+<Description>
+This is the Execute section for the %Library.Query. 
+All of the logic will be performed here.
+A new node for the ^CacheTemp global will be created and each subscript of this global will contain
+a row for the report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,Hospital:%Library.Integer,DateFrom:%Date,DateTo:%Date,Location:%Library.Integer]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Get reportid i.e. use $INCREMENT to add another node to ^CacheTemp global. 
+ // We use ^CacheTemp global because it will always use memory before disk
+ New repid,ind
+
+  // Use $Increment to get the next node
+ Set repid=$I(^CacheTemp("TRAK"))
+ 
+ New Number,String,Date,Time,c,n
+
+ /* TEMPLATE MODIFY: Define and initialise appropriate column variables to describe output rowset columns */
+ New PAPMINo,PAPMIName,PAPMIName2,PAPMIName3,RTMASMRNo,
+ RTMAVCurLocDesc,RTMAVCurLocCode,RTMAVDateArrived,
+ HOSPDesc,HOSPRowId,CTLOCRowId,
+ RTMAVVolDesc,RTMVTDate,RTMVTTime,RTMVTComments,MOVECode,MOVEDesc,
+ RTMVTLocFromDR,RTMVTLocFromDesc,RTMVTLocFromCode,RTMVTLocFromHosp,
+ RTMVTLocToDR,RTMVTLocToDesc,RTMVTLocToCode,RTMVTLocToHosp,TYPDesc,TYPRowId,TYPCode,RTMAVRowId,CTHOSPDesc
+ Set (HOSPRowId,CTLOCRowId,TYPRowId,RTMAVRowId)=0
+ Set (PAPMINo,PAPMIName,PAPMIName2,PAPMIName3,RTMASMRNo,
+ RTMAVCurLocDesc,RTMAVCurLocCode,RTMAVDateArrived,
+ HOSPDesc,
+ RTMAVVolDesc,RTMVTDate,RTMVTTime,RTMVTComments,MOVECode,MOVEDesc,
+ RTMVTLocFromDR,RTMVTLocFromDesc,RTMVTLocFromCode,RTMVTLocFromHosp,
+ RTMVTLocToDR,RTMVTLocToDesc,RTMVTLocToCode,RTMVTLocToHosp,TYPDesc,TYPCode,CTHOSPDesc)=""
+
+ s ind=1
+
+ //Convert ODBC dates to cache format
+ s DateFrom=$$intdate^SSUTIL4(DateFrom)
+ s DateTo=$$intdate^SSUTIL4(DateTo)
+
+ //Start Monitor (if configured to capture stats)
+ s mon=..MonitorBegin()
+ 
+ /* TEMPLATE MODIFY: Clean up parameter variables - $zstrip(<variable>,"*CW") strips all control characters and whitespace, "<>W" just strips leading/trailing whitespace */
+
+ /*
+  * TEMPLATE MODIFY:
+  *		1. Change name of cursor to something more descriptive than MyReportCursor (need to change in 4 places; here, 2x "fetch" expressions and close expression below)
+  *		2. Change SQL query to query desired data, passing valid parameters as defined in Query and Execute method arguments.
+  *		3. Pass appropriate parameters using :<ParameterVariableName> - eg. :Hospital
+  */
+ &SQL(DECLARE SWARHRMED1001Cursor CURSOR FOR 
+ SELECT
+ PAPMI_No,
+ PAPMI_Name,
+ PAPMI_Name2,
+ PAPMI_Name3,
+ RTMAS_MRNo,
+ RTMAV_CurrentLoc_DR->CTLOC_Desc,
+ RTMAV_CurrentLoc_DR->CTLOC_Code,
+ RTMAV_DateArrived,
+ RTMAV_CurrentLoc_DR->CTLOC_Hospital_DR->HOSP_Desc,
+ RTMAV_CurrentLoc_DR->CTLOC_Hospital_DR,
+ RTMAV_CurrentLoc_DR->CTLOC_RowID,
+ RTMAV_VolDesc,
+ RTMVT_Date,
+ RTMVT_Time,
+ RTMVT_Comments,
+ RTMVT_ReasonForMove_DR->MOVE_Code,
+ RTMVT_ReasonForMove_DR->MOVE_Desc,
+ RTMVT_LocFrom_DR,
+ RTMVT_LocFrom_DR->CTLOC_Desc,
+ RTMVT_LocFrom_DR->CTLOC_Code,
+ RTMVT_LocFrom_DR->CTLOC_Hospital_DR->HOSP_Desc,
+ RTMVT_LocTo_DR,
+ RTMVT_LocTo_DR->CTLOC_Desc,
+ RTMVT_LocTo_DR->CTLOC_Code,
+ RTMVT_LocTo_DR->CTLOC_Hospital_DR->HOSP_Desc,
+ RTMAS_MRType_DR->TYP_Desc,
+ RTMAS_MRType_DR->TYP_RowId,
+ RTMAS_MRType_DR->TYP_Code,
+ RTMAV_RowId,
+ HOSP_Desc
+ FROM SQLUser.RT_Master, SQLUser.PA_PatMas, SQLUser.RT_MasVol, SQLUser.RT_MVTrans,
+ SQLUser.CT_Hospital
+ WHERE HOSP_RowId=:Hospital
+ AND RTMAS_PatNo_DR = PAPMI_RowId
+ AND RTMAS_RowId=RTMAV_RTMAS_ParRef
+ AND RTMAV_RowId=RTMVT_RTMAV_ParRef
+ AND RTMVT_Date=RTMAV_DateArrived
+ AND RTMAV_DateArrived BETWEEN :DateFrom and :DateTo
+ AND RTMAV_ActiveFlag='Y'
+ AND (RTMAV_CurrentLoc_DR->CTLOC_Hospital_DR->HOSP_RowId=:Hospital)
+ AND ((RTMAV_CurrentLoc_DR->CTLOC_RowId=:Location) OR (:Location IS NULL))
+ )
+ &SQL(OPEN SWARHRMED1001Cursor)
+ 
+
+ /* TEMPLATE MODIFY: Rename cursor to something moreChange fetch INTO parameter list to match column variable names */
+ //FETCH FIRST ROW
+ &sql(fetch SWARHRMED1001Cursor INTO :PAPMINo,:PAPMIName,:PAPMIName2,:PAPMIName3,:RTMASMRNo,
+ :RTMAVCurLocDesc,:RTMAVCurLocCode,:RTMAVDateArrived,
+ :HOSPDesc,:HOSPRowId,:CTLOCRowId,
+ :RTMAVVolDesc,:RTMVTDate,:RTMVTTime,:RTMVTComments,:MOVECode,:MOVEDesc,
+ :RTMVTLocFromDR,:RTMVTLocFromDesc,:RTMVTLocFromCode,:RTMVTLocFromHosp,
+ :RTMVTLocToDR,:RTMVTLocToDesc,:RTMVTLocToCode,:RTMVTLocToHosp,:TYPDesc,:TYPRowId,:TYPCode,:RTMAVRowId,:CTHOSPDesc)
+  
+ while 'SQLCODE{
+  
+ d FormatDates
+  
+ /* TEMPLATE MODIFY: Build the sort string here from column variables. Convert strings to uppercase ($ZCVT(<field>,"U") and separate with spaces */
+ s sort = ind		// don't sort - uncomment this line if you've sorted in the query
+ //s sort = $ZCVT(HOSPDesc,"U")_" "_$ZCVT(WARDDesc,"U")_" "_$ZCVT(ROOMCode,"U")_" "_$ZCVT(BEDCode,"U")_" "_$ZCVT(CTRLGDesc,"U")_" "_$ZCVT(PAPERName,"U")_" "_$ZCVT(PAPERName2,"U")_" "_$ZCVT(PAPERName3,"U")_ind
+ 
+ /* TEMPLATE MODIFY: Build the list of fields by placing correct column variable names in the $LB() here. */
+ s ^CacheTemp("TRAK",repid,sort)=$LB(PAPMINo,PAPMIName,PAPMIName2,PAPMIName3,RTMASMRNo,
+ RTMAVCurLocDesc,RTMAVCurLocCode,RTMAVDateArrived,
+ HOSPDesc,HOSPRowId,CTLOCRowId,
+ RTMAVVolDesc,RTMVTDate,RTMVTTime,RTMVTComments,MOVECode,MOVEDesc,
+ RTMVTLocFromDR,RTMVTLocFromDesc,RTMVTLocFromCode,RTMVTLocFromHosp,
+ RTMVTLocToDR,RTMVTLocToDesc,RTMVTLocToCode,RTMVTLocToHosp,TYPDesc,TYPRowId,TYPCode,RTMAVRowId,CTHOSPDesc)
+ s ind=ind+1
+ 
+ /* TEMPLATE MODIFY: Change field variables to match row columns - copy FETCH FIRST ROW from above */
+ //fetch rows
+ &sql(fetch SWARHRMED1001Cursor INTO :PAPMINo,:PAPMIName,:PAPMIName2,:PAPMIName3,:RTMASMRNo,
+ :RTMAVCurLocDesc,:RTMAVCurLocCode,:RTMAVDateArrived,
+ :HOSPDesc,:HOSPRowId,:CTLOCRowId,
+ :RTMAVVolDesc,:RTMVTDate,:RTMVTTime,:RTMVTComments,:MOVECode,:MOVEDesc,
+ :RTMVTLocFromDR,:RTMVTLocFromDesc,:RTMVTLocFromCode,:RTMVTLocFromHosp,
+ :RTMVTLocToDR,:RTMVTLocToDesc,:RTMVTLocToCode,:RTMVTLocToHosp,:TYPDesc,:TYPRowId,:TYPCode,:RTMAVRowId,:CTHOSPDesc)}
+
+ &SQL(CLOSE SWARHRMED1001Cursor)
+ 
+ // Build QHandle (AtEnd,ReportID,Index)
+ Set QHandle=$lb(0,repid,0)
+
+ Quit $$$OK
+
+FormatDates
+ /* TEMPLATE MODIFY: Add an entry to perform a date format for all date/time fields here */
+ //s AdmDate=..ConvertDateToODBC(AdmDate)
+ //s DischgDate=..ConvertDateToODBC(DischgDate)
+ //s TRANSStartDate=..ConvertDateToODBC(TRANSStartDate)
+ if RTMAVDateArrived s RTMAVDateArrived=..ConvertDateToODBC(RTMAVDateArrived)
+ if RTMVTDate s RTMVTDate=..ConvertDateToODBC(RTMVTDate)
+ if RTMVTTime s RTMVTTime=..ConvertTimeToODBC(RTMVTTime)
+ s RTMVTComments=$LISTTOSTRING(RTMVTComments,$CHAR(13)_$CHAR(10))
+]]></Implementation>
+</Method>
+
+<Method name="SWARHRMED1001QueryFetch">
+<Description>
+This is the Fetch component of the %Library.Query. 
+This should never have to change. It is designed to fetch the row for each subscript of the ^CacheTemp
+global and return this row to the Crystal Report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,&Row:%Library.List,&AtEnd:%Library.Integer=0]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // This fetch method should never have to change. 
+
+ // repid - Report ID
+ // ind   - sequence index which represents each row
+
+ New repid,ind
+
+ // Restore QHandle
+ Set AtEnd=$li(QHandle,1)
+ Set repid=$li(QHandle,2)
+ Set ind=$li(QHandle,3)
+
+ Set ind=$o(^CacheTemp("TRAK",repid,ind))
+ If ind="" {	// if there are no more rows, finish fetching
+ Set AtEnd=1
+ Set Row=""
+ }
+ Else      {	// fetch row
+ Set Row=^CacheTemp("TRAK",repid,ind)
+ }
+
+ // Save QHandle
+ s QHandle=$lb(AtEnd,repid,ind)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<UDLText name="T">
+<Content><![CDATA[
+/* TEMPLATE MODIFY: Rename Stored Proc query to <MyStoredProcName> 
+ * TEMPLATE MODIFY: Change parameters to match desired stored procedure parameters
+ * TEMPLATE MODIFY: Change ROWSPEC list to match desired output column names and column data types */
+]]></Content>
+</UDLText>
+
+<Query name="SWARHRMED1001Query">
+<Type>%Library.Query</Type>
+<FormalSpec>Hospital:%Library.Integer,DateFrom:%Date,DateTo:%Date,Location:%Library.Integer</FormalSpec>
+<SqlProc>1</SqlProc>
+<Parameter name="CONTAINID" value="0"/>
+<Parameter name="ROWSPEC" value="PAPMINo:%String(MAXLEN=255),PAPMIName:%String(MAXLEN=255),PAPMIName2:%String(MAXLEN=255),PAPMIName3:%String(MAXLEN=255),RTMASMRNo:%String(MAXLEN=255),RTMAVCurLocDesc:%String(MAXLEN=255),RTMAVCurLocCode:%String(MAXLEN=255),RTMAVDateArrived:%Date,HOSPDesc:%String(MAXLEN=255),HOSPRowId:%Integer,CTLOCRowId:%Integer,RTMAVVolDesc:%String(MAXLEN=255),RTMVTDate:%Date,RTMVTTime:%String(MAXLEN=10),RTMVTComments:%String(MAXLEN=255),MOVECode:%String(MAXLEN=255),MOVEDesc:%String(MAXLEN=255),RTMVTLocFromDR:%Integer,RTMVTLocFromDesc:%String(MAXLEN=255),RTMVTLocFromCode:%String(MAXLEN=255),RTMVTLocFromHosp:%String(MAXLEN=255),RTMVTLocToDR:%Integer,RTMVTLocToDesc:%String(MAXLEN=255),RTMVTLocToCode:%String(MAXLEN=255),RTMVTLocToHosp:%String(MAXLEN=255),TYPDesc:%String(MAXLEN=255),TYPRowId:%Integer,TYPCode:%String(MAXLEN=255),RTMAVRowId:%Integer,CTHOSPDesc:%String(MAXLEN=255)"/>
+<Parameter name="SELECTMODE" value="ODBC"/>
+</Query>
+</Class>
+</Export>

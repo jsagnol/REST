@@ -1,0 +1,316 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.SWARH.Report.ZEN.StoredProc.SWARHZSCTT1001">
+<Description>
+Report Name: SCTT Care Coordination Plan
+Report Code: SWARHZSCTT1001
+Phuong-Dung Hoang
+copied and modified Custom.AUXX.Report.ZEN.StoredProc.SCTTCareCorordPlan</Description>
+<ProcedureBlock>0</ProcedureBlock>
+<Super>Custom.SWARH.Report.ZEN.StoredProc.Abstract</Super>
+<TimeCreated>62970,48071.923811</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/SWARH/Report/ZEN/StoredProc/SWARHZSCTT1001.xml#1 $</Default>
+</Parameter>
+
+<Method name="CCPClose">
+<Description>
+This is the Close component of the %Library.Query.
+This is standard code and should never have to change.
+This is where all the cleanup is performed, i.e. the purging of the temporary storage global ^CacheTemp.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>QHandle:%Library.Binary</FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+	// Clean up by purging the temporary node in ^CacheTemp global
+ New repid
+ Set repid=$LIST(QHandle,2)
+ 
+ //Start Monitor (if configured to capture stats)
+ i mon Do ..MonitorEnd(mon)
+
+ Kill ^CacheTemp(..#CACHETEMPSUBSCRIPT,repid)
+ 
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="CCPExecute">
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,EpisodeID:%Library.String,QuesID:%Library.String,QryType:%Library.String,ID:%Library.String]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+	// Get reportid i.e. use $INCREMENT to add another node to ^CacheTemp("TRAK") global. 
+	// We use ^CacheTemp global because CACHETEMP is a memory resident database
+	New repid,ind
+
+ 	// Use $Increment to get the next node
+ 	Set repid=$Increment(^CacheTemp(..#CACHETEMPSUBSCRIPT))
+ 
+ 	s ind=1, END=0
+ 	//Start Monitor (if configured to capture stats)
+ 	s mon=..MonitorBegin()
+	
+	
+	s (ClientName,DOB,Sex,UR,ReasonForPlan,SupportingDoc1,SupportingDoc2,PlanDate,ReviewDate1,ReviewDate2,Case1,Case2,ConsumerAgree,Name,Contact,Other,PlanProcess,Provided,Role,Issue,Goal,Action,Target,IssueRef,Progress,Source)=""
+	
+	s PageTitle="Care Coordination Plan"
+	s PageDesc="For consumers with complex and/or multiple issues, to support a coordinated approach. It shows who is involved in a consumer's care, the main issues, agreed goals developed together, planned actions and who is responsible for each action."_$c(13,10)_$c(13,10)
+	s PageSideText="Care Coordination Plan"
+	s adm=EpisodeID
+	
+	i adm {
+		s pat=$p($g(^PAADM(adm)),"^")
+
+		s patobj=##class(User.PAPatMas).%OpenId(pat)
+		i patobj {
+			s ClientName=patobj.PAPMIName_", "_patobj.PAPMIName2
+			s DOB=patobj.PAPMIDOB
+			i DOB s DOB=$zd(DOB,4,,4)
+			s Sex=patobj.PAPMISexDR.CTSEXDesc
+			s UR=patobj.PAPMINo
+			k patobj
+		}
+
+		s ccpobj=##class(questionnaire.QAUXXSCTTCC).%OpenId(QuesID)
+		i ccpobj {
+			s ReasonForPlan=""
+			f x=1:1:ccpobj.Q01.Count() {
+				i ReasonForPlan'="" s ReasonForPlan=ReasonForPlan_$c(13,10)_ccpobj.Q01.GetAt(x)
+				i ReasonForPlan="" s ReasonForPlan=ccpobj.Q01.GetAt(x)
+			}
+			i ccpobj.Q01.Count()<3 {
+				f x=ccpobj.Q01.Count():1:3 {
+					s ReasonForPlan=ReasonForPlan_$c(13,10)
+				}
+			}
+			s SupportingDoc1=""
+			f x=1:1:ccpobj.Q42.Count() {
+				i SupportingDoc1'="" s SupportingDoc1=SupportingDoc1_$c(13,10)_ccpobj.Q42.GetAt(x)
+				i SupportingDoc1="" s SupportingDoc1=ccpobj.Q42.GetAt(x)
+			}
+			i ccpobj.Q42.Count()<4 {
+				f x=ccpobj.Q42.Count():1:4 {
+					s SupportingDoc1=SupportingDoc1_$c(13,10)
+				}
+			}
+			s SupportingDoc2=""
+			f x=1:1:ccpobj.Q106.Count() {
+				i SupportingDoc2'="" s SupportingDoc2=SupportingDoc2_$c(13,10)_ccpobj.Q106.GetAt(x)
+				i SupportingDoc2="" s SupportingDoc2=ccpobj.Q106.GetAt(x)
+			}
+			i ccpobj.Q106.Count()<4 {
+				f x=ccpobj.Q106.Count():1:4 {
+					s SupportingDoc2=SupportingDoc2_$c(13,10)
+				}
+			}
+			s PlanDate=ccpobj.Q58
+			i PlanDate { s PlanDate=$zd(PlanDate,4,,4) } else { s PlanDate="    /    /    " }
+			s ReviewDate1=ccpobj.Q59
+			i ReviewDate1 { s ReviewDate1=$zd(ReviewDate1,4,,4) } else { s ReviewDate1="    /    /    " }
+			s ReviewDate2=ccpobj.Q107
+			i ReviewDate2 { s ReviewDate2=$zd(ReviewDate2,4,,4) } else { s ReviewDate2="  /    /    " }
+			s Case1=$zcvt(ccpobj.Q60,"U")
+			s Case2=$zcvt(ccpobj.Q108,"U")
+			s ConsumerAgree=$zcvt(ccpobj.Q90,"U")
+			
+			i QryType="Page1" {
+				f x=1:1:8 {
+					s Name=$PROPERTY(ccpobj,"Q0"_(1+x))
+					f y=1:1:4 {
+						i y>$l(Name,$c(13,10)) s Name=Name_$c(13,10)
+					}
+					s Contact=$PROPERTY(ccpobj,"Q"_(9+x))
+					s Other=$PROPERTY(ccpobj,"Q"_(17+x))
+					s PlanProcess=$PROPERTY(ccpobj,"Q"_(25+x))
+					s PlanProcess=$s(PlanProcess="Y":"Yes",PlanProcess="N":"No",1:"")
+					;s PlanProcess=##class(Custom.AUXX.Report.ZEN.StoredProc.SCTTReport).GetQuesAnswerDesc("AUXXSCTTCC",(25+x),PlanProcess)
+					s Provided=$PROPERTY(ccpobj,"Q"_(33+x))
+					s Provided=$s(Provided="Y":"Yes",Provided="N":"No",1:"")
+					;s Provided=##class(Custom.AUXX.Report.ZEN.StoredProc.SCTTReport).GetQuesAnswerDesc("AUXXSCTTCC",(33+x),Provided)
+					s Role=$PROPERTY(ccpobj,"Q"_(49+x))
+					
+					s ind=$i(ind)
+					s ^CacheTemp(..#CACHETEMPSUBSCRIPT,repid,ind)=$lb("CCP",PageTitle,PageDesc,PageSideText,ClientName,DOB,Sex,UR,QuesID,ReasonForPlan,SupportingDoc1,SupportingDoc2,PlanDate,ReviewDate1,ReviewDate2,Case1,Case2,ConsumerAgree,Name,Contact,Other,PlanProcess,Provided,Role,"","","","","","","",ind,"","")
+				}
+			}
+			
+			i QryType="Page2" {
+				f x=1:1:4 {
+					i x=1 {
+						s Issue=..GetTextArea(ccpobj,61)
+						i Issue="" s Issue=" "
+						
+						s (Action,Goal)=""
+						f j=1:1:2 {
+							s Goal=..GetTextArea(ccpobj,43+j)
+							s Action=..GetTextArea(ccpobj,43+(j+2))
+							f y=1:1:6 {
+								i y>$l(Action,$c(13,10)) s Action=Action_$c(13,10)
+							}
+							
+							s Target=$PROPERTY(ccpobj,"Q"_(47+j))
+							i Target s Target=$zd(Target,4,,4)
+							
+							s ind=$i(ind)
+							s ^CacheTemp(..#CACHETEMPSUBSCRIPT,repid,ind)=$lb("CCP",PageTitle,PageDesc,PageSideText,ClientName,DOB,Sex,UR,QuesID,ReasonForPlan,SupportingDoc1,SupportingDoc2,PlanDate,ReviewDate1,ReviewDate2,Case1,Case2,ConsumerAgree,"","","","","","","1.  "_Issue,"1."_j_"  "_Goal,Action,Target,"","","","",x_"."_j,"")
+						}			
+					}
+					i x=2 {
+						s Issue=..GetTextArea(ccpobj,73)
+						i Issue="" s Issue=" "
+						
+						s (Action,Goal)=""
+						f j=1:1:2 {
+							s Goal=..GetTextArea(ccpobj,65+j)
+							s Action=..GetTextArea(ccpobj,65+(j+2))
+							f y=1:1:6 {
+								i y>$l(Action,$c(13,10)) s Action=Action_$c(13,10)
+							}
+							
+							s Target=$PROPERTY(ccpobj,"Q"_(69+j))
+							i Target s Target=$zd(Target,4,,4)
+							
+							s ind=$i(ind)
+							s ^CacheTemp(..#CACHETEMPSUBSCRIPT,repid,ind)=$lb("CCP",PageTitle,PageDesc,PageSideText,ClientName,DOB,Sex,UR,QuesID,ReasonForPlan,SupportingDoc1,SupportingDoc2,PlanDate,ReviewDate1,ReviewDate2,Case1,Case2,ConsumerAgree,"","","","","","","2.  "_Issue,"2."_j_"  "_Goal,Action,Target,"","","","",x_"."_j,"")
+						}
+					}
+					i x=3 {
+						s Issue=..GetTextArea(ccpobj,75)
+						i Issue="" s Issue=" "
+						
+						s (Action,Goal)=""
+						f j=1:1:2 {
+							s Goal=..GetTextArea(ccpobj,75+j)
+							s Action=..GetTextArea(ccpobj,75+(j+2))
+							f y=1:1:6 {
+								i y>$l(Action,$c(13,10)) s Action=Action_$c(13,10)
+							}
+							
+							s Target=$PROPERTY(ccpobj,"Q"_(79+j))
+							i Target s Target=$zd(Target,4,,4)
+							
+							s ind=$i(ind)
+							s ^CacheTemp(..#CACHETEMPSUBSCRIPT,repid,ind)=$lb("CCP",PageTitle,PageDesc,PageSideText,ClientName,DOB,Sex,UR,QuesID,ReasonForPlan,SupportingDoc1,SupportingDoc2,PlanDate,ReviewDate1,ReviewDate2,Case1,Case2,ConsumerAgree,"","","","","","","3.  "_Issue,"3."_j_"  "_Goal,Action,Target,"","","","",x_"."_j,"")
+						}
+					}
+					i x=4 {
+						s Issue=..GetTextArea(ccpobj,83)
+						i Issue="" s Issue=" "
+						
+						s (Action,Goal)=""
+						f j=1:1:2 {
+							s Goal=..GetTextArea(ccpobj,83+j)
+							s Action=..GetTextArea(ccpobj,83+(j+2))
+							f y=1:1:6 {
+								i y>$l(Action,$c(13,10)) s Action=Action_$c(13,10)
+							}
+							
+							s Target=$PROPERTY(ccpobj,"Q"_(87+j))
+							i Target s Target=$zd(Target,4,,4)
+							
+							s ind=$i(ind)
+							s ^CacheTemp(..#CACHETEMPSUBSCRIPT,repid,ind)=$lb("CCP",PageTitle,PageDesc,PageSideText,ClientName,DOB,Sex,UR,QuesID,ReasonForPlan,SupportingDoc1,SupportingDoc2,PlanDate,ReviewDate1,ReviewDate2,Case1,Case2,ConsumerAgree,"","","","","","","4.  "_Issue,"4."_j_"  "_Goal,Action,Target,"","","","",x_"."_j,"")
+						}
+					}
+				}
+			}
+			i QryType="Page3" {
+				s PageTitle="Review of "_$c(13,10)_"Care Coordination Plan"
+				s PageDesc="For use when the Care Coordination Plan is reviewed.  It shows the outcomes/progress of agreed goals and planned actions."_$c(13,10)_$c(13,10)
+				s PageSideText="Review of Care Coordination Plan"
+
+				s cnt=0
+				f x=1:1:5 {
+					s IssueRef=$PROPERTY(ccpobj,"Q"_(90+cnt+x))
+					f y=1:1:6 {
+						i y>$l(IssueRef,$c(13,10)) s IssueRef=IssueRef_$c(13,10)
+					}
+					s Progress=..GetTextArea(ccpobj,91+cnt+x)
+					s Source=$PROPERTY(ccpobj,"Q"_(92+cnt+x))
+					s cnt=cnt+2
+					
+					s ind=$i(ind)
+					s ^CacheTemp(..#CACHETEMPSUBSCRIPT,repid,ind)=$lb("RCCP",PageTitle,PageDesc,PageSideText,ClientName,DOB,Sex,UR,QuesID,ReasonForPlan,SupportingDoc1,SupportingDoc2,PlanDate,ReviewDate1,ReviewDate2,Case1,Case2,ConsumerAgree,"","","","","","","","","","",IssueRef,Progress,Source,"","",x)
+				}
+				f x=5:1:8 {
+					s ind=$i(ind)
+					s ^CacheTemp(..#CACHETEMPSUBSCRIPT,repid,ind)=$lb("RCCP",PageTitle,PageDesc,PageSideText,ClientName,DOB,Sex,UR,QuesID,ReasonForPlan,SupportingDoc1,SupportingDoc2,PlanDate,ReviewDate1,ReviewDate2,Case1,Case2,ConsumerAgree,"","","","","","","","","","",$c(13,10)_$c(13,10)_$c(13,10)_$c(13,10)_$c(13,10),"","","","",x)
+				}
+			}
+			k ccpobj
+		}
+	}
+
+	// Build QHandle (AtEnd,ReportID,Index)
+	Set QHandle=$LISTBUILD(0,repid,0)
+	Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="CCPFetch">
+<Description>
+This is the Fetch component of the %Library.Query. 
+This should never have to change. It is designed to fetch the row for each subscript of the 
+^CacheTemp("TRAK" global and return this row to the Report writer</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,&Row:%Library.List,&AtEnd:%Library.Integer=0]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+	// This fetch method should never have to change. 
+	// repid - Report ID
+	// ind   - sequence index which represents each row
+	New repid,ind
+
+	// Restore QHandle
+	Set AtEnd=$LI(QHandle,1)
+	Set repid=$LI(QHandle,2)
+	Set ind=$LI(QHandle,3)
+
+	Set ind=$order(^CacheTemp(..#CACHETEMPSUBSCRIPT,repid,ind))
+	If ind="" {	// if there are no more rows, finish fetching
+		Set AtEnd=1
+		Set Row=""
+	} else {	// fetch row
+		Set Row=^CacheTemp(..#CACHETEMPSUBSCRIPT,repid,ind)
+	}
+
+	// Save QHandle
+	Set QHandle=$lb(AtEnd,repid,ind)
+	Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Query name="CCP">
+<Description>
+This is the Stored Procedure Template. For Sample use only.
+It expects one parameter of type integer and will return 4 fields:
+Field1 - Integer
+Field2 - String
+Field3 - Date
+Field4 - Time</Description>
+<Type>%Library.Query</Type>
+<FormalSpec>EpisodeID:%Library.String,QuesID:%Library.String,QryType:%Library.String,ID:%Library.String</FormalSpec>
+<SqlProc>1</SqlProc>
+<Parameter name="CONTAINID" value="0"/>
+<Parameter name="ROWSPEC" value="FormCode:%String,PageTitle:%String,PageDesc:%String,PageSideText:%String,ClientName:%String,DOB:%String,Sex:%String,UR:%String,QuesID:%String,ReasonForPlan:%String,SupportingDoc1:%String,SupportingDoc2:%String,PlanDate:%String,ReviewDate1:%String,ReviewDate2:%String,Case1:%String,Case2:%String,ConsumerAgree:%String,Name:%String,Contact:%String,Other:%String,PlanProcess:%String,Provided:%String,Role:%String,Issue:%String,Goal:%String,Action:%String,Target:%String,IssueRef:%String,Progress:%String,Source:%String,NameGrp:%String,IssueGrp:%String,GoalGrp:%String"/>
+</Query>
+
+<Method name="GetTextArea">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>obj:%CacheObject,num:%String</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	s text=""
+	f z=1:1:$METHOD($PROPERTY(obj,"Q"_num),"Count") {
+		i text'="" s text=text_$c(13,10)_$METHOD($PROPERTY(obj,"Q"_num),"GetAt",z)
+		i text="" s text=$METHOD($PROPERTY(obj,"Q"_num),"GetAt",z)
+	}
+	q text
+]]></Implementation>
+</Method>
+</Class>
+</Export>

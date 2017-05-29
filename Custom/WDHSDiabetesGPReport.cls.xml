@@ -1,0 +1,173 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.WDHSDiabetesGPReport">
+<ClassType/>
+<ProcedureBlock>0</ProcedureBlock>
+<Super>%Library.RegisteredObject</Super>
+<TimeCreated>61241,41326.252928</TimeCreated>
+
+<Method name="WDHSDiabetesGPReportClose">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>QHandle:%Library.Binary</FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Clean up by purging the temporary node in ^CacheTemp global
+ New repid
+ Set repid=$li(QHandle,2)
+ Kill ^CacheTemp(repid)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="WDHSDiabetesGPReportExecute">
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,ROWID:%Integer]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ New repid,ind // Use $Increment to get the next node
+ Set repid=$I(^CacheTemp) // Build data into ^CacheTemp(ReportID) e.g. Set ^CacheTemp(ReportID,Index)=$LB(f1,f2,f3)
+ New Number,String,Date,Time,c,n,str
+ 
+ n PatUR,PatTitle,PatName,PatName2,PatName3,PatDOB,PatAddress,PatCity,PatZip,PatState,QRefDate,QRepDate,QAssHeight,QAssWeight,QAssBMI,QAssBP,QAssHR,QAssBSL,QAssComment,QManWeight,QManWaist,QManDiet,QManExercise,QManComment,QEdHandouts,QRevDate,QABMIcal,DocTitle,DocForename,DocDesc,DocProNum,DocContact
+ //s ()=0 //commented out due to lack of integer fields
+ s (PatUR,PatTitle,PatName,PatName2,PatName3,PatDOB,PatAddress,PatCity,PatZip,PatState,QRefDate,QRepDate,QAssHeight,QAssWeight,QAssBMI,QAssBP,QAssHR,QAssBSL,QAssComment,QManWeight,QManWaist,QManDiet,QManExercise,QManComment,QEdHandouts,QRevDate,QABMIcal,DocTitle,DocForename,DocDesc,DocProNum,DocContact)=""
+ n idx,maxlength,currentstr,currentlength
+ //s ^zbernard("1")=1
+ s ind=1
+ //s ^zbernard("2")=2
+ s END=0
+ &sql(declare WDHSDiabetesGPReport cursor for
+select
+ PAPMI_No,
+ PAPMI_Title_DR->TTL_Desc,
+ PAPMI_Name,PAPMI_Name2,
+ PAPMI_Name3,
+ PAPMI_DOB,
+ PAPMI_PAPER_DR->PAPER_StName,
+ PAPMI_PAPER_DR->PAPER_CityCode_DR->CTCIT_Desc,
+ PAPMI_PAPER_DR->PAPER_Zip_DR->CTZIP_Code,
+ PAPMI_PAPER_DR->PAPER_zip_DR->CTzip_Province_DR->PROV_Code,
+ QRefDate,QRepDate,QAssHeight,QAssWeight,
+ QAssBMI,
+ QAssBP,
+ QAssHR,
+ QAssBSL,
+ QAssComment,
+ QManWeight,
+ QManWaist,
+ QManDiet,
+ QManExercise,
+ QManComment,
+ QEdHandouts,
+ QRevDate,
+ QABMIcal,
+ REFD_Title,
+ REFD_Forename,
+ REFD_Desc,
+ REFD_Text1,
+ REFD_PreferredContact
+
+ FROM questionnaire.QWDHSDIAB QWDHSDIAB,
+      SQLUser.PAC_RefDoctor PAC_RefDoctor,
+      SQLUser.PA_PatMas
+
+ WHERE {fn CONVERT(QRecipient,SQL_INTEGER)}=REFD_RowID
+ AND ID=:ROWID
+ AND PAPMI_RowID=QUESPAPatMasDR
+ 
+ )
+ &sql(open WDHSDiabetesGPReport)
+ //fetch first order record
+ &sql(fetch WDHSDiabetesGPReport into :PatUR,:PatTitle,:PatName,:PatName2,:PatName3,:PatDOB,:PatAddress,:PatCity,:PatZip,:PatState,:QRefDate,:QRepDate,:QAssHeight,:QAssWeight,:QAssBMI,:QAssBP,:QAssHR,:QAssBSL,:QAssComment,:QManWeight,:QManWaist,:QManDiet,:QManExercise,:QManComment,:QEdHandouts,:QRevDate,:QABMIcal,:DocTitle,:DocForename,:DocDesc,:DocProNum,:DocContact)
+ while 'SQLCODE{
+ s ^zbernard("3")=3
+ 
+ Do FormatDates
+ 
+ s PatAddress=$zstrip(PatAddress,"*C")
+ s QAssComment=$zstrip(QAssComment,"*C")
+ s QManDiet=$zstrip(QManDiet,"*C")
+ s QManExercise=$zstrip(QManExercise,"*C")
+ s QManComment=$zstrip(QManComment,"*C")
+ s QEdHandouts=$zstrip(QEdHandouts,"*C")
+ 
+ ; define all off the Text Area strings.
+ ; Set up maxlength here. Once defined, we don't have to define it again - it will apply to all loops.
+ s maxlength=30000
+  ;get the "version number"
+ //s idstr=##Class(web.PAAdmDischargeSummary).GetPreviousVersions(DisID) 
+ //s verno=($l(idstr,"^")+1) 
+ // build the row
+ Set str=$LB(PatUR,PatTitle,PatName,PatName2,PatName3,PatDOB,PatAddress,PatCity,PatZip,PatState,QRefDate,QRepDate,QAssHeight,QAssWeight,QAssBMI,QAssBP,QAssHR,QAssBSL,QAssComment,QManWeight,QManWaist,QManDiet,QManExercise,QManComment,QEdHandouts,QRevDate,QABMIcal,DocTitle,DocForename,DocDesc,DocProNum,DocContact)
+ Set ^CacheTemp(repid,ind)=str
+ s ind=ind+1
+ //s ^zbernard("4")=4
+ //fetch next order records
+ &sql(fetch WDHSDiabetesGPReport into :PatUR,:PatTitle,:PatName,:PatName2,:PatName3,:PatDOB,:PatAddress,:PatCity,:PatZip,:PatState,:QRefDate,:QRepDate,:QAssHeight,:QAssWeight,:QAssBMI,:QAssBP,:QAssHR,:QAssBSL,:QAssComment,:QManWeight,:QManWaist,:QManDiet,:QManExercise,:QManComment,:QEdHandouts,:QRevDate,:QABMIcal,:DocTitle,:DocForename,:DocDesc,:DocProNum,:DocContact)
+ }
+ &sql(close WDHSDiabetesGPReport)
+
+ // Build QHandle (AtEnd,ReportID,Index)
+ Set QHandle=$lb(0,repid,0)
+ //s ^zbernard("5")=5
+
+ Quit $$$OK
+ 
+FormatDates
+ // Convert the dates to ODBC date format
+ If PatDOB Set PatDOB=$ZD(PatDOB,3)
+ If QRefDate Set QRefDate=$ZD(QRefDate,3)
+ If QRepDate Set QRepDate=$ZD(QRepDate,3)
+ If QRevDate Set QRevDate=$ZD(QRevDate,3)
+ Quit
+]]></Implementation>
+</Method>
+
+<Method name="WDHSDiabetesGPReportFetch">
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,&Row:%Library.List,&AtEnd:%Library.Integer=0]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // This fetch method should never have to change. 
+
+ // repid - Report ID
+ // ind   - sequence index which represents each row
+
+ New repid,ind
+
+ // Restore QHandle
+ Set AtEnd=$li(QHandle,1)
+ Set repid=$li(QHandle,2)
+ Set ind=$li(QHandle,3)
+
+ Set ind=$o(^CacheTemp(repid,ind))
+ If ind="" {	// if there are no more rows, finish fetching
+ Set AtEnd=1
+ Set Row=""
+ }
+ Else      {	// fetch row
+ Set Row=^CacheTemp(repid,ind)
+ }
+
+ // Save QHandle
+ s QHandle=$lb(AtEnd,repid,ind)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Query name="WDHSDiabetesGPReport">
+<Description>
+It expects 1 parameter of type integer and will return 40 odd fields:
+Field1 - Integer
+Field2 - String(MAXLEN=255)
+Field3 - Date
+Field4 - Time</Description>
+<Type>%Library.Query</Type>
+<FormalSpec>ROWID:%Integer</FormalSpec>
+<SqlProc>1</SqlProc>
+<Parameter name="CONTAINID" value="0"/>
+<Parameter name="ROWSPEC" value="PatUR:%String(MAXLEN=255),PatTitle:%String(MAXLEN=255),PatName:%String(MAXLEN=255),PatName2:%String(MAXLEN=255),PatName3:%String(MAXLEN=255),PatDOB:%Date,PatAddress:%String(MAXLEN=255),PatCity:%String(MAXLEN=255),PatZip:%String(MAXLEN=255),PatState:%String(MAXLEN=255),QRefDate:%Date,QRepDate:%Date,QAssHeight:%String(MAXLEN=255),QAssWeight:%String(MAXLEN=255),QAssBMI:%String(MAXLEN=255),QAssBP:%String(MAXLEN=255),QAssHR:%String(MAXLEN=255),QAssBSL:%String(MAXLEN=255),QAssComment:%String(MAXLEN=255),QManWeight:%String(MAXLEN=255),QManWaist:%String(MAXLEN=255),QManDiet:%String(MAXLEN=255),QManExercise:%String(MAXLEN=255),QManComment:%String(MAXLEN=255),QEdHandouts:%String(MAXLEN=255),QRevDate:%Date,QABMIcal:%String(MAXLEN=255),DocTitle:%String(MAXLEN=255),DocForename:%String(MAXLEN=255),DocDesc:%String(MAXLEN=255),DocProNum:%String(MAXLEN=255),DocContact:%String(MAXLEN=255)"/>
+<Parameter name="SELECTMODE" value="ODBC"/>
+</Query>
+</Class>
+</Export>

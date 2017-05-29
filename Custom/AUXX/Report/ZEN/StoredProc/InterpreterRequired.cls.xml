@@ -1,0 +1,244 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.AUXX.Report.ZEN.StoredProc.InterpreterRequired">
+<ProcedureBlock>0</ProcedureBlock>
+<Super>Report.Abstract</Super>
+<TimeCreated>60010,52802.603245</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/AUXX/Report/ZEN/StoredProc/InterpreterRequired.xml#1 $</Default>
+</Parameter>
+
+<UDLText name="T">
+<Content><![CDATA[
+// Report Name: Interpreter Required  <br>
+
+]]></Content>
+</UDLText>
+
+<UDLText name="T">
+<Content><![CDATA[
+// Report Code: AUXX.BKG0005 <br>
+
+]]></Content>
+</UDLText>
+
+<UDLText name="T">
+<Content><![CDATA[
+// Logauxx Number: 72219 <br>
+
+]]></Content>
+</UDLText>
+
+<Method name="GetInterpretersClose">
+<Description>
+This is the Close component of the %Library.Query.
+This is standard code and should never have to change.
+This is where all the cleanup is performed, i.e. the purging of the temporary storage global ^CacheTemp.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>QHandle:%Library.Binary</FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Clean up by purging the temporary node in ^CacheTemp global
+ New repid
+ Set repid=$li(QHandle,2)
+ 
+ //Start Monitor (if configured to capture stats)
+ i mon Do ..MonitorEnd(mon)
+
+ Kill ^CacheTemp("TRAK",repid)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="GetInterpretersExecute">
+<Description>
+This is the Execute section for the %Library.Query. 
+All of the logic will be performed here.
+A new node for the ^CacheTemp global will be created and each subscript of this global will contain
+a row for the report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,DateFrom:%Date,DateTo:%Date,Hospital:%String,Location:%String,CareProvider:%String,AppointmentStatus:%String,InterpretingServices:%String]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+	
+ // Get reportid i.e. use $INCREMENT to add another node to ^CacheTemp global. 
+ // We use ^CacheTemp global because it will always use memory before disk
+ New repid,ind
+
+ // Use $Increment to get the next node
+ Set repid=$I(^CacheTemp("TRAK"))
+ 
+ //Start Monitor (if configured to capture stats)
+ s mon=..MonitorBegin()
+ 
+ // Build data into ^CacheTemp("TRAK",ReportID)
+ // e.g. Set ^CacheTemp("TRAK",ReportID,Index)=$LB(f1,f2,f3)
+ New Number,String,Date,Time,c,n
+ n PAPMIRowId,APPTRowId,CTLOCRowId,INTERPRowId,CTLOCCode,CTLOCDesc,HOSPDesc,CTPCPRowId,CTPCPDesc,ASDate,ASSessStartTime,APPTStatus,PAPMINo,PAPMIName,PAPMIName2,PAPMIName3,PAPMIVIPFlag,PAPERTelH,PAPERTelO,PREFLDesc,APPTInterpreterRequired,INTERPDesc,INTERPContactMethod,INTERPAddress,INTERPPhone,INTERPFax,INTERPEmail,APPTInterpreterConfirmed,HOSPRowId,SESSClinicID,RTMASNo
+ s (PAPMIRowId,CTLOCRowId,HOSPRowId)=0
+ s (APPTRowId,CTLOCCode,CTLOCDesc,CTPCPRowId,INTERPRowId,CTPCPDesc,HOSPDesc,ASDate,ASSessStartTime,APPTStatus,PAPMINo,PAPMIName,PAPMIName2,PAPMIName3,PAPMIVIPFlag,PAPERTelH,PAPERTelO,PREFLDesc,APPTInterpreterRequired,INTERPDesc,INTERPContactMethod,INTERPAddress,INTERPPhone,INTERPFax,INTERPEmail,APPTInterpreterConfirmed,SESSClinicID,RTMASNo)=""
+
+ s ind=1
+ n Hosp
+ s Hosp=""
+ 
+ i $g(Hospital)'="" s Hospital=$zstrip(Hospital,"*C")
+ i $g(Location)'="" s Location=$zstrip(Location,"*C")
+ i $g(CareProvider)'="" s CareProvider=$zstrip(CareProvider,"*C")
+ i $g(AppointmentStatus)'="" s AppointmentStatus=$zstrip(AppointmentStatus,"*C")
+ i $g(InterpretingServices)'="" s InterpretingServices=$zstrip(InterpretingServices,"*C")
+ 
+ //Convert ODBC dates to cache format
+ s DateFrom=..ConvertDateToCache(DateFrom)
+ s DateTo=..ConvertDateToCache(DateTo)
+ 
+ n RESRowId,Date,Time,ASchild,APPTchild,APPTRowId,LetterDate
+ s (RESRowId,Date,Time,ASchild,APPTchild,APPTRowId,LetterDate)=""
+ 
+ f  s RESRowId=$o(^RBAS(RESRowId)) q:RESRowId=""  d
+ . s Date=DateFrom-1
+ . f  s Date=Date+1 q:Date>DateTo  d
+ . . f  s Time=$o(^RBAS("APPT_Date",RESRowId,Date,Time)) q:Time=""  d
+ . . . f  s ASchild=$o(^RBAS("APPT_Date",RESRowId,Date,Time,ASchild)) q:ASchild=""  d
+ . . . . f  s APPTchild=$o(^RBAS("APPT_Date",RESRowId,Date,Time,ASchild,APPTchild)) q:APPTchild=""  d
+ . . . . . s APPTRowId=RESRowId_"||"_ASchild_"||"_APPTchild
+ . . . . . s APPTInterpreterRequired=$p($g(^RBAS(RESRowId,ASchild,"APPT",APPTchild)),"^",34)
+ . . . . . i $g(APPTInterpreterRequired)="Y" d GetData
+
+ // Build QHandle (AtEnd,ReportID,Index)
+ Set QHandle=$lb(0,repid,0)
+
+ Quit $$$OK
+
+GetData
+ i $g(Hospital)'="" s Hosp=$p(Hospital,"^",1)
+ &SQL(DECLARE INTER CURSOR FOR
+ SELECT 
+ APPT_PAPMI_DR,
+ APPT_RowId,
+ APPT_AS_ParRef->AS_RES_ParRef->RES_CTLOC_DR,
+ APPT_AS_ParRef->AS_RES_ParRef->RES_CTLOC_DR->CTLOC_Code,
+ APPT_AS_ParRef->AS_RES_ParRef->RES_CTLOC_DR->CTLOC_Desc,
+ APPT_AS_ParRef->AS_RES_ParRef->RES_CTLOC_DR->CTLOC_Hospital_DR->HOSP_Desc,
+ APPT_AS_ParRef->AS_RES_ParRef->RES_CTPCP_DR,
+ APPT_AS_ParRef->AS_RES_ParRef->RES_CTPCP_DR->CTPCP_Desc,
+ APPT_Status,
+ APPT_PAPMI_DR->PAPMI_No,
+ APPT_PAPMI_DR->PAPMI_Name,
+ APPT_PAPMI_DR->PAPMI_Name2,
+ APPT_PAPMI_DR->PAPMI_Name3,
+ APPT_PAPMI_DR->PAPMI_VIPFlag,
+ APPT_PAPMI_DR->PAPMI_PAPER_DR->PAPER_TelH,
+ APPT_PAPMI_DR->PAPMI_PAPER_DR->PAPER_MobPhone,
+ APPT_PAPMI_DR->PAPMI_PAPER_DR->PAPER_PrefLanguage_DR->PREFL_Desc,
+ APPT_InterpreterRequired,
+ APPT_Interpreter_DR,
+ APPT_Interpreter_DR->INTERP_Desc,
+ APPT_Interpreter_DR->INTERP_ContactMethod,
+ APPT_Interpreter_DR->INTERP_Address,
+ APPT_Interpreter_DR->INTERP_Phone,
+ APPT_Interpreter_DR->INTERP_Fax,
+ APPT_Interpreter_DR->INTERP_Email,
+ APPT_InterpreterConfirmed,
+ APPT_AS_ParRef->AS_RES_ParRef->RES_CTLOC_DR->CTLOC_Hospital_DR,
+ APPT_AS_ParRef->AS_RBEffDateSession_DR->SESS_Clinic_DR as SESSClinicID,
+ APPT_AS_ParRef->AS_RBEffDateSession_DR->SESS_ROOM_DR->CTLOC_Desc as AreaDesc,
+ APPT_AS_ParRef->AS_RBEffDateSession_DR->SESS_ROOM_DR as AreaRowId
+ INTO :PAPMIRowId,:APPTRowId,:CTLOCRowId,:CTLOCCode,:CTLOCDesc,:HOSPDesc,:CTPCPRowId,:CTPCPDesc,:APPTStatus,:PAPMINo,:PAPMIName,:PAPMIName2,:PAPMIName3,:PAPMIVIPFlag,:PAPERTelH,:PAPERMobPhone,:PREFLDesc,:APPTInterpreterRequired,:INTERPRowId,:INTERPDesc,:INTERPContactMethod,:INTERPAddress,:INTERPPhone,:INTERPFax,:INTERPEmail,:APPTInterpreterConfirmed,:HOSPRowId,:SESSClinicID,:AreaDesc,:AreaRowId
+ FROM SQLUser.RB_Appointment
+ WHERE APPT_RowId=:APPTRowId
+ AND (({fn CONCAT( ',', {fn CONCAT((:Hospital),',')})} [ {fn CONCAT( ',', {fn CONCAT((APPT_AS_ParRef->AS_RES_ParRef->RES_CTLOC_DR->CTLOC_Hospital_DR->HOSP_RowId),',')})}) OR (:Hospital IS NULL))
+ AND (({fn CONCAT( ',', {fn CONCAT((:Location),',')})} [ {fn CONCAT( ',', {fn CONCAT((APPT_AS_ParRef->AS_RES_ParRef->RES_CTLOC_DR->CTLOC_RowId),',')})}) OR (:Location IS NULL))
+ AND (({fn CONCAT( ',', {fn CONCAT((:CareProvider),',')})} [ {fn CONCAT( ',', {fn CONCAT((APPT_AS_ParRef->AS_RES_ParRef->RES_CTPCP_DR->CTPCP_RowId),',')})}) OR (:CareProvider IS NULL))
+ AND (({fn CONCAT( ',', {fn CONCAT((:AppointmentStatus),',')})} [ {fn CONCAT( ',', {fn CONCAT((APPT_Status),',')})}) OR (:AppointmentStatus IS NULL))
+ AND (({fn CONCAT( ',', {fn CONCAT((:InterpretingServices),',')})} [ {fn CONCAT( ',', {fn CONCAT((APPT_Interpreter_DR->INTERP_RowId),',')})}) OR (:InterpretingServices IS NULL))
+ )
+ &SQL(OPEN INTER)
+ 
+ f  &SQL(FETCH INTER) q:SQLCODE'=0  d
+ . s ASDate=Date
+ . s ASSessStartTime=Time
+ . d GetLetterDate,FormatDates,FormatTimes
+ . s APPTStatus=##class(websys.StandardTypeItem).GetDescriptionFromCode("RBApptStatus",APPTStatus)
+ . s INTERPContactMethod=##class(websys.StandardTypeItem).GetDescriptionFromCode("ContactMethod",INTERPContactMethod)
+ . s INTERPAddress=$zstrip(INTERPAddress,"*C")
+ . s RTMASNo=PAPMINo
+ . s ^CacheTemp("TRAK",repid,$ZCVT(HOSPDesc,"U")_" "_$ZCVT(CTLOCDesc,"U")_" "_$ZCVT(APPTStatus,"U")_" "_$ZCVT(INTERPDesc,"U")_ind)=$LB(PAPMIRowId,APPTRowId,CTLOCRowId,CTLOCCode,CTLOCDesc,HOSPDesc,CTPCPRowId,CTPCPDesc,ASDate,ASSessStartTime,APPTStatus,PAPMINo,PAPMIName,PAPMIName2,PAPMIName3,PAPMIVIPFlag,PAPERTelH,PAPERMobPhone,PREFLDesc,APPTInterpreterRequired,INTERPRowId,INTERPDesc,INTERPContactMethod,INTERPAddress,INTERPPhone,INTERPFax,INTERPEmail,APPTInterpreterConfirmed,HOSPRowId,SESSClinicID,AreaDesc,AreaRowId,RTMASNo,LetterDate)
+ . s ind=ind+1
+ 
+ &SQL(CLOSE INTER)
+
+ q
+
+GetLetterDate
+ &SQL(
+ SELECT TOP 1
+ CreationDate
+ INTO :LetterDate
+ FROM WEBSYS.RequestedReportHistory
+ WHERE AppointmentDR=:APPTRowId
+ ORDER BY CreationDate DESC)
+ q
+ 
+FormatDates
+ // Convert the dates to ODBC date format
+ If ASDate Set ASDate=..ConvertDateToODBC(ASDate)
+ If LetterDate Set LetterDate=..ConvertDateToODBC(LetterDate)
+
+ Quit
+
+FormatTimes
+ // Convert the times to ODBC time format
+ If ASSessStartTime Set ASSessStartTime=..ConvertTimeToODBC(ASSessStartTime)
+
+ Quit
+]]></Implementation>
+</Method>
+
+<Method name="GetInterpretersFetch">
+<Description>
+This is the Fetch component of the %Library.Query. 
+This should never have to change. It is designed to fetch the row for each subscript of the ^CacheTemp
+global and return this row to the Crystal Report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,&Row:%Library.List,&AtEnd:%Library.Integer=0]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // This fetch method should never have to change. 
+
+ New repid,ind
+
+ // Restore QHandle
+ Set AtEnd=$li(QHandle,1)
+ Set repid=$li(QHandle,2)
+ Set ind=$li(QHandle,3)
+
+ Set ind=$o(^CacheTemp("TRAK",repid,ind))
+ If ind="" {	// if there are no more rows, finish fetching
+ Set AtEnd=1
+ Set Row=""
+ }
+ Else      {	// fetch row
+ Set Row=^CacheTemp("TRAK",repid,ind)
+ }
+
+ // Save QHandle
+ s QHandle=$lb(AtEnd,repid,ind)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Query name="GetInterpreters">
+<Description>
+OP Interpreters Report</Description>
+<Type>%Library.Query</Type>
+<FormalSpec>DateFrom:%Date,DateTo:%Date,Hospital:%String,Location:%String,CareProvider:%String,AppointmentStatus:%String,InterpretingServices:%String</FormalSpec>
+<SqlProc>1</SqlProc>
+<Parameter name="CONTAINID" value="0"/>
+<Parameter name="ROWSPEC" value="PAPMIRowId:%Integer,APPTRowId:%String,CTLOCRowId:%Integer,CTLOCCode:%String(MAXLEN=255),CTLOCDesc:%String(MAXLEN=255),HOSPDesc:%String(MAXLEN=255),CTPCPRowId:%String(MAXLEN=255),CTPCPDesc:%String(MAXLEN=255),ASDate:%Date,ASSessStartTime:%String(MAXLEN=255),APPTStatus:%String(MAXLEN=255),PAPMINo:%String(MAXLEN=255),PAPMIName:%String(MAXLEN=255),PAPMIName2:%String(MAXLEN=255),PAPMIName3:%String(MAXLEN=255),PAPMIVIPFlag:%String(MAXLEN=255),PAPERTelH:%String(MAXLEN=255),PAPERMobPhone:%String(MAXLEN=255),PREFLDesc:%String(MAXLEN=255),APPTInterpreterRequired:%String(MAXLEN=255),INTERPRowId:%Integer,INTERPDesc:%String(MAXLEN=255),INTERPContactMethod:%String(MAXLEN=255),INTERPAddress:%String(MAXLEN=255),INTERPPhone:%String(MAXLEN=255),INTERPFax:%String(MAXLEN=255),INTERPEmail:%String(MAXLEN=255),APPTInterpreterConfirmed:%String(MAXLEN=255),HOSPRowId:%Integer,SESSClinicID:%String(MAXLEN=255),AreaDesc:%String(MAXLEN=255),AreaRowId:%String(MAXLEN=255),RTMASNo:%String(MAXLEN=255),LetterDate:%Date"/>
+</Query>
+</Class>
+</Export>

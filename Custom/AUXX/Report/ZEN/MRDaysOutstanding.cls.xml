@@ -1,0 +1,137 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.AUXX.Report.ZEN.MRDaysOutstanding">
+<Super>Custom.AUXX.Report.ZEN.Abstract</Super>
+<TimeCreated>61759,43519.455071</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/AUXX/Report/ZEN/MRDaysOutstanding.xml#1 $</Default>
+</Parameter>
+
+<UDLText name="T">
+<Content><![CDATA[
+// Report Name: Trak Medical Records by Days Outstanding <br>
+
+]]></Content>
+</UDLText>
+
+<UDLText name="T">
+<Content><![CDATA[
+// Report Code: AUXX.MED0004 <br>
+
+]]></Content>
+</UDLText>
+
+<Property name="Facility">
+<Type>%String</Type>
+<Parameter name="ZENURL" value="P1"/>
+</Property>
+
+<Property name="Specialty">
+<Type>%String</Type>
+<Parameter name="ZENURL" value="P2"/>
+</Property>
+
+<Property name="DaysOS">
+<Type>%String</Type>
+<Parameter name="ZENURL" value="P3"/>
+</Property>
+
+<XData name="ReportDefinition">
+<XMLNamespace>http://www.intersystems.com/zen/report/definition</XMLNamespace>
+<Data><![CDATA[
+<report xmlns='http://www.intersystems.com/zen/report/definition'
+   queryClass='Custom.AUXX.Report.ZEN.StoredProc.MRDaysOutstanding' queryName='MRDaysOutstanding' name='MRDaysOutstanding'>
+  <parameter expression='..Facility'/>
+  <parameter expression='..Specialty'/> 
+  <parameter expression='..DaysOS'/> 
+  <attribute name='facility' expression='..GetHospListDesc(..Facility)'/>
+  <attribute name='specialty' expression='..GetSpecialtyListDesc(..Specialty)'/>
+  <attribute name='daysos' expression='..DaysOS'/>
+  <attribute name='ReportTitle' expression='$$$Text("@MedicalRecordsbyDaysOutstanding@Medical Records by Days Outstanding")'/>
+  <attribute name='timestamp' expression='$ZDATETIME($H, 2, 2)'/>  
+  <attribute name='username' expression='..Username'/>
+  
+  <group name="facility" breakOnField="HOSPDesc">
+ <attribute name="description" field="HOSPDesc" />
+   <aggregate name='TotalHospCount' type='CUSTOM' field='RTMAVRowId' class='%ZEN.Report.Aggregate.CountDistinct'/>
+  <group name="specialty" breakOnField="CTLOCDesc">
+ <attribute name="description" field="CTLOCDesc" />
+   <aggregate name='TotalLocnCount' type='CUSTOM' field='RTMAVRowId' class='%ZEN.Report.Aggregate.CountDistinct'/>
+      <group name='Detail'>
+       <attribute field='HOSPDesc' name='HOSPDesc'/> 
+       <attribute field='CTLOCDesc' name='CTLOCDesc'/>
+       <attribute field='RTMAVRowId' name='RTMAVRowId'/>
+       <attribute field='PAPMINo' name='PAPMINo'/>
+       <attribute fields='PAPMIName,PAPMIName2,PAPMIName3' name='PatientName' expression='..DisplayName(%val("PAPMIName"),%val("PAPMIName2"),%val("PAPMIName3"))'/>
+       <attribute field='RTMAVVolDesc' name='RTMAVVolDesc'/>
+       <attribute field='RTMAVDateArrived' name='RTMAVDateArrived' expression='..DisplayDate(%val)'/>
+       <attribute field='DaysOutstanding' name='DaysOutstanding'/>
+      </group>
+    </group>
+   </group>
+ </report>
+]]></Data>
+</XData>
+
+<XData name="ReportDisplay">
+<XMLNamespace>http://www.intersystems.com/zen/report/display</XMLNamespace>
+<Data><![CDATA[
+<report xmlns='http://www.intersystems.com/zen/report/display'
+xmlns:auxxstyle='http://www.intersystems.com/zen/report/display/auxx/style'
+xmlns:auxx='http://www.intersystems.com/zen/report/display/auxx'
+  name='MRDaysOutstanding'>
+<document width="#(..ReportHeight)#" height="#(..ReportWidth)#" marginLeft="#(..DocMarginLeft)#" marginRight="#(..DocMarginRight)#" 
+marginTop="#(..DocMarginTop)#" marginBottom="#(..DocMarginBottom)#" footerHeight="#(..DocFooterHeight)#" headerHeight="#(..DocHeaderHeight)#" 
+regionBeforeExtent="#(..DocHeaderHeight)#" regionAfterExtent="#(..DocFooterHeight)#">
+<auxxstyle:auxxgroupheader/>
+<auxxstyle:auxxgroupsummary/>
+<auxxstyle:auxxhospitalheader/>
+<auxxstyle:auxxpagefooter/>
+<auxxstyle:auxxpageheader/>
+<auxxstyle:auxxparameterheader/>
+<auxxstyle:auxxreporttitle/>
+<auxxstyle:auxxtablecolumn/>
+</document>
+<auxx:PageHeader pagetitle='@ReportTitle'/>
+<auxx:ReportFooter username='@username' timestamp='@timestamp'/>
+
+<body>
+<!-- REPORT HEADER -->
+<auxx:ReportHeader reporttitle='@ReportTitle'/>
+<auxx:ReportParameterHeader label='@Facility:@Facility:' field='@facility' xcondition="string-length(@facility)>0"/>
+<auxx:ReportParameterHeader label='@Location/Specialty:@Location/Specialty:' field='@specialty' xcondition="string-length(@specialty)>0"/>
+<auxx:ReportParameterHeader label='@DaysOutstandingGreaterThan:@Days Outstanding Greater Than:' field='@daysos'/>
+
+<line pattern="solid" width="100%"/>
+<line pattern="empty" width="100%"></line> 
+<auxx:NoResults xcondition="not(facility)" />
+<group name='facility' pagebreak="true">
+<auxx:GroupHospitalHeader label="@Facility:@Facility:" field="@description" />
+<line pattern="empty" lineHeight="1mm" />
+<group name='specialty'>
+<auxx:GroupHeader label="@Location/Specialty:@Location/Specialty:" field="@description" />
+<line pattern="empty" lineHeight="2mm" />
+     <table class='auxxtablecolumn' group='Detail'>
+        <item field='@PAPMINo' width="15%" caption='@URN@URN'/>
+        <item field='@PatientName' width="30%" caption='@Name@Name'/>
+        <item field='@RTMAVDateArrived' width="20%" caption='@DateofLastMovement@Date of Last Movement'/> 
+        <item field='@DaysOutstanding' width="13%" style="text-align:right" caption='@DaysOutstanding@Days Outstanding'/>
+        <item value='' width="2%"/>
+        <item field='@RTMAVVolDesc' width="20%" caption='@MRVolume@MR Volume'/>
+     </table>
+     <line pattern="empty" width="100%"></line>
+	<auxx:GroupSummary label="@TotalNo.ofOutstandingMedicalRecordsfor@Total No. of Outstanding Medical Records for" group="@description" summaryvalue="TotalLocnCount" />
+	<line pattern="empty" lineHeight="4mm" />
+   </group> 
+   <line pattern="empty" width="100%"></line>
+  <auxx:GroupSummary label="@TotalNo.ofOutstandingMedicalRecordsfor@Total No. of Outstanding Medical Records for" group="@description" summaryvalue="TotalHospCount" />
+</group>
+</body>
+</report>
+]]></Data>
+</XData>
+</Class>
+</Export>

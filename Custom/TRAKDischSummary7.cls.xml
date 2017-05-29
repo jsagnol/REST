@@ -1,0 +1,367 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.TRAKDischSummary7">
+<Description>
+Disch Summary 7 SWARH Ver incorporating SEC_Text field</Description>
+<ClassType/>
+<ProcedureBlock>0</ProcedureBlock>
+<Super>%Library.RegisteredObject</Super>
+<TimeCreated>61221,1749.028252</TimeCreated>
+
+<Method name="TRAKDischSummary7Close">
+<Description>
+This is the Close component of the %Library.Query.
+This is standard code and should never have to change.
+This is where all the cleanup is performed, i.e. the purging of the temporary storage global ^CacheTemp.</Description>
+<Final>0</Final>
+<ClassMethod>1</ClassMethod>
+<CodeMode>code</CodeMode>
+<FormalSpec>QHandle:%Library.Binary</FormalSpec>
+<Private>0</Private>
+<ReturnType>%Library.Status</ReturnType>
+<SqlProc>0</SqlProc>
+<Implementation><![CDATA[
+ // Clean up by purging the temporary node in ^CacheTemp global
+ New repid
+ Set repid=$li(QHandle,2)
+ Kill ^CacheTemp(repid)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="TRAKDischSummary7Execute">
+<Description>
+This is the Execute section for the %Library.Query. 
+All of the logic will be performed here.
+A new node for the ^CacheTemp global will be created and each subscript of this global will contain
+a row for the report.</Description>
+<Final>0</Final>
+<ClassMethod>1</ClassMethod>
+<CodeMode>code</CodeMode>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,DisID:%Integer,reptype:%String,DocID:%String,ClinID:%String]]></FormalSpec>
+<Private>0</Private>
+<ReturnType>%Library.Status</ReturnType>
+<SqlProc>0</SqlProc>
+<Implementation><![CDATA[
+	//{Call Custom.SWARHMTED018_TRAKDischSummary7()}
+ kill ^zbernard
+ // Get reportid i.e. use $INCREMENT to add another node to ^CacheTemp global. 
+ // We use ^CacheTemp global because it will always use memory before disk
+ New repid,ind
+
+ // Use $Increment to get the next node
+ Set repid=$I(^CacheTemp)
+
+ // Build data into ^CacheTemp(ReportID)
+ // e.g. Set ^CacheTemp(ReportID,Index)=$LB(f1,f2,f3)
+ New Number,String,Date,Time,c,n,str,END
+ New CTPCPDesc,PAADMAdmDate,PAADMDischgDate,HOSPDesc,DISProcedures,DISActiveProblems,PAADMAdmTime,PAADMDischgTime,PAPMIRowId,PAPMIDOB,PAPMIName,PAPMIName2,PAPMIName3,PAPMINo,PAPERTelH,DISProgressNotes,PAPERStName,PAPERForeignAddress,CTZIPCode,CTCITDesc,MRADMRowId,CTSEXCode,REFDDesc,DISStatus,DISClinicalOpinion,DISOtherResults,DISSuggestions,DISCTPCPDesc,DISCTPCPTelO,CTCPTInternalType,DISRowId,HOSPPhone,DISUpdateDate,DISUpdateTime,WARDCode,CTLOCCode,CTLOCDesc,REFDForename,REFDTitle,REFREFDDR,DISDate,DISPrincipalDiagnosis,verno,disrowid,TRRowId,TRDateVerified,RESSTDesc,TRName,SECText,PAADMPAPMIDR,SECChildsub,SECRowId
+ Set (PAPMIRowId,MRADMRowId,DISRowId,TRRowId)=0
+ Set (CTPCPDesc,PAADMAdmDate,PAADMDischgDate,HOSPDesc,DISProcedures,DISActiveProblems,PAADMAdmTime,PAADMDischgTime,PAPMIDOB,PAPMIName,PAPMIName2,PAPMIName3,PAPMINo,PAPERTelH,DISProgressNotes,PAPERStName,PAPERForeignAddress,CTZIPCode,CTCITDesc,MRADMRowId,CTSEXCode,REFDDesc,DISStatus,DISClinicalOpinion,DISOtherResults,DISSuggestions,DISCTPCPDesc,DISCTPCPTelO,CTCPTInternalType,HOSPPhone,DISUpdateDate,DISUpdateTime,WARDCode,CTLOCCode,CTLOCDesc,REFDForename,REFDTitle,REFREFDDR,DISDate,DISPrincipalDiagnosis,verno,disrowid,TRDateVerified,RESSTDesc,TRName,SECText,PAADMPAPMIDR,SECChildsub,SECRowId)="" 
+ Set ^zbernard("1")=1
+ Set pp=0
+ Set ind=1
+ Set ^zbernard("2")=2
+ Set END=0
+
+ &sql(select 
+ TRANS_CTCP_DR->CTPCP_Desc,
+ PAADM_AdmDate,
+ PAADM_DischgDate,
+ PAADM_CurrentWard_DR->WARD_LocationDR->CTLOC_Hospital_DR->HOSP_Desc,
+ PAADM_AdmTime,
+ PAADM_DischgTime,
+ PAPMI_RowId,
+ PAPMI_DOB,
+ PAPMI_Name, 
+ PAPMI_Name2,
+ PAPMI_Name3,
+ PAPMI_No,
+ PAPMI_PAPER_DR->PAPER_TelH,
+ PAPMI_PAPER_DR->PAPER_StName,
+ PAPMI_PAPER_DR->PAPER_ForeignAddress,
+ PAPMI_PAPER_DR->PAPER_Zip_DR->CTZIP_Code, 
+ PAPMI_PAPER_DR->PAPER_CityCode_DR->CTCIT_Desc,
+ PAADM_MainMRADM_DR,
+ PAPMI_PAPER_DR->PAPER_Sex_DR->CTSEX_Desc,
+ REF_RefDoc_DR->REFD_Desc as REFDDesc,
+ DIS_PADischargeSummary_DR->DIS_Status,
+ DIS_PADischargeSummary_DR->DIS_CareProv_DR->CTPCP_Desc as DISCTPCPDesc,
+ DIS_PADischargeSummary_DR->DIS_CareProv_DR->CTPCP_TelO as DISCTPCPTelO,
+ DIS_PADischargeSummary_DR->DIS_CareProv_DR->CTPCP_CarPrvTp_DR->CTCPT_InternalType,
+ DIS_PADischargeSummary_DR,
+ PAADM_CurrentWard_DR->WARD_LocationDR->CTLOC_Hospital_DR->HOSP_Phone,
+
+ DIS_PADischargeSummary_DR->DIS_UpdateDate,
+ DIS_PADischargeSummary_DR->DIS_UpdateTime,
+ PAADM_CurrentWard_DR->WARD_Code,
+ PAADM_DepCode_DR->CTLOC_Code,
+ PAADM_DepCode_DR->CTLOC_Desc,
+ REF_RefDoc_DR->REFD_Forename,
+ REF_RefDoc_DR->REFD_Title,
+ REF_RefDoc_DR,
+ DIS_PADischargeSummary_DR->DIS_Date
+ INTO :CTPCPDesc,:PAADMAdmDate,:PAADMDischgDate,:HOSPDesc,
+:PAADMAdmTime,:PAADMDischgTime,:PAPMIRowId,:PAPMIDOB,
+:PAPMIName,:PAPMIName2,:PAPMIName3,
+:PAPMINo,:PAPERTelH,:PAPERStName,:PAPERForeignAddress,
+:CTZIPCode,:CTCITDesc,:MRADMRowId,:CTSEXCode,:REFDDesc,:DISStatus,:DISCTPCPDesc,:DISCTPCPTelO,
+:CTCPTInternalType,:DISRowId,:HOSPPhone,:DISUpdateDate,:DISUpdateTime,:WARDCode,:CTLOCCode,
+:CTLOCDesc,:REFDForename,:REFDTitle,:REFREFDDR,:DISDate
+ FROM sqluser.PA_Adm, sqluser.PA_AdmTransaction,sqluser.PA_PatMas,sqluser.PA_DischargeSummaryRefDoc,
+ sqluser.PA_Adm2DischargeSummary PA_Adm2DischargeSummary, 
+ sqluser.PA_DischargeSummary PA_DischargeSummary
+ WHERE PAADM_PAPMI_DR=PAPMI_RowId and PAADM_Rowid=TRANS_ParRef and TRANS_TransType_dr=3 and
+ (PAADM_RowId=DIS_ParRef) AND DIS_PADischargeSummary_DR=*REF_ParRef and 
+ (DIS_PADischargeSummary_DR=pa_dischargesummary.DIS_RowId) and
+ DIS_PADischargeSummary_DR =:DisID
+ Order by PAADM_AdmDate desc,PAADM_AdmTime desc, TRANS_StartDate desc, TRANS_StartTime desc
+ )
+ Set ^zbernard("3")=3
+ Do FormatDates
+ Do FormatTimes
+
+ Set PAPERStName=$zstrip(PAPERStName,"*C")
+ Set PAPERForeignAddress=$zstrip(PAPERForeignAddress,"*C")
+
+ New idx,maxlength,currentstr,currentlength
+ ; define all off the Text Area strings.
+
+ ; Set up maxlength here. Once defined, we don't have to define it again - it will apply to all loops.
+ Set maxlength=30000
+
+ ; Principal Diagnosis 
+ Set idx=0,currentlength=0 For  Set idx=$o(^PA("DISSUM",DisID,"PD",idx)) Quit:idx=""   Quit:currentlength>=maxlength  Do 
+ . ; change logic here to stop at a maximum string length
+ . Set currentstr=$g(^PA("DISSUM",DisID,"PD",idx))
+ . If $l(DISPrincipalDiagnosis)+$l(currentstr)<=maxlength Do
+ . . Set DISPrincipalDiagnosis=DISPrincipalDiagnosis_$s(DISPrincipalDiagnosis="":"",1:$c(13,10))_currentstr
+ . If $l(DISPrincipalDiagnosis)+$l(currentstr)>maxlength Do
+ . . Set DISPrincipalDiagnosis=DISPrincipalDiagnosis_$s(DISPrincipalDiagnosis="":"",1:$c(13,10))_$e(currentstr,1,maxlength-($l(DISPrincipalDiagnosis)+$l(currentstr)))
+ . Set currentlength = $l(DISPrincipalDiagnosis)
+
+ ; Active Problems 
+ Set idx=0,currentlength=0 For  Set idx=$o(^PA("DISSUM",DisID,"ACT",idx)) Quit:idx=""   Quit:currentlength>=maxlength  Do 
+ . ; change logic here to stop at a maximum string length
+ . Set currentstr=$g(^PA("DISSUM",DisID,"ACT",idx))
+ . If $l(DISActiveProblems)+$l(currentstr)<=maxlength Do
+ . . Set DISActiveProblems=DISActiveProblems_$s(DISActiveProblems="":"",1:$c(13,10))_currentstr
+ . If $l(DISActiveProblems)+$l(currentstr)>maxlength Do
+ . . Set DISActiveProblems=DISActiveProblems_$s(DISActiveProblems="":"",1:$c(13,10))_$e(currentstr,1,maxlength-($l(DISActiveProblems)+$l(currentstr)))
+ . Set currentlength = $l(DISActiveProblems)
+
+ ; Procedures 
+ Set idx=0,currentlength=0 For  Set idx=$o(^PA("DISSUM",DisID,"PROC",idx)) Quit:idx=""   Quit:currentlength>=maxlength  Do 
+ . Set currentstr=$g(^PA("DISSUM",DisID,"PROC",idx))
+ . If $l(DISProcedures)+$l(currentstr)<=maxlength Do
+ . . Set DISProcedures=DISProcedures_$s(DISProcedures="":"",1:$c(13,10))_currentstr
+ . If $l(DISProcedures)+$l(currentstr)>maxlength Do
+ . . Set DISProcedures=DISProcedures_$s(DISProcedures="":"",1:$c(13,10))_$e(currentstr,1,maxlength-($l(DISProcedures)+$l(currentstr)))
+ . Set currentlength = $l(DISProcedures)
+
+ ; Progress Notes 
+ Set idx=0,currentlength=0 For  Set idx=$o(^PA("DISSUM",DisID,"PN",idx)) Quit:idx=""   Quit:currentlength>=maxlength  Do 
+ . Set currentstr=$g(^PA("DISSUM",DisID,"PN",idx))
+ . Set ^zwsa("currentstr")=currentstr
+ . If $l(DISProgressNotes)+$l(currentstr)<=maxlength Do
+ . . Set DISProgressNotes=DISProgressNotes_$s(DISProgressNotes="":"",1:$c(13,10))_currentstr
+ . . Set ^zwsa("DISProgressNotes1")=DISProgressNotes
+ . If $l(DISProgressNotes)+$l(currentstr)>maxlength Do
+ . . Set DISProgressNotes=DISProgressNotes_$s(DISProgressNotes="":"",1:$c(13,10))_$e(currentstr,1,maxlength-($l(DISProgressNotes)+$l(currentstr)))
+ . . Set ^zwsa("DISProgressNotes2")=DISProgressNotes
+ . Set currentlength = $l(DISProgressNotes)
+
+ ; Clinical Opinion 
+ Set idx=0,currentlength=0 For  Set idx=$o(^PA("DISSUM",DisID,"CO",idx)) Quit:idx=""   Quit:currentlength>=maxlength  Do 
+ . Set currentstr=$g(^PA("DISSUM",DisID,"CO",idx))
+ . If $l(DISClinicalOpinion)+$l(currentstr)<=maxlength Do
+ . . Set DISClinicalOpinion=DISClinicalOpinion_$s(DISClinicalOpinion="":"",1:$c(13,10))_currentstr
+ . If $l(DISClinicalOpinion)+$l(currentstr)>maxlength Do
+ . . Set DISClinicalOpinion=DISClinicalOpinion_$s(DISClinicalOpinion="":"",1:$c(13,10))_$e(currentstr,1,maxlength-($l(DISClinicalOpinion)+$l(currentstr)))
+ . Set currentlength = $l(DISClinicalOpinion)
+
+ ; Suggestions 
+ Set idx=0,currentlength=0 For  Set idx=$o(^PA("DISSUM",DisID,"SUG",idx)) Quit:idx=""   Quit:currentlength>=maxlength  Do 
+ . Set currentstr=$g(^PA("DISSUM",DisID,"SUG",idx))
+ . If $l(DISSuggestions)+$l(currentstr)<=maxlength Do
+ . . Set DISSuggestions=DISSuggestions_$s(DISSuggestions="":"",1:$c(13,10))_currentstr
+ . If $l(DISSuggestions)+$l(currentstr)>maxlength Do
+ . . Set DISSuggestions=DISSuggestions_$s(DISSuggestions="":"",1:$c(13,10))_$e(currentstr,1,maxlength-($l(DISSuggestions)+$l(currentstr)))
+ . Set currentlength = $l(DISSuggestions)
+
+ ; Other Results
+ Set idx=0,currentlength=0 For  Set idx=$o(^PA("DISSUM",DisID,"OR",idx)) Quit:idx=""   Quit:currentlength>=maxlength  Do 
+ . Set currentstr=$g(^PA("DISSUM",DisID,"OR",idx))
+ . If $l(DISOtherResults)+$l(currentstr)<=maxlength Do
+ . . Set DISOtherResults=DISOtherResults_$s(DISOtherResults="":"",1:$c(13,10))_currentstr
+ . If $l(DISOtherResults)+$l(currentstr)>maxlength Do
+ . . Set DISOtherResults=DISOtherResults_$s(DISOtherResults="":"",1:$c(13,10))_$e(currentstr,1,maxlength-($l(DISOtherResults)+$l(currentstr)))
+ . Set currentlength = $l(DISOtherResults)
+
+ ;get the "version number"
+ Set idstr=##Class(web.PAAdmDischargeSummary).GetPreviousVersions(DisID) 
+ Set verno=($l(idstr,"^")+1) 
+ If idstr="" set verno=1
+
+ // build the row 'moved out of the way Xmas eve 1426'
+ Set str=$LB(CTPCPDesc,PAADMAdmDate,PAADMDischgDate,HOSPDesc,PAADMAdmTime,PAADMDischgTime,PAPMIRowId,PAPMIDOB,PAPMIName,PAPMIName2,PAPMIName3,PAPMINo,PAPERTelH,PAPERStName,PAPERForeignAddress,CTZIPCode,CTCITDesc,MRADMRowId,CTSEXCode,REFDDesc,DISStatus,DISCTPCPDesc,DISCTPCPTelO,CTCPTInternalType,DISRowId,HOSPPhone,DISUpdateDate,DISUpdateTime,WARDCode,CTLOCCode,CTLOCDesc,REFDForename,REFDTitle,REFREFDDR,DISDate,DISPrincipalDiagnosis,DISActiveProblems,DISProcedures,DISProgressNotes,DISClinicalOpinion,DISSuggestions,DISOtherResults,verno)
+
+ //new select to declare cursor
+ &sql(declare TRAKDischSummary7 cursor for 
+	SELECT
+	dis_rowid,
+	TR_RowId,
+	TR_DateVerified,
+	TR_ResStat_DR->RESST_Desc,
+	TR_Name,
+	SEC_Text,
+	PAADM_PAPMI_DR,
+	SEC_ChildSub,
+	SEC_RowId
+	FROM   SQLUser.OE_TextResultSection OE_TextResultSection, SQLUser.OE_TextResult OE_TextResult,
+	SQLUser.OE_Order OE_Order, SQLUser.PA_Adm PA_Adm,
+	sqluser.pa_adm2dischargesummary
+	WHERE
+	(OE_TextResultSection.SEC_ParRef=OE_TextResult.TR_RowId) AND
+	(OE_TextResult.TR_OEORD_DR=OE_Order.OEORD_RowId) AND
+	(OE_Order.OEORD_Adm_DR=PA_Adm.PAADM_RowID) AND
+	OEORD_ADM_DR=PAADM_RowId and
+	PAADM_RowId=DIS_ParRef and
+	PAADM_PAPMI_DR=:PAPMIRowId and
+	TR_ClinicallySignificant='Y'
+	Group by SEC_RowId)
+
+	&sql(Open  TRAKDischSummary7)
+
+ ;fetch first order record
+ &sql(fetch TRAKDischSummary7 into :disrowid,:TRRowId,:TRDateVerified,:RESSTDesc,:TRName,:SECText,:PAADMPAPMIDR,:SECChildsub,:SECRowId)
+ Do FormatDatesORD
+
+ Do SecText
+ Set strNEWOP=$LB(disrowid,TRRowId,TRDateVerified,RESSTDesc,TRName,SECText,PAADMPAPMIDR,SECChildsub,SECRowId)
+ Do BuildRow
+
+ While END'=1{
+
+ Set (disrowid,TRRowId,TRDateVerified,RESSTDesc,TRName,SECText,PAADMPAPMIDR,SECChildsub,SECRowId)=""
+
+ ;fetch next order records
+ &sql(fetch TRAKDischSummary7 into :disrowid,:TRRowId,:TRDateVerified,:RESSTDesc,:TRName,:SECText,:PAADMPAPMIDR,:SECChildsub,:SECRowId)
+ Do FormatDatesORD
+
+ If TRRowId="" {
+		Set END=1
+	} else {
+		Do SecText
+		Set strNEWOP=$LB(disrowid,paadmrowid,TRDateVerified,RESSTDesc,TRName,SECText,PAADMPAPMIDR,SECChildsub,SECRowId)
+		Do BuildRow
+ }
+}
+
+ &sql(close TRAKDischSummary7)
+
+ // Build QHandle (AtEnd,ReportID,Index)
+ Set QHandle=$lb(0,repid,0)
+ Set ^zbernard("5")=5
+
+ Quit $$$OK
+
+SecText
+ New SECChildsub,count,i
+ //reset working variables
+ Set (SECChildsub,count,SECID,i)=0
+
+ Set SECChildsub=$p($g(SECRowId),"||",2)
+ Set SECID=$p($g(SECRowId),"||",1)
+
+ If SECChildsub'="",SECID'="" {
+ //Check how many lines there are for the multi-line field SECText
+ //i $g(^OETR(SECID,"SEC",SECChildsub,"REM",0))'="" 
+ Set count=$g(^OETR(SECID,"SEC",SECChildsub,"REM",0))
+ //loop through each line appending the text into a single string
+ For i=1:1:count  Do
+ .If i>1 Set SECText=SECText_$char(13)_$char(10)_$zstrip($g(^OETR(SECID,"SEC",SECChildsub,"REM",i)),"*C")
+ .If i'>1 Set SECText=$zstrip($g(^OETR(SECID,"SEC",SECChildsub,"REM",i)),"*C")
+ }
+ Quit
+
+FormatDatesORD
+ If TRDateVerified Set TRDateVerified=$ZD(TRDateVerified,3)
+ Quit
+
+BuildRow
+ Set ^CacheTemp(repid,ind)=str_strNEWOP
+ Set ind=ind+1
+ Quit
+
+FormatDates
+ // Convert the dates to ODBC date format
+ If PAADMAdmDate Set PAADMAdmDate=$ZD(PAADMAdmDate,3)
+ If PAADMDischgDate Set PAADMDischgDate=$ZD(PAADMDischgDate,3)
+ If PAPMIDOB Set PAPMIDOB=$ZD(PAPMIDOB,3)
+ If DISUpdateDate Set DISUpdateDate=$ZD(DISUpdateDate,3)
+ If DISDate Set DISDate=$ZD(DISDate,3)
+ Quit
+
+FormatTimes
+ // Convert the times to ODBC time format
+ If PAADMAdmTime Set PAADMAdmTime=$ZT(PAADMAdmTime,2)
+ If PAADMDischgTime Set PAADMDischgTime=$ZT(PAADMDischgTime,2)
+ If DISUpdateTime Set DISUpdateTime=$ZT(DISUpdateTime,2)
+ Quit
+]]></Implementation>
+</Method>
+
+<Method name="TRAKDischSummary7Fetch">
+<Description>
+This is the Fetch component of the %Library.Query. 
+This should never have to change. It is designed to fetch the row for each subscript of the ^CacheTemp
+global and return this row to the Crystal Report.</Description>
+<Final>0</Final>
+<ClassMethod>1</ClassMethod>
+<CodeMode>code</CodeMode>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,&Row:%Library.List,&AtEnd:%Library.Integer=0]]></FormalSpec>
+<Private>0</Private>
+<ReturnType>%Library.Status</ReturnType>
+<SqlProc>0</SqlProc>
+<Implementation><![CDATA[
+ // This fetch method should never have to change. 
+
+ // repid - Report ID
+ // ind   - sequence index which represents each row
+
+ New repid,ind
+
+ // Restore QHandle
+ Set AtEnd=$li(QHandle,1)
+ Set repid=$li(QHandle,2)
+ Set ind=$li(QHandle,3)
+
+ Set ind=$o(^CacheTemp(repid,ind))
+ If ind="" {	// if there are no more rows, finish fetching
+ Set AtEnd=1
+ Set Row=""
+ }
+ Else      {	// fetch row
+ Set Row=^CacheTemp(repid,ind)
+ }
+
+ // Save QHandle
+ Set QHandle=$lb(AtEnd,repid,ind)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Query name="TRAKDischSummary7">
+<Description>
+Discharge Summary 6</Description>
+<Type>%Library.Query</Type>
+<FormalSpec>DisID:%Integer,reptype:%String,DocID:%String,ClinID:%String</FormalSpec>
+<SqlProc>1</SqlProc>
+<SqlView>0</SqlView>
+<Parameter name="CONTAINID" value="0"/>
+<Parameter name="ROWSPEC" value="CTPCPDesc:%String(MAXLEN=255),PAADMAdmDate:%Date,PAADMDischgDate:%Date,HOSPDesc:%String(MAXLEN=255),PAADMAdmTime:%String(MAXLEN=255),PAADMDischgTime:%String(MAXLEN=255),PAPMIRowId:%Integer,PAPMIDOB:%Date,PAPMIName:%String(MAXLEN=255),PAPMIName2:%String(MAXLEN=255),PAPMIName3:%String(MAXLEN=255),PAPMINo:%String(MAXLEN=255),PAPERTelH:%String(MAXLEN=255),PAPERStName:%String(MAXLEN=255),PAPERForeignAddress:%String(MAXLEN=255),CTZIPCode:%String(MAXLEN=255),CTCITDesc:%String(MAXLEN=255),MRADMRowId:%Integer,CTSEXCode:%String(MAXLEN=255),REFDDesc:%String(MAXLEN=255),DISStatus:%String(MAXLEN=255),DISCTPCPDesc:%String(MAXLEN=255),DISCTPCPTelO:%String(MAXLEN=255),CTCPTInternalType:%String(MAXLEN=255),DISRowId:%Integer,HOSPPhone:%String(MAXLEN=255),DISUpdateDate:%Date,DISUpdateTime:%String(MAXLEN=255),WARDCode:%String(MAXLEN=255),CTLOCCode:%String(MAXLEN=255),CTLOCDesc:%String(MAXLEN=255),REFDForename:%String(MAXLEN=255),REFDTitle:%String(MAXLEN=255),REFREFDDR:%String(MAXLEN=255),DISDate:%Date,DISPrincipalDiagnosis:%String,DISActiveProblems:%String,DISProcedures:%String,DISProgressNotes:%String,DISClinicalOpinion:%String,DISSuggestions:%String,DISOtherResults:%String,verno:%String(MAXLEN=255),disrowid:%String(MAXLEN=255),TRRowId:%Integer,TRDateVerified:%Date,RESSTDesc:%String(MAXLEN=255),TRName:%String(MAXLEN=255),SECText:%String(MAXLEN=8000),PAADMPAPMIDR:%String(MAXLEN=255),SECChildsub:%String,SECRowId:%String"/>
+<Parameter name="SELECTMODE" value="ODBC"/>
+</Query>
+</Class>
+</Export>

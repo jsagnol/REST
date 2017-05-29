@@ -1,0 +1,183 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.SWARH.JS.PAAllergy.EditEMR">
+<Description>
+Component JavaScript for: PAAllergy.EditEMR</Description>
+<Modified>0</Modified>
+<Super>websys.AbstractJavaScript</Super>
+<TimeCreated>63537,10518.072192</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+This Parameter is updated by Perforce</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/SWARH/JS/PAAllergy/EditEMR.xml#1 $</Default>
+</Parameter>
+
+<Method name="JSContent">
+<Description>
+ </Description>
+<Language>javascript</Language>
+<ClientMethod>1</ClientMethod>
+<Implementation><![CDATA[
+// SWARH - TRC 55248
+/*****************************************************************************
+ *  CREATED: 2011-01-20
+ *  DESCRIPTION:
+ *  This javascript implements the functionality to support the requirement for
+ *  the following TRC:
+ *   > 55248: Filtering of Allergies list to ensure that MIMs data does not come through
+ *  This javascript has been written for use on the PAAllergy.EditEMR component.
+ *****************************************************************************/
+
+function CustomDocumentLoadHandler() {
+	AllergyBodyLoadHandler();
+	var obj1 = document.getElementById('MRCATDesc');
+	var obj2 = document.getElementById('ALGDescCT');
+	if (obj1) obj1.onblur = CheckIfCleared;
+	//if (obj2) obj2.onblur = CheckMRCATDesc;
+	if ((obj1)&&(obj1.value=="")) {
+		DisableField('ALGDescCT');
+		DisableLookup('ld1763iALGDescCT');
+		labelNormal('ALGDescCT')
+	}
+}
+
+//document.body.onload = CustomDocumentLoadHandler;
+
+function CheckIfCleared() {
+	var obj1=document.getElementById("MRCATDesc");
+	if ((obj1)&&(obj1.value!=="")&&(obj1.className!='clsInvalid')) {
+		EnableField('ALGDescCT');
+		EnableLookup('ld1763iALGDescCT');
+		labelMandatory("ALGDescCT");
+	} else {
+		DisableField('ALGDescCT');
+		DisableLookup('ld1763iALGDescCT');
+		labelNormal('ALGDescCT')
+	}
+}
+
+function labelNormal(fld) {
+	var lbl = document.getElementById('c' + fld)
+	if (lbl) {
+		lbl=lbl.className = "";
+	}
+}
+
+function labelMandatory(fld) {
+	var lbl = document.getElementById('c' + fld)
+	if (lbl) {
+		lbl=lbl.className = "clsRequired";
+	}
+}
+
+function EnableField(fldName) {
+	var fld = document.getElementById(fldName);
+	var lbl = document.getElementById('c'+fldName);
+	if ((fld)&&(fld.tagName=="INPUT")) {
+		fld.disabled = false;
+		fld.className = "";
+		if (lbl) lbl = lbl.className = "";
+	}
+}
+
+function DisableField(fldName) {
+	var fld = document.getElementById(fldName);
+	var lbl = document.getElementById('c'+fldName);
+	alert(fld.tagName);
+	if ((fld)&&(fld.tagName=="INPUT")) {
+		fld.value = "";
+		fld.disabled = true;
+		fld.className = "disabledField";
+		if (lbl) lbl = lbl.className = "";
+	}
+}
+
+function DisableLookup(fldName) {	
+	var obj=document.getElementById(fldName);
+	if (obj) obj.disabled=true;
+}
+
+function EnableLookup(fldName){	
+	var obj=document.getElementById(fldName);
+	if (obj) obj.disabled=false;
+}
+
+function MRCATDesc_lookupsel(value) {
+	try {
+		var obj=document.getElementById('MRCATDesc');
+		if (obj) {
+  			obj.value=unescape(value);
+			if (obj.readOnly) {obj.className='clsReadOnly'} else {obj.className=''}
+			if (doneInit) {
+				websys_nextfocusElement(obj);
+				CheckIfCleared();
+				}
+		}
+	} catch(e) {};
+}
+
+function MRCATDesc_changehandler(encmeth) {
+	evtName='MRCATDesc';
+	if (doneInit) { evtTimer=window.setTimeout("MRCATDesc_changehandlerX('"+encmeth+"');",200); }
+	else { MRCATDesc_changehandlerX(encmeth); evtTimer=""; }
+}
+
+function MRCATDesc_changehandlerX(encmeth) {
+	if (evtTimer) {
+		window.clearTimeout(evtTimer);
+		evtName='';
+		evtTimer='';
+	}
+	var obj=document.getElementById('MRCATDesc');
+	if (obj.value!='') {
+		var tmp=document.getElementById('MRCATDesc');
+		if (tmp) {var p1=tmp.value } else {var p1=''};
+		var tmp=document.getElementById('MRCATTagDescription');
+		if (tmp) {var p2=tmp.value } else {var p2=''};
+		var p3='';
+		if (cspHttpServerMethod(encmeth,'MRCATDesc_lookupsel','CategoryLookup',p1,p2,p3)=='0') {
+			obj.className='clsInvalid';
+			websys_setfocus('MRCATDesc');
+			CheckIfCleared();
+			return websys_cancel();
+		}
+	}
+	if (obj.readOnly) {obj.className='clsReadOnly'} else {obj.className=''}
+}
+websys_removeListener("load","onload",AllergyBodyLoadHandler);
+websys_addListener("load","onload",CustomDocumentLoadHandler);
+
+//tknoll-miller (SWARH) 2009-09-16 per-form authorise config
+var authcfg = {
+   'buttons':  [
+      'update1',
+	  'Repeat'
+   ],
+   'fields': {
+      'username': 'UserName',
+      'password': 'PIN'
+   }
+};
+//end tknoll-miller (SWARH) 2009-09-16 per-form authorise config
+
+//tknoll-miller (SWARH) 2009-09-16 Load authorise script
+// Scope variables
+(function() {
+   var loadScript = function(type, src) {
+      var head = document.getElementsByTagName('head')[0];
+      var script = document.createElement('script'); // 2016-10-05 (RG) - Change from '<script>' to 'script'
+      script.type = type;
+      script.src = src;
+      head.appendChild(script);
+      websys_addListener('load', 'onload', function(){document.isLoaded=true});
+      return script;
+   };
+
+   loadScript('text/javascript', '../custom/SWARH/scripts/authorise4.js');
+})();
+//end tknoll-miller (SWARH) 2009-09-16 Load authorise script
+]]></Implementation>
+</Method>
+</Class>
+</Export>

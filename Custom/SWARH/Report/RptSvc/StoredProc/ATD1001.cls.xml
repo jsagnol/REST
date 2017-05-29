@@ -1,0 +1,229 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.SWARH.Report.RptSvc.StoredProc.ATD1001">
+<ProcedureBlock>0</ProcedureBlock>
+<Super>Custom.SWARH.Report.ZEN.StoredProc.Abstract</Super>
+<TimeCreated>60905,54849</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/SWARH/Report/RptSvc/StoredProc/ATD1001.xml#1 $</Default>
+</Parameter>
+
+<UDLText name="T">
+<Content><![CDATA[
+/*
+ * ---START TEMPLATE COMMENT BLOCK---
+ * SWARH ZEN Report Template
+ * Use Tools->Copy Class in Studio to copy this template to your new Stored Procedure class,
+ * giving it your relevant Stored Procedure name (as per SWARH naming conventions), keeping itin the Custom.SWARH.Report.ZEN.StoredProc package.
+ * Find and Replace "AAATemplateStoredProcQuery" with your appropriate stored procedure name as per SWARH naming conventions
+ * Modify:
+ * 1. Change Query name and prefix of Execute, Close and Fetch methods to desired query name:
+ *    eg. Query <MyQueryName>, ClassMethod <MyQueryName>Execute, ClassMethod <MyQueryName>Fetch, ClassMethod <MyQueryName>Close
+ * 2. Alter the SQL query in <MyQueryName>Execute to perform the desired SQL query
+ * 3. Alter the parameters of the Query <MyQuery> and the <MyQueryName>Execute method, 
+ *    to suit your requirements
+ * 3. Set up output field names and types:
+      a) Alter the ROWSPEC (under Query) to match desired output field names and types
+      b) Modify the field variables in the New / Set block at the top of the <MyQueryName>Execute method
+ * 4.
+ * 2. Modify Query and Execute method with appropriate fields and query logic
+ * 3. Fill out Report Name and Code in detail comment below
+ * 7. Test the stored procedure using WinSQL (execute "CALL <Custom_SWARH_Report_ZEN_StoredProc_AAATemplateStoredProcClass.AAAAATemplateStoredProcQuery(Params) or the Ensemble System Management Portal:
+ *		 (under SQL->[select namespace]->SQL Schemas->[click "Procedures" against Custom_SWARH_Report_ZEN_StoredProc schema]->[click "Run" against appropriate stored procedure])
+ * 8. Finally, remove this comment block and you're done!
+ * ---END TEMPLATE COMMENT BLOCK---
+ */
+]]></Content>
+</UDLText>
+
+<UDLText name="T">
+<Content><![CDATA[
+/*
+ * Report Name: <SWARHReportName> <br>
+ * Report Code: SWARH.R.<SWARHReportCode> <br>
+ */
+]]></Content>
+</UDLText>
+
+<Method name="ATD1001HospitalsClose">
+<Description>
+This is the Close component of the %Library.Query.
+This is standard code and should never have to change.
+This is where all the cleanup is performed, i.e. the purging of the temporary storage global ^CacheTemp.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>QHandle:%Library.Binary</FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Clean up by purging the temporary node in ^CacheTemp global
+ New repid,ind
+ Set repid=$li(QHandle,2)
+
+ //Start Monitor (if configured to capture stats)
+ i mon Do ..MonitorEnd(mon)
+
+ Kill ^CacheTemp("TRAK",repid)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="ATD1001HospitalsExecute">
+<Description>
+This is the Execute section for the %Library.Query. 
+All of the logic will be performed here.
+A new node for the ^CacheTemp global will be created and each subscript of this global will contain
+a row for the report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,Hospital:%Library.String]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Get reportid i.e. use $INCREMENT to add another node to ^CacheTemp global. 
+ // We use ^CacheTemp global because it will always use memory before disk
+ New repid,ind
+
+  // Use $Increment to get the next node
+ Set repid=$I(^CacheTemp("TRAK"))
+ 
+ New Number,String,Date,Time,c,n
+
+ /* TEMPLATE MODIFY: Define and initialise appropriate column variables to describe output rowset columns */
+ New PAADMRowId
+ New TTLCode,PAPERName,PAPERName2,PAPERName3,PAPERAgeYr,PAPERAgeMth,PAPERAgeDay,PAPERAge,CTSEXCode
+ New ROOMCode,BEDCode,WARDDesc,WARDCode,PAADMAdmDate,PAADMEstimDischargeDate
+ New CTRLGDesc,TTLDesc,PAADMHospChaplainVisitReq,HOSPDesc,data
+ Set (PAADMRowId)=0
+ Set (TTLCode,PAPERName,PAPERName2,PAPERName3,PAPERAgeYr,PAPERAgeMth,PAPERAgeDay,PAPERAge,CTSEXCode)=""
+ Set (ROOMCode,BEDCode,WARDDesc,WARDCode,PAADMAdmDate,PAADMEstimDischargeDate)=""
+ Set (CTRLGDesc,TTLDesc,Wards,PAADMHospChaplainVisitReq,HOSPDesc)=""
+
+ s ind=1
+
+ //Start Monitor (if configured to capture stats)
+ s mon=..MonitorBegin()
+ 
+ /* TEMPLATE MODIFY: Clean up parameter variables - $zstrip(<variable>,"*CW") strips all control characters and whitespace, "<>W" just strips leading/trailing whitespace */
+ s Hospital=$zstrip(Hospital,"*CW")
+
+ /*
+  * TEMPLATE MODIFY:
+  *		1. Change name of cursor to something more descriptive than MyReportCursor (need to change in 4 places; here, 2x "fetch" expressions and close expression below)
+  *		2. Change SQL query to query desired data, passing valid parameters as defined in Query and Execute method arguments.
+  *		3. Pass appropriate parameters using :<ParameterVariableName> - eg. :Hospital
+  */
+ &SQL(DECLARE MyReportCursor CURSOR FOR 
+ SELECT
+ PAADM_RowID,
+ PAADM_PAPMI_DR->PAPMI_PAPER_DR->PAPER_Title_DR->TTL_Desc,
+ PAADM_PAPMI_DR->PAPMI_PAPER_DR->PAPER_Name,
+ PAADM_PAPMI_DR->PAPMI_PAPER_DR->PAPER_Name2,
+ PAADM_PAPMI_DR->PAPMI_PAPER_DR->PAPER_Name3,
+ PAADM_PAPMI_DR->PAPMI_PAPER_DR->PAPER_AgeYr,
+ PAADM_PAPMI_DR->PAPMI_PAPER_DR->PAPER_AgeMth,
+ PAADM_PAPMI_DR->PAPMI_PAPER_DR->PAPER_AgeDay,
+ PAADM_PAPMI_DR->PAPMI_PAPER_DR->PAPER_Sex_DR->CTSEX_Desc,
+ PAADM_CURRENTROOM_DR->ROOM_Code,
+ PAADM_CURRENTBED_DR->BED_Code,
+ PAADM_CURRENTWARD_DR->WARD_Desc,
+ PAADM_CURRENTWARD_DR->WARD_Code,
+ PAADM_AdmDate,
+ PAADM_EstimDischargeDate,
+ PAADM_PAPMI_DR->PAPMI_PAPER_DR->PAPER_Religion_DR->CTRLG_Desc,
+ PAADM_HospChaplainVisitReq,
+ PAADM_CURRENTWARD_DR->WARD_LocationDR->CTLOC_hospital_dr->HOSP_Desc
+ FROM SqlUser.PA_Adm
+ WHERE PAADM_Type='I'
+ AND PAADM_VisitStatus='A'
+ AND (({fn CONCAT( ',', {fn CONCAT((:Hospital),',')})} [ {fn CONCAT( ',', {fn CONCAT((paadm_CURRENTWARD_DR->WARD_LocationDR->CTLOC_hospital_dr->HOSP_RowId),',')})}) OR (:Hospital IS NULL))
+ AND (({fn CONCAT( ',', {fn CONCAT((:Ward),',')})} [ {fn CONCAT( ',', {fn CONCAT((PAADM_CURRENTWARD_DR->WARD_RowID),',')})}) OR (:Ward IS NULL))
+ AND (({fn CONCAT( ',', {fn CONCAT((:Religion),',')})} [ {fn CONCAT( ',', {fn CONCAT((PAADM_PAPMI_DR->PAPMI_PAPER_DR->PAPER_Religion_DR->CTRLG_RowId),',')})}) OR (:Religion IS NULL)))
+ &SQL(OPEN MyReportCursor)
+ 
+ /* TEMPLATE MODIFY: Rename cursor to something moreChange fetch INTO parameter list to match column variable names */
+ //FETCH FIRST ROW
+ &sql(fetch MyReportCursor INTO :PAADMRowId,:TTLCode,:PAPERName,:PAPERName2,:PAPERName3,:PAPERAgeYr,:PAPERAgeMth,:PAPERAgeDay,:CTSEXCode,:ROOMCode,:BEDCode,:WARDDesc,:WARDCode,:PAADMAdmDate,:PAADMEstimDischargeDate,:CTRLGDesc,:PAADMHospChaplainVisitReq,:HOSPDesc)
+  
+ while 'SQLCODE{
+  
+ d FormatDates
+  
+ /* TEMPLATE MODIFY: Build the sort string here from column variables. Convert strings to uppercase ($ZCVT(<field>,"U") and separate with spaces */
+ s sort = ind
+ 
+ /* TEMPLATE MODIFY: Build the list of fields by placing correct column variable names in the $LB() here. */
+ s ^CacheTemp("TRAK",repid,sort)=$LB(PAADMRowId,TTLCode,PAPERName,PAPERName2,PAPERName3,PAPERAgeYr,PAPERAgeMth,PAPERAgeDay,CTSEXCode,ROOMCode,BEDCode,WARDDesc,WARDCode,PAADMAdmDate,PAADMEstimDischargeDate,CTRLGDesc,PAADMHospChaplainVisitReq,HOSPDesc)
+ s ind=ind+1
+ 
+ /* TEMPLATE MODIFY: Change field variables to match row columns - copy FETCH FIRST ROW from above */
+ //fetch rows
+ &sql(fetch MyReportCursor INTO :PAADMRowId,:TTLCode,:PAPERName,:PAPERName2,:PAPERName3,:PAPERAgeYr,:PAPERAgeMth,:PAPERAgeDay,:CTSEXCode,:ROOMCode,:BEDCode,:WARDDesc,:WARDCode,:PAADMAdmDate,:PAADMEstimDischargeDate,:CTRLGDesc,:PAADMHospChaplainVisitReq,:HOSPDesc)}
+
+ &SQL(CLOSE MyReportCursor)
+ 
+ // Build QHandle (AtEnd,ReportID,Index)
+ Set QHandle=$lb(0,repid,0)
+
+ Quit $$$OK
+
+FormatDates
+ /* TEMPLATE MODIFY: Add an entry to perform a date format for all date/time fields here */
+ s PAADMAdmDate=..ConvertDateToODBC(PAADMAdmDate)
+ s PAADMEstimDischargeDate=..ConvertDateToODBC(PAADMEstimDischargeDate)
+ //s PAADMAdmTime=..ConvertTimeToODBC(PAADMAdmTime)
+]]></Implementation>
+</Method>
+
+<Method name="ATD1001HospitalsyFetch">
+<Description>
+This is the Fetch component of the %Library.Query. 
+This should never have to change. It is designed to fetch the row for each subscript of the ^CacheTemp
+global and return this row to the Crystal Report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,&Row:%Library.List,&AtEnd:%Library.Integer=0]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // This fetch method should never have to change. 
+
+ // repid - Report ID
+ // ind   - sequence index which represents each row
+
+ New repid,ind
+
+ // Restore QHandle
+ Set AtEnd=$li(QHandle,1)
+ Set repid=$li(QHandle,2)
+ Set ind=$li(QHandle,3)
+
+ Set ind=$o(^CacheTemp("TRAK",repid,ind))
+ If ind="" {	// if there are no more rows, finish fetching
+ Set AtEnd=1
+ Set Row=""
+ }
+ Else      {	// fetch row
+ Set Row=^CacheTemp("TRAK",repid,ind)
+ }
+
+ // Save QHandle
+ s QHandle=$lb(AtEnd,repid,ind)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<UDLText name="T">
+<Content><![CDATA[
+/* TEMPLATE MODIFY: Rename Stored Proc query to <MyStoredProcName> 
+ * TEMPLATE MODIFY: Change parameters to match desired stored procedure parameters
+ * TEMPLATE MODIFY: Change ROWSPEC list to match desired output column names and column data types */
+]]></Content>
+</UDLText>
+
+<Query name="ATD1001Hospitals">
+<Type>%Library.Query</Type>
+<FormalSpec>Hospital:%Library.String</FormalSpec>
+<SqlProc>1</SqlProc>
+<Parameter name="CONTAINID" value="0"/>
+<Parameter name="ROWSPEC" value="PAADMRowId:%Library.Integer,TTLCode:%Library.String,PAPERName:%Library.String,PAPERName2:%Library.String,PAPERName3:%Library.String,PAPERAgeYr:%Library.String,PAPERAgeMth:%Library.String,PAPERAgeDay:%Library.String,CTSEXCode:%Library.String,ROOMCode:%Library.String,BEDCode:%Library.String,WARDDesc:%Library.String,WARDCode:%Library.String,PAADMAdmDate:%Library.Date,PAADMEstimDischargeDate:%Library.Date,CTRLGDesc:%Library.String,PAADMHospChaplainVisitReq:%Library.String,HOSPDesc:%Library.String"/>
+</Query>
+</Class>
+</Export>

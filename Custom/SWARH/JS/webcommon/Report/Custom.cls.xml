@@ -1,0 +1,233 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.SWARH.JS.webcommon.Report.Custom">
+<Description>
+Component JavaScript for: webcommon.Report.Custom</Description>
+<Modified>0</Modified>
+<Super>websys.AbstractJavaScript</Super>
+<TimeCreated>63537,10520.487512</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+This Parameter is updated by Perforce</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/SWARH/JS/webcommon/Report/Custom.xml#1 $</Default>
+</Parameter>
+
+<Method name="JSContent">
+<Description>
+ </Description>
+<Language>javascript</Language>
+<ClientMethod>1</ClientMethod>
+<Implementation><![CDATA[
+// Loading SNAP.js script
+SWARH.loadSNAP();
+
+
+
+function GetEpisodeID() {
+	var frm = window.top.frames['eprmenu'].document.forms["fEPRMENU"];	
+	var EID=frm.EpisodeID.value;
+	return EID;
+}
+
+function GetEpisodeIDBanner() {
+	var BannerEpisodeID=document.getElementById("BANNEREpisodeID");
+	if (BannerEpisodeID) var EID=BannerEpisodeID.value;
+	return EID;
+}
+
+function createButton(name,label) {
+	var obj=document.createElement('input');	// 2016-10-05 (RG) - Changed from '<input type="text" />' to 'input'
+	obj.setAttribute('type','button');
+	obj.setAttribute('name',name);
+	obj.setAttribute('id',name);
+	obj.setAttribute('value',label);
+	obj.setAttribute('title',name);
+	obj.className = 'clsButton';
+	return obj;
+}
+
+websys_removeListener("load","onload",BodyLoadHandler);
+websys_addListener("load","onload",CustomBodyLoadHandler);
+
+function CustomBodyLoadHandler() {
+	/*var HObj=document.getElementById('custom6');
+	if(HObj) {
+		HObj.disabled=true;
+		HObj.className="disabledField";
+	}*/
+	var TWKFL='';
+	var EpisodeID='';
+	var obj=document.getElementById('WKFL');
+	var logonUserId=session['LOGON.USERID'];
+	var logonLocId=session['LOGON.CTLOCID'];
+	var logonGroupId=session['LOGON.GROUPID'];
+	if (obj) TWKFL=obj.value;
+	//// workflows where Appointment List is used
+	if (TWKFL=='SWARH.SNAP.ApptList') {
+		openBtn=createButton('open','SNAP Appt List');
+		var rows=document.getElementsByTagName('h1');
+		if (rows.length>0) {
+			var pageTitle=rows[0];
+			pageTitle.parentElement.appendChild(openBtn,pageTitle);
+			pageTitle.parentElement.appendChild(document.createTextNode(" "),pageTitle);
+		}
+		openBtn.onclick=function() {
+			var objPatient=document.getElementById('BANNERPatientID');
+			if (objPatient) {
+				PatientID=objPatient.value;
+			}
+			EpisodeID=GetEpisodeIDBanner();
+			// function openSWARHSNAP definition in SNAP.js
+			var popup = SNAP.openSWARHSNAP('ClientAppointmentList.aspx?LogonUserId='+logonUserId+'&LogonLocId='+logonLocId+'&LogonGroupId='+logonGroupId+'&PatientID='+PatientID+'&EpisodeID='+EpisodeID,'AppointmentList');
+			setTimeout(function() {
+				if (popup.closed) {
+					var frm = document.getElementById('fwebcommon_Report_Custom');
+					if (frm) frm.submit();
+				}
+				else setTimeout(arguments.callee, 500);
+			}, 500);
+		};
+		openBtn.click();
+
+	}else if (TWKFL=='SWARH.SNAP.ManualArrive') {
+		openBtn=createButton('open','SNAP Manual Arrive');
+		var rows=document.getElementsByTagName('h1');
+		if (rows.length>0) {
+			var pageTitle=rows[0];
+			pageTitle.parentElement.appendChild(openBtn,pageTitle);
+			pageTitle.parentElement.appendChild(document.createTextNode(" "),pageTitle);
+		}
+		openBtn.onclick=function() {
+			var objPatient=document.getElementById('BANNERPatientID');
+			if (objPatient) {
+				PatientID=objPatient.value;
+			}
+			EpisodeID=GetEpisodeIDBanner();
+			// function openSWARHSNAP definition in SNAP.js
+			var popup = SNAP.openSWARHSNAP('ManualArrive.aspx?LogonUserId='+logonUserId+'&LogonLocId='+logonLocId+'&LogonGroupId='+logonGroupId+'&PatientID='+PatientID+'&EpisodeID='+EpisodeID,'AppointmentList');
+			setTimeout(function() {
+				if (popup.closed) {
+					var frm = document.getElementById('fwebcommon_Report_Custom');
+					if (frm) frm.submit();
+				}
+				else setTimeout(arguments.callee, 500);
+			}, 500);
+		};
+		openBtn.click();
+	}
+	else if ((TWKFL=='SWARH.SNAP.Appt') || (TWKFL=='SWARH.SNAP.AddApptReferral')){
+		openBtn=createButton('open','SNAP Create Appt');
+		var rows=document.getElementsByTagName('h1');
+		if (rows.length>0) {
+			var pageTitle=rows[0];
+			pageTitle.parentElement.appendChild(openBtn,pageTitle);
+			pageTitle.parentElement.appendChild(document.createTextNode(" "),pageTitle);
+		}
+		openBtn.onclick=function() {
+			//alert('opening appointment scheduler');
+			var objPatient=document.getElementById('BANNERPatientID');
+			if (objPatient) {
+				PatientID=objPatient.value;
+			}
+			EpisodeID=GetEpisodeIDBanner();
+			// function openSWARHSNAP definition in SNAP.js
+			if (EpisodeID!="") {
+				//alert(EpisodeID);
+				var popup = SNAP.openSWARHSNAP('AppointmentScheduler.aspx?LogonUserId='+logonUserId+'&LogonLocId='+logonLocId+'&LogonGroupId='+logonGroupId+'&PatientID='+PatientID+'&EpisodeID='+EpisodeID,'AppointmentScheduler');
+				setTimeout(function() {
+					if (popup.closed) {
+						var frm = document.getElementById('fwebcommon_Report_Custom');
+						if (frm) frm.submit();
+					}
+					else setTimeout(arguments.callee, 500);
+				}, 500);
+			}
+		}
+		openBtn.click();
+	}
+	//// workflow for NA Worklist (not used any longer)
+	/*if (TWKFL=='50150') {
+		clinWkListBtn=createButton('openClinWkList','SNAP NA Worklist');
+		var rows=document.getElementsByTagName('h1');
+		if (rows.length>0) {
+			var pageTitle=rows[0];
+			pageTitle.parentElement.appendChild(clinWkListBtn,pageTitle);
+			pageTitle.parentElement.appendChild(document.createTextNode(" "),pageTitle);
+		}
+		var HospTBObj=document.getElementById('custom6');
+		var HospLookUpObj=document.getElementById('ld1906icustom6');
+		if(HospTBObj) {
+			HospTBObj.disabled=true;
+			var hospital=HospTBObj.value;
+		}
+		if(HospLookUpObj) {
+			HospLookUpObj.disabled=true;
+		}
+		var LogonObj=document.getElementById('custom8');
+		var LogonLookUpObj=document.getElementById('ld1906icustom8');
+		if(LogonObj) {
+			LogonObj.disabled=true;
+			var logon=LogonObj.value;
+		}
+		if(LogonLookUpObj) {
+			LogonLookUpObj.disabled=true;
+		}
+		var LocObj=document.getElementById('custom10');
+		var LocLookUpObj=document.getElementById('ld1906icustom10');
+		if(LocObj) {
+			LocObj.disabled=true;
+			var loc=LocObj.value;
+		}
+		if(LocLookUpObj) {
+			LocLookUpObj.disabled=true;
+		}
+		
+		clinWkListBtn.onclick=function() {
+			var popup = openSWARHSNAP('NAWorklist.aspx?LogonUserId='+logonUserId+'&LogonLocId='+logonLocId,'NAWorkList');
+			setTimeout(function() {
+				if (popup.closed) {
+					var frm = document.getElementById('fwebcommon_Report_Custom');
+					if (frm) frm.submit();
+				}
+				else setTimeout(arguments.callee, 500);
+			}, 500);
+		}
+		clinWkListBtn.click();
+	}*/
+	//// workflow for clinician status not used any longer
+	// if (TWKFL=='50154') { 
+		// var HospTBObj=document.getElementById('custom6');
+		// var HospLookUpObj=document.getElementById('ld1906icustom6');
+		// if(HospTBObj) {
+			// HospTBObj.disabled=true;
+			// var hospital=HospTBObj.value;
+		// }
+		// if(HospLookUpObj) {
+			// HospLookUpObj.disabled=true;
+		// }
+		// var objSpecialty=document.getElementById('custom5');
+		// if (objSpecialty) {
+			// var specialty=objSpecialty.value;
+		// }
+		// var objClinician=document.getElementById('custom7');
+		// if (objClinician) {
+			// var clinician=objClinician.value;
+		// }
+		// var objDate1=document.getElementById('date1');
+		// if (objDate1) {
+			// var date1=objDate1.value;
+		// }
+		// var FindBtn=document.getElementById('Preview');
+		// if (FindBtn) {
+			// FindBtn.onclick=function() {
+				// alert("open clinician status in SNAP");
+			// }
+		// }
+	// }
+	BodyLoadHandler();
+}
+]]></Implementation>
+</Method>
+</Class>
+</Export>

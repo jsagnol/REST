@@ -1,0 +1,585 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.SWARH.HIPS.Utils">
+<Super>%RegisteredObject</Super>
+<TimeCreated>63481,59609.458331</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2014/LIVE/cls/Custom/SWARH/HIPS/Utils.xml#2 $</Default>
+</Parameter>
+
+<Parameter name="HIPSHOSPITALCODESYSTEM">
+<Description>
+HIPS expects this...</Description>
+<Default>pasFacCd</Default>
+</Parameter>
+
+<Parameter name="PCEHRREFDCODE">
+<Description>
+REFDCode of PCEHR referral doctor</Description>
+<Default>PCEHR</Default>
+</Parameter>
+
+<Method name="GetDischargeSummaryAdmission">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>dischargeSummaryId:%String</FormalSpec>
+<ReturnType>User.PAAdm</ReturnType>
+<Implementation><![CDATA[
+	#dim admission2 as User.PAAdm2
+	#dim admission as User.PAAdm
+
+	// there can be multiple episodes for a discharge summary; figure out and select the latest one
+	set admission2id = $order(^PAADMi("DISSUM", dischargeSummaryId, ""), -1)
+	set admission2 = ##class(User.PAAdm2).%OpenId(admission2id)
+	set admission = admission2.PAADM2PAADMDR
+
+	quit admission
+]]></Implementation>
+</Method>
+
+<Method name="CheckAndSendToHIPS">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>dischargeSummaryId:%String,filename:%String</FormalSpec>
+<Implementation><![CDATA[
+	//set status = $$$OK
+	
+	#dim dischargeSummary as User.PADischargeSummary
+	set dischargeSummary = ##class(User.PADischargeSummary).%OpenId(dischargeSummaryId)
+	
+	#dim admission as User.PAAdm
+	set admission = ..GetDischargeSummaryAdmission(dischargeSummaryId)
+	
+	#dim patient as User.PAPatMas
+	set patient = admission.PAADMPAPMIDR
+	
+	#dim mradm as User.MRAdm
+	set mradm = admission.PAADMMainMRADMDR
+	
+	set mrn = ..CreateHipsMrnV1FromAdmission(admission)
+
+	#dim user as Custom.SWARH.HIPS.ws.v1.q2.UserDetails
+	set user = ..CreateHipsUserDetailsFromUser(dischargeSummary.DISUpdateUserDR)
+
+	set ws = ##class(Custom.SWARH.HIPS.ws.WSHttpBindingIConsentService).%New()
+	
+	#dim patientparticipationresponse As Custom.SWARH.HIPS.ws.v1.q3.PatientParticipationResponse
+	try {
+		set participationresponse = ws.GetPatientParticipationStatus(mrn, user)
+	} catch ex {
+		#dim ex as %Exception.AbstractException
+		set ^zSAEx($increment(^zSAEx)) = ex.DisplayString()
+		quit
+	}
+	
+	if participationresponse.Response.Status '= "OK" {
+		// Handle error
+		set errorstatuscode = participationresponse.Response.Status
+		set errormessage = participationresponse.Response.HipsErrorMessage
+		//w "Error: "_errorstatuscode_": "_errormessage
+		// TODO: error handling here
+		throw "HIPS exception: error "_errormessage_"(code "_errorstatuscode_")"
+		quit
+	}
+
+	set patientstatus = participationresponse.PatientParticipationList.GetAt(1).ParticipationStatus
+	quit:'(",PcehrAdvertised,RequestedUpload," [ ","_patientstatus_",")
+	
+	set (mrn, user) = "" // Release objects
+	
+	set mrn = ..CreateHipsMrnV2FromAdmission(admission)
+	
+	#dim localuser as Custom.SWARH.HIPS.ws.v2.q1.LocalUser
+	set localuser = ..CreateHipsLocalUserFromUser(dischargeSummary.DISUpdateUserDR) 
+	
+	#dim cdameta as Custom.SWARH.HIPS.ws.v2.q1.CdaHeaderMetadata
+	set cdameta = ..BuildCDAMetadata(dischargeSummary, admission)
+	
+	//set stream = ##class(%Library.FileBinaryStream).%New() -- TKM
+	//set stream.Filename = filename -- TKM
+	//PDH changed following block as class is deprecated in favor of <class>%Stream.FileBinary</class>
+	set stream = ##class(%Stream.FileBinary).%New()
+	set stream.Filename = filename
+	set streamSize=stream.SizeGet()
+	While 'stream.AtEnd {
+		Set line=stream.Read(streamSize)
+	}
+
+	// We must pass an array to the web service call even if we don't want anything attached.
+	set attachments = ##class(Custom.SWARH.HIPS.ws.v2.q1.ArrayOfCdaAttachment).%New()
+
+	set ws=##class(Custom.SWARH.HIPS.ws.WSHttpBindingIPcehrServiceV2).%New()
+	
+	try {
+		set $ZERROR=""
+		#dim status As Custom.SWARH.HIPS.ws.v2.q1.ResponseStatus
+		#dim messages As Custom.SWARH.HIPS.ws.v2.q1.ArrayOfMessage
+		#dim data As Custom.SWARH.HIPS.ws.v2.q1.CdaDocumentDetails
+
+		do ws.UploadOrSupersedeDischargeSummaryLevel1A(line, localuser, mrn, cdameta, attachments, .status, .messages, .data)
+
+		if (status '= "OK") throw ##class(%Exception.General).%New("<HipsError>", 1001, "Hips returned status "_status_" for discharge summary "_dischargeSummaryId_" with message "_messages.Message)
+
+		set hipsSummary = ##class(Custom.SWARH.HIPS.HIPSDischargeSummary).%New()
+		set hipsSummary.PADischargeSummaryDR = dischargeSummary
+		set hipsSummary.DocumentSetId = data.DocumentSetId
+		set hipsSummary.DocumentId = data.DocumentId
+		set status = hipsSummary.%Save()  throw:$$$ISERR(status) ##class(%Exception.StatusException).CreateFromStatus(status)
+		
+		//do ##class(%File).Delete()
+	} 
+	Catch {
+		If $ZERROR["<ZSOAP>" {
+            //Set status=%objlasterror
+            set error=$System.Status.DisplayError(%objlasterror)
+		    set errordesc=$p($p(%objlasterror,"faultactor=",2),"detail=",1)
+		    set err=$System.Status.GetErrorText(%objlasterror)
+		    set fault = ws.SoapFault
+		    set errorfaultstr = fault.Reason.GetAt(1).Text
+            } 
+            Else {
+            //Set status=$$$ERROR($$$CacheError,$ZERROR)
+            set error=$System.Status.GetErrorText($$$ERROR($$$CacheError,$ZERROR))
+        }
+        set status=error
+	}
+	
+	// TKM	        
+	/*catch ex {
+		set message = ex.DisplayString()
+		if (ex.%IsA(##class(%SOAP.Fault).%ClassName(1))) {
+			set message = message _ "; SOAP Fault: "_ws.SoapFault.AsString()
+		}
+		set ^CacheTemp("SWARH", "HIPS", "Exceptions", $increment(^CacheTemp("SWARH", "HIPS", "Exceptions"))) = message
+		
+		;_ "; PDFFileName = "_PDFFilepathName _ "; FileExists: "_##class(%File).Exists(PDFFilepathName)
+		//do:msg msg.AddItem("W", "", "SOAP Fault: "_ws.SoapFault.AsString()
+		// TODO: return something useful
+		set status = ex.AsStatus()
+	}*/
+
+	if (status="OK") { quit $$$OK }
+	else { quit status }
+]]></Implementation>
+</Method>
+
+<Method name="HipsMrnFromAdmission">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>admission:User.PAAdm</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[	quit ##class(Ens.Util.FunctionSet).Pad(admission.PAADMPAPMIDR.PAPMINo, -9, "0") ; HIPS patient identifiers must be padded to 9 digits
+]]></Implementation>
+</Method>
+
+<Method name="CreateHipsMrnV1FromAdmission">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>admission:User.PAAdm</FormalSpec>
+<Implementation><![CDATA[
+	set mrn = ##class(Custom.SWARH.HIPS.ws.v1.q1.Mrn).%New()
+	set mrn.Value = ..HipsMrnFromAdmission(admission)
+	set mrn.HospitalCode = admission.PAADMHospitalDR.HOSPCode
+	set mrn.HospitalCodeSystem = ..#HIPSHOSPITALCODESYSTEM
+	quit mrn
+]]></Implementation>
+</Method>
+
+<Method name="CreateHipsMrnV2FromAdmission">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>admission:User.PAAdm</FormalSpec>
+<Implementation><![CDATA[
+	set mrn = ##class(Custom.SWARH.HIPS.ws.v2.q1.Mrn).%New()
+	set mrn.Value = ..HipsMrnFromAdmission(admission)
+	set mrn.HospitalCode = admission.PAADMHospitalDR.HOSPCode
+	set mrn.HospitalCodeSystem = ..#HIPSHOSPITALCODESYSTEM
+	quit mrn
+]]></Implementation>
+</Method>
+
+<Method name="CreateHipsParticipatingProviderFromCareProvider">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>careprovider:User.CTCareProv</FormalSpec>
+<ReturnType>Custom.SWARH.HIPS.ws.v2.q1.ParticipatingProvider</ReturnType>
+<Implementation><![CDATA[
+	set participatingprovider = ##class(Custom.SWARH.HIPS.ws.v2.q1.ParticipatingProvider).%New()
+	set participatingprovider.LocalIdentifier = careprovider.CTPCPCode
+	set participatingprovider.FamilyName = careprovider.CTPCPSurname
+	set participatingprovider.GivenNames = careprovider.CTPCPFirstName
+	quit participatingprovider
+]]></Implementation>
+</Method>
+
+<Method name="CreateHipsParticipatingProviderFromUser">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>user:User.SSUser</FormalSpec>
+<ReturnType>Custom.SWARH.HIPS.ws.v2.q1.ParticipatingProvider</ReturnType>
+<Implementation><![CDATA[
+	set participatingprovider = ##class(Custom.SWARH.HIPS.ws.v2.q1.ParticipatingProvider).%New()
+	set participatingprovider.LocalIdentifier = user.SSUSRInitials
+	set participatingprovider.FamilyName = user.SSUSRSurname
+	set participatingprovider.GivenNames = user.SSUSRGivenName
+	quit participatingprovider
+]]></Implementation>
+</Method>
+
+<Method name="GetAdmissionDateTime">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>admission:User.PAAdm,dischargeSummary:User.PADischargeSummary</FormalSpec>
+<ReturnType>%TimeStamp</ReturnType>
+<Implementation><![CDATA[	quit $zdatetime(admission.PAADMAdmDate_","_admission.PAADMAdmTime, 3, 1)
+]]></Implementation>
+</Method>
+
+<Method name="GetDischargeDateTime">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>admission:User.PAAdm,dischargeSummary:User.PADischargeSummary</FormalSpec>
+<ReturnType>%TimeStamp</ReturnType>
+<Implementation><![CDATA[
+	// Discharge date is episode discharge date. If episode has not been discharged yet at the time of the discharge summary creation
+	// we use the discharge date on the discharge summary screen (as it is a mandatory field)
+	// and we use the Discharge Summary Authorised Time as the Discharge Time (HIAG 14/12/2016)
+	// There is no need to look at estimated discharge date or estimated LOS.
+	
+	set dischargedatetime = $select(
+		admission.PAADMDischgDate: $zdatetime(admission.PAADMDischgDate_","_admission.PAADMDischgTime, 3, 1),
+		1: $zdatetime(dischargeSummary.DISDate_","_dischargeSummary.DISUpdateTime, 3, 1)
+	)
+	quit dischargedatetime
+]]></Implementation>
+</Method>
+
+<Method name="BuildCDAMetadata">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>dischargeSummary:User.PADischargeSummary,admission:User.PAAdm</FormalSpec>
+<ReturnType>Custom.SWARH.HIPS.ws.v2.q1.CdaHeaderMetadata</ReturnType>
+<Implementation><![CDATA[
+	set cdameta = ##class(Custom.SWARH.HIPS.ws.v2.q1.CdaHeaderMetadata).%New()
+
+	set cdameta.AdmissionDateTime = ..GetAdmissionDateTime(admission, dischargeSummary)
+	set cdameta.DischargeDateTime = ..GetDischargeDateTime(admission, dischargeSummary)
+	
+	set cdameta.DocumentAuthor = ..CreateHipsParticipatingProviderFromUser(dischargeSummary.DISUpdateUserDR)
+	// Authorising clinician - DISCareProvDR
+	set cdameta.LegalAuthenticator = ..CreateHipsParticipatingProviderFromCareProvider(dischargeSummary.DISCareProvDR)
+
+	// Responsible health professional at time of discharge
+	// Latest Main Care Provider (IP episodes) / latest CP (ED episodes)
+	set transid=""
+	set PAADMRowId=admission.%Id()
+	for {
+		set transid = $order(^PAADM(PAADMRowId,"TRANS",transid),-1)
+		quit:(transid="")
+		set careprovid = $P(^PAADM(PAADMRowId,"TRANS",transid),"^",5)
+		if (admission.PAADMType="E") {	
+			quit:(careprovid'="")
+		}
+		elseif (admission.PAADMType="I") {
+			set ismaincareprov = $P(^PAADM(PAADMRowId,"TRANS",transid),"^",13)
+			quit:(ismaincareprov="Y")
+		}
+	}
+	if (careprovid'="") {
+		set careprov=##class(User.CTCareProv).%OpenId(careprovid)
+	}
+	else {
+		set careprov=dischargeSummary.DISCareProvDR
+	}
+	set cdameta.ResponsibleHealthProfessional = ..CreateHipsParticipatingProviderFromCareProvider(careprov)
+	
+	// Valid values here are: None,Interim,Final,Withdrawn
+	// There was a question of mapping "Entered" to "Interim" but we are only sending Authorised D/C summaries to HIPS so there's no need to.
+	set cdameta.SourceDocumentStatus = "Final"
+
+	// TODO: Mapping table from discharge destination for ModeOfSeparation
+	// HIAG 14/12/2016: Use “Home” which translates to “Other/Home” as the Discharge To (separation mode/discharge classification)
+	// for episodes not yet discharged
+	set cdameta.ModeOfSeparation = "Home"
+#;	if (##class(Ens.Util.FunctionSet).In(admission.PAADMType,"I,O")) {
+#;		set dischtype = mradm.MRADMDischTypeDR
+#;		set:dischtype cdameta.ModeOfSeparation = ##class(Ens.Util.FunctionSet).Lookup("DischType2HIPSLookup", dischtype.CTDSPCode)
+#;	} else {
+#;		set cdameta.ModeOfSeparation = ##class(Ens.Util.FunctionSet).Lookup("DischClassif2HIPSLookup", mradm.MRADMDischClassifDR.DSCLCode)
+#;	}
+	// IP MRADM_DischType_DR->CTDSP_Desc
+	// ED MRADM_DischClassif_DR->DSCL_Desc,* from MR_Adm
+
+	set cdameta.DocumentCreationDateTime = $zdatetime($h, 3, 1)
+	
+	set cdameta.Specialty = admission.PAADMDepCodeDR.CTLOCDesc
+	set:cdameta.Specialty="" cdameta.Specialty = "Unknown"
+	
+	quit cdameta
+]]></Implementation>
+</Method>
+
+<Method name="DischargeSummaryHasDistributeTo">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>dischargeSummaryId:%Integer,distributeToRefdCode:%String</FormalSpec>
+<ReturnType>%Boolean</ReturnType>
+<Implementation><![CDATA[
+	set dischargeSummary = ##class(User.PADischargeSummary).%OpenId(dischargeSummaryId)
+	
+	set docCount = dischargeSummary.ChildPADischargeSummaryRefDoc.Count()
+	
+	set found = 0
+	for i=1:1:docCount {
+		#dim doc As User.PADischargeSummaryRefDoc
+		set doc = dischargeSummary.ChildPADischargeSummaryRefDoc.GetAt(i)
+		if doc.REFRefDocDR.REFDCode = distributeToRefdCode {
+			set found = 1
+			break
+		}
+	}
+	
+	quit found
+]]></Implementation>
+</Method>
+
+<Method name="IsPcehrDischargeSummary">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>dischargeSummaryId:%Integer</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	set ws = ##class(Custom.SWARH.HIPS.ws.WSHttpBindingIPCEHRService).%New()
+
+	if ..DischargeSummaryHasDistributeTo(..#PCEHRREFDCODE) {
+	}
+]]></Implementation>
+</Method>
+
+<Method name="FindDocument">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>dischargeSummaryId:%Integer,patientidentifier:Custom.SWARH.HIPS.ws.v1.q1.PatientIdentifierBase,user:Custom.SWARH.HIPS.ws.v1.q2.UserDetails</FormalSpec>
+<Implementation><![CDATA[
+	set ws = ##class(Custom.SWARH.HIPS.ws.WSHttpBindingIPCEHRService).%New()
+	#dim sourcesystemsetid As %String
+	#dim listresponse as Custom.SWARH.HIPS.ws.v1.q3.LocalClinicalDocumentListResponse
+	;set listresponse = ws.
+	set listresponse=ws.ListUploadedDocuments(user, sourcesystemsetid, patientidentifier)
+	;set documentsetid = listresponse.DocumentList.GetAt(1).
+	set doclist = ws.GetLocalUploadedDocument(user)
+]]></Implementation>
+</Method>
+
+<Method name="DeleteDischargeSummary">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>dischargeSummaryId</FormalSpec>
+<ReturnType>%Boolean</ReturnType>
+<Implementation><![CDATA[
+	#dim dischargeSummary as User.PADischargeSummary
+	set dischargeSummary = ##class(User.PADischargeSummary).%OpenId(dischargeSummaryId)
+
+	#dim admission as User.PAAdm
+	set admission = ..GetDischargeSummaryAdmission(dischargeSummaryId)
+
+	set mrn = ..CreateHipsMrnV1FromAdmission(admission)
+
+	; TODO: map reason from summary delete reason?
+	set withdrawn = $piece(##class(Custom.SWARH.HIPS.ws.v1.q41.RemovalReason).#VALUELIST, ",", 2) ; "Withdrawn"
+	;set incorrectidentity = $piece(##class(Custom.SWARH.HIPS.ws.v1.q41.RemovalReason).#VALUELIST, ",", 3) ; "IncorrectIdentity"
+	set reason = withdrawn
+	
+	#dim auditInformation as %xsd.base64Binary
+	set auditInformation = "" ; TODO: figure out what this is meant to be
+	
+	#dim user as Custom.SWARH.HIPS.ws.v1.q2.UserDetails
+	set user = ..CreateHipsUserDetailsFromUser(dischargeSummary.DISUpdateUserDR)
+
+	;set doc = ..FindDocument(mrn, user)
+
+	set admissionDate = ..GetAdmissionDateTime(admission, dischargeSummary)
+	
+	set ws=##class(Custom.SWARH.HIPS.ws.WSHttpBindingIPCEHRService).%New()
+
+#;	&sql(
+#;		declare HipsDocumentCursor cursor for
+#;		select DocumentSetId, DocumentId
+#;		into :documentSetId, :documentId
+#;		from Custom_SWARH_HIPS.HIPS_Discharge_Summary
+#;		where PADischargeSummaryDR = :dischargeSummaryId
+#;	)
+
+	for  {
+#;		&sql(fetch HipsDocumentCursor)
+		;#dim sourcesystemsetid As %String
+		;#dim listresponse as Custom.SWARH.HIPS.ws.v1.q3.LocalClinicalDocumentListResponse
+		set doc = ws.GetLocalUploadedDocument(user, dischargeSummaryId, dischargeSummaryId, mrn)
+		set listresponse=ws.ListUploadedDocuments(user, sourcesystemsetid, patientidentifier)
+		#dim listresponse as Custom.SWARH.HIPS.ws.v1.q3.LocalClinicalDocumentListResponse
+		set doc = listresponse.DocumentList.GetAt(1)
+		#dim doc as Custom.SWARH.HIPS.ws.v1.q3.LocalClinicalDocumentMetaData
+		set asdf = doc.SourceSystemDocumentId
+		set doc = listresponse.DocumentList.GetAt(1)
+		#dim removeresponse as Custom.SWARH.HIPS.ws.v1.q2.HipsResponse
+		set removeresponse = ws.Remove(mrn, admissionDate, documentSetId, reason, user, auditInformation)
+		
+		
+	}
+]]></Implementation>
+</Method>
+
+<Method name="CreateHipsUserDetailsFromUser">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>user:User.SSUser</FormalSpec>
+<ReturnType>Custom.SWARH.HIPS.ws.v1.q2.UserDetails</ReturnType>
+<Implementation><![CDATA[
+	set userdetails = ##class(Custom.SWARH.HIPS.ws.v1.q2.UserDetails).%New()
+	set userdetails.Login = user.SSUSRInitials
+	set userdetails.Name = user.SSUSRName
+	set userdetails.Role = "InteractiveUser"
+	set userdetails.Domain = "SWARH"
+	quit userdetails
+]]></Implementation>
+</Method>
+
+<Method name="CreateHipsLocalUserFromUser">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>user:User.SSUser</FormalSpec>
+<ReturnType>Custom.SWARH.HIPS.ws.v2.q1.LocalUser</ReturnType>
+<Implementation><![CDATA[
+	set localuser = ##class(Custom.SWARH.HIPS.ws.v2.q1.LocalUser).%New()
+	set localuser.Login = user.SSUSRInitials
+	set localuser.GivenNames = user.SSUSRGivenName
+	set localuser.FamilyName = user.SSUSRSurname
+	set localuser.Domain = "SWARH"
+	quit localuser
+]]></Implementation>
+</Method>
+
+<Method name="PatientHasAlert">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>pPatientRowID:%String,pAlertCode:%String</FormalSpec>
+<ReturnType>%Boolean</ReturnType>
+<Implementation><![CDATA[
+	set (tChildsub, tHasAlert) = 0
+	set tAlertCodeID = ""
+
+	// Look up ID of AlertCode to check patient for
+	set tAlertCodeID = $order(^PAC("ALERT",0,"Code",pAlertCode,""))  quit:(tAlertCodeID="") tHasAlert
+	
+	// Iterate patient alerts looking for the specified alert
+	for {
+		set tChildsub=$order(^PAPER(pPatientRowID,"ALM",tChildsub))  quit:(tChildsub="")
+		set tAlertCodeDR=$piece($get(^PAPER(pPatientRowID,"ALM",tChildsub)),"^",9)
+		set tClosedFlag=$piece($get(^PAPER(pPatientRowID,"ALM",tChildsub)),"^",7)
+		if (tAlertCodeDR=tAlertCodeID) && (tClosedFlag'="Y") {
+			set tHasAlert = 1
+			quit
+		}
+	}
+
+	quit tHasAlert
+]]></Implementation>
+</Method>
+
+<Method name="PatientAgeInRange">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>pPatientRowID:%String,pMinAge:%Integer,pMaxAge:%Integer</FormalSpec>
+<ReturnType>%Boolean</ReturnType>
+<Implementation><![CDATA[
+	set tPat = ##class(User.PAPatMas).%OpenId(pPatientRowID)
+	#dim tPer As User.PAPerson
+	set tPer = tPat.PAPMIPAPERDR
+	set tAgeInRange = 1
+	
+	set:(pMinAge>tPer.PAPERAgeYr) tAgeInRange = 0
+	set:($data(pMaxAge)'=0)&&(pMaxAge<tPer.PAPERAgeYr) tAgeInRange = 0
+
+	quit tAgeInRange
+]]></Implementation>
+</Method>
+
+<Method name="GetHIPSCoreBaseURL">
+<ClassMethod>1</ClassMethod>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	set tLocation = ""
+	
+	&SQL(SELECT FILE_RowId INTO :tFile FROM SQLUser.CF_SystemFileDefinition WHERE FILE_Desc='HIPSWS')
+	
+	if tFile {
+		set tFileDef=##class(User.CFSystemFileDefinition).%OpenId(tFile)
+		if tFileDef {
+			set tBaseURI = tFileDef.FILEVirtualDirectory
+			set:($extract(tBaseURI,*,*)'="/") tBaseURI = tBaseURI_"/"
+			kill tFileDef
+			set tLocation = tBaseURI
+		}
+	}
+	quit tLocation
+]]></Implementation>
+</Method>
+
+<Method name="GetHIPSUIBaseURL">
+<ClassMethod>1</ClassMethod>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	set tLocation = ""
+	
+	&SQL(SELECT FILE_RowId INTO :tFile FROM SQLUser.CF_SystemFileDefinition WHERE FILE_Desc='HIPS')
+	
+	if tFile {
+		set tFileDef=##class(User.CFSystemFileDefinition).%OpenId(tFile)
+		if tFileDef {
+			set tBaseURI = tFileDef.FILEVirtualDirectory
+			set:($extract(tBaseURI,*,*)'="/") tBaseURI = tBaseURI_"/"
+			kill tFileDef
+			set tLocation = tBaseURI
+		}
+	}
+	quit tLocation
+]]></Implementation>
+</Method>
+
+<Method name="GetPcehrURL">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>pHospitalRowID:%Integer,pPatientRowID:%Integer</FormalSpec>
+<Implementation><![CDATA[
+	set tLocation = ..GetHIPSUIBaseURL()
+		
+	if (tLocation '= "") {
+		set tPat = ##class(User.PAPatMas).%OpenId(pPatientRowID)
+		set tURNo = ##class(Ens.Util.FunctionSet).Pad(tPat.PAPMINo, -9, "0")
+		set tHospitalCode = ..GetHospitalCode(pHospitalRowID)
+		;set tLocation = tLocation_"PcehrView/Hospitals/"_tHospitalCode_"/Patients/"_tURNo_"/PatientSummary"
+		set tLocation = tLocation_"EmbeddedPcehrView/Hospitals/"_tHospitalCode_"/Patients/"_tURNo_"/PatientSummary"
+	}
+	q tLocation
+]]></Implementation>
+</Method>
+
+<Method name="GetAssistedRegURL">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>pHospitalRowID:%Integer,pPatientRowID:%Integer,pDependant:%Boolean=0</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	set tLocation = ..GetHIPSUIBaseURL()
+	
+	if (tLocation '= "") {
+		set tPat = ##class(User.PAPatMas).%OpenId(pPatientRowID)
+		set tURNo = ##class(Ens.Util.FunctionSet).Pad(tPat.PAPMINo, -9, "0")
+		set tHospitalCode = ..GetHospitalCode(pHospitalRowID)
+		set tRegVarURI = ""
+		set:pDependant tRegVarURI = "Dependant"
+		;set tLocation = tLocation_"AssistedRegistration/Hospitals/"_tHospitalCode_"/Register"_tRegVarURI_"?patientId="_tURNo
+		set tLocation = tLocation_"EmbeddedAssistedRegistration/Hospitals/"_tHospitalCode_"/Patients/"_tURNo_"/Register"_tRegVarURI
+	}
+	quit tLocation
+]]></Implementation>
+</Method>
+
+<Method name="GetHospitalCode">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>HospitalID:%Integer</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	set HospitalCode = ""
+	
+	if (+HospitalID) {
+		set HospitalCode = $p($g(^CT("HOSP", +HospitalID)), "^", 1)
+	}
+	quit HospitalCode
+]]></Implementation>
+</Method>
+</Class>
+</Export>

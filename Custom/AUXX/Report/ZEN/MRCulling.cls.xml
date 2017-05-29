@@ -1,0 +1,163 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.AUXX.Report.ZEN.MRCulling">
+<Super>Custom.AUXX.Report.ZEN.Abstract</Super>
+<TimeCreated>61520,67147.0108</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/AUXX/Report/ZEN/MRCulling.xml#1 $</Default>
+</Parameter>
+
+<UDLText name="T">
+<Content><![CDATA[
+// Report Name: Trak Medical Records Culling Report <br>
+
+]]></Content>
+</UDLText>
+
+<UDLText name="T">
+<Content><![CDATA[
+// Report Code: AUXX.MED0006 <br>
+
+]]></Content>
+</UDLText>
+
+<Property name="DateFrom">
+<Type>%String</Type>
+<Parameter name="ZENURL" value="P1"/>
+</Property>
+
+<Property name="DateTo">
+<Type>%String</Type>
+<Parameter name="ZENURL" value="P2"/>
+</Property>
+
+<Property name="Facility">
+<Type>%String</Type>
+<Parameter name="ZENURL" value="P3"/>
+</Property>
+
+<Property name="Specialty">
+<Type>%String</Type>
+<Parameter name="ZENURL" value="P4"/>
+</Property>
+
+<Property name="WithoutEpisodes">
+<Type>%String</Type>
+<Parameter name="ZENURL" value="P5"/>
+</Property>
+
+<XData name="ReportDefinition">
+<XMLNamespace>http://www.intersystems.com/zen/report/definition</XMLNamespace>
+<Data><![CDATA[
+<report xmlns='http://www.intersystems.com/zen/report/definition'
+   queryClass='Custom.AUXX.Report.ZEN.StoredProc.MRCulling' queryName='MRCulling' name='MRCulling'>
+  <parameter expression='..DateFrom'/>
+  <parameter expression='..DateTo'/>
+  <parameter expression='..Facility'/>
+  <parameter expression='..Specialty'/>  
+  <parameter expression='..WithoutEpisodes'/>  
+  <attribute name='datefrom' expression='..DisplayDate(..DateFrom)'/>
+  <attribute name='dateto' expression='..DisplayDate(..DateTo)'/>
+  <attribute name='facility' expression='..GetHospListDesc(..Facility)'/>
+  <attribute name="specialty" expression="..GetSpecialtyListDesc(..Specialty)"/>
+  <attribute name='withoutepisodes' expression='..WithoutEpisodes'/>
+  <attribute name='ReportTitle' expression='$$$Text("@MedicalRecordsCullingReport@Medical Records Culling Report")'/>
+  <attribute name='timestamp' expression='$ZDATETIME($H, 2, 2)'/>  
+  <attribute name='username' expression='..Username'/>
+  
+  <group name="facility" breakOnField="HOSPDesc">
+ <attribute name="description" field="HOSPDesc" />
+   <aggregate name='TotalHospCount' type='CUSTOM' field='RTMAVRowId' class='%ZEN.Report.Aggregate.CountDistinct'/>
+  <group name="specialty" breakOnField="CTLOCDesc">
+ <attribute name="description" field="CTLOCDesc" />
+ <element name='VolCaption' expression='"MR"_$C(13,10)_"Volume"' />
+   <aggregate name='TotalLocnCount' type='CUSTOM' field='RTMAVRowId' class='%ZEN.Report.Aggregate.CountDistinct'/>
+      <group name='Detail'>
+       <attribute field='HOSPDesc' name='HOSPDesc'/> 
+       <attribute field='CTLOCDesc' name='CTLOCDesc'/>
+       <attribute field='RTMAVRowId' name='RTMAVRowId'/>
+       <attribute field='PAPMINo' name='PAPMINo'/>
+       <attribute field='RTMASMRNO' name='RTMASMRNO'/>
+       <attribute field='RTMAVVolDesc' name='RTMAVVolDesc'/>
+       <attribute field='TYPCode' name='TYPCode'/>
+       <attribute fields='PAPMIName,PAPMIName2,PAPMIName3' name='PatientName' expression='..DisplayName(%val("PAPMIName"),%val("PAPMIName2"),%val("PAPMIName3"))'/>
+       <attribute field='RTMAVDateArrived' name='RTMAVDateArrived' expression='..DisplayDate(%val)'/>
+       <attribute field='PAADMAdmNo' name='PAADMAdmNo'/>
+       <attribute field='PAADMAdmDate' name='PAADMAdmDate' expression='..DisplayDate(%val)'/>
+       <attribute field='Inactive' name='Inactive'/>
+      </group>
+    </group>
+   </group>
+ </report>
+]]></Data>
+</XData>
+
+<XData name="ReportDisplay">
+<XMLNamespace>http://www.intersystems.com/zen/report/display</XMLNamespace>
+<Data><![CDATA[
+<report xmlns='http://www.intersystems.com/zen/report/display'
+xmlns:auxxstyle='http://www.intersystems.com/zen/report/display/auxx/style'
+xmlns:auxx='http://www.intersystems.com/zen/report/display/auxx'
+  name='MRCulling'>
+<document width= "#(..ReportWidth)#" height="#(..ReportHeight)#" marginLeft="#(..DocMarginLeft)#" marginRight="#(..DocMarginRight)#" 
+marginTop="#(..DocMarginTop)#" marginBottom="#(..DocMarginBottom)#" footerHeight="#(..DocFooterHeight)#" headerHeight="#(..DocHeaderHeight)#" 
+regionBeforeExtent="#(..DocHeaderHeight)#" regionAfterExtent="#(..DocFooterHeight)#" >
+<auxxstyle:auxxgroupheader/>
+<auxxstyle:auxxgroupsummary/>
+<auxxstyle:auxxhospitalheader/>
+<auxxstyle:auxxpagefooter/>
+<auxxstyle:auxxpageheader/>
+<auxxstyle:auxxparameterheader/>
+<auxxstyle:auxxreporttitle/>
+<auxxstyle:auxxtablecolumn/>
+</document>
+<auxx:PageHeader pagetitle='@ReportTitle'/>
+<auxx:ReportFooter username='@username' timestamp='@timestamp'/>
+
+<body>
+<!-- REPORT HEADER -->
+<auxx:ReportHeader reporttitle='@ReportTitle'/>
+<auxx:ReportParameterHeader label='@Facility:@Facility:' field='@facility' xcondition="string-length(@facility)>0"/>
+<auxx:ReportParameterHeader label='@CurrentLocation/Specialty:@Current Location/Specialty:' field='@specialty' xcondition="string-length(@specialty)>0"/>
+<auxx:ReportParameterHeader label='@RecordsWithoutEpisodesOnly@Records Without Episodes Only' field='' xcondition='@withoutepisodes="Y"'/>
+<auxx:ReportParameterHeader label='@RecordsWithandWithoutEpisodes@Records With and Without Episodes' field='' xcondition='@withoutepisodes!="Y"'/>
+<auxx:ReportDateHeader datefrom="@datefrom" dateto="@dateto" />
+
+<line pattern="solid" width="100%"/>
+<line pattern="empty" width="100%"></line> 
+<auxx:NoResults xcondition="not(facility)" />
+<group name='facility' pagebreak="true">
+<auxx:GroupHospitalHeader label="@Facility:@Facility:" field="@description" />
+<line pattern="empty" lineHeight="1mm" />
+<group name='specialty'>
+<auxx:GroupHeader label="@CurrentLocation/Specialty:@Current Location/Specialty:" field="@description" />
+<line pattern="empty" lineHeight="2mm" />
+     <table class='auxxtablecolumn' group='Detail'>
+        <item field='@PAPMINo' width="13%" caption='@URN@URN'/>
+        <item field='@RTMASMRNO' width="11%" caption='@MRN@MRN'/>
+        <item field='@RTMAVVolDesc' width="8%" displayCaption="true">
+       <caption field='VolCaption' breakOnLineFeed="true"  />
+        </item>
+        <item field='@TYPCode' width="5%" caption='@MRType@MR Type'/>
+        <item field='@PatientName' width="21%" caption='@Name@Name'/>
+        <item field='@RTMAVDateArrived' width="12%" caption='@LastMovementDate@Last Movement Date'/> 
+        <item field='@PAADMAdmNo' width="13%" caption='@LastEpisodeNo@Last Episode No'/> 
+        <item field='@PAADMAdmDate' width="12%" caption='@LastEpisodeDate@Last Episode Date'/>
+        <item field='@Inactive' width="5%" style='text-align:center' caption='@InactiveLabel@Inactive'/>
+     </table>
+     <line pattern="empty" width="100%"></line> 
+	<auxx:GroupSummary label="@TotalNo.ofMedicalRecordsfor@Total No. of Medical Records for" group="@description" summaryvalue="TotalLocnCount" />
+	<line pattern="empty" lineHeight="4mm" />
+   </group> 
+   <line pattern="empty" width="100%"></line> 
+  <auxx:GroupSummary label="@TotalNo.ofMedicalRecordsfor@Total No. of Medical Records for" group="@description" summaryvalue="TotalHospCount" />
+</group>
+</body>
+</report>
+]]></Data>
+</XData>
+</Class>
+</Export>

@@ -1,0 +1,123 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.SWARH.JS.PAAdm.BarthelScore.Edit">
+<Description>
+Component JavaScript for: PAAdm.BarthelScore.Edit</Description>
+<Modified>0</Modified>
+<Super>websys.AbstractJavaScript</Super>
+<TimeCreated>63537,10516.771007</TimeCreated>
+
+<Method name="JSContent">
+<Description>
+ </Description>
+<Internal>0</Internal>
+<Language>javascript</Language>
+<ClientMethod>1</ClientMethod>
+<Implementation><![CDATA[
+/*********************************************************************
+$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/SWARH/JS/PAAdm/BarthelScore/Edit.xml#1 $
+Version 1
+
+- General custom field validation for paadm.barthelscore.edit component
+
+REMEMBER to update the versions with initials, date and description for each modification...
+IF		29/06/2011			- Created for AUXX
+**********************************************************************/
+
+
+websys_removeListener("load","onload",DocumentLoadHandler);
+websys_addListener("load","onload",CustomDocumentLoadHandler);
+
+function CustomDocumentLoadHandler() {
+	//call core function
+	DocumentLoadHandler();
+	
+	var caretype=tkMakeServerCall("Custom.AUXXUtilities","CareType",document.getElementById('EpisodeID').value)
+	if (caretype!="") {
+		var str="P,K,2,6,7"
+		if (str.search(caretype)==-1) {
+			DisableField('PAADMOnsetDate');
+			DisableLookup('ld1245iPAADMOnsetDate');
+			DisableField('CSPDesc');
+			DisableLookup("ld1245iCSPDesc");
+			DisableField('RTRDesc');
+			DisableLookup("ld1245iRTRDesc");
+		} else {
+			EnableField('PAADMOnsetDate');
+			EnableLookup("ld1245iPAADMOnsetDate");
+			EnableField('CSPDesc');
+			EnableLookup("ld1245iCSPDesc");
+			EnableField('RTRDesc');
+			EnableLookup("ld1245iRTRDesc");
+		}
+	}
+}
+
+function EnableField(fldName) {
+    var fld = document.getElementById(fldName);
+    var lbl = document.getElementById('c'+fldName);
+    if (fld) {
+        fld.disabled = false;
+        if (fld.type!="button") fld.className = "";
+        if (fld.type=="button") fld.className = "clsButton";
+    }
+}
+
+function DisableField(fldName,NoClear) {
+    var fld = document.getElementById(fldName);
+    var lbl = document.getElementById('c'+fldName);
+    if (fld) {
+        if ((fld.tagName=="TEXTAREA")||(fld.tagName=="INPUT")||(fld.tagName=="SELECT")) {
+            if ((fld.type!="button")&&(fld.type!="checkbox")&&(!NoClear)) fld.value = "";
+            if ((fld.type=="checkbox")&&(!NoClear)) fld.checked=false;
+            fld.disabled = true;
+            if (fld.type!="button") fld.className = "disabledField";
+            if (fld.type=="button") {fld.className = "clsButtonDisabled";DisableShortcutKey(fld);}
+            if (lbl) lbl.className = "";
+        }
+        
+        if (fld.tagName=="A") {
+            fld.disabled=true;
+            fld.className='DisabledLink'
+            fld.onclick=LinkDisable;
+            DisableShortcutKey(fld);
+        }
+    }
+}
+
+function DisableLookup(fldName) {
+    var obj=document.getElementById(fldName);
+    if ((obj)&&(obj.onclick)) {
+        var lookupfunc = obj.onclick.toString();
+        var lookupfuncCall=lookupfunc.slice(0,lookupfunc.indexOf("{"));
+        lookupfuncCall=lookupfuncCall.slice(lookupfuncCall.indexOf(" ")+1,-1);
+        if (obj.getAttribute('tkLookup')==null) obj.setAttribute('tkLookup',lookupfuncCall);
+        obj.onclick=LinkDisable;
+    }
+}
+
+function EnableLookup(fldName) {
+    var obj=document.getElementById(fldName);
+    if ((obj)&&(obj.getAttribute('tkLookup'))) {
+        obj.onclick=new Function("e",obj.getAttribute('tkLookup'));
+    }
+}
+
+function LinkDisable(evt) {
+    var el = websys_getSrcElement(evt);
+    if (el.isDisabled) { 
+        return false;
+    }
+    return true;
+}
+]]></Implementation>
+</Method>
+
+<Parameter name="SrcVer">
+<Description>
+This Parameter is updated by Perforce</Description>
+<Internal>0</Internal>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/SWARH/JS/PAAdm/BarthelScore/Edit.xml#1 $</Default>
+</Parameter>
+</Class>
+</Export>

@@ -1,0 +1,2318 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.SWARH.JS.PAAdm.EditEmergency">
+<Description>
+Component JavaScript for: PAAdm.EditEmergency</Description>
+<Modified>0</Modified>
+<Super>websys.AbstractJavaScript</Super>
+<TimeCreated>63503,40901.457506</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+This Parameter is updated by Perforce</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/SWARH/JS/PAAdm/EditEmergency.xml#2 $</Default>
+</Parameter>
+
+<Method name="JSContent">
+<Language>javascript</Language>
+<ClientMethod>1</ClientMethod>
+<Implementation><![CDATA[
+
+/*********************************************************************
+Copyright (c) 2003 TrakHealth Pty Limited. ALL RIGHTS RESERVED.
+$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/SWARH/JS/PAAdm/EditEmergency.xml#2 $
+Version 1
+
+- General custom field validation for paadmemergency.edit component
+
+REMEMBER to update the versions with initials, date and description for each modification...
+MD			08092003	- Created for Log37582
+MD			08062004	- modifications for 43174
+ab			18.01.05	- log 48673 - removed calls to window.focus, websys_nextfocus, websys_nexttab
+md			06.12.2005	- log 57301 function ambNumCheck ; always check that there is data when onblur handled
+tk (swarh) 	20.04.2009	- Re-added update1 click handler assignment to UpdateCustom in CustomInit
+							(this went missing when pop-up Biometrics authentication window was added)
+km			10.06.09	- Added Departure status 27 and 28 and added to edit for referred to on departure
+PH			28/07/10	- CH07  TRC51252 Change of Ambulance Case Range per ammendments documented
+							in VEMD Editor v14 (AND version 15) 1.2.4 and HDSS Bulletin 156.14
+							1 - ADDED : Ambulance Arrival Code Types
+							2 - ADDED : Ambulance Case VEMD version date ranges
+							3 - ADDED : VEMD Ambulance Case Configuration
+							4 - ADDED : LoadAmbulanceCaseConfig() to load the config.
+							5 - ADDED : NewAmbNumCheck() but kept the old ambNumCheck() function, renaming it to OldAmbNumCheck().
+							6 - ADDED : VEMD Class to hold historical and current Ambulance Case VEMD configuration.
+										NOT Pre-version 15 configuraion. See Notes in CH07.10.
+									  : VEMD::IsValidCase(...)
+									  : VEMD::InDateRange(...)
+							7 - ADDED : Ambulance Cases Container Class to hold a VEMD configuration array.
+									  : AmbulanceCase::AddCase(...)
+							8 - ADDED : IsValidVEMD()
+							9 - ADDED : AmbulanceType Class to configuration.
+									  : AmbulanceType::IsAmbulanceType(...)
+							10 - MODIFIED : The InitCustom() function for the MRADMAmbulanceCase onblur logic assignment
+											to use the 'pre-V15' NewAmbNumCheck() if the PAADMAdmDate is prior to the start
+											of V15 Ambulance Case Ranges.
+IF			08/12/2011		- TRC89739 added departure status of 26
+IF			03/05/2012	- CH09 TRC107165
+							1 - Updated VEMDVER15DATETO to 30/06/2012 and created VEMDVER16DATEFROM/VEMDVER16DATETO
+							2 - Set the end date for version 15 and added version 16 below
+FD			21/09/2012		TRC 92785 - Make Primary Diagnosis mandatory where Departure Status is 5			
+IF			08/10/2012		TRC125853 - Codes R96.1A and R96.1B changed to R96.1 in PAAdm.EditEmergency
+FD			15/05/2013		TRC 147203 - VEMD 2013 SWARH: Changes to PAADM.EditEmergency for 1 July 2013
+FD			28/04/2014		TRC 173168 - VEMD 2014 Edition: Changes to PAADM.EditEmergency for 1 July 2014 - setAmbulanceField && CheckMandatoryField
+CB			13/04/2015		TRC 188471 - Change Request to validate that Ambulance Handover Date/Time is not earlier than Triage Date/Time
+JB 			20/05/2015		TRC I34201 - Rollback 188471 (invalid date comparison), using new VEMD 2015 function from 189814
+JB			05/05/2015		TRC 189814 - VEMD 2015 Edition: change to flag ambulance destination date/time mandatory on case number entry, disable if transport mode not 1, 2 or 3
+								Also general cleanup of XMISSING validation on update (removal of redundant checks, update of custom label change functions to flag required where no label)
+JB			23/06/2015		TRC 189814 - Ambulance checks on triage, further cleanup
+AR			09/06/2015		TRC 205425 - Add diagnosis code R99 to the validation for departure status code 8 and valid diagnosis code. 
+RG			20/02/2017		Changed Print Triage Form checkbox to be checked by default for Warrnambol ED
+
+**********************************************************************/
+
+//CODE AND DESCRIPTIONS USED FOR ONLINE EDITING AND CHECKING MANDATORY FIELDS.
+//DESCRIPTIONS USED ARE AS APPEARS IN CODETABLE DEFINITIONS.
+
+//DEPARTURE STATUS
+
+var DEP1 = "Discharge to Home"
+var DEP3 = "Admission to Short Stay Observation Unit"
+var DEP5 = "Left at Own Risk (after treatment started)"
+var DEP6 = "Left before being seen by doctor"
+var DEP7 = "Died within ED"
+var DEP8 = "Dead on Arrival"
+var DEP10 = "Left after Clinical Advice (regarding treatment options)"
+var DEP11 = "Left at Own Risk (without treatment)"
+var DEP12 = "Correctional/Custodial Facility"
+var DEP13 = "Emergency Medical Unit"
+var DEP14 ="Medical Assessment and Planning Unit"
+var DEP15 = "Intensive Care Unit - this campus"
+var DEP16 = "Mental Health bed - this campus"
+var DEP17 = "Mental Health bed at another Hospital Campus"
+var DEP18 = "Admitted to ward not elsewhere described"
+var DEP19 = "Another hospital campus (excludes for Mental Health and ICU or CCU transfer)" 
+var DEP20 = "Another hospital Campus - Intensive Care Unit"
+var DEP21 = "Another hospital Campus - Coronary Care Unit"
+var DEP22 = "Coronary Care Unit - this campus"
+var DEP23 = "Mental health residential facility or psycho geriatric nursing home"
+var DEP24 = "Residential care facility (includes nursing home, hostel, residential care respite bed)"
+var DEP26 = "Other Mental Health Bed - this Campus"
+var DEP27 = "Cardiac catheter laboratory"
+var DEP28 = "Other operating theatre/procedure room"
+//REFERRED BY
+var REF5 = "ED Review from this hospital"
+//var REF6 = "Transfer from another Hospital campus.Incl admitted & nonadmitted transfers"
+//var REF6 = "Staff from another Hospital campus.Incl admitted & nonadmitted transfers"
+var REF6 = "Staff from another hospital"
+var REF7= "Nursing Home"
+
+//REFERRED TO
+var REFTO19 = "Not applicable"
+
+//VISIT TYPE
+var VIS2 = "Return Visit - planned"
+var VIS4 = "Outpatient or Outpatient clinic"
+var VIS10= "Dead on arrival"
+
+//TRANSPORT MODE
+// LOG 24035 Undertaker removed from the code tables
+//var TRAN9 = "Undertaker"
+//LOG 34209 UNDERTAKER IS BACK
+var TRAN9 = "Undertaker"
+//var TRAN9 = "Ambulance"
+
+//AMBULANCE ARRIVAL VALUE
+var AMB1 = "Air Ambulance"
+var AMB2 = "Helicopter"
+//var AMB3 = "Road Ambulance Service"
+var AMB3 = "Road Ambulance Service"
+var AMB4 = "Ambulance Service - Road Car"
+var AMB9 = "Undertaker"
+var AMB10 = "Ambulance Service - Private Car - MAS/RAV contracted"
+var AMB11 = "Ambulance Service - Private Car - Hospital contracted"
+
+//CH07.1 & 2 Start
+/*****************************************************************************/
+//CH07.1 : Ambulance Arrival Code Types
+var AMB1TYPECODE  = 1
+var AMB2TYPECODE  = 2
+var AMB3TYPECODE  = 3
+var AMB4TYPECODE  = 4
+var AMB6TYPECODE  = 6
+var AMB8TYPECODE  = 8
+var AMB9TYPECODE  = 9
+var AMB10TYPECODE = 10
+var AMB11TYPECODE = 11
+var AMB99TYPECODE = 99
+
+//CH07.2 : Ambulance Case VEMD version date ranges
+var VEMDOPENFROMDATE="01/01/1950"        // set at 1950 to ensure all VEMD versions prior to v15 are covered.
+var VEMDPREVER15DATEFROM=VEMDOPENFROMDATE
+var VEMDPREVER15DATETO="07/06/2010"
+var VEMDVER15DATEFROM="08/06/2010"
+var VEMDVER15DATETO="30/04/2012"
+
+//CH09.1: Updated VEMDVER15DATETO to 30/06/2012 and created VEMDVER16DATEFROM/VEMDVER16DATETO
+var VEMDVER16DATEFROM="01/05/2012"
+//1rst july changes
+var VEMDVER16DATETO="30/06/2013"
+
+var VEMDVER17DATEFROM="01/07/2013"
+var VEMDVER17DATETO="30/06/2014"
+var VEMDVER18DATEFROM="01/07/2014"
+var VEMDVER18DATETO="30/06/2015"
+//var VEMDVER19DATEFROM="01/07/2014" //override 2015 for pre-1st July testing; COMMENT BEFORE LIVE DEPLOYMENT
+var VEMDVER19DATEFROM="01/07/2015"  //UNCOMMENT BEFORE LIVE DEPLOYMENT
+var VEMDVER19DATETO="open"
+
+
+
+//CH07.1 & 2 End
+/*****************************************************************************/
+
+
+//PRIMARY DIAGNOSIS	- Extra var required b/c new versions of Diagnosis desc has no space after sentence in VB Code table
+var PRI0 = "Review following earlier treatment"						// Z09.9A
+var PRI0S = "Review following earlier treatment "					// Z09.9A 
+var PRI1 = "Attendance for follow-up (includes injections)"			// Z09.9B
+var PRI1S = "Attendance for follow-up (includes injections) "		// Z09.9B 
+var PRI2 = "Follow-up examination following treatment"				// Z09.9C
+var PRI2S = "Follow-up examination following treatment "			// Z09.9C
+
+//MediCare Suffix
+var PN="Prisoner"
+
+//Usual accommodation
+var UA11="Prison / Remand Centre / Youth Training centre"
+
+//TRIAGE CATEGORY
+var TC6="6 Dead on Arrival"
+
+var EpisodeID=document.getElementById('EpisodeID');
+var PatientID=document.getElementById('PatientID').value;
+var mradm=document.getElementById('mradm');
+
+//md 17.05.2004
+var AmbCaseNumArray = new Array("","B","U","ACT","NSW","NT","QLD","SA","TAS","WA");
+
+//CH07.2 : Add VEMD configuration
+var AmbulanceTypes = new LoadAmbulanceTypes();
+var VEMDAmbCases = new LoadAmbulanceCaseConfig();
+
+//TRC 189814 -- MRADMAmbulanceCase OnBlur for 2015 July 1 changes
+var TransModeArry2015 = new Array("",AMB1,AMB2,AMB3,AMB1TYPECODE,AMB2TYPECODE,AMB3TYPECODE);
+var AmbArrTimeArry = new Array("","PAADM2AmbulHandoverCompDate","PAADM2AmbulHandoverCompTime","MRADMAmbulanceCase","PAADM2ActualArrivalDate","PAADM2ActualArrivalTime");
+var CheckMandatoryArry = new Array("","PAADM2ActualArrivalDate","PAADM2ActualArrivalTime","PAADM2AmbulHandoverCompDate","PAADM2AmbulHandoverCompTime","MRADMAmbulanceCase","INSSafetyNetCardExpDate","INSConcessionCardExpDate","DVAnumber","TRD2Desc","USACCDesc","TRANSPDesc","TRDDesc","RETRADesc","PAADMDischgTime","PAADMDischgDate","PAADMSeenTime","PAADMSeenDate","CTPCPDesc","MRCIDDesc","MRCIDDescOnly","MRCIDAlternateDesc","READELDesc","INJUDesc","HUMINTDesc","PLINJDesc","ACTINJDesc","MRADMInjuryDesc");
+
+function setCheckBox(obj,name) {
+	obj.setAttribute('type','checkbox');
+    	obj.setAttribute('name',name);
+	obj.setAttribute('id',name);
+	var obj1 = document.getElementById('update1');
+	obj1.parentElement.insertBefore(obj,obj1);
+	obj.style.display='';
+
+}
+
+function setLabel(obj,id,txt) {
+	obj.setAttribute('id',id);
+	obj.innerHTML = '<font color=#ff0080>'+ txt +'</font><br/>';
+	var obj1 = document.getElementById('update1');
+	obj1.parentElement.insertBefore(obj,obj1);
+	obj.style.display='';
+}
+
+function InitCustom() {
+	var obj;
+	Init();
+
+	// // SWARH phoang 21/04/2011 - 
+	// add checkbox for Hamilton ED and Warrnambool ED to check if patient label/registration need to be printed
+	// add checkbox for all locations on Triage screen to see if triage form needs to be printed
+	var logonLoc = session['LOGON.CTLOCID'];
+
+	var wkflContainer=document.getElementById('WorkflowContainer');
+	var episodeScreenPrint=0;
+	if (wkflContainer) {
+		var spans=wkflContainer.getElementsByTagName('span');
+		for (var i=0;i<spans.length;i++) {
+			if ((spans[i].className=="clsMainMenuWorkflowItemSelected") && (spans[i].innerHTML=="Emergency Episode Edit Print")) {
+				episodeScreenPrint=1;
+			}
+		}
+	}
+	else {
+		//alert('test');
+	}
+
+	if (document.fPAPerson_Banner) {
+		var obj=document.fPAPerson_Banner.elements['TWKFL'];
+		if (obj) {
+			if (obj.value=='50003') {
+				if ((logonLoc=="4")||(logonLoc=="2")) {
+				var printCheckBox=document.createElement('input');
+				setCheckBox(printCheckBox,'checkbox');
+				if (logonLoc=="2") printCheckBox.checked=true;
+				var printLabel=document.createElement('label');
+				setLabel(printLabel,'printLabel','Print Label/Registration');
+				}
+			}
+		}
+	}
+	if (document.fPAAdm_EditEmergency) {
+		var obj=document.fPAAdm_EditEmergency.elements['TWKFL'];
+		if (obj) {
+			if ((obj.value=='50002') && (episodeScreenPrint==1)) {
+				var printTriageCheckBox=document.createElement('input');
+				setCheckBox(printTriageCheckBox,'checkboxTriage');
+				// default checkbox "print triage form" to ticked except for Warrnambool ED, Hamilton ED and Lorne Urgent Care
+				// 2017-02-20 (RG) - Warrnambool (logonLoc!="2") removed from this check as they do want triage forms printed by default now
+				if ((logonLoc!="4") && (logonLoc!="1826")) printTriageCheckBox.checked=true;
+				var printTriageLabel=document.createElement('label');
+				setLabel(printTriageLabel,'printTriageLabel','Print Triage Form');
+				var objTriageTime=document.getElementById('PAADMTriageTime');
+				if (objTriageTime.value!='') {
+					//printTriageCheckBox.style.display='none';
+					//printTriageLabel.style.display='none';
+				}
+			}
+		}
+	}
+	// end SWARH phoang 21/04/2011 - add checkbox for Hamilton ED to check if patient label/registration need to be printed
+
+	setCheckbox();
+	setDischargeFields();
+	setAmbulanceField();
+	setSeenByFields();
+	setDefaultFields();
+	checkTransferSource();
+
+	var obj = document.getElementById('ALGDesc');
+	if (obj) labelMandatoryTRC(obj.id)
+
+	var obj=document.getElementById('CTMARDesc')
+	if ((obj)&&(!obj.disabled)) obj.focus()
+
+	var obj=document.getElementById('PAPERName')
+	var obj1=document.getElementById('MRADMPresentComplaint')
+	if ((obj)&&(obj.value=="")&&(!obj.disabled)) obj.focus()
+		else if ((obj1)&&(!obj1.disabled)) obj1.focus()
+
+	obj=document.getElementById('Injury');
+	if (obj) obj.onclick=ResetInjuryFields;
+
+	obj=document.getElementById('INSSafetyNetCardNo');
+	if (obj) websys_addListener("blur","onblur",SafetyNetCardCheck,obj);
+
+	obj=document.getElementById('INSConcessionCardNo');
+	if (obj) websys_addListener("blur","onblur",ConcessionCardCheck,obj);
+
+	obj=document.getElementById('CTRFCDesc');
+	if (obj) websys_addListener("blur","onblur",ReferralChangeHandler,obj);
+
+	obj=document.getElementById('DSCLDesc');
+	if (obj) websys_addListener("blur","onblur",DepartureChangeHandlerNew,obj);
+	
+	var AmbulanceDateTimeArry=new Array("PAAdmTriageDate","PAAdmTriageTime","PAADM2AmbulHandoverCompDate","PAADM2AmbulHandoverCompTime","PAADM2ActualArrivalDate","PAADM2ActualArrivalTime")
+	var i=0;
+	while (AmbulanceDateTimeArry[i]) {
+		if (document.getElementById(AmbulanceDateTimeArry[i])) {
+			websys_addListener("blur","onblur",AmbulanceDateTimeHandler,document.getElementById(AmbulanceDateTimeArry[i]));
+		}
+		i++;
+	}
+	
+	obj=document.getElementById('PAADMTransferFacility');
+	if (obj) websys_addListener("blur","onblur",TransferFacilityCheck,obj);
+
+	obj=document.getElementById('PAADMDischgDate');
+	if (obj) websys_addListener("blur","onblur",DischargeDateChangeHandler,obj);
+
+	obj=document.getElementById('PAADMDischgTime');
+	if (obj) websys_addListener("blur","onblur",DischargeTimeChangeHandler,obj);
+
+	obj=document.getElementById('CTPCPDesc');
+	if (obj) websys_addListener("blur","onblur",ClinicianChangeHandler,obj);
+
+	obj=document.getElementById('PAADMSeenDate');
+	if (obj) websys_addListener("blur","onblur",SeenDateChangeHandler,obj);
+
+	obj=document.getElementById('PAADMSeenTime');
+	if (obj) websys_addListener("blur","onblur",SeenTimeChangeHandler,obj);
+
+	obj=document.getElementById('MRADMPresentComplaint');
+	if (obj) websys_addListener("blur","onblur",PresentComplaintCheck,obj);
+
+	obj=document.getElementById('MRADMAmbulanceCase');
+	if (obj) websys_addListener("blur","onblur",AmbNumCheck,obj);
+	
+	obj=document.getElementById('InsurPayor');
+	if (obj) websys_addListener("blur","onblur",checkDVAChangeHandler,obj);
+
+	obj=document.getElementById('DVAnumber');
+	if (obj) websys_addListener("blur","onblur",checkValidDVA,obj);
+	
+	var obj=document.getElementById('USACCDesc');
+	if (obj) labelMandatoryTRC(obj.id)
+	
+	var obj=document.getElementById('CTACUDesc');
+	if ((obj)&&(obj.value==TC6)) { DOASetFields();}	
+	
+	//md  Log 46555
+	Custom_READELDescDone();
+
+	obj=document.getElementById('update1');
+	if (obj) obj.onclick=UpdateCustom;
+	if (tsc['update1']) websys_sckeys[tsc['update1']]=UpdateCustom;
+}
+
+
+function setDefaultFields() {
+	var obj=document.getElementById('MRCIDDesc');
+	if ((obj)&&(obj.value!="")) {
+		obj.disabled=true
+		obj=document.getElementById('ld191iMRCIDDesc')
+		obj.disabled=true
+	} 
+	var poobj=document.getElementById('MRCIDDescOnly');
+	if ((poobj)&&(poobj.value!="")) {
+		poobj.disabled=true
+		obj=document.getElementById('ld191iMRCIDDescOnly')
+		obj.disabled=true
+	} 
+	var paobj=document.getElementById('MRCIDAlternateDesc');
+	if ((paobj)&&(paobj.value!="")&&(paobj.className=="")) {
+		paobj.disabled=true
+		obj=document.getElementById('ld191iMRCIDAlternateDesc')
+		obj.disabled=true
+	}  
+	
+}
+
+function UpdateCustom() {
+	//md 18/11/2003
+
+	if ((CheckOnupdatePrimaryDiagn())&&(CheckAnyInjuryField())) {
+	 alert("Review diagnosis or clear injury surveillance data");
+	 return false;
+	}	
+	if (!CheckMandatoryFields()) { return false; }
+	ConvertNameCase();
+	ConvertAmbCase()
+	ResetDisabledFields()
+	//ab 22.03.04 - 42553 - now done in UDF
+	//if (CheckDateAgainstCurrent()=="N") {return false;}
+	//Reset()
+	if (CheckDOA()=="N") {return false;}
+	//md 07/06/2003
+	if (!CheckTreatClinician()) { return false; }
+	// JD 64602
+	if (!CheckTriageTime()) { return false; }
+	//CB TRC188471
+	//if (!CheckHandoverTime()) { return false; }	Commenting due to I34201--using new function AmbulanceDateTimeHandler from VEMD 2015 1st July changes
+	return UpdateAll();
+}
+
+// JD 64602
+// NJS 17.09.2007 modified warning message for log 64602 as per TRC11811, Action 24
+function CheckTriageTime() {
+	var ret=true;
+	obj1=document.getElementById('PAADMAdmDate');
+	obj2=document.getElementById('PAADMAdmTime');
+	obj3=document.getElementById('PAADMTriageDate');
+	obj4=document.getElementById('PAADMTriageTime');
+	if (!obj1 || !obj2 || !obj3 || !obj4) return ret;
+
+	if ((obj1.value!="")&&(obj2.value!="")&&(obj3.value!="")&&(obj4.value!="")) {
+		var arrTime=DateTimeDiffInHM(obj1.value,obj2.value,obj3.value,obj4.value);
+		if ((arrTime["hr"]>0)||(arrTime["mn"]>20)) {
+			ret=confirm("Interval between Arrival and Triage time exceed 20 minutes.  \n  Click Cancel to change times or click OK to continue");
+
+		}
+	}
+	return ret;
+}
+
+//TRC189184--removed custom labelMandatory and labeNormal functions, core websys.edit.tools functions should apply
+
+function ConvertNameCase() {
+	var obj;
+	var name="";
+	obj=document.getElementById('PAPERName');
+	if ((obj)&&(obj.value!="")) {
+		obj.value = obj.value.toUpperCase();
+	}
+	var obj=document.getElementById('PAPERName2');
+	if ((obj)&&(obj.value!="")) {
+		name = obj.value;
+		obj.value = name.charAt(0).toUpperCase() + name.slice(1).toLowerCase();
+	}
+	var obj=document.getElementById('PAPERName3');
+	if ((obj)&&(obj.value!="")) {
+		name = obj.value;
+		obj.value = name.charAt(0).toUpperCase() + name.slice(1).toLowerCase();
+	}
+}
+
+// CONVERT AMBULANCE CASE NUMBER TO CAPITAL
+function ConvertAmbCase() {
+	var obj=document.getElementById('MRADMAmbulanceCase');
+	if ((obj)&&((obj.value=="b")||(obj.value=="u"))) {
+		obj.value = obj.value.toUpperCase();
+	}
+}
+
+//for new patients, GPconsent should default to "No"
+function setGPconsent() {
+	var obj = document.getElementById('MRADMGPConsent');
+
+	if ((obj)&&(obj.value=="")) {
+		obj.value="No"
+		}
+}
+
+//for new patients, checkbox is unticked and injury fields are disabled
+//for existing patients, need to display checkbox ticked or unticked according
+//to whether these fields have values
+// 26/3/01  now defaults to checked when ever form loaded
+// 9/5/01 now we want to default to ticked if new, otherwise show as ticked or unticked
+// depending on the values of the fields.
+function setCheckbox() {
+	var newT = document.getElementById('PAADMTriageTime')
+	var objCheck = document.getElementById('Injury');
+	if ((objCheck)&&(newT)&&(newT.value=="")) {
+		objCheck.checked=true
+		}	
+			
+	ResetInjuryFields()
+}
+
+//26/6/01 ESCORT SOURCE NO LONGER MANDATORY
+
+function setDischargeFields() {
+	var obj=document.getElementById('DSCLDesc');		//departure status
+
+	if (obj) {
+		if ((obj.value==DEP17)||(obj.value==DEP19)||(obj.value==DEP20)||(obj.value==DEP21)) {
+			EnableFieldTRC('RETRADesc')
+			EnableFieldTRC('TRDDesc')
+			//fd 20.05.2013 - disable if dischdate >=01/07/2013
+			var disdate=document.getElementById("PAADMDischgDate");
+			if ((disdate)&&(DateStringCompare(disdate.value,VEMDVER17DATEFROM)<0))
+			{
+				EnableFieldTRC('ESCSDesc')
+			}
+			
+		} else {
+			
+			DisableFieldTRC('RETRADesc')
+			DisableFieldTRC('TRDDesc')
+			DisableFieldTRC('ESCSDesc')
+
+		}
+		if ((obj.value==DEP17)||(obj.value==DEP19)||(obj.value==DEP20)||(obj.value==DEP21)) {
+			EnableFieldTRC('TRANSPDesc')
+			} else {
+			DisableFieldTRC('TRANSPDesc')
+		}
+		if (obj.value=="") {
+			labelNormalTRC('RETRADesc')
+			labelNormalTRC('TRANSPDesc')
+			labelNormalTRC('TRDDesc')
+		}
+		if ((obj.value=="")||(obj.value==DEP17)||(obj.value==DEP19)||(obj.value==DEP20)||(obj.value==DEP21)) {
+			labelNormalTRC('ESCSDesc')
+		}
+		if ((obj.value==DEP23)||(obj.value==DEP24)) {
+			labelMandatoryTRC('PAADMTransferFacility')
+			} else {
+			DisableFieldTRC('PAADMTransferFacility')
+		}
+
+	}
+}
+
+function setSeenByFields() {
+	var obj=document.getElementById('CTPCPDesc');
+	var objDate=document.getElementById('PAADMSeenDate');
+	var objTime=document.getElementById('PAADMSeenTime');
+	var triDate=document.getElementById('PAADMTriageDate');
+	var triTime=document.getElementById('PAADMTriageTime')
+	//to be sure that problem is with seen date/time against triage date/time
+	//if so need to keep seen date/time enabled so it can be changed
+	var fcerror=frm.TDIRTY.value;
+	var fcerrorF=""
+	if ((objDate)&&(objDate.className=="clsInvalid")) { fcerrorF=1};
+	if ((objTime)&&(objTime.className=="clsInvalid")) { fcerrorF=1};
+	if ((obj)&&((obj.value!="")||(obj.innerText!=""))&&((fcerror!=2)||(fcerrorF!=1))) {
+		if ((objDate)&&(objTime)) {
+			obj.disabled=true;
+			var obj=document.getElementById("ld191iCTPCPDesc");
+			if (obj) obj.disabled=true;
+			if (objDate) objDate.disabled=true
+			if (objTime) objTime.disabled=true
+			if (objDate.value!="") {
+				if (triDate) triDate.disabled=true
+				if (triTime) triTime.disabled=true
+				
+			}
+		}
+	}
+}
+
+function checkTransferSource() {
+	var obj=document.getElementById('CTRFCDesc');
+	var objTS=document.getElementById('TRD2Desc');
+	
+	if ((obj)&&(obj.value==REF6)){
+		if (objTS){
+			labelMandatoryTRC('TRD2Desc');
+		}	  
+	}else if (objTS){
+		DisableFieldTRC('TRD2Desc')	
+	}
+}
+
+PAADMDischgDate_changehandler = (function(e) {
+	var obj=document.getElementById('PAADMDischgDate');
+	if ((obj)&&(typeof PAADMDischgDate_changehandler=="function")) {
+		var cached_PAADMDischgDatechangehandler=PAADMDischgDate_changehandler;
+		return function (e) {
+			cached_PAADMDischgDatechangehandler(e);
+	   		DischargeDateChangeHandler();
+		}
+	}
+}())
+
+function DischargeDateChangeHandler() {
+	var obj = document.getElementById('PAADMDischgDate')
+	if ((obj)&&(obj.value!="")) {
+		labelMandatoryTRC('PAADMDischgTime')
+		} else {
+		labelNormalTRC('PAADMDischgTime')
+	}
+	Custom_READELDescDone();
+}
+
+PAADMDischgTime_changehandler = (function(e) {
+	var obj=document.getElementById('PAADMDischgTime');
+	if ((obj)&&(typeof PAADMDischgTime_changehandler=="function")) {
+		var cached_PAADMDischgTimechangehandler=PAADMDischgTime_changehandler;
+		return function (e) {
+			cached_PAADMDischgTimechangehandler(e);
+	   		DischargeTimeChangeHandler();
+		}
+	}
+}())
+
+function DischargeTimeChangeHandler() {
+	var obj = document.getElementById('PAADMDischgTime')
+	if ((obj)&&(obj.value!="")) {
+		labelMandatoryTRC('PAADMDischgDate')
+		} else {
+		labelNormalTRC('PAADMDischgDate')
+	}
+	Custom_READELDescDone();
+}
+
+function ClinicianChangeHandler() {
+	var obj=document.getElementById('CTPCPDesc');
+	var objDate=document.getElementById('PAADMSeenDate');
+	var objTime=document.getElementById('PAADMSeenTime');
+	
+
+	if ((obj)&&(obj.value!="")) {
+		labelMandatoryTRC('CTPCPDesc')
+		labelMandatoryTRC('PAADMSeenDate')
+		labelMandatoryTRC('PAADMSeenTime')
+	}
+	if ((obj)&&(obj.value=="")) {
+		if ((objDate)&&(objDate.value=="")&&(objTime)&&(objTime.value=="")) {
+		labelNormalTRC('CTPCPDesc')
+		labelNormalTRC('PAADMSeenDate')
+		labelNormalTRC('PAADMSeenTime')
+		}
+	}
+}
+
+
+PAADMSeenDate_changehandler = (function(e) {
+	var obj=document.getElementById('PAADMSeenDate');
+	if ((obj)&&(typeof PAADMSeenDate_changehandler=="function"))  {
+		var cached_PAADMSeenDatechangehandler=PAADMSeenDate_changehandler;
+		return function (e) {
+			cached_PAADMSeenDatechangehandler(e);
+	   		SeenDateChangeHandler();
+		}
+	}
+}())
+
+function SeenDateChangeHandler() {
+	var obj=document.getElementById('CTPCPDesc');
+	var objDate=document.getElementById('PAADMSeenDate');
+	var objTime=document.getElementById('PAADMSeenTime');
+	if ((objDate)&&(objDate.value!="")) {
+		labelMandatoryTRC('CTPCPDesc')
+		labelMandatoryTRC('PAADMSeenDate')
+		labelMandatoryTRC('PAADMSeenTime')
+	}
+	if ((objDate)&&(objDate.value=="")) {
+		if ((obj)&&(obj.value=="")&&(objTime)&&(objTime.value=="")) {
+		labelNormalTRC('CTPCPDesc')
+		labelNormalTRC('PAADMSeenDate')
+		labelNormalTRC('PAADMSeenTime')
+		}
+	}
+}
+
+PAADMSeenTime_changehandler = (function(e) {
+	var obj=document.getElementById('PAADMSeenTime');
+	if ((obj)&&(typeof PAADMSeenTime_changehandler=="function"))  {
+		var cached_PAADMSeenTimechangehandler=PAADMSeenTime_changehandler;
+		return function (e) {
+			cached_PAADMSeenTimechangehandler(e);
+	   		SeenTimeChangeHandler();
+		}
+	}
+}())
+
+function SeenTimeChangeHandler() {
+	var obj=document.getElementById('CTPCPDesc');
+	var objDate=document.getElementById('PAADMSeenDate');
+	var objTime=document.getElementById('PAADMSeenTime');
+	if ((objTime)&&(objTime.value!="")) {
+		labelMandatoryTRC('CTPCPDesc')
+		labelMandatoryTRC('PAADMSeenDate')
+		labelMandatoryTRC('PAADMSeenTime')
+	}
+	if ((objTime)&&(objTime.value=="")) {
+		if ((objDate)&&(objDate.value=="")&&(obj)&&(obj.value=="")) {
+		labelNormalTRC('CTPCPDesc')
+		labelNormalTRC('PAADMSeenDate')
+		labelNormalTRC('PAADMSeenTime')
+		}
+	}
+}
+
+
+function setAmbulanceField() {
+	var objAmbDestDate=document.getElementById("PAADM2ActualArrivalDate");
+	var objAmbDestTime=document.getElementById("PAADM2ActualArrivalTime");
+	var objAmbHandOverDate=document.getElementById("PAADM2AmbulHandoverCompDate");
+	var objAmbHandOverTime=document.getElementById("PAADM2AmbulHandoverCompTime");
+	var objTrans=document.getElementById("TRANSMDesc");		//arrival transport mode
+	var disdate=document.getElementById("PAADMDischgDate");	//arrival transport mode
+	var objAmbCase=document.getElementById('MRADMAmbulanceCase');
+
+	//1rst july 2014
+
+
+	if ((disdate)&&(disdate.value!="")) {
+		var CompareDateJuly12015=(DateStringCompare(VEMDVER19DATEFROM,disdate.value));
+		var disdateNotNull="1";
+	}else{
+		var CompareDateJuly12015=DateStringCompareToday(VEMDVER19DATEFROM);
+	}	
+	if (CompareDateJuly12015>"-1") {
+		if ((objTrans)&&((objTrans.value==AMB1)||(objTrans.value==AMB2)||(objTrans.value==AMB3)||(objTrans.value==AMB10)||(objTrans.value==AMB4)||
+        (objTrans.value==1)||(objTrans.value==2)||(objTrans.value==3)||(objTrans.value==4)||(objTrans.value==10))&&(objAmbCase)) 
+        {
+			labelMandatoryTRC('MRADMAmbulanceCase');
+		} else if (objAmbCase) {
+			DisableFieldTRC('MRADMAmbulanceCase');
+		}
+		
+		if ((objTrans)&&((objTrans.value==AMB1)||(objTrans.value==AMB2)||(objTrans.value==AMB3)||(objTrans.value==AMB10)||
+		(objTrans.value==1)||(objTrans.value==2)||(objTrans.value==3)||(objTrans.value==10))&&(disdate)&&(objAmbDestDate)&&(objAmbDestTime)&&(objAmbHandOverDate)&&(objAmbHandOverTime))
+		{
+			if (DateStringCompare(disdate.value,VEMDVER18DATEFROM)>=0){
+				labelMandatoryTRC("PAADM2ActualArrivalDate");
+				labelMandatoryTRC("PAADM2ActualArrivalTime");
+				labelMandatoryTRC("PAADM2AmbulHandoverCompDate");
+				labelMandatoryTRC("PAADM2AmbulHandoverCompTime");
+			}
+			else
+			{
+				labelNormalTRC("PAADM2ActualArrivalDate");
+				labelNormalTRC("PAADM2ActualArrivalTime");
+				labelNormalTRC("PAADM2AmbulHandoverCompDate");
+				labelNormalTRC("PAADM2AmbulHandoverCompTime");
+			}			
+		}
+	}
+	else if ((CompareDateJuly12015)<"1"){
+		if (((objAmbCase)&&(objAmbCase.value!="")&&((!objTrans)||(objTrans.value=="")))||((objTrans)&&(objTrans.value!="")&&(checkArray(objTrans.value,TransModeArry2015)))) {
+			for (i=1; i<AmbArrTimeArry.length; i++) {
+				if ((!disdate)&&((AmbArrTimeArry[i]=='PAADM2AmbulHandoverCompDate')||(AmbArrTimeArry[i]=='PAADM2AmbulHandoverCompTime'))) {
+					labelNormalTRC(AmbArrTimeArry[i]);
+				}
+				else if (document.getElementById(AmbArrTimeArry[i])) {
+					labelMandatoryTRC(AmbArrTimeArry[i]);
+				}
+			}
+		}
+		else if ((objTrans)&&(objTrans.value!="")&&(!checkArray(objTrans.value,TransModeArry2015))) {
+			for (i=1; i<AmbArrTimeArry.length; i++) {				
+				if (document.getElementById(AmbArrTimeArry[i])) {
+					DisableFieldTRC(AmbArrTimeArry[i]);
+				}
+			}
+		}
+	}	
+}
+
+
+
+//functions EnableField and DisableField are called from standard PAADM.EditEmergency.js
+function ResetInjuryFields() {
+	var objCheck=document.getElementById('Injury')
+	var objHuman = document.getElementById('HUMINTDesc');
+	var objAct = document.getElementById('ACTINJDesc');
+	var objPlace = document.getElementById('PLINJDesc');
+	var objCause = document.getElementById('INJUDesc');
+	var objDesc = document.getElementById('MRADMInjuryDesc');
+	//md 092003
+	var objDepStat=document.getElementById('DSCLDesc');
+	if ((objCheck)&&(objCheck.checked)) {
+		EnableFieldTRC('HUMINTDesc');
+		EnableFieldTRC('ACTINJDesc');
+		EnableFieldTRC('INJUDesc');
+		EnableFieldTRC('PLINJDesc');
+		EnableFieldTRC('MRADMInjuryDesc');
+		if ((objDepStat)&&(objDepStat.value!="")) 
+			{
+			labelMandatoryTRC('HUMINTDesc');
+			labelMandatoryTRC('ACTINJDesc');
+			labelMandatoryTRC('PLINJDesc');
+			labelMandatoryTRC('INJUDesc');
+			labelMandatoryTRC('MRADMInjuryDesc');
+			 }
+			else
+			 {
+			labelNormalTRC('HUMINTDesc') 
+			labelNormalTRC('ACTINJDesc') 
+			labelNormalTRC('PLINJDesc') 
+			labelNormalTRC('INJUDesc') 
+			labelNormalTRC('MRADMInjuryDesc') 	
+			 }
+		
+	} else {
+		DisableFieldTRC('HUMINTDesc');
+		DisableFieldTRC('ACTINJDesc');
+		DisableFieldTRC('INJUDesc');
+		DisableFieldTRC('PLINJDesc');
+		DisableFieldTRC('MRADMInjuryDesc');
+	}
+}
+
+function Reset() {
+	var objCheck=document.getElementById('Injury')
+
+	if ((objCheck)&&(objCheck.checked==false)) {
+		Disable('HUMINTDesc');
+		Disable('ACTINJDesc');
+		Disable('INJUDesc');
+		Disable('PLINJDesc');
+		Disable('MRADMInjuryDesc');
+
+	}
+	var obj=document.getElementById('TRANSMDesc');		//arrival transport mode
+
+	if ((obj)&&(!((obj.value==AMB1)||(obj.value==AMB2)||(obj.value==AMB3)||(obj.value==AMB4)||(obj.value==AMB10)||
+                    (obj.value==1)||(obj.value==2)||(obj.value==3)||(obj.value==4)||(obj.value==10)))) {
+		Disable('MRADMAmbulanceCase')
+		}
+}
+
+function ResetDisabledFields() {
+	var el=document.forms["fPAAdm_EditEmergency"].elements;
+	for (var i=0;i<el.length;i++) {
+		if (el[i].className == "disabledField")  {
+			el[i].value = "";
+			el[i].disabled=false
+		}
+	}
+	ResetDisabledPD()	
+}
+//md 28.05.2003 enable primary diag fields
+function ResetDisabledPD() {
+	var obj=document.getElementById('MRCIDDesc');
+	if ((obj)&&(obj.value!="")) {
+	obj.disabled=false
+	obj=document.getElementById('ld191iMRCIDDesc')
+	obj.disabled=false
+				     } 
+	var poobj=document.getElementById('MRCIDDescOnly');
+	if ((poobj)&&(poobj.value!="")) {
+	poobj.disabled=false
+	obj=document.getElementById('ld191iMRCIDDescOnly')
+	obj.disabled=false
+					} 
+	var paobj=document.getElementById('MRCIDAlternateDesc');
+	if ((paobj)&&(paobj.value!="")) {
+	paobj.disabled=false
+	obj=document.getElementById('ld191iMRCIDAlternateDesc')
+	obj.disabled=false
+					} 
+}
+
+//used to validate the length of text fields entered
+function setMaxLength(obj,limit) {
+	var maxLength = limit;
+	var fld = obj.value.length;
+	if (fld > maxLength) {
+		return false;
+	} else {
+	return true;
+	}
+}
+
+function SafetyNetCardCheck() {
+	maxChars = 11
+	var obj =document.getElementById('INSSafetyNetCardNo')
+	if ((obj)&&(obj.value!="")) {
+		labelMandatoryTRC('INSSafetyNetCardExpDate')
+		if (!setMaxLength(obj,maxChars)) {
+		alert("\'" + t['INSSafetyNetCardNo'] + "\'" + " must be no more than " + maxChars + " characters\n");
+		obj.focus();
+		}
+	}
+	if ((obj)&&(obj.value=="")) {
+		labelNormalTRC('INSSafetyNetCardExpDate')
+	}
+}
+
+function ConcessionCardCheck() {
+	maxChars = 11
+	var obj =document.getElementById('INSConcessionCardNo')
+	if ((obj)&&(obj.value!="")) {
+		labelMandatoryTRC('INSConcessionCardExpDate')
+		if (!setMaxLength(obj,maxChars)) {
+		alert("\'" + t['INSConcessionCardNo'] + "\'" + " must be no more than " + maxChars + " characters\n");
+			obj.focus()
+		}
+	}
+	if ((obj)&&(obj.value=="")) {
+		labelNormalTRC('INSConcessionCardExpDate')
+	}
+}
+
+MRADMPresentComplaint_lookupsel = (function(str) {
+	if (typeof MRADMPresentComplaint_lookupsel=="function") {
+		var cached_MRADMPresentComplaintlookupsel=MRADMPresentComplaint_lookupsel;
+		return function (str) {
+			cached_MRADMPresentComplaintlookupsel(str);
+	   		PresentComplaintCheck();
+		}
+	}
+}())
+
+function PresentComplaintCheck() {
+	var obj = document.getElementById('MRADMPresentComplaint');
+	var maxChars = 50;
+	if (obj) {
+		if (!setMaxLength(obj,maxChars)) {
+			alert("\'" + t['MRADMPresentComplaint'] + "\'" + " must be no more than " + maxChars + " characters\n");
+			obj.focus()
+		}
+	}
+}
+
+referralByLookUp = (function(str) {
+	if (typeof referralByLookUp=="function") {
+		var cached_referralByLookUp=referralByLookUp;
+		return function (str) {
+			cached_referralByLookUp(str);
+	   		ReferralChangeHandler();
+		}
+	}
+}())
+
+function referredToLookUp(str) {
+	var lu = str.split("^");
+	var obj
+	obj=document.getElementById('REFDEPDesc');
+	//window.focus();
+	ReferralToChangeHandler();
+	if (obj) obj.value = lu[0];
+	//websys_nextfocus(obj.sourceIndex);
+}
+
+// required to populate field for use in VisitChangeHandler--Custom_visitLookUp called in core function try catch
+function Custom_visitLookUp(str) {
+	VisitChangeHandler();
+}
+
+departureByLookUp = (function(str) {
+	if (typeof departureByLookUp=="function") {
+		var cached_departureByLookUp=departureByLookUp;
+		return function (str) {
+			cached_departureByLookUp(str);
+			DepartureChangeHandler(null);
+			ResetInjuryFields();
+		}
+	}
+}())
+
+departureTransLookUp = (function(str) {
+	if (typeof departureTransLookUp=="function") {
+		var cached_departureTransLookUp=departureTransLookUp;
+		return function (str) {
+			cached_departureTransLookUp(str);
+			TransportChangeHandler();
+		}
+	}
+}())
+
+payorByLookUp = (function(str) {
+	if (typeof payorByLookUp=="function") {
+		var cached_payorByLookUp=payorByLookUp;
+		return function (str) {
+			cached_payorByLookUp(str);
+			CustompayorByLookUp(str);
+		}
+	}
+}())
+
+// required to populate field for use in payorChangeHandler
+function CustompayorByLookUp(str) {
+	var lu = str.split("^");
+	var obj
+	obj=document.getElementById('InsurPayor');
+	checkDVAChangeHandler();
+	if (obj) obj.value = lu[0];
+}
+
+arrivalTransLookUp = (function(str) {
+	if (typeof arrivalTransLookUp=="function") {
+		var cached_arrivalTransLookUp=arrivalTransLookUp;
+		return function (str) {
+			cached_arrivalTransLookUp(str);
+			CustomarrivalTransLookUp(str);
+		}
+	}
+}())
+
+function CustomarrivalTransLookUp() {
+	arrivalChangeHandler();
+	var objAmb=document.getElementById('MRADMAmbulanceCase');
+	if ((objAmb)&&(!objAmb.disabled)) {objAmb.focus();}
+
+}
+
+
+function arrivalChangeHandler() {
+	var obj=document.getElementById('TRANSMDesc');
+	if (obj) setAmbulanceField();
+	if (obj) setVisitTypeField();
+	var objAmb=document.getElementById('MRADMAmbulanceCase');
+	if ((objAmb)&&(objAmb.disabled==false)) { 
+		websys_setfocus('MRADMAmbulanceCase');
+	}
+}
+
+function setfocus(objName) {
+	setTimeout('setfocus2(\''+objName+'\')',50);
+}
+
+function setfocus2(objName) {
+	var obj=document.getElementById(objName);
+	if (obj) {
+		try {
+			obj.focus();
+			obj.select();
+		} catch(e) {}
+	}
+}
+
+UsualAccomSelect = (function(str) {
+	if (typeof UsualAccomSelect=="function") {
+		var cached_UsualAccomSelect=UsualAccomSelect;
+		return function (str) {
+			cached_UsualAccomSelect(str);
+			UsualAccomChangeHandler();
+		}
+	}
+}())
+
+function UsualAccomChangeHandler() {
+	var obj=document.getElementById('USACCDesc');
+	var objMS=document.getElementById('MedicareSufix');
+	var msg=""
+	
+	if ((obj)&&(obj.value!=UA11)&&(obj.value!="")&&(objMS)&&(objMS.value==PN)) 
+	 {
+          msg += "\'" + t['USACCDesc'] + "\' " + t['XINVALID'] + "\n";	  			  	
+	 }
+	
+	if (msg != "") {
+		alert(msg)
+		       }	
+
+}
+
+TriageCatSelect = (function(str) {
+	if (typeof TriageCatSelect=="function") {
+		var cached_TriageCatSelect=TriageCatSelect;
+		return function (str) {
+			cached_TriageCatSelect(str);
+			TriageCatChangeHandler();
+		}
+	}
+}())
+
+function TriageCatChangeHandler() {
+	var obj=document.getElementById('CTACUDesc');
+	if ((obj)&&(obj.value==TC6)) { DOASetFields();}	
+}
+
+CareProvLookUpSelect = (function(str) {
+	if (typeof CareProvLookUpSelect=="function") {
+		var cached_CareProvLookUpSelect=CareProvLookUpSelect;
+		return function (str) {
+			cached_CareProvLookUpSelect(str);
+			ClinicianChangeHandler();
+		}
+	}
+}())
+
+// registration screen
+function ReferralChangeHandler() {
+	var obj=document.getElementById('CTRFCDesc')	//referred by
+	var objTS=document.getElementById('TRD2Desc');
+	if ((obj)&&(obj.value==REF6)) {
+		if (objTS) {
+		labelMandatoryTRC('TRD2Desc')
+			   }	
+		} else {
+		if (objTS){
+		DisableFieldTRC('TRD2Desc')
+			  }	
+		}
+	
+}
+
+function ReferredTo() {
+	var obj=document.getElementById('REFDEPDesc');
+	var valid=true
+	if ((obj)&&((obj.value==REFTO19)||(obj.value==19))) {
+		valid=false
+		}
+
+	return valid
+	}
+
+
+function checkPrimaryDiag() {
+	var obj=document.getElementById('MRCIDRowId');
+	var objDS=document.getElementById('DSCLDesc');
+	var found = false
+	if ((obj)&&(obj.value!="")) {
+		alert("\'" + t['DSCLDesc'] + "\' " + t['XINVALID'] + "\n" + "\'" + t['MRCIDDesc'] + "\' exists\n")
+		found=true
+	}
+	
+	return found
+}
+
+
+function findDepStatus() {
+
+	var obj=document.getElementById('DSCLDesc');		//departure status
+	var notApplic
+
+	
+	if (obj) {
+		if ((obj.value==DEP3)||(obj.value==DEP5)||(obj.value==DEP7) ||
+		    (obj.value==DEP8) ||(obj.value==DEP11)||(obj.value==DEP13) ||
+		   (obj.value==DEP14)||(obj.value==DEP15)||(obj.value==DEP16) ||
+		   (obj.value==DEP17) ||(obj.value==DEP18)||(obj.value==DEP19) ||
+		   (obj.value==DEP20)||(obj.value==DEP21)||(obj.value==DEP22) ||
+		   (obj.value==DEP26)||(obj.value==DEP27)||(obj.value==DEP28) ||
+		   (obj.value==3)||(obj.value==5)||(obj.value==7)||
+		   (obj.value==8)||(obj.value==11)||(obj.value==13)||
+		   (obj.value==14)||(obj.value==15)||(obj.value==16)||
+		   (obj.value==17)||(obj.value==18)||(obj.value==19)||
+		   (obj.value==20)||(obj.value==21)||(obj.value==22)||
+		   (obj.value==26)||(obj.value==27)||(obj.value==28))
+		   {
+			notApplic=true		// MUST = NOT APPLICABLE
+		   }
+		if ((obj.value==DEP1)||(obj.value==DEP10)||(obj.value==DEP12)||(obj.value==DEP23)||(obj.value==DEP24)||
+		    (obj.value==1)||(obj.value==10)||(obj.value==12)||(obj.value==23)||(obj.value==24))
+		    {
+		notApplic=false		// MUST != NOT APPLICABLE
+		     }
+	}
+
+	return notApplic
+}
+
+function ReferralToChangeHandler() {
+	var obj=document.getElementById('DSCLDesc');		//departure status
+	var objRT=document.getElementById('REFDEPDesc');  	//referred to
+	var msg=""
+
+	if (obj) {
+
+		if ((obj.value!="")&&(objRT)&&(objRT.value!="")) {
+
+			if ((findDepStatus())&&(objRT.value!=REFTO19)&&(objRT.value!=19)) {
+			msg += "\'" + t['REFDEPDesc'] + "\' " + t['XINVALID'] + "\n";
+			}
+			if ((!findDepStatus())&&((objRT.value==REFTO19)||(objRT.value==19))) {
+			msg += "\'" + t['REFDEPDesc'] + "\' " + t['XINVALID'] + "\n";
+			}
+		}
+	}
+	if (msg != "") {
+		alert(msg)
+	}
+}
+
+function VisitChangeHandler() {
+	var obj=document.getElementById('VSTDesc');
+	var objRef=document.getElementById('CTRFCDesc');
+	if ((objRef)&&((objRef.value=="R")||(objRef.value==REF5))) {
+		if((obj)&&(obj.value!="")&&(obj.value!=VIS2)&&(obj.value!=VIS4)&&
+		   (obj.value!="2")&&(obj.value!="4")) {
+			alert("\'" + t['VSTDesc'] + "\' " + t['XINVALID'] + "\n");
+		}
+	}
+}
+
+function TransportChangeHandler() {
+	var obj=document.getElementById('DSCLDesc');		//departure status
+	var objTM=document.getElementById('TRANSPDesc');  	//transport mode
+	var msg=""
+	if (msg != "") {
+		alert(msg)
+	}
+}
+
+
+function DepartureChangeHandler() {
+	var obj=document.getElementById('DSCLDesc');		//departure status
+	var objRT=document.getElementById('REFDEPDesc');  	//referred to
+	var objTM=document.getElementById('TRANSPDesc');  	//transport mode
+	var objPD=document.getElementById('MRCIDRowId');  	//diagnosis
+	var objTF=document.getElementById('PAADMTransferFacility');  	//transfer facility
+	var objPDCode=document.getElementById('MRCIDCode');
+
+	var msg = ""
+	if (obj) {
+		if (findDepStatus()) {
+			if (objRT) objRT.value=REFTO19;
+			}
+
+		if ((obj.value==DEP17)||(obj.value=="17")||
+			(obj.value==DEP19)||(obj.value=="19")||
+			(obj.value==DEP20)||(obj.value=="20")||
+			(obj.value==DEP21)||(obj.value=="21")) {
+			var hobj=document.getElementById('RETRADesc');
+			if (hobj) labelMandatoryTRC('RETRADesc');
+			var hobj=document.getElementById('TRDDesc');
+			if (hobj) labelMandatoryTRC('TRDDesc');
+			//fd 20.05.2013 - disable if dischdate >=01/07/2013
+			var disdate=document.getElementById("PAADMDischgDate");
+			if ((disdate)&&(DateStringCompare(disdate.value,VEMDVER17DATEFROM)<0))
+			{
+				EnableFieldTRC('ESCSDesc');
+			}
+			else
+			{
+				DisableFieldTRC('ESCSDesc');
+			}
+			var hobj=document.getElementById('TRANSPDesc');
+			if (hobj) labelMandatoryTRC('TRANSPDesc');
+			if (objRT) objRT.value=REFTO19;
+		} else {
+			var hobj=document.getElementById('RETRADesc');
+			if (hobj) DisableFieldTRC('RETRADesc');
+			var hobj=document.getElementById('TRDDesc');
+			if (hobj) DisableFieldTRC('TRDDesc');
+			var hobj=document.getElementById('ESCSDesc')
+			if (hobj) DisableFieldTRC('ESCSDesc');
+			var hobj=document.getElementById('TRANSPDesc');
+			if (hobj) DisableFieldTRC('TRANSPDesc');
+		}
+		if (obj.value=="") {
+			//alert("blank object");
+			labelNormalTRC('RETRADesc')
+			labelNormalTRC('TRDDesc')
+			labelNormalTRC('TRANSPDesc')
+			if (objTM) objTM.value="";
+			if (objRT) objRT.value="";
+			labelNormalTRC('PAADMTransferFacility');
+			}
+		if ((obj.value=="")||(obj.value==DEP17)||(obj.value==DEP19)||(obj.value==DEP20)||(obj.value==DEP21)) {
+			labelNormalTRC('ESCSDesc')
+			}
+
+		if ((obj.value==DEP6)||(obj.value=="6")) {
+			checkPrimaryDiag()
+			}
+		if ((obj.value!="")&&(objRT)&&(objRT.value!="")) {
+			if ((findDepStatus())&&(objRT.value!=REFTO19)&&(objRT.value!=19)) {
+			msg += "\'" + t['REFDEPDesc'] + "\' " + t['XINVALID'] + "\n";
+			}
+			if ((!findDepStatus())&&((objRT.value==REFTO19)||(objRT.value==19))) {
+			msg += "\'" + t['REFDEPDesc'] + "\' " + t['XINVALID'] + "\n";
+			}
+		}
+		if ((obj)&&((obj.value==DEP10)||(obj.value==DEP11))) {
+			var disdate=document.getElementById("PAADMDischgDate");
+			if (!((disdate)&&(DateStringCompare(disdate.value,VEMDVER17DATEFROM)>=0)&&(obj.value==DEP10)))
+			
+			{
+				if ((objPD)&&(objPD.value!="")) {
+				msg += "\'" + t['MRCIDDesc'] + "\' " + t['XINVALID'] + "\n";
+				ResetDisabledPD()
+				}
+			}
+		}
+
+		if ((obj)&&((obj.value==DEP8)||(obj.value==DEP5))) {
+			var poobj=document.getElementById('MRCIDDesc');
+			if (poobj) labelMandatoryTRC('MRCIDDesc');
+			var poobj=document.getElementById('MRCIDDescOnly');
+			if (poobj) labelMandatoryTRC('MRCIDDescOnly');
+			var paobj=document.getElementById('MRCIDAlternateDesc');
+			if (paobj) labelMandatoryTRC('MRCIDAlternateDesc');
+		 	if ((obj.value==DEP8)&&(objPDCode)&&(objPDCode.value!="")&&(objPDCode.value!="R95")&&(objPDCode.value!="R96.1")&&(objPDCode.value!="R99")) {
+			msg += "\'" + "The eek Primary Diagnosis must be either R95=Sudden infant death syndrome or R96.1=Dead on arival. Excludes SID R95";
+			ResetDisabledPD()
+					}		
+		} else {
+			var poobj=document.getElementById('MRCIDDesc');
+			if (poobj) labelNormalTRC('MRCIDDesc');
+			var poobj=document.getElementById('MRCIDDescOnly');
+			if (poobj) labelNormalTRC('MRCIDDescOnly');
+			var paobj=document.getElementById('MRCIDAlternateDesc');
+			if (paobj) labelNormalTRC('MRCIDAlternateDesc');
+			}
+		
+		// 16/05/02 HP Log# 24837: Enable Transfer Facility if Dep Status is not empty and 
+		// code equals 23 or 24 else delete transfer facility and disable it.
+		if ((obj.value!="")&&((obj.value==DEP23)||(obj.value==23)||(obj.value==DEP24))) {
+			if (objTF) {
+				labelMandatoryTRC('PAADMTransferFacility');
+			}
+		}
+		else if (obj.value!="") {
+			if((objTF)&&(objTF.value!="")) {
+				msg += "\'" + t['PAADMTransferFacility'] + "\' inactive for this type of " + "\'" + t['DSCLDesc'] + "\'\n";
+			} 
+			DisableFieldTRC('PAADMTransferFacility');
+		}
+		
+	}
+
+	if (msg != "") {
+		alert(msg)
+
+	}
+}
+
+// 20/5/02 HP Log# 24837
+function TransferFacilityCheck() {
+	var obj=document.getElementById('PAADMTransferFacility');
+	var MAXCHARS = 30;
+	if (obj) {
+		if (!setMaxLength(obj,MAXCHARS)) {
+			alert("\'" + t['PAADMTransferFacility'] + "\'" + " must be no more than " + MAXCHARS + " characters\n");
+			obj.focus()
+		}
+	}
+}
+
+function setVisitTypeField() {
+	var obj=document.getElementById('TRANSMDesc');		//arrival transport mode
+	var objVT=document.getElementById('VSTDesc');
+	var msg=""
+	
+	if ((obj)&&((obj.value==TRAN9)||(obj.value==9))) {
+	if ((objVT)&&(objVT.value!=VIS10))
+	 {
+          msg += "\'" + t['VSTDesc'] + "\' " + t['XINVALID'] + "\n";	  			  	
+	 }
+	}
+	if (msg != "") {
+		alert(msg)
+		       }
+}
+
+function AmbulanceCases() {
+	this.ambulanceCase = new Array();
+	this.AddCase=AddCase;
+}
+
+function AddCase(ambcase) {
+	with (this) if ((ambulanceCase)&&(ambcase))
+					ambulanceCase.push(ambcase);
+}
+
+function VEMD(dtfrm,dtto,desc,tm,crl,crh) {
+	this.VEMDDateFrom=dtfrm;
+	this.VEMDDateTo=dtto;
+	this.VEMDDescription=desc;  // Valid values are either "S#" := String<length> or "N" := Number.
+	this.VEMDRangeLow=crl;
+	this.VEMDRangeHigh=crh;
+	this.VEMDArrTransMode=tm;
+	this.IsValidCase=IsValidCase;
+	this.InDateRange=InDateRange;
+}
+
+function IsValidCase(ambo,arro,admdt) {
+	var type="N";
+	with (this) {
+		if ((ambo)&&(ambo.value!="")&&(ambo.value.substring(0,1)=="0"))
+			type="S"; 
+		if ((type=="S")&&(VEMDDescription.substring(0,1)=="S")&&(ambo.value.length!=parseInt(VEMDDescription.substring(1,2),10)))
+			return false;
+		if ((ambo)&&(ambo.value!="") &&
+			InDateRange(admdt) &&
+			(type==VEMDDescription.substring(0,1)) &&
+			(CheckAmbulanceType(arro.value)==VEMDArrTransMode) &&
+			 ((parseInt(ambo.value,10)>=parseInt(VEMDRangeLow,10))   &&
+			 (parseInt(ambo.value,10)<=parseInt(VEMDRangeHigh,10)))) {
+			return true;
+		}
+	}
+	return false;
+}
+
+function InDateRange(dt) {
+	if (!VEMDDateFrom) var VEMDDateFrom="";
+	if (!VEMDDateTo) var VEMDDateTo="";
+	with (this) {
+		if ((VEMDDateFrom=="open")||(VEMDDateFrom=="")) { VEMDDateFrom=VEMDOPENFROMDATE; }	
+		if ((VEMDDateTo=="open")||(VEMDDateTo=="")) { VEMDDateTo=DateStringToday(); }		
+		if ((DateStringCompare(dt,VEMDDateFrom)>=0)&&(DateStringCompare(VEMDDateTo,dt)>=0))
+			return true;
+	}
+	return false;
+}
+
+function AmbulanceType(cd,desc) {
+	this.Code=cd;
+	this.Description=desc;
+	this.IsAmbulanceType=IsAmbulanceType;
+	this.GetCodeForValue=GetCodeForValue;
+}
+
+function GetCodeForValue(v) {
+	with (this) {
+		if ((v==Code)||(v==Description)) return Code;
+	}
+	return "";
+}
+
+function IsAmbulanceType(v) {
+	with (this) {
+		if ((v==Code)||(v==Description)) return true;
+	}
+	return false;
+}
+
+function CheckAmbulanceType(v) {
+	var i;
+	var rv;
+	for (i=0;i<AmbulanceTypes.length;i++) {
+		rv=AmbulanceTypes[i].GetCodeForValue(v);
+		if (rv!="") break;
+	}
+	return rv;
+}
+
+function LoadAmbulanceTypes() {
+	var ambTypes = new Array();
+	ambTypes.push(new AmbulanceType(AMB1TYPECODE,AMB1));
+	ambTypes.push(new AmbulanceType(AMB2TYPECODE,AMB2));
+	ambTypes.push(new AmbulanceType(AMB3TYPECODE,AMB3));
+	ambTypes.push(new AmbulanceType(AMB4TYPECODE,AMB4));
+	ambTypes.push(new AmbulanceType(AMB9TYPECODE,AMB9));
+	ambTypes.push(new AmbulanceType(AMB10TYPECODE,AMB10));
+	ambTypes.push(new AmbulanceType(AMB11TYPECODE,AMB11));
+	return ambTypes;
+}
+
+function LoadAmbulanceCaseConfig() {
+	var cases = new AmbulanceCases();
+	/* VEMD EDITOR (PRE) VERSION 15 - This is covered by the logic in the OldAmbNumCheck() function */
+	
+	/* VEMD EDITOR VERSION 15 */
+	cases.AddCase(new VEMD(VEMDVER15DATEFROM,VEMDVER15DATETO,"S4",AMB1TYPECODE,"0001","0999"));
+	cases.AddCase(new VEMD(VEMDVER15DATEFROM,VEMDVER15DATETO,"N",AMB1TYPECODE,"1000","4999"));
+	cases.AddCase(new VEMD(VEMDVER15DATEFROM,VEMDVER15DATETO,"S4",AMB2TYPECODE,"0001","0999"));
+	cases.AddCase(new VEMD(VEMDVER15DATEFROM,VEMDVER15DATETO,"N",AMB2TYPECODE,"1000","4999"));
+	cases.AddCase(new VEMD(VEMDVER15DATEFROM,VEMDVER15DATETO,"N",AMB3TYPECODE,"10001","19999"));
+	cases.AddCase(new VEMD(VEMDVER15DATEFROM,VEMDVER15DATETO,"N",AMB3TYPECODE,"70001","79999"));
+	cases.AddCase(new VEMD(VEMDVER15DATEFROM,VEMDVER15DATETO,"N",AMB10TYPECODE,"40000","69999"));
+	cases.AddCase(new VEMD(VEMDVER15DATEFROM,VEMDVER15DATETO,"N",AMB3TYPECODE,"1001","2000"));
+	cases.AddCase(new VEMD(VEMDVER15DATEFROM,VEMDVER15DATETO,"S5",AMB3TYPECODE,"01001","01999"));
+	cases.AddCase(new VEMD(VEMDVER15DATEFROM,VEMDVER15DATETO,"N",AMB3TYPECODE,"2001","3000"));
+	cases.AddCase(new VEMD(VEMDVER15DATEFROM,VEMDVER15DATETO,"S5",AMB3TYPECODE,"02001","02999"));
+	cases.AddCase(new VEMD(VEMDVER15DATEFROM,VEMDVER15DATETO,"N",AMB3TYPECODE,"3001","4000"));
+	cases.AddCase(new VEMD(VEMDVER15DATEFROM,VEMDVER15DATETO,"S5",AMB3TYPECODE,"03001","03999"));
+	cases.AddCase(new VEMD(VEMDVER15DATEFROM,VEMDVER15DATETO,"N",AMB3TYPECODE,"4001","5001"));
+	cases.AddCase(new VEMD(VEMDVER15DATEFROM,VEMDVER15DATETO,"S5",AMB3TYPECODE,"04001","04999"));
+	cases.AddCase(new VEMD(VEMDVER15DATEFROM,VEMDVER15DATETO,"N",AMB3TYPECODE,"5001","5500"));
+	cases.AddCase(new VEMD(VEMDVER15DATEFROM,VEMDVER15DATETO,"S5",AMB3TYPECODE,"05001","05999"));
+	
+	//CH09.2 - Set the end date for version 15 and added version 16 below
+	cases.AddCase(new VEMD(VEMDVER16DATEFROM,VEMDVER16DATETO,"N",AMB1TYPECODE,"10001","19999"));
+	cases.AddCase(new VEMD(VEMDVER16DATEFROM,VEMDVER16DATETO,"N",AMB2TYPECODE,"10001","19999"));
+	cases.AddCase(new VEMD(VEMDVER16DATEFROM,VEMDVER16DATETO,"N",AMB3TYPECODE,"10001","19999"));
+	cases.AddCase(new VEMD(VEMDVER16DATEFROM,VEMDVER16DATETO,"S5",AMB10TYPECODE,"01001","01999"));
+	cases.AddCase(new VEMD(VEMDVER16DATEFROM,VEMDVER16DATETO,"N",AMB10TYPECODE,"60001","69999"));
+	cases.AddCase(new VEMD(VEMDVER16DATEFROM,VEMDVER16DATETO,"S5",AMB10TYPECODE,"08000","08999"));
+	cases.AddCase(new VEMD(VEMDVER16DATEFROM,VEMDVER16DATETO,"N",AMB10TYPECODE,"80001","84999"));
+	
+	//1rst july changes
+	cases.AddCase(new VEMD(VEMDVER17DATEFROM,"open","N",AMB1TYPECODE,"10001","19999"));
+	cases.AddCase(new VEMD(VEMDVER17DATEFROM,"open","N",AMB1TYPECODE,"60001","69999"));
+	cases.AddCase(new VEMD(VEMDVER17DATEFROM,"open","N",AMB1TYPECODE,"70001","79999"));
+	cases.AddCase(new VEMD(VEMDVER17DATEFROM,"open","N",AMB1TYPECODE,"80001","84999"));
+	cases.AddCase(new VEMD(VEMDVER17DATEFROM,"open","S5",AMB1TYPECODE,"01001","01999"));
+	cases.AddCase(new VEMD(VEMDVER17DATEFROM,"open","S5",AMB1TYPECODE,"08000","08999"));
+	cases.AddCase(new VEMD(VEMDVER17DATEFROM,"open","N",AMB2TYPECODE,"10001","19999"));
+	cases.AddCase(new VEMD(VEMDVER17DATEFROM,"open","N",AMB2TYPECODE,"60001","69999"));
+	cases.AddCase(new VEMD(VEMDVER17DATEFROM,"open","N",AMB2TYPECODE,"70001","79999"));
+	cases.AddCase(new VEMD(VEMDVER17DATEFROM,"open","N",AMB2TYPECODE,"80001","84999"));
+	cases.AddCase(new VEMD(VEMDVER17DATEFROM,"open","S5",AMB2TYPECODE,"01001","01999"));
+	cases.AddCase(new VEMD(VEMDVER17DATEFROM,"open","S5",AMB2TYPECODE,"08000","08999"));
+	cases.AddCase(new VEMD(VEMDVER17DATEFROM,"open","N",AMB3TYPECODE,"10001","19999"));
+	cases.AddCase(new VEMD(VEMDVER17DATEFROM,"open","N",AMB3TYPECODE,"60001","69999"));
+	cases.AddCase(new VEMD(VEMDVER17DATEFROM,"open","N",AMB3TYPECODE,"70001","79999"));
+	cases.AddCase(new VEMD(VEMDVER17DATEFROM,"open","N",AMB3TYPECODE,"80001","84999"));
+	cases.AddCase(new VEMD(VEMDVER17DATEFROM,"open","S5",AMB3TYPECODE,"01001","01999"));
+	cases.AddCase(new VEMD(VEMDVER17DATEFROM,"open","S5",AMB3TYPECODE,"08000","08999"));
+	cases.AddCase(new VEMD(VEMDVER17DATEFROM,"open","N",AMB10TYPECODE,"10001","19999"));
+	cases.AddCase(new VEMD(VEMDVER17DATEFROM,"open","N",AMB10TYPECODE,"60001","69999"));
+	cases.AddCase(new VEMD(VEMDVER17DATEFROM,"open","N",AMB10TYPECODE,"70001","79999"));
+	cases.AddCase(new VEMD(VEMDVER17DATEFROM,"open","N",AMB10TYPECODE,"80001","84999"));
+	cases.AddCase(new VEMD(VEMDVER17DATEFROM,"open","S5",AMB10TYPECODE,"01001","01999"));
+	cases.AddCase(new VEMD(VEMDVER17DATEFROM,"open","S5",AMB10TYPECODE,"08000","08999"));
+
+
+	return cases;
+}
+
+function IsValidVEMD() {
+	var objadmdate=document.getElementById('PAADMAdmDate');
+	var objAmb=document.getElementById('MRADMAmbulanceCase');
+	var objArrival=document.getElementById('TRANSMDesc');
+	
+	for (i=0;i<VEMDAmbCases.ambulanceCase.length;i++) {
+		if (VEMDAmbCases.ambulanceCase[i].IsValidCase(objAmb,objArrival,objadmdate.value)) {
+			return true;
+		}
+	}
+	return false;
+}
+
+function AmbNumCheck() {
+	//CH07
+	ConvertAmbCase();
+	setAmbulanceField();
+	var admdt=document.getElementById('PAADMAdmDate');
+	if ((document.getElementById('PAADMAdmDate'))&&(document.getElementById('PAADMAdmDate').value=="")) admdt.value=DateStringToday();
+	if ((document.getElementById('MRADMAmbulanceCase'))&&
+	    (DateStringCompare(admdt.value,VEMDPREVER15DATETO)<=0)) {
+		OldAmbNumCheck();
+	} else if ((document.getElementById('MRADMAmbulanceCase'))&&
+	    (DateStringCompare(admdt.value,VEMDVER16DATETO)<=0)){
+		if (document.getElementById('MRADMAmbulanceCase')) NewAmbNumCheck16();
+	}
+	else
+	{
+		if (document.getElementById('MRADMAmbulanceCase'))  NewAmbNumCheck17();
+	}
+}
+
+function NewAmbNumCheck17() {
+	var objadmdate=document.getElementById('PAADMAdmDate');
+	var objAmb=document.getElementById('MRADMAmbulanceCase');
+	var objArrival=document.getElementById('TRANSMDesc');
+	
+	if (objArrival) {
+		if ((objArrival.value==AMB1)||(objArrival.value==AMB2)||(objArrival.value==AMB3)||(objArrival.value==AMB10)||
+		(objArrival.value==AMB1TYPECODE)||(objArrival.value==AMB2TYPECODE)||(objArrival.value==AMB3TYPECODE)||(objArrival.value==AMB10TYPECODE))
+		{
+			if ((objAmb)&&((objAmb.value=='B')||(objAmb.value=='U')))
+			{
+				return true;
+			}
+		}
+		
+		if ((objArrival)&&(objArrival.value!="")&&
+		    (objAmb)&&(objAmb.value!="")&&
+		    (objadmdate)&&(objadmdate.value=="")) {
+			labelMandatoryTRC('PAADMAdmDate');
+			alert("\'" + t['PAADMAdmDate'] + "\'" +
+			      "is required if Ambulance Case and\n Transport Arrival Mode are used.\n");
+			setfocus('PAADMAdmDate');
+			objAmb.value="";	
+			return false;		
+		}
+		if ((objAmb)&&(objAmb.value!="")&&(!IsValidVEMD())) {
+			alert("[" + objAmb.value + "] " + "\'" + t['MRADMAmbulanceCase'] + "\' " + t['XINVALID'] + "\n");
+			objAmb.value="";
+			setfocus('MRADMAmbulanceCase'); 
+		}
+		
+	}
+}
+
+//CH07.5
+function NewAmbNumCheck16() {
+	var objadmdate=document.getElementById('PAADMAdmDate');
+	var objAmb=document.getElementById('MRADMAmbulanceCase');
+	var objArrival=document.getElementById('TRANSMDesc');
+	if (objArrival) {
+		if ((objArrival.value==AMB1)||(objArrival.value==AMB2)||
+		    (objArrival.value==AMB1TYPECODE)||(objArrival.value==AMB2TYPECODE)) {
+			if ((objAmb)&&(checkArray(objAmb.value,AmbCaseNumArray))) {
+				return true;
+			}			
+		}
+		if ((objArrival.value==AMB3)||(objArrival.value==AMB4)||
+		    (objArrival.value==AMB3TYPECODE)||(objArrival.value==AMB4TYPECODE)) {  
+			if ((objAmb)&&(checkArray(objAmb.value,AmbCaseNumArray))) {
+				return true
+			}
+		}
+		if ((objArrival.value==AMB10)||(objArrival.value==AMB10TYPECODE)) {
+			if ((objAmb)&&(objAmb.value!="")&&(checkArray(objAmb.value,AmbCaseNumArray))) {
+				return true
+			}
+		}
+		if ((objArrival)&&(objArrival.value!="")&&
+		    (objAmb)&&(objAmb.value!="")&&
+		    (objadmdate)&&(objadmdate.value=="")) {
+			labelMandatoryTRC('PAADMAdmDate');
+			alert("\'" + t['PAADMAdmDate'] + "\'" +
+			      "is required if Ambulance Case and\n Transport Arrival Mode are used.\n");
+			setfocus('PAADMAdmDate');
+			objAmb.value="";	
+			return false;		
+		}
+		if ((objAmb)&&(objAmb.value!="")&&(!IsValidVEMD())) {
+			alert("[" + objAmb.value + "] " + "\'" + t['MRADMAmbulanceCase'] + "\' " + t['XINVALID'] + "\n");
+			objAmb.value="";
+			setfocus('MRADMAmbulanceCase'); 
+		}
+	
+	}
+}
+
+function OldAmbNumCheck() {
+	var objAmb=document.getElementById('MRADMAmbulanceCase');
+	var objArrival=document.getElementById('TRANSMDesc');
+	//var reAmb = /^[BbUu\s*]$/
+	var reAmb = /^[BbUu]$/
+	
+	//if ((objArrival)&&(objAmb.value!="")) {
+	if (objArrival) {
+
+		if ((objArrival.value==AMB1)||(objArrival.value==AMB2)||
+		    (objArrival.value==1)||(objArrival.value==2)) {
+			if ((objAmb)&&(checkArray(objAmb.value,AmbCaseNumArray))) {
+			return true
+			}
+			if ((objAmb)&&(objAmb.value!="")&&(!((objAmb.value>=1001)&&(objAmb.value<=9999)))) {
+			objAmb.value=""
+			alert("\'" + t['MRADMAmbulanceCase'] + "\' " + t['XINVALID'] + "\n");
+			setfocus('MRADMAmbulanceCase'); 
+			}
+		}
+		if ((objArrival.value==AMB3)||(objArrival.value==AMB4)||
+		    (objArrival.value==3)||(objArrival.value==4)) {
+			if ((objAmb)&&(checkArray(objAmb.value,AmbCaseNumArray))) {
+			return true
+			}
+			if ((objAmb)&&(objAmb.value!="")&&(!(((objAmb.value>=1001)&&(objAmb.value<=2999))||
+					((objAmb.value>=3001)&&(objAmb.value<=3500))||
+					((objAmb.value>=4001)&&(objAmb.value<=4500))||
+					((objAmb.value>=5001)&&(objAmb.value<=5500))||
+					((objAmb.value>=7001)&&(objAmb.value<=7500))))) {
+			
+			objAmb.value=""
+			alert("\'" + t['MRADMAmbulanceCase'] + "\' " + t['XINVALID'] + "\n");
+			setfocus('MRADMAmbulanceCase');
+			
+			}
+		}
+		if ((objArrival.value==AMB10)||(objArrival.value==10)) {
+			if ((objAmb)&&(objAmb.value!="")&&(checkArray(objAmb.value,AmbCaseNumArray))) {
+			return true
+			}
+			//md 06.12.2005 log 57301
+			if ((objAmb)&&(objAmb.value!="")&&(!(((objAmb.value>=1501)&&(objAmb.value<=2000))||
+				 	((objAmb.value>=2501)&&(objAmb.value<=3499))||
+			 	 	((objAmb.value>=3501)&&(objAmb.value<=5499))||
+					((objAmb.value>=5501)&&(objAmb.value<=6499))||
+		 		 	((objAmb.value>=8000)&&(objAmb.value<=8499))))) {
+			objAmb.value=""
+			alert("\'" + t['MRADMAmbulanceCase'] + "\' " + t['XINVALID'] + "\n");
+			//objAmb.focus()
+			setfocus('MRADMAmbulanceCase');
+			}
+		}
+	}
+}
+
+
+//functions used for validate DVA number
+function checkDVAChangeHandler() {
+	var obj=document.getElementById('InsurPayor');
+	if ((obj)&&((obj.value=="DVA")||(obj.value=="DEPARTMENT OF VETERANS' AFFAIR"))) {
+		labelMandatoryTRC('DVAnumber')
+		} else {
+		labelNormalTRC('DVAnumber')
+	}
+	//required as payor standard payor change handler is overriden by this function
+	
+}
+
+function checkValidDVA() {
+	var strNum =document.getElementById('DVAnumber')
+	if ((strNum)&&(validDVA(strNum))) {
+		return true
+		} else {
+		alert("\'" + t['DVAnumber'] + "\' " + t['XINVALID'] + "\n");
+		strNum.focus();
+	}
+}
+
+function validDVA(strNum) {
+
+	//var reDVA = /^[QNVTSWqnvts]([a-zA-Z]{3}|[a-zA-Z]{2}[\d]{1}|[a-zA-Z]{1}[\d]{2}|[\d]{3})([\d]{4}[a-zA-Z]{1}|[\d]{4}|[\d]{3}|[\d]{2}[a-zA-Z]{1})(\s*)$/
+
+	var reDVA = /^[QNVTSW]([A-Z]{3}|[A-Z]{2}[\d]{1}|[A-Z]{1}[\d]{2}|[\d]{3})([\d]{0,3})([\d]{0,1}|[A-Z]{0,1})([A-Z]{0,1})$/
+  	if ((strNum)&&(strNum.value!="")) {
+			var re=/\s/g;
+			strNum.value=strNum.value.replace(re,"")
+			strNum.value=strNum.value.toUpperCase()
+  			if(reDVA.test(strNum.value)) {
+				//alert(strNum.value.toUpperCase())
+				return true
+				} else {
+				return false
+         	   	}
+	}
+}
+
+MRCIDDescLookUpSelect = (function(str) {
+	if (typeof MRCIDDescLookUpSelect=="function") {
+		var cached_MRCIDDescLookUpSelect=MRCIDDescLookUpSelect;
+		return function (str) {
+			cached_MRCIDDescLookUpSelect(str);
+			CustomMRCIDDescLookUpSelect(str);
+		}
+	}
+}())
+
+function CustomMRCIDDescLookUpSelect(str) {
+	var lu=str.split("^");
+	var arrICD=lu[0].split(" | ");
+	var obj=document.getElementById('MRCIDCode');
+	if (obj) obj.value=lu[2]; 
+	PrimaryDiagnChangeHandler();
+}
+
+MRCIDDescOnlyLookUp = (function(str) {
+	if (typeof MRCIDDescOnlyLookUp=="function") {
+		var cached_MRCIDDescOnlyLookUp=MRCIDDescOnlyLookUp;
+		return function (str) {
+			cached_MRCIDDescOnlyLookUp(str);
+			CustomMRCIDDescOnlyLookUp(str);
+		}
+	}
+}())
+
+// 16/09/02 Log# 27697 HP: Following 2 functions added to cater for the two new versions of Diagnosis
+function CustomMRCIDDescOnlyLookUp(str) {
+	var ary=str.split("^");
+	var ary2=ary[0].split(" | ");
+	var obj=document.getElementById('MRCIDCode');
+	if (obj) obj.value=ary[2]; 
+	PrimaryDiagnChangeHandler();
+}
+
+MRCIDAltDescLookUp = (function(str) {
+	if (typeof MRCIDAltDescLookUp=="function") {
+		var cached_MRCIDAltDescLookUp=MRCIDAltDescLookUp;
+		return function (str) {
+			cached_MRCIDAltDescLookUp(str);
+			CustomMRCIDAltDescLookUp(str);
+		}
+	}
+}())
+
+function CustomMRCIDAltDescLookUp(str) {
+	var ary=str.split("^");
+	var ary2=ary[0].split(" | ");
+	var obj=document.getElementById('MRCIDCode');
+	if (obj) obj.value=ary[2]; 
+	PrimaryDiagnChangeHandler();
+}
+
+// 27/06/02 HP Log#24836 For certain entry of Primary diagnosis, open MRDiagnos.Edit window
+// and passed primary diagnosis and complaint fields as hiddenDiag to it.
+function PrimaryDiagnChangeHandler() {
+	var obj2=document.getElementById("MRCIDRowId")
+	if ((obj2)&&(obj2.value!="")) var diagRowID=obj2.value;
+	var obj=document.getElementById('MRCIDDesc');
+	var poobj=document.getElementById('MRCIDDescOnly');
+	var paobj=document.getElementById('MRCIDAlternateDesc');
+	var symObj=document.getElementById('symptom');
+	var depstat=document.getElementById('DSCLDesc');
+	var pdcode=document.getElementById('MRCIDCode');
+	var diag="", diagdes="", diagalt="";
+	var sym="";
+	var refreshflag="1"
+	if (obj) { diag=obj.value }
+	if (symObj)	{ sym=symObj.value }
+	if (poobj) { diagdes=poobj.value }
+	if (paobj) { diagalt=paobj.value }
+
+	if ((diag==PRI0)||(diag==PRI1)||(diag==PRI2)||
+		(diag==PRI0S)||(diag==PRI1S)||(diag==PRI2S)||
+		(diagdes==PRI0)||(diagdes==PRI1)||(diagdes==PRI2)||
+		(diagdes==PRI0S)||(diagdes==PRI1S)||(diagdes==PRI2S)||
+		(diagalt==PRI0)||(diagalt==PRI1)||(diagalt==PRI2)||
+		(diagalt==PRI0S)||(diagalt==PRI1S)||(diagalt==PRI2S)) {
+		window.focus();
+		if (confirm("You must confirm the Primary Diagnosis and then enter an Additional Diagnosis to identify the condition under review / treatment")) {
+			websys_createWindow('websys.default.csp?WEBSYS.TCOMPONENT=MRDiagnos.Edit&EpisodeID='+EpisodeID.value+'&PARREF='+mradm.value+'&PatientID='+PatientID.value+'&hiddenDiag='+diag+"^"+sym+"^"+diagRowID+"^"+diagdes+"^"+diagalt+'&refreshflag='+refreshflag,'diag','top=20,left=20,width=600,height=600')
+		} else {
+			if (obj) obj.value="";
+			if (poobj) poobj.value="";
+			if (paobj) paobj.value="";
+		}
+	}
+	if ((depstat)&&(depstat.value!=""))
+	 {
+	 var disdate=document.getElementById("PAADMDischgDate");
+	if (((depstat.value==DEP10)||(depstat.value==DEP11))&&((diag!="")||(diagdes!="")||(diagalt!=""))) { 
+		if (!((disdate)&&(DateStringCompare(disdate.value,VEMDVER17DATEFROM)>=0)&&(depstat.value==DEP10)))
+		{alert("Primary Diagnosis must be blank for this Departure Status");}
+	}
+	if ((pdcode)&&(pdcode.value!="")&&(pdcode.value!="R95")&&(pdcode.value!="R95.9")&&(pdcode.value!="R96.1")&&(pdcode.value!="R99")&&(depstat.value==DEP8))	
+		{
+		alert("The Primary Diagnosis must be either R95=Sudden infant death syndrome or R99=Death (excludes SIDS: R959)");
+		}
+	 }
+}	
+
+
+// 8/8/02 Log#25937 HP: Triage Date and Time can not be change if equal to the Clinician Seen Date and Time
+function checkTriageDateTime() {
+	var seenDate="";
+	var seenTime="";
+	var triDate="";
+	var triTime="";
+	var objTDate = document.getElementById('PAADMTriageDate')
+	var objSDate=document.getElementById('PAADMSeenDate');
+	var objTTime=document.getElementById('PAADMTriageTime');
+	var objSTime=document.getElementById('PAADMSeenTime');
+	
+	if ((objTDate)&&(objTDate.value!="")) { triDate=SplitDateStr(objTDate.value); }
+	if ((objSDate)&&(objSDate.value!="")) { seenDate=SplitDateStr(objSDate.value); }
+	if ((objTTime)&&(objTTime.value!="")) { triTime=objTTime.value; }
+	if ((objSTime)&&(objSTime.value!="")) { seenTime=objSTime.value; }
+	
+	if (triDate!="") { var dtTriage = new Date(triDate["yr"], triDate["mn"]-1, triDate["dy"]); }
+	if (seenDate!="") { var dtSeen = new Date(seenDate["yr"], seenDate["mn"]-1, seenDate["dy"]); }
+	dtTriage=Date.parse(dtTriage);
+	dtSeen=Date.parse(dtSeen);
+	
+	if (dtTriage==dtSeen) {
+		if ((triTime!="")&&(seenTime!="")&&(triTime==seenTime)) {
+			objTDate.onchange=TriageDateTimeChange;
+			objTTime.onchange=TriageDateTimeChange;
+		}
+	}
+}
+
+//HP: Prevent changes if Triage Date and Time equal to the Clinician Seen Date and Time
+function TriageDateTimeChange() {
+	var objTDate = document.getElementById('PAADMTriageDate')
+	var objSDate=document.getElementById('PAADMSeenDate');
+	var objTTime=document.getElementById('PAADMTriageTime');
+	var objSTime=document.getElementById('PAADMSeenTime');
+
+	alert(t["TriageSeenTime"]);
+	if ((objTDate)&&(objTDate.value!="")) {
+		if ((objSDate)&&(objSDate.value!="")) {
+			objTDate.value=objSDate.value;
+			objTDate.disabled=true;
+		}
+	}
+	if ((objTTime)&&(objTTime.value!="")) {
+		if ((objSTime)&&(objSTime.value!="")) {
+			objTTime.value=objSTime.value;
+			objTTime.disabled=true;
+		}
+	}
+}
+
+function CheckMandatoryFields() {
+	var msg="";
+	//ambNumCheck()
+
+	//Allergy List box must contain at least one Allergy or free text allergy entered.
+	var obj=document.getElementById('ALGEntered');
+	var obj1=document.getElementById('PAPMIAllergy');
+	var allergy = false
+	//if (!((obj)&&(obj1))) { allergy=true }
+	//md 16.03.2004 this is correct expression 
+	if ((!(obj))&&(!(obj1))) { allergy=true }
+	if ((obj)&&(obj.length>=1)) { allergy=true }
+	if ((obj1)&&(obj1.value!="")) {allergy=true }
+	if (!allergy) {
+		msg += "\'" + t['ALGDesc'] + "\' " + t['XMISSING'] + "\n";
+	}
+	
+	//TRC 188920 amended to use core function to determine clsRequired fields with no values on update (rather than duplicating event handler checks)
+	var i=1;
+	while (CheckMandatoryArry[i]) {
+		if ((document.getElementById(CheckMandatoryArry[i]))&&(isLabeledMandatoryTRC(CheckMandatoryArry[i]))) {
+			if (document.forms['fPAAdm_EditEmergency']) {
+				msg+=RequiredMsgObj(document.forms['fPAAdm_EditEmergency'].elements[CheckMandatoryArry[i]],false);
+				}
+  			else {
+	  			msg+=RequiredMsgObj(document.getElementById(CheckMandatoryArry[i]),false);
+	  			}
+		}
+		i++
+	}
+	
+	var obj=document.getElementById('DSCLDesc')
+	var objM6=document.getElementById('REFDEPDesc')		//referred to
+	var objTF=document.getElementById('PAADMTransferFacility');  	//transfer facility
+
+	//MSD  CHANGE
+	//if ((obj)&&(((obj.value==0)||(obj.value==DEP0)) ||
+	//	((obj.value==1)||(obj.value==DEP1)) ||
+	//	((obj.value==9)||(obj.value==DEP9)))) {
+	if ((obj)&&(((obj.value==23)||(obj.value==DEP23)) ||
+		((obj.value==1)||(obj.value==DEP1)) ||
+		((obj.value==24)||(obj.value==DEP24)))) {	
+		if ((objM6)&&((objM6.value=="19")||(objM6.value==REFTO19))) {
+			msg += "\'" + t['REFDEPDesc'] + "\' " + t['XINVALID'] + "\n";
+		}
+	}
+	//MSD  CHANGE
+	if ((obj)&&((obj.value==DEP22)||(obj.value==DEP17)||(obj.value==22)||(obj.value==17)||
+		  (obj.value==DEP5)||(obj.value==DEP6)||(obj.value==5)||(obj.value==6)||
+		  (obj.value==3)||(obj.value==DEP3)||(obj.value==13)||(obj.value==DEP13)||
+		  (obj.value==15)||(obj.value==DEP15)||(obj.value==14)||(obj.value==DEP14)||
+		  (obj.value==18)||(obj.value==DEP18)||(obj.value==19)||(obj.value==DEP19)||
+		  (obj.value==20)||(obj.value==DEP20)||(obj.value==21)||(obj.value==DEP21)||
+		  (obj.value==DEP7)||(obj.value==DEP8)||(obj.value==7)||(obj.value==8))) {	
+		  if ((objM6)&&(!((objM6.value=="19")||(objM6.value==REFTO19)||(objM6.value=="")))) {
+			msg += "\'" + t['REFDEPDesc'] + "\' " + t['XINVALID'] + "\n";
+		}
+	}
+	
+	//md 03/06/2003 34209 dep satat against primary diagnos
+	if ((obj)&&((obj.value==DEP10)||(obj.value==10)||(obj.value==DEP11)||(obj.value==11))) {
+	    var disdate=document.getElementById("PAADMDischgDate");
+	    if (!((disdate)&&(DateStringCompare(disdate.value,VEMDVER17DATEFROM)>=0)&&((obj.value==DEP10)||(obj.value==10))))
+		
+		{
+			var pdobj1=document.getElementById('MRCIDDesc');
+			var pdobj2=document.getElementById('MRCIDDescOnly');
+			var pdobj3=document.getElementById('MRCIDAlternateDesc');
+			if ((pdobj1)&&(pdobj1.value!="")){
+				msg += "\'" + t['MRCIDDesc'] + "\' " + "must be blank for this Departure Status" + "\n";
+				//pdobj1.className="clsInvalid";
+				//pdobj1.focus();
+			}
+			if ((pdobj2)&&(pdobj2.value!="")){
+				msg += "\'" + t['MRCIDDescOnly'] + "\' " + "must be blank for this Departure Status" + "\n";
+			}
+			if ((pdobj3)&&(pdobj3.value!="")){
+				msg += "\'" + t['MRCIDAlternateDesc'] + "\' " + "must be blank for this Departure Status" + "\n";
+			}
+		}
+	}
+	//md
+	// 16/05/02 HP Log# 24837: Add warnings if 30 chars exceeded for Transfer Facility, if 
+	// Dep Status code = 0 or 9, and if it is empty but Transfer Facility exists.
+	var MAXCHARSTF = 30;
+	if ((objTF)&&(!setMaxLength(objTF,MAXCHARSTF))) {
+		msg += "\'" + t['PAADMTransferFacility'] + "\' " + t['XINVALID'] + "\n";
+		objTF.focus();
+	}
+	if (obj) {
+		if ((obj.value=="")&&(objTF)&&(objTF.value!="")) {
+			msg += "\'" + t['DSCLDesc'] + "\' " + t['XMISSING'] + "\n" + "\'" + t['PAADMTransferFacility'] + "\' exists\n";
+		}
+	}
+	
+	//check actual ambulance arrival>triage>amublance handover sequence
+	msg += AmbulanceDateTimeHandler(1);
+	
+	//check validity of restricted fields
+
+	var obj=document.getElementById('CTRFCDesc')
+	var objM=document.getElementById('VSTDesc')
+	if ((obj)&&((obj.value=="R")||(obj.value==REF5))) {
+		if((objM)&&!((objM.value==2)||(objM.value==4)||(objM.value==VIS2)||(objM.value==VIS4))) {
+			msg += "\'" + t['VSTDesc'] + "\' " + t['XINVALID'] + "\n";
+		}
+	}
+
+	var obj = document.getElementById('MRADMPresentComplaint');
+	var maxChars = 50;
+	if ((obj)&&(!setMaxLength(obj,maxChars))) {
+		msg += "\'" + t['MRADMPresentComplaint'] + "\' " + t['XINVALID'] + "\n";
+	}
+
+	var obj = document.getElementById('INSSafetyNetCardNo');
+	var maxChars = 11;
+	if ((obj)&&(!setMaxLength(obj,maxChars))) {
+		msg += "\'" + t['INSSafetyNetCardNo'] + "\' " + t['XINVALID'] + "\n";
+	}
+
+	var obj = document.getElementById('INSConcessionCardNo');
+	var maxChars = 11;
+	if ((obj)&&(!setMaxLength(obj,maxChars))) {
+		msg += "\'" + t['INSConcessionCardNo'] + "\' " + t['XINVALID'] + "\n";
+	}
+
+	if (msg != "") {
+		alert(msg)
+		return false;
+	} else {
+		return true;
+	}
+
+}
+
+//md 28.05.2003
+function DOASetFields() {
+	
+	var objVT=document.getElementById("VSTDesc");
+	var objDS=document.getElementById("DSCLDesc");
+	var objRToD=document.getElementById("REFDEPDesc");
+
+	if (objVT) objVT.value=VIS10;
+	if (objDS) objDS.value=DEP8;
+	if (objRToD) objRToD.value=REFTO19;
+}
+function CheckDOA() {
+	var objVT=document.getElementById("VSTDesc");
+	var objDS=document.getElementById("DSCLDesc");
+	var objRToD=document.getElementById("REFDEPDesc");
+	var obj=document.getElementById('CTACUDesc');
+	var objPDCode=document.getElementById('MRCIDCode');
+	var msg=""
+	var DOAtrue="Y"
+	//md 11/12/2003
+	var psobj=document.getElementById('MRCIDDesc');
+	var poobj=document.getElementById('MRCIDDescOnly');
+	var paobj=document.getElementById('MRCIDAlternateDesc');
+	
+	if ((obj)&&(obj.value==TC6)) 
+	{
+		if ((objVT)&&(objVT.value!=VIS10))	{
+		msg += "\'" + t['VSTDesc'] + "\' " + t['XINVALID'] + "\n";	
+							}
+		if ((objDS)&&(objDS.value!=DEP8))	{
+		msg += "\'" + t['DSCLDesc'] + "\' " + t['XINVALID'] + "\n";	
+							}
+		if ((objRToD)&&(objRToD.value!=REFTO19)){	
+		msg += "\'" + t['REFDEPDesc'] + "\' " + t['XINVALID'] + "\n";	
+							}
+	}
+	//AR 09/06/2015		TRC 205425 - Add diagnosis code R99 to the validation for departure status code 8 and valid diagnosis code.
+	if ((objDS)&&(objDS.value==DEP8)) {
+		if ((objPDCode)&&(objPDCode.value!="")&&(objPDCode.value!="R95")&&(objPDCode.value!="R95.9")&&(objPDCode.value!="R96.1")&&(objPDCode.value!="R99")) {
+			msg += "\'" + "The Primary diagnosis must be either R95=Sudden infant death syndrome or R99=Death(excludes SIDS: R95.9)";
+			ResetDisabledPD();
+			}
+	if ((objPDCode)&&(objPDCode.value=="")) {
+		if ((psobj)&&(psobj.value=="")) {msg += "\'" + t['MRCIDDesc'] + "\' " + t['XMISSING'] + "\n";}
+		if ((poobj)&&(poobj.value=="")) {msg += "\'" + t['MRCIDDescOnly'] + "\' " + t['XMISSING'] + "\n";}	
+		if ((paobj)&&(paobj.value=="")) {msg += "\'" + t['MRCIDAlternateDesc'] + "\' " + t['XMISSING'] + "\n";}	
+	}
+	}
+	if (msg != "") {
+		alert(msg)
+		DOAtrue="N"
+	}						
+return DOAtrue;
+}
+function DepartureChangeHandlerNew() {
+	var obj=document.getElementById('DSCLDesc');
+	if (obj.value=="") {
+			var hobj=document.getElementById('RETRADesc');
+			if (hobj) DisableFieldTRC('RETRADesc');
+			var hobj=document.getElementById('TRDDesc');
+			if (hobj) DisableFieldTRC('TRDDesc');
+			var hobj=document.getElementById('ESCSDesc');
+			if (hobj) DisableFieldTRC('ESCSDesc');
+			var hobj=document.getElementById('TRANSPDesc');
+			if (hobj) DisableFieldTRC('TRANSPDesc');
+			}
+	ResetInjuryFields();
+}
+function CheckAnyInjuryField() {
+	var objHuman = document.getElementById('HUMINTDesc');
+	var objAct = document.getElementById('ACTINJDesc');
+	var objPlace = document.getElementById('PLINJDesc');
+	var objCause = document.getElementById('INJUDesc');
+	var objDesc = document.getElementById('MRADMInjuryDesc');
+	if ((objHuman)&&(objHuman.value!="")) return true;
+	if ((objAct)&&(objAct.value!="")) return true;
+	if ((objPlace)&&(objPlace.value!="")) return true;
+	if ((objCause)&&(objCause.value!="")) return true;
+	if ((objDesc)&&(objDesc.value!="")) return true;
+	return false;
+	
+}
+
+//md 18/11/2003
+
+function CheckOnupdatePrimaryDiagn() {
+	var obj=document.getElementById('MRCIDDesc');
+	var poobj=document.getElementById('MRCIDDescOnly');
+	var paobj=document.getElementById('MRCIDAlternateDesc');
+	var pdcode=document.getElementById('MRCIDCode');
+	var diag="", diagdes="", diagalt="";
+	var refreshflag="1"
+		
+	if (obj) { diag=obj.value }
+	if (poobj) { diagdes=poobj.value }
+	if (paobj) { diagalt=paobj.value }
+
+	if ((diag==PRI0)||(diag==PRI1)||(diag==PRI2)||
+		(diag==PRI0S)||(diag==PRI1S)||(diag==PRI2S)||
+		(diagdes==PRI0)||(diagdes==PRI1)||(diagdes==PRI2)||
+		(diagdes==PRI0S)||(diagdes==PRI1S)||(diagdes==PRI2S)||
+		(diagalt==PRI0)||(diagalt==PRI1)||(diagalt==PRI2)||
+		(diagalt==PRI0S)||(diagalt==PRI1S)||(diagalt==PRI2S)) 
+	{
+	return true;	
+	}
+	return false;
+}
+
+function checkArray(val,arr)
+{
+// checks if the value is in the array anywhere, retuns index
+  var i;
+  for (i=1;i<arr.length;i++)
+  {
+      //alert(val+"^"+arr[i]);
+      if (typeof(arr[i])=="string") {
+	  	if (val.toUpperCase()==arr[i].toUpperCase()) return i;
+      }
+      else if (typeof(arr[i])=="number") {
+      	if (val==arr[i]) return i;
+      }
+  }
+  return false;
+}
+
+//md 07/06/2004
+
+function CheckTreatClinician()
+{
+	var objDisDate=document.getElementById('PAADMDischgDate');
+	var objDepStatus=document.getElementById('DSCLDesc');
+	var CTF=CheckTreatFields();
+	if ((objDisDate)&&(objDisDate.value!="")&&(objDepStatus)&&(objDepStatus.value!="")&&(objDepStatus.value!=DEP10)&&(objDepStatus.value!=DEP11)&&(CTF==0))
+	{
+	if (!confirm(t["TreatClinOnDischarge"])) {return false;}
+	}
+	return true;
+
+}
+
+function CheckTreatFields()
+{
+	var obj=document.getElementById('CTPCPDesc');
+	var objDate=document.getElementById('PAADMSeenDate');
+	var objTime=document.getElementById('PAADMSeenTime');
+	if ((obj)&&(obj.value=="")) return 0;
+	if ((objDate)&&(objDate.value=="")) return 0;
+	if ((objTime)&&(objTime.value=="")) return 0;
+	return 1;
+}
+
+function Custom_CTPCPDescLookupSelect(str) {
+	ClinicianChangeHandler();
+	
+
+}
+
+function Custom_READELDescDone() {
+	
+	var objREADELDesc=document.getElementById('READELDesc');
+	if (!objREADELDesc) return true;	
+	var objDischDate=document.getElementById('PAADMDischgDate');
+	var objDischTime=document.getElementById('PAADMDischgTime');
+	if (!objDischTime) return true;
+	var objAdmDate=document.getElementById('AdmDate').value;
+	var objAdmTime=document.getElementById('AdmTime').value;
+	var objPAAdmDate=document.getElementById('PAADMAdmDate');
+  	if  (objPAAdmDate&&objPAAdmDate.value!="") objAdmDate=objPAAdmDate.value;
+	var objPAAdmTime=document.getElementById('PAADMAdmTime');
+  	if  (objPAAdmTime&&objPAAdmTime.value!="") objAdmTime=objPAAdmTime.value;
+	//md
+	var bDate=1
+	if ((objDischTime)&&(objDischDate)&&(objDischTime.value!="")&&(objDischDate.value!=""))
+	{
+	bDate=DateTimeStringCompare(objDischDate.value,objDischTime.value,objAdmDate,objAdmTime)
+	var objarrd = DateTimeDiffInHM(objAdmDate,objAdmTime,objDischDate.value,objDischTime.value)
+	}else {
+	var objarrd = DateTimeDiffInHMto$H(objAdmDate,objAdmTime)
+	}
+	if ((objarrd["hr"]>5)&&(bDate==1)) labelMandatoryTRC('READELDesc')
+	else labelNormalTRC('READELDesc');
+
+}
+function DateTimeDiffInHMto$H(date1,time1) {
+	var objDate1 = DateTimeStringToDateObj(date1,time1);
+	var objDate2 = new Date();
+	var diffDate = new Date();
+	diffDate.setTime(Math.abs(objDate1.getTime() - objDate2.getTime()));
+	var diffNo = diffDate.getTime();
+	var days = Math.floor(diffNo / (24 * 60 * 60 * 1000));
+
+	var hours = Math.floor(diffNo / (60 * 60 * 1000));
+	diffNo -= hours * (60 * 60 * 1000);
+
+	var mins = Math.floor(diffNo / (60 * 1000));
+	diffNo -= mins * (60 * 1000);
+
+	var arrComps = new Array(2);
+	arrComps["hr"] = hours;
+	arrComps["mn"] = mins;
+	return arrComps;	
+}
+
+function isLabeledMandatoryTRC(fld) {
+	if (document.getElementById(fld)) {
+		if ((document.getElementById('c' + fld))&&(isLabeledMandatory(fld))) return true;
+		else if (document.getElementById(fld).getAttribute('NoLabelMand')==1) return true;
+		else return false;
+	}
+	return false;
+}
+
+function labelMandatoryTRC(fld) {
+	if (document.getElementById(fld)) {
+		if (document.getElementById('c' + fld)) labelMandatory(fld);
+		else document.getElementById(fld).setAttribute('NoLabelMand','1');
+		EnableFieldTRC(fld);
+	}
+}
+
+function labelNormalTRC(fld) {
+	if (document.getElementById(fld)) {
+		if (document.getElementById('c' + fld)) labelNormal(fld);
+		if (document.getElementById(fld).getAttribute('NoLabelMand')==1) document.getElementById(fld).removeAttribute('NoLabelMand');
+		EnableFieldTRC(fld);
+	}
+}
+
+function EnableFieldTRC(fld) {
+	if (document.getElementById(fld)) {
+		EnableField(fld);
+		EnableLookup("ld191i"+fld);
+	}
+}
+
+function DisableFieldTRC(fld) {
+	if (document.getElementById('c' + fld)) labelNormal(fld);
+	if (document.getElementById(fld)) {
+		if (document.getElementById(fld).getAttribute('NoLabelMand')==1) document.getElementById(fld).removeAttribute('NoLabelMand');
+		DisableField(fld);
+		DisableLookup("ld191i"+fld);
+	}
+}
+
+function AmbulanceDateTimeHandler(param) {
+	var objTriageDate=document.getElementById('PAADMTriageDate');
+	var objTriageTime=document.getElementById('PAADMTriageTime');
+	var objActArrDate=document.getElementById('PAADM2ActualArrivalDate');
+	var objActArrTime=document.getElementById('PAADM2ActualArrivalTime');
+	var objAmbHanDate=document.getElementById('PAADM2AmbulHandoverCompDate');
+	var objAmbHanTime=document.getElementById('PAADM2AmbulHandoverCompTime');
+	var msg=""
+	
+
+	if ((objTriageDate)&&(objTriageDate.value!="")&&(objTriageTime)&&(objTriageTime.value!="")&&(objActArrDate)&&(objActArrDate.value!="")&&(objActArrTime)&&(objActArrTime.value!="")) {
+		if (DateTimeStringCompare(objTriageDate.value,objTriageTime.value,objActArrDate.value,objActArrTime.value)=="-1") {
+			msg += "\'" + t['PAADMTriageDate'] + "\'"  + " and " + "\'" +  t['PAADMTriageTime'] + "\'" + " must not precede " + "\'" + t['PAADM2ActualArrivalDate'] + "\'"  + " and " + "\'" +  t['PAADM2ActualArrivalTime'] + "\'" + "\n"
+		}
+	} else if ((objTriageDate)&&(objTriageDate.value!="")&&(objActArrDate)&&(objActArrDate.value!="")){
+		if (DateStringCompare(objTriageDate.value,objActArrDate.value)=="-1") {
+			msg += "\'" + t['PAADMTriageDate'] + "\'" + " must not precede " + "\'" + t['PAADM2ActualArrivalDate'] + "\'"  + "\n"
+		}
+	}
+	if  ((objAmbHanDate)&&(objAmbHanDate.value!="")&&(objAmbHanTime)&&(objAmbHanTime.value!="")&&(objActArrDate)&&(objActArrDate.value!="")&&(objActArrTime)&&(objActArrTime.value!="")) {
+		if (DateTimeStringCompare(objAmbHanDate.value,objAmbHanTime.value,objActArrDate.value,objActArrTime.value)=="-1") {
+			msg += "\'" + t['PAADM2AmbulHandoverCompDate'] + "\'"  + " and " + "\'" +  t['PAADM2AmbulHandoverCompTime'] + "\'" + " must not precede " + "\'" + t['PAADM2ActualArrivalDate'] + "\'"  + " and " + "\'" +  t['PAADM2ActualArrivalTime'] + "\'" + "\n"
+		}
+	} else if ((objAmbHanDate)&&(objAmbHanDate.value!="")&&(objActArrDate)&&(objActArrDate.value!="")){
+		if (DateStringCompare(objAmbHanDate.value,objActArrDate.value)=="-1") {
+			msg += "\'" + t['PAADM2AmbulHandoverCompDate'] + "\'" + " must not precede " + "\'" + t['PAADM2ActualArrivalDate'] + "\'"  + "\n"
+		}
+	} 
+	if  ((objAmbHanDate)&&(objAmbHanDate.value!="")&&(objAmbHanTime)&&(objAmbHanTime.value!="")&&(objTriageDate)&&(objTriageDate.value!="")&&(objTriageTime)&&(objTriageTime.value!="")) {
+		if (DateTimeStringCompare(objAmbHanDate.value,objAmbHanTime.value,objTriageDate.value,objTriageTime.value)=="-1") {
+			msg += "\'" + t['PAADM2AmbulHandoverCompDate'] + "\'"  + " and " + "\'" +  t['PAADM2AmbulHandoverCompTime'] + "\'" + " must not precede " + "\'" + t['PAADMTriageDate'] + "\'"  + " and " + "\'" +  t['PAADMTriageTime'] + "\'" + "\n"
+		}
+	} else 	if ((objAmbHanDate)&&(objAmbHanDate.value!="")&&(objTriageDate)&&(objTriageDate.value!="")){
+		if (DateStringCompare(objAmbHanDate.value,objTriageDate.value)=="-1") {
+			msg += "\'" + t['PAADM2AmbulHandoverCompDate'] + "\'" + " must not precede " + "\'" + t['PAADMTriageDate'] + "\'"  + "\n"
+		}
+	}
+	if ((param)&&(param==1)) {
+		return msg;
+	} else if (msg!="") {alert(msg)};
+}
+
+websys_removeListener("load","onload",Init); 
+websys_addListener("load","onload",InitCustom);
+//document.body.onload=customInit;
+
+
+//tknoll-miller (SWARH) 2009-09-16 Load authorise script
+var authcfg = {
+   'buttons': [
+      'update1'
+   ],
+   'fields': {
+      'username': 'UserCode',
+      'password': 'PIN'
+   }
+};
+//tknoll-miller (SWARH) 2009-09-16 Load authorise script
+// Scope variables
+(function() {
+   var loadScript = function(type, src) {
+      var head = document.getElementsByTagName('head')[0];
+      var script = document.createElement('script'); // 2016-10-05 (RG) - Change from '<script>' to 'script'
+      script.type = type;
+      script.src = src;
+      head.appendChild(script);
+      websys_addListener('load', 'onload', function(){document.isLoaded=true});
+      return script;
+   };
+
+   loadScript('text/javascript', '../custom/SWARH/scripts/authorise4.js');
+})();
+//end tknoll-miller (SWARH) 2009-09-16 Load authorise script]]]]><![CDATA[></CSP>
+]]></Implementation>
+</Method>
+</Class>
+</Export>

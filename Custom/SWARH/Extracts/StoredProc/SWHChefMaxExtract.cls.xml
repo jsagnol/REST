@@ -1,0 +1,206 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.SWARH.Extracts.StoredProc.SWHChefMaxExtract">
+<ProcedureBlock>0</ProcedureBlock>
+<Super>Custom.SWARH.Report.RptSvc.StoredProc.Abstract</Super>
+<TimeCreated>60905,54849</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/SWARH/Extracts/StoredProc/SWHChefMaxExtract.xml#1 $</Default>
+</Parameter>
+
+<Method name="SWHChefMaxExtractClose">
+<Description>
+This is the Close component of the %Library.Query.
+This is standard code and should never have to change.
+This is where all the cleanup is performed, i.e. the purging of the temporary storage global ^CacheTemp.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>QHandle:%Library.Binary</FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Clean up by purging the temporary node in ^CacheTemp global
+ New repid,ind
+ Set repid=$li(QHandle,2)
+
+ //Start Monitor (if configured to capture stats)
+ i mon Do ..MonitorEnd(mon)
+
+ Kill ^CacheTemp("TRAK",repid)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="SWHChefMaxExtractExecute">
+<Description>
+This is the Execute section for the %Library.Query. 
+All of the logic will be performed here.
+A new node for the ^CacheTemp global will be created and each subscript of this global will contain
+a row for the report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Get reportid i.e. use $INCREMENT to add another node to ^CacheTemp global. 
+ // We use ^CacheTemp global because it will always use memory before disk
+ New repid,ind
+
+  // Use $Increment to get the next node
+ Set repid=$I(^CacheTemp("TRAK"))
+ 
+ /* TEMPLATE MODIFY: Define and initialise appropriate column variables to describe output rowset columns */
+ New PAPMINo,PAPMIName,PAPMIName2,WARDDesc,BEDCode,PAADMDietTypeDR,PAPMIDOB,CTRLGDesc,PAADMAdmDate,PAADMDischgDate,Comments,PAPMIRowId,AllergyFlag
+ Set (PAPMINo)=0
+ Set (PAPMIName,PAPMIName2,WARDDesc,BEDCode,PAADMDietTypeDR,PAPMIDOB,CTRLGDesc,PAADMAdmDate,PAADMDischgDate,Comments,PAPMIRowId,AllergyFlag)=""
+
+ s ind=1, END=0
+
+ //Start Monitor (if configured to capture stats)
+ s mon=..MonitorBegin()
+ 
+ //s Hospital=$zstrip(Hospital,"*CW")
+ //s Ward=$zstrip(Ward,"*CW")
+ //s Religion=$zstrip(Religion,"*CW")
+ //Convert ODBC dates to cache format
+ //s DateFrom=..ConvertDateToCache(DateFrom)
+ //s DateTo=..ConvertDateToCache(DateTo)
+ 
+
+ &SQL(DECLARE SWHChefMaxCursor CURSOR FOR 
+SELECT 
+PM.PAPMI_No,
+PM.PAPMI_Name,
+PM.PAPMI_Name2,
+pa.PAADM_CurrentWard_DR->WARD_Desc,
+pa.PAADM_CurrentBed_DR->BED_Code,
+pa.PAADM_DietType_DR,
+PM.PAPMI_DOB,
+PE.PAPER_Religion_DR->CTRLG_Desc,
+pa.PAADM_AdmDate,
+pa.PAADM_DischgDate,
+'' as Comments,
+PM.PAPMI_RowId
+
+FROM SQLUser.PA_ADM pa
+INNER JOIN SQLUser.PA_PatMas pm on pa.PAADM_PAPMI_DR = pm.PAPMI_RowID1
+LEFT JOIN SQLUser.PA_Person pe on pm.PAPMI_Paper_DR = pe.PAPER_RowID
+
+WHERE
+
+PA.PAADM_Hospital_DR = 696 AND
+PA.PAADM_VisitStatus = 'A' AND
+PA.PAADM_Type='I' AND
+PA.PAADM_Current = 'Y' AND
+PA.PAADM_DischgDate IS NULL
+)
+ &SQL(OPEN SWHChefMaxCursor)
+
+ //FETCH FIRST ROW
+ d FetchRow
+  
+ while END=0 {
+  
+	 d FormatDates
+  	 //d FormatTimes
+  	 
+  	 s AllergyFlag = "N"
+  	 s:$$GetNumAllergies(PAPMIRowId)>0 AllergyFlag = "Y" 
+  	 
+  	 
+  	 
+	 s sort = ind		// don't sort - uncomment this line if you've sorted in the query
+	 //s sort = $ZCVT(HOSPDesc,"U")_" "_$ZCVT(WARDDesc,"U")_" "_$ZCVT(ROOMCode,"U")_" "_$ZCVT(BEDCode,"U")_" "_$ZCVT(CTRLGDesc,"U")_" "_$ZCVT(PAPERName,"U")_" "_$ZCVT(PAPERName2,"U")_" "_$ZCVT(PAPERName3,"U")_ind
+
+	 s ^CacheTemp("TRAK",repid,sort)=$LB(PAPMINo,PAPMIName,PAPMIName2,WARDDesc,BEDCode,PAADMDietTypeDR,PAPMIDOB,CTRLGDesc,PAADMAdmDate,PAADMDischgDate,Comments,PAPMIRowId,AllergyFlag)
+	 s ind=ind+1
+ 
+	 //fetch rows
+	 d FetchRow
+ }
+
+ &SQL(CLOSE SWHChefMaxCursor)
+ 
+ // Build QHandle (AtEnd,ReportID,Index)
+ Set QHandle=$lb(0,repid,0)
+
+ Quit $$$OK
+
+FetchRow
+ &sql(FETCH SWHChefMaxCursor INTO :PAPMINo,:PAPMIName,:PAPMIName2,:WARDDesc,:BEDCode,:PAADMDietTypeDR,:PAPMIDOB,:CTRLGDesc,:PAADMAdmDate,:PAADMDischgDate,:Comments,:PAPMIRowId)
+ if SQLCODE '= 0 set END = 1
+ q
+ 
+FormatDates
+ s:PAPMIDOB PAPMIDOB=..ConvertDateToODBC(PAPMIDOB)
+ s:PAADMAdmDate PAADMAdmDate=..ConvertDateToODBC(PAADMAdmDate)
+ s:PAADMDischgDate PAADMDischgDate=..ConvertDateToODBC(PAADMDischgDate)
+ q
+ 
+FormatTimes
+ //s PAADMAdmTime=..ConvertTimeToODBC(PAADMAdmTime)
+ q
+ 
+ 
+GetNumAllergies(PAPMIRowId)
+ s numAllergies=0
+ s (Childsub, ALGCreateDate, ALGClosedFlag, ALGClosedDate) = ""
+ For {
+    s Childsub=$O(^PAPER(PAPMIRowId,"ALG",Childsub))
+    Quit:(Childsub="")
+    s ALGCreateDate=$P(^PAPER(PAPMIRowId,"ALG",Childsub),"^",10)
+    s ALGClosedFlag=$P(^PAPER(PAPMIRowId,"ALG",Childsub),"^",19)
+    s ALGClosedDate=$P(^PAPER(PAPMIRowId,"ALG",Childsub),"^",38)
+    if ((ALGClosedFlag="N") && (ALGCreateDate<=$NOW()) && ((ALGClosedDate="") || (ALGClosedDate>$NOW()))) {
+    s numAllergies=numAllergies+1
+                }
+ }
+ q numAllergies
+]]></Implementation>
+</Method>
+
+<Method name="SWHChefMaxExtractFetch">
+<Description>
+This is the Fetch component of the %Library.Query. 
+This should never have to change. It is designed to fetch the row for each subscript of the ^CacheTemp
+global and return this row to the Crystal Report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,&Row:%Library.List,&AtEnd:%Library.Integer=0]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // This fetch method should never have to change. 
+
+ // repid - Report ID
+ // ind   - sequence index which represents each row
+
+ New repid,ind
+
+ // Restore QHandle
+ Set AtEnd=$li(QHandle,1)
+ Set repid=$li(QHandle,2)
+ Set ind=$li(QHandle,3)
+
+ Set ind=$o(^CacheTemp("TRAK",repid,ind))
+ If ind="" {	// if there are no more rows, finish fetching
+	 Set AtEnd=1
+	 Set Row=""
+ }
+ Else      {	// fetch row
+ 	Set Row=^CacheTemp("TRAK",repid,ind)
+ }
+
+ // Save QHandle
+ s QHandle=$lb(AtEnd,repid,ind)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Query name="SWHChefMaxExtract">
+<Type>%Library.Query</Type>
+<SqlProc>1</SqlProc>
+<Parameter name="CONTAINID" value="0"/>
+<Parameter name="ROWSPEC" value="PAPMINo:%Library.Integer,PAPMIName:%Library.String,PAPMIName2:%Library.String,WARDDesc:%Library.String,BEDCode:%Library.String,PAADMDietTypeDR:%Library.String,PAPMIDOB:%Library.Date,CTRLGDesc:%Library.String,PAADMAdmDate:%Library.Date,PAADMDischgDate:%Library.Date,Comments:%Library.String,PAPMIRowId:%Library.String,AllergyFlag:%Library.String"/>
+<Parameter name="SELECTMODE" value="ODBC"/>
+</Query>
+</Class>
+</Export>

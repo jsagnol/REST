@@ -1,0 +1,825 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.AUXXPHMPRExtract">
+<Description>
+PH MPR Version 6.14
+TRC20485 08/05/2008
+TRC20485 09/05/2008
+TRC20485 12/05/2008
+TRC23657 27/06/2008
+TRC23657 08/07/2008
+TRC23657 21/07/2008
+TRC23657 10/11/2008
+TRC30981 16/07/2009 PHMPR 2009-10 changes NB select queries based on T68 or T69 lines 148-9,152,156-7,254-93,562-576
+TRC39856 22/12/2009
+TRC41170 04/02/2010
+TRC40957 04/02/2010
+TRC40958 04/02/2010
+TRC42060 03/03/2010
+TRC53544 20/08/2010
+TRC53639 07/10/2010
+Updated for 2010 WRC 742393 5/01/2011
+TRC53543 18/01/2010 Update Specification
+TRC69950 07/03/2011
+TRC75229 24/06/2011 Updated queries
+TRC112149	05/07/2012	- Created from Custom.VICPHMPRExtract ver 6.8 and update for AUXX foundation ver 9.2
+Incident 333 - 17/08/2012 - FDE - PHMPR Extract Issue
+Incident 396 - 06/09/2012 - FDE - 2010 R2 - PHMPR extract DVA Claim Indicator not reported correctly for clients
+			 - -9/09/2012 - MH  - Set Ext_section Field to correct value for Extract Summary
+Incident 395 - 11/09/2012 - MH	- Set imnterpreter required to report 1,2 rather than Y,N
+			 - 11/09/2012 - FD	- Set DVA to null if Pension type = 2
+TRC 608 	 - 04/10/2012 - FD	- T2010 R2 - PHMPR Extract not reporting Event contacts correctly
+			 - 08/10/2012 - IF	- Added firstcontactdate query to check episodes with contacts before 1/7/2011
+TRC1080		 - 29/10/2012 - MH  - Correction to header Field R5
+20/12/2012	- Confirm as Version released for DHS R2 add version and history version 9.2, linked extract specification version 9.2
+	TRC3322		- 08/03/2013 -  IF/MH - Correction of logic for inclusion of DVA Number and DVA comment
+	TRCI3322	- Exclude "Cancelled" Contacts 
+	I3322		19/04/2013		IF	- Set DVA_Claim_Indicator to "No" if DVA card type is null
+I6860		02/08/2013		IF		- Set interpreter status to 9 if "NS"</Description>
+<ClassType/>
+<ProcedureBlock>0</ProcedureBlock>
+<Super>%Library.RegisteredObject,Report.Abstract</Super>
+<TimeCreated>60477,37148.540346</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/AUXXPHMPRExtract.xml#1 $</Default>
+</Parameter>
+
+<Method name="Print">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>Quarter:%String,Year:%String,Agency:%String,Site:%String</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	s $ZTRAP="ProcessError"
+	n qhnd
+	d ..PHMPRExtractExecute(.qhnd,Quarter,Year,Agency,Site)
+	n avgrow,AtEnd
+	s avgrow=$lb("")
+	s AtEnd=0
+	d ..PHMPRExtractFetch(.qhnd,.argrow,.AtEnd)
+	d ..PHMPRExtractClose(qhnd)
+	q 1
+
+ProcessError
+ s error=$ZERROR
+ s reportdr=##class(websys.Report).GetIdFromCodeOrDescription("AUXX.HACCExtract")
+ s rhid=$o(^websys.PrintHistoryI("ReportDRP1Index",reportdr," "_Quarter,""),-1)
+ i $g(rhid)'="" d
+ . s obj=##class(websys.PrintHistory).%OpenId(rhid)
+ . i obj d
+ . . ; If parameters match then update print history with error
+ . . i obj.P1=Quarter,obj.P2=Year,obj.P3=Agency,obj.P4=Site d
+ . . . s obj.ErrorDescription=$g(error)
+ . . . s obj.Status="E"
+ . . . d obj.%Save(0)
+ . . d obj.%Close()
+ q
+]]></Implementation>
+</Method>
+
+<Method name="GetMappedCode">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>TableName:%Library.String,FieldName:%Library.String,ReportType:%Library.String,ActualValue:%Library.String</FormalSpec>
+<ReturnType>%Library.String</ReturnType>
+<Implementation><![CDATA[
+	n MappedValue
+	s MappedValue=""
+	s ReportType=$o(^PAC("REPTYPE",0,"Code",##class(%Collation).AlphaUp(ReportType),""))
+	
+	q:TableName="" ActualValue
+	q:FieldName="" ActualValue
+	s TableName=##class(%Collation).AlphaUp(TableName)
+	s FieldName=##class(%Collation).AlphaUp(FieldName)
+	
+	i $g(ReportType)'="" d
+	. s nat=0 f  s nat=$o(^PAC("NATC",0,"Table",TableName,FieldName,ReportType,nat)) q:nat=""  d
+	. . q:$p($g(^PAC("NATC",nat)),"^",2)'=""
+	. . i $p($g(^PAC("NATC",nat)),"^",8)=$g(ActualValue) s MappedValue=$p($g(^PAC("NATC",nat)),"^",9)
+	i $g(MappedValue)="" d
+	. s ReportType=$o(^PAC("REPTYPE",0,"Code",##class(%Collation).AlphaUp("CCDS"),""))
+	. i $g(ReportType)'="" d
+	. . s nat=0 f  s nat=$o(^PAC("NATC",0,"Table",TableName,FieldName,ReportType,nat)) q:nat=""  d
+	. . . q:$p($g(^PAC("NATC",nat)),"^",2)'=""
+	. . . i $p($g(^PAC("NATC",nat)),"^",8)=$g(ActualValue) s MappedValue=$p($g(^PAC("NATC",nat)),"^",9)
+	
+	i $g(MappedValue)="" s MappedValue=ActualValue
+	q MappedValue
+]]></Implementation>
+</Method>
+
+<Method name="TransmissionNumber">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>code:%String</FormalSpec>
+<Implementation><![CDATA[
+ n item
+ s item=$zstrip("PHMPRTRANSNUM"_code,"*P")
+ i '$d(^COUNT("CNTTYPE",0,"Desc",item)) &SQL(INSERT INTO SQLUser.PAC_CounterType (CNT_Desc,CNT_Length,CNT_Counter) VALUES (:item,'2','0'))
+
+ s cnttype=$o(^COUNT("CNTTYPE",0,"Desc",item,""))
+ q:'cnttype ""
+         L +^COUNT("CNTTYPE",cnttype)
+         s s1=$g(^COUNT("CNTTYPE",cnttype)),pref=$p(s1,"^",2),suf=$p(s1,"^",3)
+         s len=$p(s1,"^",4),cnt=$p(s1,"^",5)
+         s cnt=cnt+1
+         S $P(^COUNT("CNTTYPE",cnttype),"^",5)=cnt
+         L -^COUNT("CNTTYPE",cnttype)
+         Q pref_$$LPAD1(cnt,"0",len)_suf
+         ;
+         ;
+LPAD1(STRING,SUB,LENGTH)	;
+         N RES S STRING=$G(STRING),LENGTH=$G(LENGTH)
+         S:'$G(LENGTH) LENGTH=8
+         S $P(RES,SUB,LENGTH)=SUB
+         Q $E(RES,1,LENGTH-$L(STRING))_$E(STRING,1,LENGTH)
+]]></Implementation>
+</Method>
+
+<Method name="PHMPRExtractClose">
+<Description>
+This is the Close component of the %Library.Query.
+This is standard code and should never have to change.
+This is where all the cleanup is performed, i.e. the purging of the temporary storage global ^CacheTemp.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>QHandle:%Library.Binary</FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Clean up by purging the temporary node in ^CacheTemp global
+ New repid
+ Set repid=$li(QHandle,2)
+ 
+ //Start Monitor (if configured to capture stats)
+ i mon Do ..MonitorEnd(mon)
+
+ Kill ^CacheTemp(repid)
+ 
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="PHMPRExtractExecute">
+<Description>
+This is the Execute section for the %Library.Query. 
+All of the logic will be performed here.
+A new node for the ^CacheTemp global will be created and each subscript of this global will contain
+a row for the report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,Quarter:%Library.String,Year:%Library.String,Agency:%Library.String,Site:%String]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+
+ // Get reportid i.e. use $INCREMENT to add another node to ^CacheTemp global. 
+ // We use ^CacheTemp global because it will always use memory before disk
+ New repid,ind,END,END,listindex,Check,value,ARCIMRowId
+ s (ind,END,END1,listindex,Check)=0
+ // Use $Increment to get the next node
+ Set repid=$I(^CacheTemp)
+ 
+ //Start Monitor (if configured to capture stats)
+ s mon=..MonitorBegin()
+ 
+ k ^||PHMPR
+ 
+ i Quarter'="" s Quarter=$zstrip(Quarter,"*C")
+ i Year'="" s Year=$zstrip(Year,"*CW")
+ 
+ i Quarter="July - September" s DateFrom=Year_"/07/01",DateTo=Year_"/09/30",R5=1
+ i Quarter="October - December" s DateFrom=Year_"/10/01",DateTo=Year_"/12/31",R5=2
+ i Quarter="January - March" s DateFrom=Year_"/01/01",DateTo=Year_"/03/31",R5=3
+ i Quarter="April - June" s DateFrom=Year_"/04/01",DateTo=Year_"/06/30",R5=4
+ 
+ i "07,10"[$p(DateFrom,"/",2) s R5=$p(DateFrom,"/",1)_$e(($p(DateFrom,"/",1)+1),3,4)_R5
+ i "01,04"[$p(DateFrom,"/",2) s R5=($p(DateFrom,"/",1)-1)_$e($p(DateFrom,"/",1),3,4)_R5
+ 
+ s DateFrom=$$intdate^SSUTIL4(DateFrom)
+ s DateTo=$$intdate^SSUTIL4(DateTo)
+ 
+ i Agency'="" s Agency=$zstrip(Agency,"*CW")
+ 
+ s ^||SITE=""
+ i $zstrip($g(Site),"*WC")'="" {
+	 s ^||SITE=$zstrip($g(Site),"*WC")
+ } else {
+	 s conf=##class(websys.Configuration).%OpenId(1)
+	 i conf {
+		 s ^||SITE=conf.SiteCode
+		 d conf.%Close()
+	 }
+ }
+
+ n file,unixpath,winpath,FILERowId,PATHChildsub,path
+ s (file,unixpath,winpath,FILERowId,PATHChildsub,path)=""
+ s FILERowId=$o(^COUNT("FILE",0,"Desc","PHMPR",0))
+ s PATHChildsub=0
+ while PATHChildsub'="" {
+	 s PATHChildsub=$o(^COUNT("FILE",FILERowId,"PATH",PATHChildsub))
+	 i PATHChildsub'="" {
+		 s unixpath=$p($g(^COUNT("FILE",FILERowId,"PATH",PATHChildsub)),"^",2)
+		 i unixpath="" s winpath=$p($g(^COUNT("FILE",FILERowId,"PATH",PATHChildsub)),"^",1)
+	 }
+ }
+ s ind=1
+ f date=DateFrom:1:DateTo {
+	 s con=0
+	 f {
+		 s con=$o(^PAENQi("Date",date,con))
+		 q:con=""
+		 s contact=##class(User.PAEnquiryContact).%OpenId(con)
+		 i contact {
+		 	 s pass=0
+		 	 i contact.ENQGovernDepartDR.DEPParRef.NFMIGovSubCategDR.SUBCode'="" {
+				 i contact.ENQGovernDepartDR.DEPParRef.NFMIGovSubCategDR.SUBCode="PHMPR" s pass=1
+		 	 } else {
+			 	 i contact.ENQInsTypeDR.INSTCode4="PH MPR" s pass=1
+		 	 }
+		 	 
+			 i contact.ENQDate>=DateFrom,contact.ENQDate<=DateTo,pass,contact.ENQRequestStatusDR.REQSTCode="CO" {
+				 s ind=$i(ind)
+				 s $p(^||PHMPR("DATA",ind),",",1)="CWH"
+				 s $p(^||PHMPR("DATA",ind),",",2)="302"
+				 s $p(^||PHMPR("DATA",ind),",",3)="SERVICE"
+				 s $p(^||PHMPR("DATA",ind),",",4)=contact.ENQLocationDR.CTLOCDesc
+				 s $p(^||PHMPR("DATA",ind),",",5)=contact.ENQDate				 
+				 i $p(^||PHMPR("DATA",ind),",",5) s $p(^||PHMPR("DATA",ind),",",5)=$zd($p(^||PHMPR("DATA",ind),",",5),4,,4)
+				 
+				 i contact.ENQGovernDepartDR,contact.ENQGovernDepartDR.DEPCode'="" {
+					 s $p(^||PHMPR("DATA",ind),",",6)=..GetMappedCode("ARC_InsuranceType","INST_Code","PH MPR",contact.ENQGovernDepartDR.DEPCode)
+				 } else {
+					 s $p(^||PHMPR("DATA",ind),",",6)=..GetMappedCode("ARC_InsuranceType","INST_Code","PH MPR",contact.ENQInsTypeDR.INSTCode)
+				 }
+				 //FDE Service Type - 31/08/12
+				 //s $p(^||PHMPR("DATA",ind),",",7)=contact.ENQItemCatDR.ARCICCode
+				 s arcicCode=contact.ENQItemCatDR.ARCICCode
+				 if contact.ENQOEOrdItemDR'="" s arcicCode=contact.ENQOEOrdItemDR.OEORIItmMastDR.ARCIMItemCatDR.ARCICCode
+				 s $p(^||PHMPR("DATA",ind),",",7)=..GetMappedCode("ARC_ItemCat","ARCIC_Code","PH MPR",arcicCode)
+				 s $p(^||PHMPR("DATA",ind),",",8)=""
+				 s $p(^||PHMPR("DATA",ind),",",9)=""
+				 s contype=##class(web.PAEnquiryContact).GetContactType(con)
+				 //FDE - 27/08/2012 - Contact Type doesn't populate				 
+				 s contype=##class(websys.StandardTypeItem).GetIdFromCodeOrDescription("ContactType",contype)
+				 s $p(^||PHMPR("DATA",ind),",",10)=$s("E,P"[contype:2,1:1)					 	 
+				 if $p(^||PHMPR("DATA",ind),",",10)=2  s $p(^||PHMPR("DATA",ind),",",11)=0
+                 else  i contype="I" s $p(^||PHMPR("DATA",ind),",",11)="R"
+                 i contype="C" s $p(^||PHMPR("DATA",ind),",",11)="C"
+                 i "A,E,P"[contype,contact.ENQNonGovOrgDR s $p(^||PHMPR("DATA",ind),",",11)="O"
+                 i "A,E,P"[contype,'contact.ENQNonGovOrgDR s $p(^||PHMPR("DATA",ind),",",11)="C"
+                 i "E,P"[contype s $p(^||PHMPR("DATA",ind),",",57)="EVENT"
+                 i "A,C"[contype s $p(^||PHMPR("DATA",ind),",",57)="ANONYMOUS"
+                 i contype="I" s $p(^||PHMPR("DATA",ind),",",57)="CLIENT"
+
+				 //TRC 608 
+				 if (($p(^||PHMPR("DATA",ind),",",57)="EVENT")&&(contact.ENQLocationDR.CTLOCDesc=""))
+				 {
+				 	s event=contact.ENQRBEventDR.%Id()
+				 	if (event'="") s eventobj=##class(User.RBEvent).%OpenId(event)
+				 	if (eventobj'=""){			
+				 		s resource=eventobj.EVRBResourceDR.%Id()
+				 		if (resource'="") 
+				 		{
+				 			s loc=$p($g(^RB("RES",resource)),"^",1)
+				 			if (loc'="") s $p(^||PHMPR("DATA",ind),",",4)=$p($g(^CTLOC(loc)),"^",2)	
+				 		}			 		
+				 	}				 	
+				 	k eventobj				 	
+				 }			
+				 
+				 s $p(^||PHMPR("DATA",ind),",",12)=contact.ENQPAPERDR.PAPERPAPMIDR.PAPMINo
+				 //27/08/2012 - FD - Statistical_Linkage_Key column not created
+				 s rtmasMRNo=""
+				 s patid=contact.ENQOEOrdItemDR.OEORIOEORDParRef.OEORDAdmDR.PAADMPAPMIDR
+				 
+				 i patid'="" 
+				 {
+					s patid=patid.%Id()
+				 	&SQL(SELECT RTMAS_MRNo INTO :rtmasMRNo FROM SQLUser.RT_Master WHERE RTMAS_PatNo_DR=:patid AND RTMAS_MRType_DR->TYP_Code='SLK')
+				 }
+				 s $p(^||PHMPR("DATA",ind),",",13)=rtmasMRNo
+				 s $p(^||PHMPR("DATA",ind),",",14)=..GetMappedCode("PA_Person","PAPER_StayingPermanently","PH MPR",contact.ENQPAPERDR.PAPERStayingPermanently)
+				 s $p(^||PHMPR("DATA",ind),",",15)=contact.ENQPAPERDR.PAPERDob		
+				 i $p(^||PHMPR("DATA",ind),",",15) s $p(^||PHMPR("DATA",ind),",",15)=$zd($p(^||PHMPR("DATA",ind),",",15),4,,4)
+				 s $p(^||PHMPR("DATA",ind),",",16)=..GetMappedCode("PA_Person","PAPER_EstDOB","PH MPR",contact.ENQPAPERDR.PAPEREstDOB)
+				 s $p(^||PHMPR("DATA",ind),",",17)=$s(contact.ENQSexDR'="":..GetMappedCode("CT_Sex","CTSEX_Code","PH MPR",contact.ENQSexDR.CTSEXCode),1:..GetMappedCode("CT_Sex","CTSEX_Code","PH MPR",contact.ENQPAPERDR.PAPERSexDR.CTSEXCode))
+				 s $p(^||PHMPR("DATA",ind),",",18)=..GetMappedCode("CT_Country","CTCOU_Code","PH MPR",contact.ENQPAPERDR.PAPERCountryBirthDR.CTCOUCode)
+				 s $p(^||PHMPR("DATA",ind),",",19)=..GetMappedCode("PAC_IndigStatus","INDST_Code","PH MPR",contact.ENQPAPERDR.PAPERIndigStatDR.INDSTCode)				 
+				 s $p(^||PHMPR("DATA",ind),",",20)=$case(contact.ENQPAPERDR.PAPERInterpreterRequired,"N":"2","Y":"1","NS":9,:"")
+				 //11/09/2012 - Commented - not declared				 
+				 //s $p(^||PHMPR("DATA",ind),",",20)=interpreq
+				 s $p(^||PHMPR("DATA",ind),",",21)=..GetMappedCode("PAC_PreferredLanguage","PREFL_Code","PH MPR",contact.ENQPAPERDR.PAPERPrefLanguageDR.PREFLCode)
+				 s $p(^||PHMPR("DATA",ind),",",22)=..GetMappedCode("PA_PatMas","PAPMI_CHCPatient","PH MPR",contact.ENQPAPERDR.PAPERPAPMIDR.PAPMICHCPatient)
+				 s $p(^||PHMPR("DATA",ind),",",23)=..GetMappedCode("PAC_PensionType","PENSTYPE_Code","PH MPR",contact.ENQPAPERDR.PAPERPAPMIDR.PAPMIPensionTypeDR.PENSTYPECode)
+				 s $p(^||PHMPR("DATA",ind),",",24)=..GetMappedCode("PAC_SourceOfIncome","SRCINC_Code","PH MPR",contact.ENQPAPERDR.PAPERSourceOfIncomeDR.SRCINCCode)
+				 s $p(^||PHMPR("DATA",ind),",",25)=..GetMappedCode("CT_City","CTCIT_Desc","PH MPR",contact.ENQPAPERDR.PAPERCityCodeDR.CTCITDesc)
+				 s $p(^||PHMPR("DATA",ind),",",26)=..GetMappedCode("CT_Zip","CTZIP_Code","PH MPR",contact.ENQPAPERDR.PAPERZipDR.CTZIPCode)
+				 s $p(^||PHMPR("DATA",ind),",",27)=..GetMappedCode("CT_Region","CTRG_Code","PH MPR",contact.ENQPAPERDR.PAPERCTRegionDR.CTRGCode)
+				 s (TARTariffDR,ITPPrice)=""
+				 
+				 &SQL(SELECT TAR_Tariff_DR INTO :TARTariffDR FROM SQLUser.ARC_PayAgreemTariff WHERE TAR_ParRef->PAY_DateFrom<=:date AND (TAR_ParRef->PAY_DateTo IS NULL OR TAR_ParRef->PAY_DateTo>=:date) AND TAR_ParRef->PAY_InsType_DR=:INSInsTypeDR AND TAR_ParRef->PAY_AuxInsType_DR=:INSAuxInsTypeDR)
+				 &SQL(SELECT ITP_Price INTO :ITPPrice FROM SQLUser.ARC_ItemPriceItaly WHERE ITP_ParRef=:ARCIMRowId AND ITP_Tariff_DR=:TARTariffDR)
+				 s $p(^||PHMPR("DATA",ind),",",28)=$s(ITPPrice="":0,1:ITPPrice)
+				 
+				 s $p(^||PHMPR("DATA",ind),",",29)=contact.ENQDuration
+				 s $p(^||PHMPR("DATA",ind),",",30)=contact.ENQIndirectTime
+				 s $p(^||PHMPR("DATA",ind),",",31)=contact.ENQTravelTime
+				 s $p(^||PHMPR("DATA",ind),",",32)=contact.ENQInterpretingTime
+				 i "E,P"[contype {
+					 f x=1:1:contact.ENQRBEventDR.ChildRBEventTimes.Count() {
+						 i contact.ENQRBEventDR.ChildRBEventTimes.GetAt(x).TIMEDate=contact.ENQDate,contact.ENQRBEventDR.ChildRBEventTimes.GetAt(x).TIMEStartTime=contact.ENQTime {
+							 s $p(^||PHMPR("DATA",ind),",",33)=contact.ENQRBEventDR.ChildRBEventTimes.GetAt(x).TIMENoOfAttendees
+							 i $p(^||PHMPR("DATA",ind),",",33)="" s $p(^||PHMPR("DATA",ind),",",33)= (contact.ENQRBEventDR.ChildRBEventTimes.GetAt(x).TIMEAttendeeFemaleNo+contact.ENQRBEventDR.ChildRBEventTimes.GetAt(x).TIMEAttendeeMaleNo)
+						 }
+					 }
+				 }
+				 //08/03/2013 - Set DVA to null if pension type code'=2
+				 i contype="I" {
+				 	s $p(^||PHMPR("DATA",ind),",",34)=$s(contact.ENQPAPERDR.PAPERPAPMIDR.PAPMIPensionTypeDR.PENSTYPECode'=2:"",1:contact.ENQPAPERDR.PAPERPAPMIDR.PAPMIDVAnumber)
+				 	s $p(^||PHMPR("DATA",ind),",",34)=contact.ENQPAPERDR.PAPERPAPMIDR.PAPMIDVAnumber
+				 	s $p(^||PHMPR("DATA",ind),",",35)=..GetMappedCode("PAC_CardType","CARD_Code","PH MPR",contact.ENQPAPERDR.PAPERPAPMIDR.PAPMICardTypeDR.CARDCode)
+				 	
+				 	i (",1,2,")[(","_$p(^||PHMPR("DATA",ind),",",35)_",") {
+					 	s $p(^||PHMPR("DATA",ind),",",37)="Yes"
+					 	s $p(^||PHMPR("DATA",ind),",",36)=$s(contact.ENQYesNo1'="Y":"",1:contact.ENQActionDetails.GetAt(1))
+				 	}
+				 }
+				 
+				 i $p(^||PHMPR("DATA",ind),",",37)'="Yes" {
+					 s $p(^||PHMPR("DATA",ind),",",37)="No"
+				 }
+
+			 	//Incident 396 removed because contact.ENQYesNo1 is used to indicate inclusion of DVA comment 
+			 	//s $p(^||PHMPR("DATA",ind),",",37)=$case(contact.ENQYesNo1,"N":"No","Y":"Yes",:"")
+				 
+				 s $p(^||PHMPR("DATA",ind),",",38)=contact.ENQOEOrdItemDR.OEORIOEORDParRef.OEORDAdmDR.PAADMDateReceived
+				 i $p(^||PHMPR("DATA",ind),",",38) s $p(^||PHMPR("DATA",ind),",",38)=$zd($p(^||PHMPR("DATA",ind),",",38),4,,4)
+				 
+				 ; First contact date for the episode
+				 i contact.ENQOEOrdItemDR s I42=..FirstContactDate(contact.ENQOEOrdItemDR.OEORIOEORDParRef.OEORDAdmDR.%Id())
+				 i $g(I42)'="",$g(I42)<date {
+					 s $p(^||PHMPR("DATA",ind),",",39)=I42
+				 } else {
+					 s $p(^||PHMPR("DATA",ind),",",39)=date
+				 }
+				 i $p(^||PHMPR("DATA",ind),",",39) s $p(^||PHMPR("DATA",ind),",",39)=$zd($p(^||PHMPR("DATA",ind),",",39),4,,4)
+				 
+				 s $p(^||PHMPR("DATA",ind),",",40)=..GetMappedCode("PAC_AdmReason","REA_Code","PH MPR",contact.ENQOEOrdItemDR.OEORIOEORDParRef.OEORDAdmDR.PAADMAdmReasonDR.REACode)
+				 i $p(^||PHMPR("DATA",ind),",",40)="" s $p(^||PHMPR("DATA",ind),",",40)=..GetMappedCode("PAC_AdmReason","REA_Code","PH MPR",contact.ENQOEOrdItemDR.OEORIOEORDParRef.OEORDAdmDR.PAADMPAAdm2DR.PAADM2ReferralReasonDR.REFREACode)
+				 s $p(^||PHMPR("DATA",ind),",",41)=..GetMappedCode("PAC_SourceOfAttendance","ATTEND_Code","PH MPR",contact.ENQOEOrdItemDR.OEORIOEORDParRef.OEORDAdmDR.PAADMSourceOfAttendDR.ATTENDCode)
+				 s $p(^||PHMPR("DATA",ind),",",42)=contact.ENQOEOrdItemDR.OEORIAPPTDR.APPTWaitListDR.WLDate
+				 i $p(^||PHMPR("DATA",ind),",",42) s $p(^||PHMPR("DATA",ind),",",42)=$zd($p(^||PHMPR("DATA",ind),",",42),4,,4)
+				 s $p(^||PHMPR("DATA",ind),",",43)=..GetMappedCode("PAC_ReferralPriority","REFPRI_Code","PH MPR",contact.ENQOEOrdItemDR.OEORIOEORDParRef.OEORDAdmDR.PAADMReferralPriorityDR.REFPRICode)
+				 s $p(^||PHMPR("DATA",ind),",",44)=contact.ENQOEOrdItemDR.OEORIOEORDParRef.OEORDAdmDR.PAADMDischgDate
+				 i $p(^||PHMPR("DATA",ind),",",44) s $p(^||PHMPR("DATA",ind),",",44)=$zd($p(^||PHMPR("DATA",ind),",",44),4,,4)
+				 s $p(^||PHMPR("DATA",ind),",",45)=..GetMappedCode("PAC_DischClassification","DSCL_Code","PH MPR",contact.ENQOEOrdItemDR.OEORIOEORDParRef.OEORDAdmDR.PAADMMainMRADMDR.MRADMDischClassifDR.DSCLCode)
+				 
+				 i $g(^||SITE)'="AUXX",contact.ENQOEOrdItemDR {
+					 s counter=46
+					 f x=1:1:contact.ENQOEOrdItemDR.OEORIOEORDParRef.OEORDAdmDR.PAADMMainMRADMDR.ChildMRDiagnos.Count() {
+						 s MRDIADate=contact.ENQOEOrdItemDR.OEORIOEORDParRef.OEORDAdmDR.PAADMMainMRADMDR.ChildMRDiagnos.GetAt(x).MRDIADate
+						 i contact.ENQOEOrdItemDR.OEORIOEORDParRef.OEORDAdmDR.PAADMMainMRADMDR.ChildMRDiagnos.GetAt(x).MRDIADiagnosisGroup1DR.GRP1Code="CCC",counter<=55 {
+							 s $p(^||PHMPR("DATA",ind),",",counter)=..GetMappedCode("MRC_ICDDx","MRCID_Code","PH MPR",contact.ENQOEOrdItemDR.OEORIOEORDParRef.OEORDAdmDR.PAADMMainMRADMDR.ChildMRDiagnos.GetAt(x).MRDIAICDCodeDR.MRCIDCode)
+							 s counter=$i(counter)
+						 }
+					 }
+				 } else {
+					 i contact.ENQPAPERDR {
+						 s counter=46
+						 s qid=0
+						 f {
+							 s qid=$o(^questionnaire.QAUXXPHMPRI("IndexPAPatMasID",contact.ENQPAPERDR.%Id(),qid))
+							 q:qid=""
+							 s ques=##class(questionnaire.QAUXXPHMPR).%OpenId(qid) 
+							 i ques {
+								 i ques.QUESDate<=DateTo,$s(ques.QPHMPR3="":+$h,1:ques.QPHMPR3)>=DateFrom,ques.QPHMPR5'="Y",ques.QUESPAAdmDR.PAADMHospitalDR.%Id()=contact.ENQHospitalDR.%Id(),counter<=55 {
+									  s $p(^||PHMPR("DATA",ind),",",counter)=ques.QPHMPR4
+									 s counter=$i(counter)
+								 }
+								 d ques.%Close()
+							 }
+						 }
+					 }
+				 }
+				 s $p(^||PHMPR("DATA",ind),",",56)="ENDSERVICE"
+			 }
+		 }
+	 }
+ }
+
+ s $p(^||PHMPR("HEADER",1),",",1)="CWH"
+ s $p(^||PHMPR("HEADER",1),",",2)="302"
+ s $p(^||PHMPR("HEADER",1),",",3)="HEADER"
+ s $p(^||PHMPR("HEADER",1),",",4)=..GetMappedCode("PAC_Trust","TRUST_Code","PH MPR",$p($g(^PAC("TRUST",Agency)),"^",1))
+ s $p(^||PHMPR("HEADER",1),",",5)=R5
+ s $p(^||PHMPR("HEADER",1),",",6)=..TransmissionNumber($p($zd(DateFrom,0)," ",3)_"/"_R5)
+ i $l($p(^||PHMPR("HEADER",1),",",6))=1 s $p(^||PHMPR("HEADER",1),",",6)="0"_$p(^||PHMPR("HEADER",1),",",6)
+ s $p(^||PHMPR("HEADER",1),",",7)="01"
+ s $p(^||PHMPR("HEADER",1),",",8)=ind-1
+ s $p(^||PHMPR("HEADER",1),",",9)="TrakCare"
+ s $p(^||PHMPR("HEADER",1),",",10)="ENDHEADER"
+
+
+
+ d ..GenerateFile(path,R5,DateFrom,DateTo)
+
+ // Build QHandle (AtEnd,ReportID,Index)
+ Set QHandle=$lb(0,repid,0)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="FirstContactDate">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>admid:%String</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	q:admid="" ""
+	s I42="",payorplandetails="",instcode4="",instrowid=""
+	s payorplandetails=##class(web.PAAdmInsurance).GetPayorPlanDetailsForEpisode(admid)
+	i +payorplandetails'="" s instcode4=$p($g(^ARC("INST",+payorplandetails)),"^",20)
+	s oe=0 f  s oe=$o(^OEORD(0,"Adm",admid,oe)) q:oe=""  d
+	. s oei=0 f  s oei=$o(^OEORD(oe,"I",oei)) q:oei=""  d
+	. . i $p($g(^OEORD(oe,"I",oei,1)),"^",13)=$o(^OEC("OSTAT",0,"Code","E",0)) d
+	. . . s item=$p($g(^OEORD(oe,"I",oei,1)),"^",2)
+	. . . i $g(item)'="",$p($g(^ARCIM($p(item,"||"),$p(item,"||",2),1)),"^",10)'="" d
+	. . . . s cat=$p($g(^ARC("IC",$p($g(^ARCIM($p(item,"||"),$p(item,"||",2),1)),"^",10))),"^",8)
+	. . . . i $g(cat)'="" d
+	. . . . . i $g(cat)=$o(^OEC("ORCAT",0,"Code","CON",0)) d
+	. . . . . . s (cov,instrowid)=""
+	. . . . . . s cov=$o(^AR("COV",0,"OEORI",oe_"||"_oei,""))
+	. . . . . . i cov'="" s instrowid=$p($g(^COV(cov)),"^")
+	. . . . . . i instrowid'="" s instcode4=$p($g(^ARC("INST",instrowid)),"^",20)
+	. . . . . . q:instcode4'="PH MPR"
+	. . . . . . s oee=0 f  s oee=$o(^OEORD(oe,"I",oei,"X",oee)) q:oee=""  d
+	. . . . . . . i $p($g(^OEORD(oe,"I",oei,"X",oee)),"^",19)'="" d
+	. . . . . . . . i $g(I42)="" s I42=$p($g(^OEORD(oe,"I",oei,"X",oee)),"^",19)
+	. . . . . . . . i $g(I42)>=$p($g(^OEORD(oe,"I",oei,"X",oee)),"^",19) s I42=$p($g(^OEORD(oe,"I",oei,"X",oee)),"^",19)
+	q I42
+]]></Implementation>
+</Method>
+
+<Method name="GenerateFile">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>path:%String,R5:%String,DateFrom:%String,DateTo:%String</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	n EXTDate,EXTTime
+	s EXTDate=+$h
+	s EXTTime=$p($h,",",2)
+
+	i unixpath'="" s path=unixpath_"PHMPR "_$p($g(^||PHMPR("HEADER",1)),",",6)_"_"_Quarter_" "_Year_"_"_$tr($zd(EXTDate,4),"/","_")_"_"_$zstrip($zt(EXTTime,2),"*P")_"/"
+	i winpath'="" s path=winpath_"PHMPR "_$p($g(^||PHMPR("HEADER",1)),",",6)_"_"_Quarter_" "_Year_"_"_$tr($zd(EXTDate,4),"/","_")_"_"_$zstrip($zt(EXTTime,2),"*P")_"\"
+	d ##class(%File).CreateDirectoryChain(path)
+	s date1=$zstrip($zd(DateFrom,4),"*P")
+	s date2=$zstrip($zd(DateTo,4),"*P")
+
+	s file=##class(%File).%New(path_"CWH___"_$p($g(^||PHMPR("HEADER",1)),",",4)_R5_$p($g(^||PHMPR("HEADER",1)),",",6)_"01"_".csv")
+	d file.Open("WSN",5)
+
+	s cnt=$i(cnt)
+	s ^CacheTemp(repid,cnt)=$lb(^||PHMPR("HEADER",1))
+	//27/08/2012 - FDE - Header Line not written in file
+	d file.WriteLine(^||PHMPR("HEADER",1))
+	
+	s cnt2=1
+	f {
+		s cnt2=$o(^||PHMPR("DATA",cnt2))
+		q:cnt2=""
+		s cnt=$i(cnt)
+		s ^CacheTemp(repid,cnt)=$lb(^||PHMPR("DATA",cnt2))
+		k PLIST
+		s PLIST(11)=$p(^||PHMPR("HEADER",1),",",1)
+		s PLIST(12)=$p(^||PHMPR("HEADER",1),",",2)
+		s PLIST(13)=$p(^||PHMPR("HEADER",1),",",3)
+		s PLIST(14)=$p(^||PHMPR("HEADER",1),",",4)
+		s PLIST(15)=$p(^||PHMPR("HEADER",1),",",5)
+		s PLIST(16)=$p(^||PHMPR("HEADER",1),",",6)
+		s PLIST(17)=$p(^||PHMPR("HEADER",1),",",7)
+		s PLIST(18)=$p(^||PHMPR("HEADER",1),",",8)
+		s PLIST(19)=$p(^||PHMPR("HEADER",1),",",9)
+		s PLIST(20)=$p(^||PHMPR("HEADER",1),",",10)
+		s PLIST(21)=$p($g(^||PHMPR("DATA",cnt2)),",",1)
+		s PLIST(22)=$p($g(^||PHMPR("DATA",cnt2)),",",2)
+		s PLIST(23)=$p($g(^||PHMPR("DATA",cnt2)),",",3)
+		s PLIST(24)=$p($g(^||PHMPR("DATA",cnt2)),",",4)
+		s PLIST(25)=$p($g(^||PHMPR("DATA",cnt2)),",",5)
+		s PLIST(26)=$p($g(^||PHMPR("DATA",cnt2)),",",6)
+		s PLIST(27)=$p($g(^||PHMPR("DATA",cnt2)),",",7)
+		s PLIST(28)=$p($g(^||PHMPR("DATA",cnt2)),",",8)
+		s PLIST(29)=$p($g(^||PHMPR("DATA",cnt2)),",",9)
+		s PLIST(30)=$p($g(^||PHMPR("DATA",cnt2)),",",10)
+		s PLIST(31)=$p($g(^||PHMPR("DATA",cnt2)),",",11)
+		s PLIST(32)=$p($g(^||PHMPR("DATA",cnt2)),",",12)
+		s PLIST(33)=$p($g(^||PHMPR("DATA",cnt2)),",",13)
+		s PLIST(34)=$p($g(^||PHMPR("DATA",cnt2)),",",14)
+		s PLIST(35)=$p($g(^||PHMPR("DATA",cnt2)),",",15)
+		s PLIST(36)=$p($g(^||PHMPR("DATA",cnt2)),",",16)
+		s PLIST(37)=$p($g(^||PHMPR("DATA",cnt2)),",",17)
+		s PLIST(38)=$p($g(^||PHMPR("DATA",cnt2)),",",18)
+		s PLIST(39)=$p($g(^||PHMPR("DATA",cnt2)),",",19)
+		s PLIST(40)=$p($g(^||PHMPR("DATA",cnt2)),",",20)
+		s PLIST(41)=$p($g(^||PHMPR("DATA",cnt2)),",",21)
+		s PLIST(42)=$p($g(^||PHMPR("DATA",cnt2)),",",22)
+		s PLIST(43)=$p($g(^||PHMPR("DATA",cnt2)),",",23)
+		s PLIST(44)=$p($g(^||PHMPR("DATA",cnt2)),",",24)
+		s PLIST(45)=$p($g(^||PHMPR("DATA",cnt2)),",",25)
+		s PLIST(46)=$p($g(^||PHMPR("DATA",cnt2)),",",26)
+		s PLIST(47)=$p($g(^||PHMPR("DATA",cnt2)),",",27)
+		s PLIST(48)=$p($g(^||PHMPR("DATA",cnt2)),",",28)
+		s PLIST(49)=$p($g(^||PHMPR("DATA",cnt2)),",",29)
+		s PLIST(50)=$p($g(^||PHMPR("DATA",cnt2)),",",30)
+		s PLIST(51)=$p($g(^||PHMPR("DATA",cnt2)),",",31)
+		s PLIST(52)=$p($g(^||PHMPR("DATA",cnt2)),",",32)
+		s PLIST(53)=$p($g(^||PHMPR("DATA",cnt2)),",",33)
+		s PLIST(54)=$p($g(^||PHMPR("DATA",cnt2)),",",34)
+		s PLIST(55)=$p($g(^||PHMPR("DATA",cnt2)),",",35)
+		s PLIST(56)=$p($g(^||PHMPR("DATA",cnt2)),",",36)
+		s PLIST(57)=$p($g(^||PHMPR("DATA",cnt2)),",",37)
+		s PLIST(58)=$p($g(^||PHMPR("DATA",cnt2)),",",38)
+		s PLIST(59)=$p($g(^||PHMPR("DATA",cnt2)),",",39)
+		s PLIST(60)=$p($g(^||PHMPR("DATA",cnt2)),",",40)
+		s PLIST(61)=$p($g(^||PHMPR("DATA",cnt2)),",",41)
+		s PLIST(62)=$p($g(^||PHMPR("DATA",cnt2)),",",42)
+		s PLIST(63)=$p($g(^||PHMPR("DATA",cnt2)),",",43)
+		s PLIST(64)=$p($g(^||PHMPR("DATA",cnt2)),",",44)
+		s PLIST(65)=$p($g(^||PHMPR("DATA",cnt2)),",",45)
+		s PLIST(66)=$p($g(^||PHMPR("DATA",cnt2)),",",46)
+		s PLIST(67)=$p($g(^||PHMPR("DATA",cnt2)),",",47)
+		s PLIST(68)=$p($g(^||PHMPR("DATA",cnt2)),",",48)
+		s PLIST(69)=$p($g(^||PHMPR("DATA",cnt2)),",",49)
+		s PLIST(70)=$p($g(^||PHMPR("DATA",cnt2)),",",50)
+		s PLIST(71)=$p($g(^||PHMPR("DATA",cnt2)),",",51)
+		s PLIST(72)=$p($g(^||PHMPR("DATA",cnt2)),",",52)
+		s PLIST(73)=$p($g(^||PHMPR("DATA",cnt2)),",",53)
+		s PLIST(74)=$p($g(^||PHMPR("DATA",cnt2)),",",54)
+		s PLIST(75)=$p($g(^||PHMPR("DATA",cnt2)),",",55)
+		s PLIST(76)=$p($g(^||PHMPR("DATA",cnt2)),",",56)
+		s PLIST(2)=EXTDate
+		s PLIST(3)=EXTTime
+		s PLIST(5)=file.GetFilename(file.Name)
+		s PLIST(4)="PHMPR"
+		S PLIST(6)=$p(^||PHMPR("DATA",cnt2),",",57)
+		&SQL(INSERT INTO Custom.ExtractSummaries VALUES PLIST())
+		d file.WriteLine($p($g(^||PHMPR("DATA",cnt2)),",",1,56))
+	}
+	d file.Close()
+	d ##class(Custom.VICExtractSummary).PHMPRSummary(path,EXTDate,EXTTime)
+	q 1
+]]></Implementation>
+</Method>
+
+<Method name="PHMPRExtractFetch">
+<Description>
+This is the Fetch component of the %Library.Query. 
+This should never have to change. It is designed to fetch the row for each subscript of the ^CacheTemp
+global and return this row to the Crystal Report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,&Row:%Library.List,&AtEnd:%Library.Integer=0]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // This fetch method should never have to change. 
+
+ // repid - Report ID
+ // ind   - sequence index which represents each row
+
+ New repid,ind
+
+ // Restore QHandle
+ Set AtEnd=$li(QHandle,1)
+ Set repid=$li(QHandle,2)
+ Set ind=$li(QHandle,3)
+
+ Set ind=$o(^CacheTemp(repid,ind))
+ If ind="" {	// if there are no more rows, finish fetching
+ Set AtEnd=1
+ Set Row=""
+ }
+ Else      {	// fetch row
+ Set Row=^CacheTemp(repid,ind)
+ }
+
+ // Save QHandle
+ s QHandle=$lb(AtEnd,repid,ind)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Query name="PHMPRExtract">
+<Description>
+This is the Stored Procedure Template. For Sample use only.
+It expects one parameter of type integer and will return 4 fields:
+Field1 - Integer
+Field2 - String
+Field3 - Date
+Field4 - Time</Description>
+<Type>%Library.Query</Type>
+<FormalSpec>Quarter:%Library.String,Year:%Library.String,Agency:%Library.String,Site:%String</FormalSpec>
+<SqlProc>1</SqlProc>
+<Parameter name="CONTAINID" value="0"/>
+<Parameter name="ROWSPEC" value="data:%String"/>
+<Parameter name="SELECTMODE" value="ODBC"/>
+</Query>
+
+<Query name="LookUpAgency">
+<Type>%Library.SQLQuery</Type>
+<FormalSpec>Agency:%String</FormalSpec>
+<SqlQuery><![CDATA[SELECT TRUST_Desc, TRUST_RowId, TRUST_Code
+FROM SQLUser.PAC_Trust
+WHERE ((%ALPHAUP TRUST_Desc %STARTSWITH %ALPHAUP :Agency) OR (%ALPHAUP TRUST_Code %STARTSWITH %ALPHAUP :Agency))
+AND (TRUST_DateFrom <= CURRENT_DATE)
+AND ((TRUST_DateTo IS NULL) OR (TRUST_DateTo >= CURRENT_DATE))
+ORDER BY TRUST_Desc]]></SqlQuery>
+<Parameter name="CONTAINID" value="2"/>
+<Parameter name="ROWSPEC" value="Description:%String,HIDDEN:%String,Code:%String"/>
+</Query>
+
+<Method name="LookUpBrokerAgency">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>itmjs:%Library.String="",itmjsex:%Library.String="",Agency:%Library.String=""</FormalSpec>
+<Implementation><![CDATA[
+ n id,code,desc,activedate
+
+ s (id,code,desc)=""
+
+ ; Try and find a matching code
+ &sql(SELECT	TRUST_Desc, TRUST_RowId, TRUST_Code
+ INTO	:desc, :id, :code
+ FROM	SQLUser.PAC_Trust
+ WHERE	((%ALPHAUP TRUST_Desc = %ALPHAUP :Agency) OR (%ALPHAUP TRUST_Code = %ALPHAUP :Agency))
+ AND (TRUST_DateFrom <= CURRENT_DATE)
+ AND ((TRUST_DateTo IS NULL) OR (TRUST_DateTo >= CURRENT_DATE))
+ )
+ ;
+ i SQLCODE s desc=Agency q 0
+ s retval=itmjs_"('"_$ZCVT(desc,"O","JS")_"');"
+ i itmjsex'="""" s retval=retval_itmjsex_"('"_$ZCVT(desc,"O","JS")_"^"_id_"^"_$ZCVT(code,"O","JS")_"');"
+ &javascript<#(retval)#>
+ q 1
+]]></Implementation>
+</Method>
+
+<Method name="LookUpYearClose">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>QHandle:%Library.Binary</FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+	n repid
+	s repid=$li(QHandle,2)
+ 
+	i mon Do ..MonitorEnd(mon)
+	k ^CacheTemp("TRAK",repid)
+	q $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="LookUpYearExecute">
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,val:%String]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+	n repid,ind
+	s repid=$I(^CacheTemp("TRAK"))
+
+	s mon=..MonitorBegin()
+	
+	s currentyear=$p($zd(+$h,3),"-")
+	s startyear=currentyear-5
+	s stopyear=currentyear+5
+	
+	i val="" {
+		f y=startyear:1:stopyear {
+			s ind=$i(ind)
+			s ^CacheTemp("TRAK",repid,ind)=$LB(y)
+		}
+	} else {
+		f y=startyear:1:stopyear {
+			i val=$e(y,1,$l(val)) {
+				s ind=$i(ind)
+				s ^CacheTemp("TRAK",repid,ind)=$LB(y)
+			}
+		}
+	}			
+	s QHandle=$lb(0,repid,0)
+	q $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="LookUpYearFetch">
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,&Row:%Library.List,&AtEnd:%Library.Integer=0]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+	n repid,ind
+
+	s AtEnd=$li(QHandle,1)
+	s repid=$li(QHandle,2)
+	s ind=$li(QHandle,3)
+
+	s ind=$o(^CacheTemp("TRAK",repid,ind))
+	i ind="" {
+		s AtEnd=1
+		s Row=""
+	} else {
+		s Row=^CacheTemp("TRAK",repid,ind)
+	}
+	s QHandle=$lb(AtEnd,repid,ind)
+	q $$$OK
+]]></Implementation>
+</Method>
+
+<Query name="LookUpYear">
+<Type>%Library.Query</Type>
+<FormalSpec>val:%String</FormalSpec>
+<SqlProc>1</SqlProc>
+<Parameter name="CONTAINID" value="0"/>
+<Parameter name="ROWSPEC" value="Year:%String"/>
+</Query>
+
+<Method name="LookUpBrokerByYear">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>itmjs:%Library.String,itmjsex:%Library.String="",val:%Library.String=""</FormalSpec>
+<ReturnType>%Library.Boolean</ReturnType>
+</Method>
+
+<Method name="LookUpQuarterClose">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>QHandle:%Library.Binary</FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+	n repid
+	s repid=$li(QHandle,2)
+ 
+	i mon Do ..MonitorEnd(mon)
+	k ^CacheTemp("TRAK",repid)
+	q $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="LookUpQuarterExecute">
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,val:%String]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+	n repid,ind
+	s repid=$I(^CacheTemp("TRAK"))
+
+	s mon=..MonitorBegin()
+	
+	s quarterdesclist="January - March,April - June,July - September,October - December"
+	
+	i val="" {
+		f y=1:1:4 {
+			s ind=$i(ind)
+			s ^CacheTemp("TRAK",repid,ind)=$LB($p(quarterdesclist,",",y))
+		}
+	} else {
+		f y=1:1:4 {
+			s listvalue=$e($p(quarterdesclist,",",y),1,$l(val))
+			i $zcvt(val,"U")=$zcvt(listvalue,"U") {
+				s ind=$i(ind)
+				s ^CacheTemp("TRAK",repid,ind)=$LB($p(quarterdesclist,",",y))
+			}
+		}
+	}
+	
+	s QHandle=$lb(0,repid,0)
+	q $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="LookUpQuarterFetch">
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,&Row:%Library.List,&AtEnd:%Library.Integer=0]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+	n repid,ind
+
+	s AtEnd=$li(QHandle,1)
+	s repid=$li(QHandle,2)
+	s ind=$li(QHandle,3)
+
+	s ind=$o(^CacheTemp("TRAK",repid,ind))
+	i ind="" {
+		s AtEnd=1
+		s Row=""
+	} else {
+		s Row=^CacheTemp("TRAK",repid,ind)
+	}
+	s QHandle=$lb(AtEnd,repid,ind)
+	q $$$OK
+]]></Implementation>
+</Method>
+
+<Query name="LookUpQuarter">
+<Type>%Library.Query</Type>
+<FormalSpec>val:%String</FormalSpec>
+<SqlProc>1</SqlProc>
+<Parameter name="CONTAINID" value="0"/>
+<Parameter name="ROWSPEC" value="Year:%String"/>
+</Query>
+
+<Method name="LookUpBrokerByQuarter">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>itmjs:%Library.String,itmjsex:%Library.String="",val:%Library.String=""</FormalSpec>
+<ReturnType>%Library.Boolean</ReturnType>
+</Method>
+</Class>
+</Export>

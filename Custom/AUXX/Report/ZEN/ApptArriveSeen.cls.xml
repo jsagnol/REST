@@ -1,0 +1,204 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.AUXX.Report.ZEN.ApptArriveSeen">
+<Super>Custom.AUXX.Report.ZEN.Abstract</Super>
+<TimeCreated>61543,54494.035066</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/AUXX/Report/ZEN/ApptArriveSeen.xml#1 $</Default>
+</Parameter>
+
+<UDLText name="T">
+<Content><![CDATA[
+// Report Name: Appointment Arrival - Seen Times
+
+]]></Content>
+</UDLText>
+
+<UDLText name="T">
+<Content><![CDATA[
+// Report Code: AUXX.BKG.0001 <br>
+
+]]></Content>
+</UDLText>
+
+<UDLText name="T">
+<Content><![CDATA[
+// Logauxx Number: 72215
+
+]]></Content>
+</UDLText>
+
+<Property name="DateFrom">
+<Type>%String</Type>
+<Parameter name="ZENURL" value="P1"/>
+</Property>
+
+<Property name="DateTo">
+<Type>%String</Type>
+<Parameter name="ZENURL" value="P2"/>
+</Property>
+
+<Property name="Facility">
+<Type>%String</Type>
+<Parameter name="ZENURL" value="P3"/>
+</Property>
+
+<Property name="Specialty">
+<Type>%String</Type>
+<Parameter name="ZENURL" value="P4"/>
+</Property>
+
+<Property name="Clinician">
+<Type>%String</Type>
+<Parameter name="ZENURL" value="P5"/>
+</Property>
+
+<XData name="ReportDefinition">
+<XMLNamespace>http://www.intersystems.com/zen/report/definition</XMLNamespace>
+<Data><![CDATA[
+<report xmlns='http://www.intersystems.com/zen/report/definition'
+   queryClass='Custom.AUXX.Report.ZEN.StoredProc.ApptArriveSeen' queryName='ApptArriveSeen' name='ApptArriveSeen'>
+  <parameter expression='..DateFrom'/>
+  <parameter expression='..DateTo'/>
+  <parameter expression='..Facility'/>
+  <parameter expression='..Specialty'/>
+  <parameter expression='..Clinician'/>
+  <attribute name='ReportTitle' expression='$$$Text("@AppointmentArrivalSeenByTimes@Appointment Arrival - Seen By Times")'/>
+  <attribute name='timestamp' expression='$ZDATETIME($H, 2, 2)'/>
+  <attribute name='username' expression='..Username'/>
+  <attribute name="datefrom" expression="..DisplayDate(..DateFrom)"/>
+  <attribute name="dateto" expression="..DisplayDate(..DateTo)"/>
+  <attribute name='facility' expression="..GetHospListDesc(..Facility)"/>
+  <attribute name="specialty" expression="..GetSpecialtyListDesc(..Specialty)"/>
+  <attribute name="Clinician" expression="..GetCareProvListDesc(..Clinician)"/>
+ 
+   <group name="facility" breakOnField="HOSPDesc">
+   <attribute name="description" field="HOSPDesc" />
+    <aggregate name='HospCnt' type='CUSTOM' field='APPTRowId' class='%ZEN.Report.Aggregate.CountDistinct'/>
+    <aggregate name='HospVar' type='SUM' field='Variance'/>
+   <group name="specialty" breakOnField="CTLOCDesc">
+   <attribute name="description" field="CTLOCDesc" />
+    <aggregate name='LocnCnt' type='CUSTOM' field='APPTRowId' class='%ZEN.Report.Aggregate.CountDistinct'/>
+    <aggregate name='LocnVar' type='SUM' field='Variance'/>
+   <group name="Clinician" breakOnField="RESDesc">
+   <attribute name="description" field="RESDesc" />
+    <aggregate name='ProvCnt' type='CUSTOM' field='APPTRowId' class='%ZEN.Report.Aggregate.CountDistinct'/>
+    <aggregate name='ProvVar' type='SUM' field='Variance'/>
+           <group name='Detail'>
+ 	        <attribute fields='PAPMIName,PAPMIName2,PAPMIName3' name='PatientName' expression='..DisplayName(%val("PAPMIName"),%val("PAPMIName2"),%val("PAPMIName3"))'/>
+            <attribute field='PAPMINo' name='PAPMINo'/>                    
+	    	<attribute field='ASDate' name='ASDate' expression='..DisplayDate(%val)'/>   
+            <attribute field='APPTRowId' name='APPTRowId'/>
+            <attribute field='ASSessStartTime' name='ASSessStartTime'/>
+            <attribute field='APPTArrivalTime' name='APPTArrivalTime'/>
+            <attribute field='APPTSeenTime' name='APPTSeenTime'/>
+            <attribute field='Variance' name='Variance'/>
+           </group>
+         </group>
+         </group>
+         </group>
+</report>
+]]></Data>
+</XData>
+
+<XData name="ReportDisplay">
+<XMLNamespace>http://www.intersystems.com/zen/report/display</XMLNamespace>
+<Data><![CDATA[
+<report xmlns='http://www.intersystems.com/zen/report/display'
+xmlns:auxxstyle='http://www.intersystems.com/zen/report/display/auxx/style'
+xmlns:auxx='http://www.intersystems.com/zen/report/display/auxx'
+   name='ApptArriveSeen'>
+<!--<document width="210mm" height="297mm" marginLeft="10mm" marginRight="10mm" marginTop="10mm" marginBottom="15mm" footerHeight="0mm" headerHeight="20mm"  >-->
+<document width= "#(..ReportWidth)#" height="#(..ReportHeight)#" marginLeft="#(..DocMarginLeft)#" marginRight="#(..DocMarginRight)#" 
+marginTop="#(..DocMarginTop)#" marginBottom="#(..DocMarginBottom)#" footerHeight="#(..DocFooterHeight)#" headerHeight="#(..DocHeaderHeight)#" 
+regionBeforeExtent="#(..DocHeaderHeight)#" regionAfterExtent="#(..DocFooterHeight)#" >
+<auxxstyle:auxxgroupheader/>
+<auxxstyle:auxxgroupsummary/>
+<auxxstyle:auxxhospitalheader/>
+<auxxstyle:auxxpageheader/>
+<auxxstyle:auxxpagefooter/>
+<auxxstyle:auxxparameterheader/>
+<auxxstyle:auxxreporttitle/>
+<auxxstyle:auxxtablecolumn/>
+</document>
+<auxx:PageHeader pagetitle='@ReportTitle'/>
+<auxx:ReportFooter username='@username' timestamp='@timestamp'/>
+<body>
+<!-- REPORT HEADER -->
+<auxx:ReportHeader reporttitle='@ReportTitle'/>
+<auxx:ReportParameterHeader label='@Facility:@Facility:' field='@facility'  xcondition="string-length(@facility)>0"/>
+<auxx:ReportParameterHeader label='@Specialty:@Specialty:' field='@specialty'  xcondition="string-length(@specialty)>0"/>
+<auxx:ReportParameterHeader label='@Clinician:@Clinician:' field='@Clinician'  xcondition="string-length(@Clinician)>0"/>
+<auxx:ReportDateHeader datefrom="@datefrom" dateto="@dateto" />
+<line pattern="solid" width="100%"/>
+<line pattern="empty" width="100%"></line> 
+
+<auxx:NoResults xcondition="not(facility)" />
+<group name='facility' pagebreak='true'>
+<auxx:GroupHospitalHeader label="@Facility:@Facility:" field="@description"/>
+<line pattern="empty" lineHeight="2mm" />
+<group name='specialty'>
+<auxx:GroupHeader label="@Specialty:@Specialty:" field="@description"/>
+<line pattern="empty" lineHeight="2mm" />
+<group name='Clinician'>
+<auxx:GroupHeader label="@Clinician:@Clinician:" field="@description"/>
+<line pattern="empty" lineHeight="2mm" />
+   <table class='auxxtablecolumn'  group='Detail'>
+    <item field='@PatientName' width="21%" caption='@Name@Name'/>
+    <item field='@PAPMINo' width='13%' caption='@URN@URN'/>
+    <item field='@ASDate' width='12%' caption='@ApptDate@Appt Date'/>
+    <item field='@ASSessStartTime' width='8%' caption='@ApptTime@Appt Time'/>
+    <item field='@APPTArrivalTime' width='10%' caption='Arrival Time'/>
+    <item field='@APPTSeenTime' width='8%' caption='Seen Time'/>
+    <item field='@Variance' width='10%' caption='Variance' style='text-align:right' formatNumber="###0"/>
+  </table>   
+   <line pattern="empty" lineHeight="4mm" />
+
+   <table class='auxxgroupsummary' >
+	    <item value='@Totalsfor@Totals for '  width="7%" />
+        <item field='@description' width="26%" />
+	    <item value='@Appointments=@Appointments =' width="10%" formatNumber="###0.00" />
+	    <item value='' width="1%" />
+        <item field='ProvCnt' width="4%" />
+	    <item value='@AverageVariance=@Average Variance =' width="15%" />
+        <item field="ProvVar div ProvCnt" ifxpath='ProvVar!=0' formatNumber="###0.00" />
+	    <item value='' width="47%" />
+ 	</table> 
+  <line pattern="empty" lineHeight="4mm" />
+  </group> 
+ 
+   <table class='auxxgroupsummary' >
+	    <item value='@Totalsfor@Totals for '  width="7%" />
+        <item field='@description' width="26%" />
+	    <item value='@Appointments=@Appointments =' width="10%" formatNumber="###0.00" />
+	    <item value='' width="1%" />
+        <item field='LocnCnt' width="4%" />
+	    <item value='@AverageVariance=@Average Variance =' width="15%" />
+        <item field="LocnVar div LocnCnt" ifxpath='LocnVar!=0' formatNumber="###0.00" />
+	    <item value='' width="47%" />
+ 	</table> 
+  <line pattern="empty" lineHeight="4mm" />
+  </group> 
+  
+    <table class='auxxgroupsummary' >
+	    <item value='@Totalsfor@Totals for '  width="7%" />
+        <item field='@description' width="26%" />
+	    <item value='@Appointments=@Appointments =' width="10%" formatNumber="###0.00" />
+	    <item value='' width="1%" />
+        <item field='HospCnt' width="4%" />
+	    <item value='@AverageVariance=@Average Variance =' width="15%" />
+        <item field="HospVar div HospCnt" ifxpath='HospVar!=0' formatNumber="###0.00" />
+	    <item value='' width="47%" />
+ 	</table> 
+  <line pattern="empty" lineHeight="4mm" />
+  </group>
+  
+</body>
+</report>
+]]></Data>
+</XData>
+</Class>
+</Export>

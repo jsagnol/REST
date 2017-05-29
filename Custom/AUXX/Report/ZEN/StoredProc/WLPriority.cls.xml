@@ -1,0 +1,248 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.AUXX.Report.ZEN.StoredProc.WLPriority">
+<ProcedureBlock>0</ProcedureBlock>
+<Super>Report.Abstract</Super>
+<TimeCreated>59388,55236.125</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/AUXX/Report/ZEN/StoredProc/WLPriority.xml#1 $</Default>
+</Parameter>
+
+<UDLText name="T">
+<Content><![CDATA[
+// Report Name: Trak Waiting List By Priority <br>
+
+]]></Content>
+</UDLText>
+
+<UDLText name="T">
+<Content><![CDATA[
+// Report Code: Trak.WLT0004 <br>
+
+]]></Content>
+</UDLText>
+
+<UDLText name="T">
+<Content><![CDATA[
+// Report Description: This report presents the total number of patients on the Waiting List, 
+
+]]></Content>
+</UDLText>
+
+<UDLText name="T">
+<Content><![CDATA[
+// 						with a status other than D - Done or R - Removed.
+
+]]></Content>
+</UDLText>
+
+<UDLText name="T">
+<Content><![CDATA[
+// LOGTRAK Number: 72458 <br>
+
+]]></Content>
+</UDLText>
+
+<Method name="WLPriorityClose">
+<Description>
+This is the Close component of the %Library.Query.
+This is standard code and should never have to change.
+This is where all the cleanup is performed, i.e. the purging of the temporary storage global ^CacheTemp.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>QHandle:%Library.Binary</FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Clean up by purging the temporary node in ^CacheTemp global
+ New repid
+ Set repid=$LIST(QHandle,2)
+ 
+ //Start Monitor (if configured to capture stats)
+ i mon Do ..MonitorEnd(mon)
+
+ Kill ^CacheTemp("TRAK",repid)
+ 
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="WLPriorityExecute">
+<Description>
+This is the Execute section for the %Library.Query. 
+All of the logic will be performed here.
+A new node for the ^CacheTemp("TRAK") global will be created and each subscript of this global will contain
+a row for the report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,Hospital:%Library.String,Location:%Library.String,WLType:%Library.String]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Get reportid i.e. use $INCREMENT to add another node to ^CacheTemp("TRAK") global. 
+ // We use ^CacheTemp global because CACHETEMP is a memory resident database
+ New repid,ind
+
+ // Use $Increment to get the next node and clean up
+ Set repid=$Increment(^CacheTemp("TRAK"))
+ Kill ^CacheTemp("TRAK",repid)
+ 
+ //Start Monitor (if configured to capture stats)
+ s mon=..MonitorBegin()
+  
+ new WLSCode,WLRowId,WLNo,WLDate,HOSPRowId,HOSPCode,HOSPDesc,CTLOCRowId,CTLOCCode,CTLOCDesc,WLTRowId,WLTCode,WLTDesc,WLPRowId,WLPCode,WLPDesc,WLPLevel,PAPMINo,PAPMIName,PAPMIName2
+ set (WLSCode,WLRowId,WLNo,WLDate,HOSPRowId,HOSPCode,HOSPDesc,CTLOCRowId,CTLOCCode,CTLOCDesc,WLTRowId,WLTCode,WLTDesc,WLPRowId,WLPCode,WLPDesc,PAPMINo,PAPMIName,PAPMIName2)=""
+ set WLPLevel = 0
+ new PriorTot0,PriorTot1,PriorTot2,PriorTot3,PriorTot4,PriorTotX,PriorAll
+ set (PriorTot0,PriorTot1,PriorTot2,PriorTot3,PriorTot4,PriorTotX,PriorAll)=0
+ new LastHospital, LastLocation,NextHospital, NextLocation, LastSpecialty, NextSpecialty
+ set (LastHospital, LastLocation,NextHospital, NextLocation, LastSpecialty, NextSpecialty)=""
+ new FirstTime
+ set FirstTime="Y"
+ 
+ i $g(Hospital)'="" s Hospital=$zstrip(Hospital,"*C")
+ i $g(Location)'="" s Location=$zstrip(Location,"*C")
+ i $g(WLType)'="" s WLType=$zstrip(WLType,"*C")
+ 
+ d GetData
+  
+ // Build QHandle (AtEnd,ReportID,Index)
+ Set QHandle=$LISTBUILD(0,repid,0)
+ Quit $$$OK
+ 
+GetData
+ &SQL(DECLARE WL CURSOR FOR
+ SELECT
+	 WL_RowId,
+	 WL_No,
+	 WL_Date,
+	 WL_Hospital_DR,
+	 WL_Hospital_DR->HOSP_Code,
+	 WL_Hospital_DR->HOSP_Desc,
+	 WL_CTLOC_DR,
+	 WL_CTLOC_DR->CTLOC_Code,
+	 WL_CTLOC_DR->CTLOC_Desc,
+	 WL_WaitListType_DR->WLT_RowId,
+	 WL_WaitListType_DR->WLT_Code,
+	 WL_WaitListType_DR->WLT_Desc,
+	 WL_PAPMI_DR->PAPMI_No,
+	 WL_PAPMI_DR->PAPMI_Name,
+	 WL_PAPMI_DR->PAPMI_Name2,
+	 WL_WaitListPrior_DR->WLP_Level
+ INTO :WLRowId,:WLNo,:WLDate,:HOSPRowId,:HOSPCode,:NextHospital,:CTLOCRowId,:CTLOCCode,:CTLOCDesc,:WLTRowId,:WLTCode,:NextLocation,:PAPMINo,:PAPMIName,:PAPMIName2,:WLPLevel
+ FROM SQLUser.PA_WaitingList
+ WHERE WL_WaitListStatus_DR->WLS_Code not in ('R', 'D')
+ AND(({fn CONCAT( ',', {fn CONCAT((:Hospital),',')})} [ {fn CONCAT( ',', {fn CONCAT((WL_Hospital_DR->HOSP_RowId),',')})}) OR (:Hospital IS NULL))
+ AND (({fn CONCAT( ',', {fn CONCAT((:Location),',')})} [ {fn CONCAT( ',', {fn CONCAT((WL_CTLOC_DR->CTLOC_RowId),',')})}) OR (:Location IS NULL))
+ AND (({fn CONCAT( ',', {fn CONCAT((:WLType),',')})} [ {fn CONCAT( ',', {fn CONCAT((WL_WaitListType_DR->WLT_RowId),',')})}) OR (:WLType IS NULL))
+ AND (Current_date > WL_WaitListPrior_DR->WLP_DateFrom AND (Current_date < WL_WaitListPrior_DR->WLP_DateTo OR WL_WaitListPrior_DR->WLP_DateTo is NULL)) 
+ ORDER BY WL_Hospital_DR->HOSP_Desc, WL_WaitListType_DR->WLT_Desc,WL_CTLOC_DR->CTLOC_Desc)
+
+ &SQL(OPEN WL)
+ 
+ f  &SQL(FETCH WL) q:SQLCODE'=0  d
+ . s WLDate=..ConvertDateToODBC(WLDate)
+ . d ProcessData
+ 
+ if FirstTime = "N" {
+	 do FormatData
+	 do BuildRow
+ }
+ &SQL(CLOSE WL)
+ q
+ 
+ProcessData 
+ if FirstTime = "Y" {
+	do SetLast
+ }
+ if (LastHospital = NextHospital) && (LastLocation = NextLocation) && (LastSpecialty = CTLOCDesc) {
+	do AccumTots
+ }
+ else {
+	do FormatData
+ 	do BuildRow
+	do SetLast
+	do AccumTots
+ }
+ q
+ 
+SetLast
+ set FirstTime = "N"
+ set LastHospital = NextHospital
+ set LastLocation = NextLocation
+ set LastSpecialty = CTLOCDesc
+ set (PriorTot0,PriorTot1,PriorTot2,PriorTot3,PriorTot4,PriorTotX,PriorAll)=0
+ q
+ 
+AccumTots
+ if WLPLevel = "" {set PriorTot0 = PriorTot0 + 1}
+ elseif WLPLevel = 1 {set PriorTot1 = PriorTot1 + 1}
+ elseif WLPLevel = 2 {set PriorTot2 = PriorTot2 + 1}
+ elseif WLPLevel = 3 {set PriorTot3 = PriorTot3 + 1}
+ elseif WLPLevel = 4 {set PriorTot4 = PriorTot4 + 1}
+ else {set PriorTotX = PriorTotX + 1}
+ q
+
+FormatData
+ set HOSPDesc = LastHospital
+ set WLTDesc = LastLocation
+ set CTLOCDesc1 = LastSpecialty
+ set PriorAll = PriorTot0 +PriorTot1 +PriorTot2 +PriorTot3 +PriorTot4 + PriorTotX
+ q
+ 
+BuildRow
+ s ind=$i(ind)
+ s ^CacheTemp("TRAK",repid,$ZCVT(HOSPDesc,"U")_" "_$ZCVT(WLTDesc, "U")_" "_$ZCVT(CTLOCDesc1, "U")_ind)=$LISTBUILD(HOSPDesc,WLTDesc,CTLOCDesc1,PriorTot0,PriorTot1,PriorTot2,PriorTot3,PriorTot4,PriorTotX,PriorAll)
+ q
+]]></Implementation>
+</Method>
+
+<Method name="WLPriorityFetch">
+<Description>
+This is the Fetch component of the %Library.Query. 
+This should never have to change. It is designed to fetch the row for each subscript of the 
+^CacheTemp("TRAK" global and return this row to the Report writer</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,&Row:%Library.List,&AtEnd:%Library.Integer=0]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // This fetch method should never have to change. 
+ // repid - Report ID
+ // ind   - sequence index which represents each row
+
+ New repid,ind
+
+ // Restore QHandle
+ Set AtEnd=$LI(QHandle,1)
+ Set repid=$LI(QHandle,2)
+ Set ind=$LI(QHandle,3)
+
+ Set ind=$order(^CacheTemp("TRAK",repid,ind))
+ If ind="" {	// if there are no more rows, finish fetching
+ 	Set AtEnd=1
+ 	Set Row=""
+ }  Else  {	// fetch row
+ 	Set Row=^CacheTemp("TRAK",repid,ind)
+ }
+
+ // Save QHandle
+ Set QHandle=$lb(AtEnd,repid,ind)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Query name="WLPriority">
+<Description>
+This is the Stored Procedure Template. For Sample use only.
+It expects one parameter of type integer and will return 4 fields:
+Field1 - Integer
+Field2 - String
+Field3 - Date
+Field4 - Time</Description>
+<Type>%Library.Query</Type>
+<FormalSpec>Hospital:%Library.String,Location:%Library.String,WLType:%Library.String</FormalSpec>
+<SqlProc>1</SqlProc>
+<Parameter name="CONTAINID" value="0"/>
+<Parameter name="ROWSPEC" value="HOSPDesc:%String,WLTDesc:%String,CTLOCDesc:%String,PriorTot0:%Integer,PriorTot1:%Integer,PriorTot2:%Integer,PriorTot3:%Integer,PriorTot4:%Integer,PriorTotX:%Integer,PriorAll:%Integer"/>
+</Query>
+</Class>
+</Export>

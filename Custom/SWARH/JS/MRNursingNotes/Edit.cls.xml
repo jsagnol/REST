@@ -1,0 +1,100 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.SWARH.JS.MRNursingNotes.Edit">
+<Description>
+Component JavaScript for: MRNursingNotes.Edit</Description>
+<Modified>0</Modified>
+<Super>websys.AbstractJavaScript</Super>
+<TimeCreated>63537,10516.244443</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+This Parameter is updated by Perforce</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/SWARH/JS/MRNursingNotes/Edit.xml#1 $</Default>
+</Parameter>
+
+<Method name="JSContent">
+<Description>
+ </Description>
+<Language>javascript</Language>
+<ClientMethod>1</ClientMethod>
+<Implementation><![CDATA[
+// 2010-08-31 (srees)		Allow Clinical Notes to be copied to the clipboard
+// 2016-10-10 (rpgladman)	Layout now only has an update button so removed missing ids from list
+// 2017-02-21 (rpgladman)	Added preventWindowClosure
+
+var ta = document.getElementById('Document');
+
+if (ta) {
+    ta.style.display = 'none';
+}
+
+var objSavedNotes = document.getElementById('NOTNotesSave');
+var objNotes = document.getElementById('NOTRTFNotes');
+if (objSavedNotes && objNotes) {
+	var buttonnode=document.createElement('input');
+	buttonnode.type = 'button';
+	buttonnode.name = 'copy';
+	buttonnode.value = 'Copy Note';
+	buttonnode.className = 'clsButton';
+	objNotes.parentElement.insertBefore(buttonnode,objNotes.nextSibling);
+	objNotes.parentElement.insertBefore(document.createTextNode(" "),objNotes.nextSibling);
+	websys_addListener('click', 'onclick',
+		function() {
+			if (objSavedNotes.createTextRange) { // IE only
+				var range = objSavedNotes.createTextRange();
+				if (range.execCommand)
+					range.execCommand('copy');
+			}
+		}, buttonnode);
+}
+
+// This is meant to stop users from entering in clinical notes and then closing the window without saving.
+function preventWindowClosure(event) {
+  
+  // 1. IF In a window -- If not in a window then we are in the edit iframe which has its own anti-close handling supplied by Trak.  We look for the InfoPaneHeader to determine this.
+  // 2. AND "Update" committed content length == 0 -- On hitting update the CKEditor puts into the NOTNotesHTMLRichText the content in the CKEditor iframe - If this has anything in it at all then the user hit update like we want them to.  Trak will reload the page if anything wrong happenned like an invalid/incomplete field or incorrect password
+  // 3. AND CKEditor iframe has some text in it -- If you haven't typed a single character into the editor then we can just close as nothing was done.
+  
+  if (!document.getElementById('InfoPaneHeader') && document.getElementById('NOTNotesHTMLRichText').innerText.replace(/<[^>]+>/ig,'').length == 0 && document.querySelectorAll('iframe')[0].contentWindow.document.body.innerText.length > 0) {
+    var message = 'Closing this window without updating will discard all of the clinical notes you have entered on this page!';
+    if (typeof event == 'undefined') event = window.event;							// Standard & IE methods
+    if (event) event.returnValue = message;
+    return message;
+  }
+}
+
+websys_addListener('beforeunload','onbeforeunload',preventWindowClosure,window);
+
+//tknoll-miller (SWARH) 2009-09-16 per-form authorise config
+var authcfg = {
+   'buttons': [
+      'update1' //, 'save1', 'Repeat'	// 2016-10-10 (RG) - Layout now only has an update button so removed missing ids from list
+   ],
+   'fields': {
+      'username': 'UserCode',
+      'password': 'PIN'
+   }
+};
+//end tknoll-miller (SWARH) 2009-09-16 per-form authorise config
+
+//tknoll-miller (SWARH) 2009-09-16 Load authorise script
+// Scope variables
+(function() {
+   var loadScript = function(type, src) {
+      var head = document.getElementsByTagName('head')[0];
+      var script = document.createElement('script');
+      script.type = type;
+      script.src = src;
+      head.appendChild(script);
+      websys_addListener('load', 'onload', function(){document.isLoaded=true});
+      return script;
+   };
+
+   loadScript('text/javascript', '../custom/SWARH/scripts/authorise4.js');
+})();
+//end tknoll-miller (SWARH) 2009-09-16 Load authorise script
+]]></Implementation>
+</Method>
+</Class>
+</Export>

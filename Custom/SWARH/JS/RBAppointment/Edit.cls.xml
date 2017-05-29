@@ -1,0 +1,134 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.SWARH.JS.RBAppointment.Edit">
+<Description>
+Component JavaScript for: RBAppointment.Edit</Description>
+<Modified>0</Modified>
+<Super>websys.AbstractJavaScript</Super>
+<TimeCreated>63537,10520.049445</TimeCreated>
+
+<Method name="JSContent">
+<Description>
+ </Description>
+<Internal>0</Internal>
+<Language>javascript</Language>
+<ClientMethod>1</ClientMethod>
+<Implementation><![CDATA[
+/*********************************************************************
+$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/SWARH/JS/RBAppointment/Edit.xml#1 $
+Version 1
+
+- General custom field validation for rbappointment.edit.js component
+
+REMEMBER to update the versions with initials, date and description for each modification...
+IF		17/12/2013		TRC159209 - Created Script
+
+**********************************************************************/
+
+websys_removeListener("load","onload",DocumentLoadHandler);
+websys_addListener("load","onload",CustomDocumentLoadHandler);
+
+function CustomDocumentLoadHandler() {
+	DocumentLoadHandler();
+	
+	var obj=document.getElementById("SNAPRoom");
+	if (obj) obj.onchange=Selected;
+}
+
+function Selected() {
+	var x = document.getElementById("SNAPRoom").selectedIndex;
+	var y = document.getElementById("SNAPRoom").options;
+	
+	if (document.getElementById("SNAPRoomDesc")) document.getElementById("SNAPRoomDesc").value=y[x].text;
+
+}
+
+//Created 13/11/2013 - Bradly SHARPE
+
+var objRBAppt = {
+	//Holds the value of the original update button click function before I replace it
+	origUpdate : null,
+	formHasBeenPosted: false,
+	initialise: function(){
+		//Remove TRAK document loader and add our own
+		websys_removeListener("load","onload", DocumentLoadHandler);
+		SWARH.addArrayMethods();
+		SWARH.addPostMessageListener(objRBAppt.receiveMessage);
+		SWARH.onReady(function(){
+			objRBAppt.customDocumentLoadHandler();
+		});
+	},
+	customDocumentLoadHandler: function(){
+		//Call TRAK document loader
+		DocumentLoadHandler();
+		SWARH.loadJSON();
+		//Find the update button
+		obj = document.getElementById('update1');
+		if (obj) {
+			//Store current click function
+			objRBAppt.origUpdate = obj.onclick;
+			//Overwrite with custom update function
+			obj.onclick = null;
+			websys_addListener('click', 'onclick', objRBAppt.updateCustom, obj);
+		}
+		if (tsc['update1']) websys_sckeys[tsc['update1']] = objRBAppt.updateCustom;
+		var lbl = document.getElementById("cSNAPRoom");
+		if (lbl) lbl.className = "clsRequired";
+
+	},
+	updateCustom: function(){
+		//Tell SNAP to POST
+		var markingKey = "postFormMarkingKey";
+		var data = {
+			"action": "POST",
+			"update": objRBAppt.formHasBeenPosted,
+			"markingKey" : markingKey
+		};
+
+		var fieldsToValidate = [ 'SNAPRoom' ];
+		var errors = [];
+				
+		for (var i = 0; i < fieldsToValidate.length; i++) {
+			var field = fieldsToValidate[i];
+			var fldel = document.getElementById(field);
+			var lblel = document.getElementById('c'+field);
+			if ((fldel) && (fldel.disabled !== "disabled") && (fldel.value === "")) {
+				errors.push(lblel.innerHTML + ": " + t['XMISSING']);
+			}
+		}
+
+		if (errors.length > 0) {
+			alert(errors.join("\n"));
+			return false;
+		}
+		
+		//Send message and wait for SNAP to send a message back with resutls
+		SWARH.sendPostMessage("SNAP_ApptDetails", data, markingKey);
+	},
+	receiveMessage: function (data){
+		SWARH.log("TRAK Message: " + JSON.stringify(data));
+		if (data[0].error === false){
+			//Remember the form has already been posted so we just update next time, not create a new record
+			objRBAppt.formHasBeenPosted = true;
+			//Call the original update method
+			objRBAppt.origUpdate();
+		} else if (data[0].error === true) {
+			alert("Error submitting form: \n" + data[0].errormessage);
+		} else {
+			SWARH.error("Unknown error: " + e.data);
+		}
+	}
+};
+
+objRBAppt.initialise();
+]]></Implementation>
+</Method>
+
+<Parameter name="SrcVer">
+<Description>
+This Parameter is updated by Perforce</Description>
+<Internal>0</Internal>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/SWARH/JS/RBAppointment/Edit.xml#1 $</Default>
+</Parameter>
+</Class>
+</Export>

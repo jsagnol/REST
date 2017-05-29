@@ -1,0 +1,237 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.SWARH.Extracts.StoredProc.EBBEDExtract">
+<ProcedureBlock>0</ProcedureBlock>
+<Super>Custom.SWARH.Extracts.StoredProc.Abstract</Super>
+<TimeCreated>62573,38042.57414</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/SWARH/Extracts/StoredProc/EBBEDExtract.xml#1 $</Default>
+</Parameter>
+
+<UDLText name="T">
+<Content><![CDATA[
+/*
+ * SWARH Developer: Phuong-Dung HOANG <br>
+ */
+]]></Content>
+</UDLText>
+
+<Method name="EBBEDExtractQueryClose">
+<Description>
+This is the Close component of the %Library.Query.
+This is standard code and should never have to change.
+This is where all the cleanup is performed, i.e. the purging of the temporary storage global ^CacheTemp.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>QHandle:%Library.Binary</FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Clean up by purging the temporary node in ^CacheTemp global
+ New repid,ind
+ Set repid=$li(QHandle,2)
+
+ //Start Monitor (if configured to capture stats)
+ i mon Do ..MonitorEnd(mon)
+
+ Kill ^CacheTemp("TRAK",repid)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="EBBEDExtractQueryExecute">
+<Description>
+This is the Execute section for the %Library.Query. 
+All of the logic will be performed here.
+A new node for the ^CacheTemp global will be created and each subscript of this global will contain
+a row for the report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,HospitalID:%Library.Integer]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Get reportid i.e. use $INCREMENT to add another node to ^CacheTemp global. 
+ // We use ^CacheTemp global because it will always use memory before disk
+ New repid,ind
+
+  // Use $Increment to get the next node
+ Set repid=$I(^CacheTemp("TRAK"))
+ 
+ /* TEMPLATE MODIFY: Define and initialise appropriate column variables to describe output rowset columns */
+ New PAPMIRowId,UR,LastName,FirstName,PAADMRowId,EpisodeNo,PAADMAdmDate,PAADMAdmTime,AdmDateTime,PAADMDischgDate,PAADMDischgTime,DischgDateTime,
+ PAADMHospitalDR,AdmWard,LastWard,LastRoom,LastBed,ExpDchDate,ExpDchTime,ExpDchDateTime,VisitStatus,NumAlerts
+ Set (PAPMIRowId,PAADMRowId,PAADMHospitalDR,NumAlerts)=0
+ Set (UR,LastName,FirstName,PAADMAdmDate,PAADMAdmTime,AdmDateTime,PAADMDischgDate,PAADMDischgTime,DischgDateTime,
+ PAADMHospitalDR,EpisodeNo,AdmWard,LastWard,LastRoom,LastBed,ExpDchDate,ExpDchTime,ExpDchDateTime,VisitStatus)=""
+
+ s ind=1, END=0
+
+ //Start Monitor (if configured to capture stats)
+ s mon=..MonitorBegin()
+ 
+ /* TEMPLATE MODIFY: Clean up parameter variables - $zstrip(<variable>,"*CW") strips all control characters and whitespace, "<>W" just strips leading/trailing whitespace
+  * NOTE: DO NOT DO "*W" ZSTRIP FROM DATES AS IT REMOVES THE WHITESPACE BETWEEN THE DATE AND TIME AND THIS BREAKS THE QUERY! */
+ 
+ //Convert ODBC dates to cache format
+ //s DateFrom=..ConvertDateToCache(DateFrom)
+ //s DateTo=..ConvertDateToCache(DateTo)
+ 
+ /*
+  * TEMPLATE MODIFY:
+  *		1. Change name of cursor to something more descriptive than MyReportCursor (need to change in 4 places; here, 2x "fetch" expressions and close expression below)
+  *		2. Change SQL query to query desired data, passing valid parameters as defined in Query and Execute method arguments.
+  *		3. Pass appropriate parameters using :<ParameterVariableName> - eg. :Hospital
+  */
+ &SQL(DECLARE MyReportCursor CURSOR FOR 
+	 SELECT PA_PatMas.PAPMI_RowId,
+PA_PatMas.PAPMI_No,
+PA_PatMas.PAPMI_Name,
+PA_PatMas.PAPMI_Name2,
+PA_Adm.PAADM_RowId,
+PA_Adm.PAADM_ADMNo,
+PA_Adm.PAADM_AdmDate,
+PA_Adm.PAADM_AdmTime,
+PA_Adm.PAADM_DischgDate,
+PA_Adm.PAADM_DischgTime,
+PA_Adm.PAADM_Hospital_DR,
+PAC_Room.ROOM_Code,
+PA_Adm.PAADM_VisitStatus,
+PA_Adm.PAADM_InpatBedReqDate,
+PA_Adm.PAADM_InpatBedReqTime,
+PA_Adm.PAADM_VisitStatus
+FROM SQLUser.PA_Adm PA_Adm 
+inner join SQLUser.PA_PatMas PA_PatMas on PA_Adm.PAADM_PAPMI_DR=PA_PatMas.PAPMI_RowId
+left join SQLUser.PAC_Room PAC_Room on PA_Adm.PAADM_CurrentRoom_DR=PAC_Room.ROOM_RowID
+WHERE PA_Adm.PAADM_Type='E'
+AND ((datediff('dd', PA_Adm.PAADM_AdmDate, getdate()))=1 or (PA_Adm.PAADM_AdmDate >= Getdate()))
+AND PA_Adm.PAADM_Hospital_DR=:HospitalID
+ )
+ &SQL(OPEN MyReportCursor)
+ 
+ //FETCH FIRST ROW
+ d FetchRow
+  
+ while END=0 {
+  
+	 d FormatDates
+  	 d FormatTimes
+  	 
+  	 s NumAlerts=$$GetNumAlerts(PAPMIRowId)
+  	 
+	 /* TEMPLATE MODIFY: Build the sort string here from column variables. Convert strings to uppercase ($ZCVT(<field>,"U") and separate with spaces */
+	 s sort = ind		// don't sort - uncomment this line if you've sorted in the query
+	 //s sort = $ZCVT(HOSPDesc,"U")_" "_$ZCVT(WARDDesc,"U")_" "_$ZCVT(ROOMCode,"U")_" "_$ZCVT(BEDCode,"U")_" "_$ZCVT(CTRLGDesc,"U")_" "_$ZCVT(PAPERName,"U")_" "_$ZCVT(PAPERName2,"U")_" "_$ZCVT(PAPERName3,"U")_ind
+ 
+	 /* TEMPLATE MODIFY: Build the list of fields by placing correct column variable names in the $LB() here. */
+	 s ^CacheTemp("TRAK",repid,sort)=$LB(PAPMIRowId,UR,LastName,FirstName,EpisodeNo,PAADMAdmDate,PAADMAdmTime,PAADMDischgDate,PAADMDischgTime,
+	 PAADMHospitalDR,LastRoom,LastBed,ExpDchDate,ExpDchTime,VisitStatus,NumAlerts)
+	 s ind=ind+1
+ 
+ 
+ 	 s ExpDchDate=""
+ 	 s ExpDchTime=""
+ 	 s ExpDchDateTime=""
+	 //fetch rows
+	 d FetchRow
+ }
+
+ &SQL(CLOSE MyReportCursor)
+ 
+ // Build QHandle (AtEnd,ReportID,Index)
+ Set QHandle=$lb(0,repid,0)
+
+ Quit $$$OK
+
+FetchRow
+ /* TEMPLATE MODIFY: Rename cursor to something moreChange fetch INTO parameter list to match column variable names */
+ &sql(FETCH MyReportCursor INTO :PAPMIRowId,:UR,:LastName,:FirstName,:PAADMRowId,:EpisodeNo,:PAADMAdmDate,:PAADMAdmTime,:PAADMDischgDate,
+ :PAADMDischgTime,:PAADMHospitalDR,:LastRoom,:LastBed,:ExpDchDate,:ExpDchTime,:VisitStatus)
+ if SQLCODE '= 0 set END = 1
+ q
+ 
+FormatDates
+ /* TEMPLATE MODIFY: Add an entry to perform a date format for all date fields here */
+ if PAADMAdmDate'="" s PAADMAdmDate=$ZDATE(PAADMAdmDate,4,,4)
+ if PAADMDischgDate'="" s PAADMDischgDate=$ZDATE(PAADMDischgDate,4,,4)
+ if ExpDchDate'="" s ExpDchDate=$ZDATE(ExpDchDate,4,,4)
+ q
+ 
+FormatTimes
+ /* TEMPLATE MODIFY: Add an entry to perform a time format for all time fields here */
+ if PAADMAdmTime'="" s PAADMAdmTime=$ZTIME(PAADMAdmTime,1)
+ if PAADMDischgTime'="" s PAADMDischgTime=$ZTIME(PAADMDischgTime,1)
+ if ExpDchTime'="" s ExpDchTime=$ZTIME(ExpDchTime,1)
+ 
+ q
+ 
+GetNumAlerts(PAPMIRowId)
+ s numAlerts=0
+ s (Childsub, ALMCreateDate, ALMClosedFlag, ALMClosedDate) = ""
+ For {
+	s Childsub=$O(^PAPER(PAPMIRowId,"ALM",Childsub))
+	Quit:(Childsub="")
+	s ALMCreateDate=$P(^PAPER(PAPMIRowId,"ALM",Childsub),"^",4)
+	s ALMClosedFlag=$P(^PAPER(PAPMIRowId,"ALM",Childsub),"^",7)
+	s ALMClosedDate=$P(^PAPER(PAPMIRowId,"ALM",Childsub),"^",15)
+	if ((ALMClosedFlag="N") && (ALMCreateDate<=$NOW()) && ((ALMClosedDate="") || (ALMClosedDate>$NOW()))) {
+		s numAlerts=numAlerts+1
+	}
+ }
+ q numAlerts
+]]></Implementation>
+</Method>
+
+<Method name="EBBEDExtractQueryFetch">
+<Description>
+This is the Fetch component of the %Library.Query. 
+This should never have to change. It is designed to fetch the row for each subscript of the ^CacheTemp
+global and return this row to the Crystal Report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,&Row:%Library.List,&AtEnd:%Library.Integer=0]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // This fetch method should never have to change. 
+
+ // repid - Report ID
+ // ind   - sequence index which represents each row
+
+ New repid,ind
+
+ // Restore QHandle
+ Set AtEnd=$li(QHandle,1)
+ Set repid=$li(QHandle,2)
+ Set ind=$li(QHandle,3)
+
+ Set ind=$o(^CacheTemp("TRAK",repid,ind))
+ If ind="" {	// if there are no more rows, finish fetching
+	 Set AtEnd=1
+	 Set Row=""
+ }
+ Else      {	// fetch row
+ 	Set Row=^CacheTemp("TRAK",repid,ind)
+ }
+
+ // Save QHandle
+ s QHandle=$lb(AtEnd,repid,ind)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<UDLText name="T">
+<Content><![CDATA[
+/* TEMPLATE MODIFY: Rename Stored Proc query to <MyStoredProcName> 
+ * TEMPLATE MODIFY: Change parameters to match desired stored procedure parameters
+ * TEMPLATE MODIFY: Change ROWSPEC list to match desired output column names and column data types */
+]]></Content>
+</UDLText>
+
+<Query name="EBBEDExtractQuery">
+<Type>%Library.Query</Type>
+<FormalSpec>HospitalID:%Library.Integer</FormalSpec>
+<SqlProc>1</SqlProc>
+<Parameter name="CONTAINID" value="0"/>
+<Parameter name="ROWSPEC" value="PAPMIRowId:%Integer,UR:%String,LastName:%String,FirstName:%String,EpisodeNo:%String,PAADMAdmDate:%Date,PAADMAdmTime:%Time,PAADMDischgDate:%Date,PAADMDischgTime:%Time,PAADMHospitalDR:%Integer,LastRoom:%String,LastBed:%String,ExpDchDate:%Date,ExpDchTime:%Time,VisitStatus:%String,NumAlerts:%Integer"/>
+<Parameter name="SELECTMODE" value="ODBC"/>
+</Query>
+</Class>
+</Export>

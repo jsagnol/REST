@@ -1,0 +1,206 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.SWARH.Report.RptSvc.StoredProc.SWARHREPR1003sidemenu">
+<Description><![CDATA[
+Class for Report SWARHREPR1003sidemenu Clinical Notes
+* Report Name: Clinical Notes <br>
+* Report Code: SWARHREPR1003sidemenu <br>
+* SWARH Developer: Tim Beilby <br>
+* SWARH PH 28/05/2015: changed query to use left joins to fix bug]]></Description>
+<ProcedureBlock>0</ProcedureBlock>
+<Super>Custom.SWARH.Report.RptSvc.StoredProc.Abstract</Super>
+<TimeCreated>60905,54849</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/SWARH/Report/RptSvc/StoredProc/SWARHREPR1003sidemenu.xml#1 $</Default>
+</Parameter>
+
+<Method name="SWARHREPR1003sidemenuClose">
+<Description>
+This is the Close component of the %Library.Query.
+This is standard code and should never have to change.
+This is where all the cleanup is performed, i.e. the purging of the temporary storage global ^CacheTemp.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>QHandle:%Library.Binary</FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Clean up by purging the temporary node in ^CacheTemp global
+ New repid,ind
+ Set repid=$li(QHandle,2)
+
+ Kill ^CacheTemp(..#CACHETEMPSUBSCRIPT,repid)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="SWARHREPR1003sidemenuExecute">
+<Description>
+This is the Execute section for the %Library.Query. 
+All of the logic will be performed here.
+A new node for the ^CacheTemp global will be created and each subscript of this global will contain
+a row for the report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,Hospital:%Library.String,PatientID:%Library.String,EpisodeID:%Library.String,DateFrom:%Date,DateTo:%Date,CareProvider:%Library.String,CPType:%Library.String]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Get reportid i.e. use $INCREMENT to add another node to ^CacheTemp global. 
+ // We use ^CacheTemp global because it will always use memory before disk
+ New repid,ind
+
+  // Use $Increment to get the next node
+ Set repid=$I(^CacheTemp(..#CACHETEMPSUBSCRIPT))
+ 
+ New PAADMADMNo, PAADMAdmDate, PAADMAdmTime, HOSPDesc, PAPMINo, PAPMIName, PAPMIName2, DOB, NOTDate, NOTTime, CNTDesc, NOTNotes
+ New CTPCPDesc, CTCPTDesc, NOTHospitalDR, MainMRADMDR, NOTRowID, CTPCPCode, CNTCode
+
+ Set (PAADMADMNo, PAADMAdmDate, PAADMAdmTime, HOSPDesc, PAPMINo, PAPMIName, PAPMIName2, DOB, NOTDate, NOTTime, CNTDesc, NOTNotes) = ""
+ Set (CTPCPDesc, CTCPTDesc, NOTHospitalDR, MainMRADMDR, NOTRowID, CTPCPCode, CNTCode) = ""
+
+ s ind=1, END=0
+ 
+ s Hospital=$zstrip(Hospital,"*CW")
+ s PatientID=$zstrip(PatientID,"*CW")
+ s EpisodeID=$zstrip(EpisodeID,"*CW")
+ s CareProvider=$zstrip(CareProvider,"*CW")
+ s CPType=$zstrip(CPType,"*CW")
+ //Convert ODBC dates to cache format
+ s DateFrom=..ConvertDateToCache(DateFrom)
+ s DateTo=..ConvertDateToCache(DateTo)
+ 
+ &SQL(DECLARE MyReportCursor CURSOR FOR 
+ SELECT
+        PA_Adm.PAADM_ADMNo,
+        PA_Adm.PAADM_AdmDate,
+        PA_Adm.PAADM_AdmTime,
+        PA_Adm.PAADM_Hospital_DR->HOSP_Desc,
+        PA_PatMas.PAPMI_No,
+        PA_PatMas.PAPMI_Name,
+        PA_PatMas.PAPMI_Name2,
+        PA_PatMas.PAPMI_DOB,
+        MR_NursingNotes.NOT_Date,
+        MR_NursingNotes.NOT_Time,
+        MRC_ClinNotesType.CNT_Desc,
+        MR_NursingNotes.NOT_Notes,
+        CT_CareProv.CTPCP_Desc,
+        CT_CarPrvTp.CTCPT_Desc,
+        MR_NursingNotes.NOT_Hospital_DR,
+        PA_Adm.PAADM_MainMRADM_DR,
+        MR_NursingNotes.NOT_RowID,
+        CT_CareProv.CTPCP_Code,
+        MRC_ClinNotesType.CNT_Code
+
+ FROM
+        SQLUser.PA_PatMas PA_PatMas
+        LEFT JOIN SQLUser.PA_Adm PA_Adm ON PA_Adm.PAADM_PAPMI_DR = PA_PatMas.PAPMI_RowId
+        LEFT JOIN SQLUser.MR_NursingNotes MR_NursingNotes ON PA_Adm.PAADM_MainMRADM_DR = MR_NursingNotes.NOT_ParRef
+        LEFT JOIN SQLUser.MRC_ClinNotesType MRC_ClinNotesType ON MR_NursingNotes.NOT_ClinNotesType_DR = MRC_ClinNotesType.CNT_RowId
+        LEFT JOIN SQLUser.CT_CareProv CT_CareProv ON MR_NursingNotes.NOT_NurseId_DR = CT_CareProv.CTPCP_RowId
+        LEFT JOIN SQLUser.CT_CarPrvTp CT_CarPrvTp ON CT_CareProv.CTPCP_CarPrvTp_DR = CT_CarPrvTp.CTCPT_RowId
+
+ WHERE
+        MR_NursingNotes.NOT_RowId is not null
+        AND PA_Adm.PAADM_Hospital_DR = :Hospital
+        AND PA_PatMas.PAPMI_No = :PatientID
+        AND (PA_Adm.PAADM_RowID = :EpisodeID  OR :EpisodeID IS NULL)
+        AND (MR_NursingNotes.NOT_Date >= :DateFrom OR :DateFrom IS NULL)
+        AND (MR_NursingNotes.NOT_Date <= :DateTo OR :DateTo IS NULL)
+        AND (CT_CareProv.CTPCP_RowId = :CareProvider OR :CareProvider IS NULL)
+        AND (MRC_ClinNotesType.CNT_Code = :CPType OR :CPType IS NULL)
+ ORDER BY PAADM_AdmDate desc, PAADM_AdmTime desc, NOT_Date desc, NOT_Time desc
+	)
+ &SQL(OPEN MyReportCursor)
+ 
+ //FETCH FIRST ROW
+ d FetchRow
+  
+ while END=0 {
+  
+  	 d FormatTimes
+  	 d FormatDates
+  	 
+  	 // Strips out the return characters.
+  	 s NOTNotes = $LISTTOSTRING(NOTNotes, $CHAR(13)_$CHAR(10))
+  	 
+	 s sort = ind		// don't sort - uncomment this line if you've sorted in the query
+ 
+	 s ^CacheTemp(..#CACHETEMPSUBSCRIPT,repid,sort)=$LB(PAADMADMNo, PAADMAdmDate, PAADMAdmTime, HOSPDesc, PAPMINo, PAPMIName, PAPMIName2, DOB, NOTDate, NOTTime, CNTDesc, NOTNotes, CTPCPDesc, CTCPTDesc, NOTHospitalDR, MainMRADMDR, NOTRowID, CTPCPCode, CNTCode)
+	 s ind=ind+1
+ 
+	 //fetch rows
+	 d FetchRow
+ }
+
+ &SQL(CLOSE MyReportCursor)
+ 
+ // Build QHandle (AtEnd,ReportID,Index)
+ Set QHandle=$lb(0,repid,0)
+
+ Quit $$$OK
+
+FetchRow
+ &sql(FETCH MyReportCursor INTO :PAADMADMNo, :PAADMAdmDate, :PAADMAdmTime, :HOSPDesc, :PAPMINo, :PAPMIName, :PAPMIName2, :DOB, :NOTDate, :NOTTime, :CNTDesc, :NOTNotes, :CTPCPDesc, :CTCPTDesc, :NOTHospitalDR, :MainMRADMDR, :NOTRowID, :CTPCPCode, :CNTCode)
+ if SQLCODE '= 0 set END = 1
+ q
+ 
+FormatDates
+ s NOTDate=..ConvertDateToODBC(NOTDate)
+ s DOB=..ConvertDateToODBC(DOB)
+ s PAADMAdmDate=..ConvertDateToODBC(PAADMAdmDate)
+ q
+ 
+FormatTimes
+ If NOTTime Set NOTTime=$ZT(NOTTime,2)
+ If PAADMAdmTime Set PAADMAdmTime=$ZT(PAADMAdmTime,1)
+ //s NOTTime=..ConvertTimeToODBC(NOTTime)
+ q
+]]></Implementation>
+</Method>
+
+<Method name="SWARHREPR1003sidemenuFetch">
+<Description>
+This is the Fetch component of the %Library.Query. 
+This should never have to change. It is designed to fetch the row for each subscript of the ^CacheTemp
+global and return this row to the Crystal Report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,&Row:%Library.List,&AtEnd:%Library.Integer=0]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // This fetch method should never have to change. 
+
+ // repid - Report ID
+ // ind   - sequence index which represents each row
+
+ New repid,ind
+
+ // Restore QHandle
+ Set AtEnd=$li(QHandle,1)
+ Set repid=$li(QHandle,2)
+ Set ind=$li(QHandle,3)
+
+ Set ind=$o(^CacheTemp(..#CACHETEMPSUBSCRIPT,repid,ind))
+ If ind="" {	// if there are no more rows, finish fetching
+	 Set AtEnd=1
+	 Set Row=""
+ }
+ Else      {	// fetch row
+ 	Set Row=^CacheTemp(..#CACHETEMPSUBSCRIPT,repid,ind)
+ }
+
+ // Save QHandle
+ s QHandle=$lb(AtEnd,repid,ind)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Query name="SWARHREPR1003sidemenu">
+<Type>%Library.Query</Type>
+<FormalSpec>Hospital:%Library.String,PatientID:%Library.String,EpisodeID:%Library.String,DateFrom:%Date,DateTo:%Date,CareProvider:%Library.String,CPType:%Library.String</FormalSpec>
+<SqlProc>1</SqlProc>
+<Parameter name="CONTAINID" value="0"/>
+<Parameter name="ROWSPEC" value="PAADMADMNo:%Library.String, PAADMAdmDate:%Date, PAADMAdmTime:%Time, HOSPDesc:%Library.String, PAPMINo:%Library.String, PAPMIName:%Library.String, PAPMIName2:%Library.String, DOB:%Library.Date, NOTDate:%Library.Date, NOTTime:%Library.String, CNTDesc:%Library.String, NOTNotes:%Library.String(MAXLEN=32000), CTPCPDesc:%Library.String, CTCPTDesc:%Library.String, NOTHospitalDR:%Library.String, MainMRADMDR:%Library.String, NOTRowID:%Library.String, CTPCPCode:%Library.String, CNTCode:%Library.String"/>
+<Parameter name="SELECTMODE" value="ODBC"/>
+</Query>
+</Class>
+</Export>

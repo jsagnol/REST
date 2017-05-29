@@ -1,0 +1,302 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.SWARH.Report.ZEN.StoredProc.SWARHZNAP1001">
+<Description><![CDATA[
+<pre>
+***************************************************************************************************************************************
+* Report Code: SWARHZNAP1001
+* Report Description: Referral Acknowledgement
+* Menu Caption: NA Referral Acknowledgement (Clinical Summary Type Code: NARA)
+* Initial release: 
+* Developer: Michael Welsh
+* Modified:
+* 20/08/14 PH   Added SWARHZNAP1001RefOrgs query to get the non-government organisations in the distribution list	
+***************************************************************************************************************************************
+</pre>]]></Description>
+<ProcedureBlock>0</ProcedureBlock>
+<Super>Custom.SWARH.Report.ZEN.StoredProc.Abstract</Super>
+<TimeCreated>61221,1748.07682</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/SWARH/Report/ZEN/StoredProc/SWARHZNAP1001.xml#1 $</Default>
+</Parameter>
+
+<Parameter name="CACHETEMPSUBSCRIPT">
+<Default>SWARH</Default>
+</Parameter>
+
+<Method name="SWARHZNAP1001Close">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>QHandle:%Library.Binary</FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Clean up by purging the temporary node in ^CacheTemp global
+ New repid
+ Set repid=$LIST(QHandle,2)
+ 
+ //Start Monitor (if configured to capture stats)
+ i mon Do ..MonitorEnd(mon)
+
+ Kill ^CacheTemp(..#CACHETEMPSUBSCRIPT,repid)
+ 
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="SWARHZNAP1001Execute">
+<Description>
+This is the Execute section for the %Library.Query. 
+All of the logic will be performed here.
+A new node for the ^CacheTemp global will be created and each subscript of this global will contain
+a row for the report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,DisID:%Integer]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Get reportid i.e. use $INCREMENT to add another node to ^CacheTemp global. 
+ // We use ^CacheTemp global because it will always use memory before disk
+ New repid,ind
+
+ // Use $Increment to get the next node
+ Set repid=$Increment(^CacheTemp(..#CACHETEMPSUBSCRIPT))
+ 
+ //Start Monitor (if configured to capture stats)
+ s mon=..MonitorBegin()
+  
+ // Build data into ^CacheTemp("TRAK",ReportID)
+ New Number,String,Date,Time
+ New PAADMRowID,PatMasRowID,URNo,EpisodeNo,Surname,GivenName,MidName,DOB,Sex,AdmDate,DisDate,RefReceivedDate,RefDate,RefPeriod,RefExpDate
+ 	,RefMethod,RefPriority,RefSource,SpecialtyCode,SpecialtyDesc,SpecialtyPhone,SpecialtyFax,ProgramDR,ProgramCode,ProgramDesc,HospDR,DISRowID,ServicesReq,UserDR,UpdateDate
+ 	,IntRefDocDR,IntRefLocDR,ExtRefOrgDR,ExtRefOrgContact,ExtRefDocClinicDR,dsCPTitle,dsCPFirstName,dsCPSurname,dsCPDesc,dsCPType
+ 	,ConsentToShare,WaitList,WaitTime,NotEligible,NoContactPhone,NoContactLetter,DeclinedRef,NotEligibleReason,ExtRefDocDR,ContactTimes
+ Set (PAADMRowID,HospDR,DISRowID,UserDR,IntRefDocDR,IntRefLocDR,ExtRefOrgDR,ExtRefDocDR)=0
+ Set (PatMasRowID,URNo,EpisodeNo,Surname,GivenName,MidName,DOB,Sex,AdmDate,DisDate,RefReceivedDate,RefDate,RefPeriod,RefExpDate
+ 	,RefMethod,RefPriority,RefSource,SpecialtyCode,SpecialtyDesc,SpecialtyPhone,SpecialtyFax,ProgramCode,ProgramDesc,ServicesReq,UpdateDate
+ 	,ExtRefOrgContact,ExtRefDocClinicDR,dsCPTitle,dsCPFirstName,dsCPSurname,dsCPDesc,dsCPType
+ 	,ConsentToShare,WaitList,WaitTime,NotEligible,NoContactPhone,NoContactLetter,DeclinedRef,NotEligibleReason,ContactTimes)=""
+ Set ind=1, END=0
+
+ &SQL(DECLARE SWARHZNAP1001 CURSOR FOR
+ 	SELECT
+ 		adm.PAADM_RowID
+ 		,adm.PAADM_PAPMI_DR->PAPMI_RowId AS PatMasRowID
+        ,adm.PAADM_PAPMI_DR->PAPMI_No AS URNo
+        ,adm.PAADM_AdmNo AS EpisodeNo
+        ,adm.PAADM_PAPMI_DR->PAPMI_Name AS Surname
+        ,adm.PAADM_PAPMI_DR->PAPMI_Name2 AS GivenName
+        ,adm.PAADM_PAPMI_DR->PAPMI_Name3 AS MidName
+        ,adm.PAADM_PAPMI_DR->PAPMI_DOB AS DOB
+        ,adm.PAADM_PAPMI_DR->PAPMI_PAPER_DR->PAPER_Sex_DR->CTSEX_Desc AS Sex
+        ,adm.PAADM_AdmDate AS AdmDate
+        ,adm.PAADM_DischgDate AS DisDate
+        ,adm.PAADM_DateReceived AS RefReceivedDate
+        ,adm.PAADM_RefDate AS RefDate
+        ,adm.PAADM_RefPeriod_DR->REFPER_Desc AS RefPeriod
+        ,adm.PAADM_RefExpiryDate AS RefExpDate
+        ,adm.PAADM_MethodRef_DR->REFMETH_Desc AS RefMethod
+        ,adm.PAADM_ReferralPriority_DR->REFPRI_Desc AS RefPriority
+        ,adm.PAADM_SourceOfAttend_DR->ATTEND_Desc As RefSource
+        ,adm.PAADM_DepCode_DR->CTLOC_Code AS SpecialtyCode
+        ,adm.PAADM_DepCode_DR->CTLOC_Desc AS SpecialtyDesc
+        ,adm.PAADM_DepCode_DR->CTLOC_Telephone AS SpecialtyPhone
+        ,adm.PAADM_DepCode_DR->CTLOC_Fax AS SpecialtyFax
+        ,adm.PAADM_PAAdm2_DR->PAADM2_NFMICategDepart_DR->DEP_Code AS ProgramCode
+        ,adm.PAADM_PAAdm2_DR->PAADM2_NFMICategDepart_DR->DEP_Desc AS ProgramDesc
+        ,adm.PAADM_Hospital_DR AS HospDR
+        ,ds.DIS_RowId AS DISRowID
+        ,ds.DIS_ClinicalOpinion AS ServicesReq
+        ,ds.DIS_CheckBox1 AS ConsentToShare
+        ,ds.DIS_CheckBox4 AS WaitList
+        ,ds.DIS_TextBox3 AS WaitTime
+        ,ds.DIS_CheckBox3 AS NotEligible
+        ,ds.DIS_CheckBox5 AS NoContactPhone
+        ,ds.DIS_CheckBox2 AS NoContactLetter
+        ,ds.DIS_CheckBox6 AS DeclinedRef
+        ,ds.DIS_NationalReferralNo AS NotEligibleReason
+        ,ds.DIS_UpdateUser_DR AS UserDR
+        ,ds.DIS_UpdateDate AS UpdateDate
+        ,adm.PAADM_InternalRefDoc_DR AS IntRefDocDR
+        ,adm.PAADM_InternalRefLoc_DR AS IntRefLocDR
+        ,adm.PAADM_NonGovOrg_DR AS ExtRefOrgDR
+        ,adm.PAADM_RefToNGOContactName AS ExtRefOrgContact
+        ,adm.PAADM_RefDocList_DR AS ExtRefDocDR
+        ,adm.PAADM_RefDocClinic_DR AS ExtRefDocClinicDR
+        ,ds.DIS_CareProv_DR->CTPCP_Title_DR->TTL_Code AS dsCPTitle
+        ,ds.DIS_CareProv_DR->CTPCP_FirstName AS dsCPFirstName
+        ,ds.DIS_CareProv_DR->CTPCP_Surname AS dsCPSurname
+        ,ds.DIS_CareProv_DR->CTPCP_Desc AS dsCPDesc
+        ,ds.DIS_CareProv_DR->CTPCP_CarPrvTp_DR->CTCPT_Desc AS dsCPType
+        ,ds.DIS_TextBox2 AS ContactTimes
+
+	FROM
+        SQLUser.PA_DischargeSummary ds
+                JOIN SQLUser.PA_Adm2DischargeSummary adm2DS ON (adm2DS.DIS_PADischargeSummary_DR = ds.DIS_RowID)
+                JOIN SQLUSer.PA_Adm2 adm2 ON (adm2.PAADM2_RowID = adm2DS.DIS_ParRef)
+                JOIN SQLUser.PA_Adm adm ON ( adm.PAADM_RowID = adm2.PAADM2_PAADM_DR)
+	WHERE
+        ds.DIS_RowId = :DisID
+ )
+  
+ &SQL(OPEN SWARHZNAP1001)
+ 
+ d FetchRow //Fetch first row
+  
+ while END=0 {
+  
+	 d FormatDates, FormatTimes, FormatStrings, GetRefDetails, CheckSpecialtyPhone
+  	 s sort = ind
+	 s ^CacheTemp(..#CACHETEMPSUBSCRIPT,repid,sort)=$LB(PAADMRowID,PatMasRowID,URNo,EpisodeNo,Surname,GivenName,MidName,DOB,Sex,AdmDate,DisDate,RefReceivedDate,RefDate
+	 	,RefPeriod,RefExpDate,RefMethod,RefPriority,RefSource,SpecialtyCode,SpecialtyDesc,SpecialtyPhone,SpecialtyFax,ProgramCode,ProgramDesc,HospDR,DISRowID,ServicesReq,ConsentToShare,UserDR,UpdateDate
+	 	,dsCPTitle,dsCPFirstName,dsCPSurname,dsCPDesc,dsCPType,ContactTimes,ServerNme,NameSpce,ConsentMsg,WaitListMsg,NotEligibleMsg,NoContactPhoneMsg,NoContactLetterMsg,DeclinedRefMsg
+	 	,RefTitle,RefFirstName,RefSurname,RefDesc,RefType,RefAgency,RefPhone,RefFax,RefAddress,RefCity,RefPCode,PhoneNo,FaxNo)
+	 s ind=ind+1
+ 	 d FetchRow //Fetch next row
+ }
+
+ &SQL(CLOSE SWARHZNAP1001)
+ 
+ // Build QHandle (AtEnd,ReportID,Index)
+ Set QHandle=$lb(0,repid,0)
+
+ Quit $$$OK
+
+FetchRow
+ &sql(FETCH SWARHZNAP1001 INTO :PAADMRowID,:PatMasRowID,:URNo,:EpisodeNo,:Surname,:GivenName,:MidName,:DOB,:Sex,:AdmDate,:DisDate,:RefReceivedDate,:RefDate
+ ,:RefPeriod,:RefExpDate,:RefMethod,:RefPriority,:RefSource,:SpecialtyCode,:SpecialtyDesc,:SpecialtyPhone,:SpecialtyFax,:ProgramCode,:ProgramDesc,:HospDR,:DISRowID,:ServicesReq
+ ,:ConsentToShare,:WaitList,:WaitTime,:NotEligible,:NoContactPhone,:NoContactLetter,:DeclinedRef,:NotEligibleReason,:UserDR,:UpdateDate
+ ,:IntRefDocDR,:IntRefLocDR,:ExtRefOrgDR,:ExtRefOrgContact,:ExtRefDocDR,:ExtRefDocClinicDR,:dsCPTitle,:dsCPFirstName,:dsCPSurname,:dsCPDesc,:dsCPType,:ContactTimes)
+ if SQLCODE '= 0 set END = 1
+ q
+ 
+FormatDates
+ if DOB'="" s DOB = $ZD(DOB,4,"",4)
+ if AdmDate'="" s AdmDate = $ZD(AdmDate,4,"",4)
+ if DisDate'="" s DisDate = $ZD(DisDate,4,"",4)
+ if RefReceivedDate'="" s RefReceivedDate = $ZD(RefReceivedDate,4,"",4)
+ if RefDate'="" s RefDate = $ZD(RefDate,4,"",4)
+ if RefExpDate'="" s RefExpDate = $ZD(RefExpDate,4,"",4)
+ if UpdateDate'="" s UpdateDate = $ZD(UpdateDate,4,"",4)
+ q
+ 
+FormatTimes
+ q
+ 
+FormatStrings
+ Set (ConsentMsg,WaitListMsg,NotEligibleMsg,NoContactPhoneMsg,NoContactLetterMsg,DeclinedRefMsg) = ""
+ Set ServerNme = $Get(%request.CgiEnvs("SERVER_NAME"))
+ Set NameSpce = $PIECE($namespace,"-")
+ Set ServicesReq = $LISTTOSTRING(ServicesReq)
+ 
+ If (ConsentToShare = "Y")
+ 	{Set ConsentMsg = "Consent to share information has been provided by the client"}
+ Else
+ 	{Set ConsentMsg = "Consent to share information has NOT been provided by the client"}
+ If (WaitList = "Y")
+ 	{Set WaitListMsg = "The Client has been placed on the waiting list. The expected waiting time is "_$zstrip(WaitTime,"*C")_"."}
+ If (NotEligible = "Y")
+ 	{Set NotEligibleMsg = "The Client is not eligible for our service because "_$zstrip(NotEligibleReason,"*C")_". We have contacted the client and suggested they contact your office as soon as possible. We recommend this referral may be redirected to ......"}
+ If (NoContactPhone = "Y")
+ 	{Set NoContactPhoneMsg = "We have been unable to contact the client by telephone, however we have sent them a letter asking then to contact us within 14 days to make an appointment."}
+ If (NoContactLetter = "Y")
+ 	{Set NoContactLetterMsg = "We have been unable to contact the client. We have called twice, and sent a letter asking them to contact us. We will not follow up further at present, however if the client contacts us in future, we will process their referral at that stage."}
+ If (DeclinedRef = "Y")
+ 	{Set DeclinedRefMsg = "The client declined this referral."}
+ q
+ 
+GetRefDetails //Get Referrer's details.
+ s (RefTitle,RefFirstName,RefSurname,RefDesc,RefType,RefAgency,RefPhone,RefFax,RefAddress,RefCity,RefPCode) = ""
+ If ExtRefDocClinicDR //External Referrer Doctor Details
+ {
+	 &SQL(SELECT CLN_ParRef->REFD_Title,CLN_ParRef->REFD_Forename,CLN_ParRef->REFD_Desc
+        ,CLN_Clinic_DR->CLN_Desc,CLN_Address1,CLN_City_DR->CTCIT_Desc,CLN_Zip_DR->CTZIP_Code,CLN_Clinic_DR->CLN_Phone
+        ,CLN_Clinic_DR->CLN_Fax
+     INTO :RefTitle,:RefFirstName,:RefDesc,:RefAgency,:RefAddress,:RefCity,:RefPCode,:RefPhone,:RefFax
+	 FROM SQLUser.PAC_RefDoctorClinic WHERE CLN_RowId = :ExtRefDocClinicDR)
+	 s RefDesc = RefTitle_" "_RefFirstName_" "_RefDesc
+ }
+ If ExtRefDocDR
+ {
+	 &SQL(SELECT REFD_Title,REFD_Forename,REFD_Desc INTO :RefTitle,:RefFirstName,:RefDesc 
+	 FROM SQLUser.PAC_RefDoctor WHERE REFD_RowId = :ExtRefDocDR)
+	 s RefDesc = RefTitle_" "_RefFirstName_" "_RefDesc
+	 
+ }
+ ElseIf ExtRefOrgDR //External Referral from Organisation
+ {
+	&SQL(SELECT NGO_Desc,NGO_Phone,NGO_Fax INTO :RefAgency,:RefPhone,:RefFax FROM SQLUser.PAC_NonGovOrg WHERE NGO_RowId = :ExtRefOrgDR)
+ 	s RefDesc = ExtRefOrgContact
+ }
+ ElseIf IntRefLocDR //Internal Referrer by Speciality
+ {
+	 &SQL(SELECT CTLOC_Desc,CTLOC_Hospital_DR->HOSP_Desc INTO :RefDesc,:RefAgency FROM SQLUser.CT_Loc WHERE CTLOC_RowID = :IntRefLocDR)
+ }
+ ElseIf IntRefDocDR //Internal Referrer by Doctor
+ {
+	 &SQL(SELECT CTPCP_Title_DR->TTL_Code,CTPCP_Desc,CTPCP_CarPrvTp_DR->CTCPT_Desc
+	 INTO :RefTitle,:RefDesc,:RefType
+ 	 FROM SQLUser.CT_CareProv WHERE CTPCP_RowID = :IntRefDocDR)
+ 	 &SQL(SELECT HOSP_Desc INTO :RefAgency FROM SQLUser.CT_Hospital WHERE HOSP_RowID = :HospDR)
+ 	 s RefDesc = RefTitle_" "_RefDesc
+ }
+ 
+CheckSpecialtyPhone
+	s (PhoneNo,FaxNo) = ""
+	If SpecialtyPhone
+	{
+		s PhoneNo = SpecialtyPhone, FaxNo = SpecialtyFax
+	}
+	Else
+	{
+		&SQL(SELECT CTLOC_Telephone,CTLOC_Fax INTO :PhoneNo,:FaxNo FROM SQLUser.CT_Loc WHERE CTLOC_RowID = 593) //Community Health Centre - Default Phone & Fax numbers
+	}
+ q
+]]></Implementation>
+</Method>
+
+<Method name="SWARHZNAP1001Fetch">
+<Description>
+This is the Fetch component of the %Library.Query. 
+This should never have to change. It is designed to fetch the row for each subscript of the ^CacheTemp
+global and return this row to the Crystal Report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,&Row:%Library.List,&AtEnd:%Library.Integer=0]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // This fetch method should never have to change. 
+ // repid - Report ID
+ // ind   - sequence index which represents each row
+
+ New repid,ind
+
+ // Restore QHandle
+ Set AtEnd=$li(QHandle,1)
+ Set repid=$li(QHandle,2)
+ Set ind=$li(QHandle,3)
+
+ Set ind=$o(^CacheTemp(..#CACHETEMPSUBSCRIPT,repid,ind))
+ If ind="" {	// if there are no more rows, finish fetching
+	 Set AtEnd=1
+	 Set Row=""
+ }
+ Else      {	// fetch row 
+ 	Set Row=^CacheTemp(..#CACHETEMPSUBSCRIPT,repid,ind)
+ }
+
+ // Save QHandle 
+ s QHandle=$lb(AtEnd,repid,ind)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Query name="SWARHZNAP1001">
+<Type>%Library.Query</Type>
+<FormalSpec>DisID:%Integer</FormalSpec>
+<SqlProc>1</SqlProc>
+<Parameter name="CONTAINID" value="0"/>
+<Parameter name="ROWSPEC" value="PAADMRowID:%Integer,PatMasRowID:%String,URNo:%String,EpisodeNo:%String,Surname:%String,GivenName:%String,MidName:%String,DOB:%Date,Sex:%String,AdmDate:%Date,DisDate:%Date,RefReceivedDate:%Date,RefDate:%Date,RefPeriod:%String,RefExpDate:%Date,RefMethod:%String,RefPriority:%String,RefSource:%String,SpecialtyCode:%String,SpecialtyDesc:%String,SpecialtyPhone:%String,SpecialtyFax:%String,ProgramCode:%String,ProgramDesc:%String,HospDR:%Integer,DISRowID:%Integer,ServicesReq:%String,ConsentToShare:%String,UserDR:%Integer,UpdateDate:%Date,dsCPTitle:%String,dsCPFirstName:%String,dsCPSurname:%String,dsCPDesc:%String,dsCPType:%String,ContactTimes:%String,ServerNme:%String,NameSpce:%String,ConsentMsg:%String,WaitListMsg:%String,NotEligibleMsg:%String,NoContactPhoneMsg:%String,NoContactLetterMsg:%String,DeclinedRefMsg:%String,RefTitle:%String,RefFirstName:%String,RefSurname:%String,RefDesc:%String,RefType:%String,RefAgency:%String,RefPhone:%String,RefFax:%String,RefAddress:%String,RefCity:%String,RefPCode:%String,PhoneNo:%String,FaxNo:%String"/>
+<Parameter name="SELECTMODE" value="ODBC"/>
+</Query>
+</Class>
+</Export>

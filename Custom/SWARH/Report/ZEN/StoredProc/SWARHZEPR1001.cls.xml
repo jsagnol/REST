@@ -1,0 +1,436 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.SWARH.Report.ZEN.StoredProc.SWARHZEPR1001">
+<Description><![CDATA[
+<pre>
+**************************************************************************************************************************************
+* Report Code: SWARHZEPR1001
+* Report Description: Report returns HTML Corrected Clinical Notes for the selected episode.
+* Menu Caption: SWARH.EPR.Clinical Notes.Corrected Clinical Notes
+* Initial release: 31/03/2017 Developer: Michael Welsh
+* Modified:  
+**************************************************************************************************************************************
+</pre>]]></Description>
+<ProcedureBlock>0</ProcedureBlock>
+<Super>Custom.SWARH.Report.ZEN.StoredProc.Abstract</Super>
+<TimeCreated>62970,48071.923811</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)</Description>
+<Default>$Id$</Default>
+</Parameter>
+
+<Method name="PatDetailsExecute">
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,HospitalID:%Integer,PatientUR:%String,EpisodeID:%Integer]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+	
+ // Get reportid i.e. use $INCREMENT to add another node to ^CacheTemp global. 
+ // We use ^CacheTemp global because it will always use memory before disk
+ New repid,ind
+
+ // Use $Increment to get the next node
+ Set repid=$INCREMENT(^CacheTemp(..#CACHETEMPSUBSCRIPT))
+ 
+ New PAADMRowId,URNo,EpisodeNo,Surname,GivenName,OtherGivenName,DOB,Hospital,NoteRowID,HospDR,ServerNme,NameSpce,NotDate,AdmDate
+ 	
+ Set (PAADMRowId,URNo,EpisodeNo,Surname,GivenName,OtherGivenName,DOB,Hospital,NoteRowID,HospDR,ServerNme,NameSpce,NotDate,AdmDate)=""
+ 
+ Set ind=1, END=0
+ 
+ &SQL(DECLARE PatDetails CURSOR FOR
+ 	SELECT
+ 		adm.PAADM_RowId AS PAADMRowId
+        ,adm.PAADM_PAPMI_DR->PAPMI_No AS URNo
+        ,adm.PAADM_AdmNo AS EpisodeNo
+        ,adm.PAADM_PAPMI_DR->PAPMI_Name AS Surname
+        ,adm.PAADM_PAPMI_DR->PAPMI_Name2 AS GivenName
+        ,adm.PAADM_PAPMI_DR->PAPMI_Name3 AS OtherGivenName
+        ,adm.PAADM_PAPMI_DR->PAPMI_DOB AS DOB
+        ,adm.PAADM_Hospital_DR->HOSP_Desc AS Hospital        
+        ,nn.NOT_RowId AS NoteRowID
+        ,adm.PAADM_Hospital_DR AS HospDR
+        ,nn.NOT_Date AS NOTDate
+        ,adm.PAADM_AdmDate AS AdmDate
+         
+    FROM
+ 		SQLUser.PA_Adm adm
+ 			 LEFT OUTER JOIN SQLUser.MR_NursingNotes nn ON (nn.NOT_ParRef = adm.PAADM_MainMRADM_DR)
+ 	WHERE
+ 		(adm.PAADM_Hospital_DR = :HospitalID)
+	AND
+        (adm.PAADM_PAPMI_DR->PAPMI_No = :PatientUR)
+    AND
+    	(adm.PAADM_RowID = :EpisodeID  OR (:EpisodeID IS NULL))
+    AND
+        (nn.NOT_NotesHTMLRichText  IS NOT NULL) 
+    AND
+    	(nn.NOT_Status_DR->NNS_Code = 'C') --Corrected'
+    ORDER BY
+    	nn.NOT_Date Desc
+   )
+ 	
+ &SQL(OPEN PatDetails)
+
+ //fetch first row
+ Do FetchRow
+ Set ServerNme = $Get(%request.CgiEnvs("SERVER_NAME"))
+ Set NameSpce = $PIECE($namespace,"-")
+ While END=0 {
+	 
+	 Do FormatDates
+	 Set sort = ind	 
+	 // build the row
+	 Set ^CacheTemp(..#CACHETEMPSUBSCRIPT,repid,sort)=$LISTBUILD(PAADMRowId,URNo,EpisodeNo,Surname,GivenName,OtherGivenName,DOB,Hospital,NoteRowID,HospDR,AdmDate,
+	 	ServerNme,NameSpce) 		
+ 	 Set ind=ind+1
+ 	 //fetch rows
+ 	 Do FetchRow 	 
+ }
+ 
+ &SQL(Close PatDetails)
+
+ // Build QHandle (AtEnd,ReportID,Index)
+ Set QHandle=$listbuild(0,repid,0)
+
+ Quit $$$OK
+ 
+FetchRow
+ &sql(FETCH PatDetails into :PAADMRowId,:URNo,:EpisodeNo,:Surname,:GivenName,:OtherGivenName,:DOB,:Hospital,:NoteRowID,:HospDR,:NOTDate,:AdmDate)
+ If SQLCODE '= 0 Set END = 1
+ Quit
+
+FormatDates // Convert the dates to ODBC date format
+ If DOB Set DOB=..ConvertDateToODBC(DOB)
+ Quit
+]]></Implementation>
+</Method>
+
+<Method name="PatDetailsFetch">
+<Description>
+This is the Fetch component of the %Library.Query. 
+This should never have to change. It is designed to fetch the row for each subscript of the ^CacheTemp
+global and return this row to the Crystal Report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,&Row:%Library.List,&AtEnd:%Library.Integer=0]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // This fetch method should never have to change. 
+ // repid - Report ID
+ // ind   - sequence index which represents each row
+
+ New repid,ind
+
+ // Restore QHandle
+ Set AtEnd=$LIST(QHandle,1)
+ Set repid=$LIST(QHandle,2)
+ Set ind=$LIST(QHandle,3)
+
+ Set ind=$ORDER(^CacheTemp(..#CACHETEMPSUBSCRIPT,repid,ind))
+ If ind="" {	// if there are no more rows, finish fetching
+	 Set AtEnd=1
+	 Set Row=""
+ }
+ Else      {	// fetch row
+ 	Set Row=^CacheTemp(..#CACHETEMPSUBSCRIPT,repid,ind)
+ }
+
+ // Save QHandle
+ Set QHandle=$LISTBUILD(AtEnd,repid,ind)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="PatDetailsClose">
+<Description>
+This is the Close component of the %Library.Query.
+This is standard code and should never have to change.
+This is where all the cleanup is performed, i.e. the purging of the temporary storage global ^CacheTemp.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>QHandle:%Library.Binary</FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+  // Clean up by purging the temporary node in ^CacheTemp global
+ New repid,ind
+ Set repid=$LIST(QHandle,2)
+
+ Kill ^CacheTemp(..#CACHETEMPSUBSCRIPT,repid)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Query name="PatDetails">
+<Type>%Library.Query</Type>
+<FormalSpec>HospitalID:%Integer,PatientUR:%String,EpisodeID:%Integer</FormalSpec>
+<SqlProc>1</SqlProc>
+<Parameter name="CONTAINID" value="0"/>
+<Parameter name="ROWSPEC" value="PAADMRowId:%Integer,URNo:%String,EpisodeNo:%String,Surname:%String,GivenName:%String,OtherGivenName:%String,DOB:%Date,Hospital:%String,NoteRowID:%String,HospDR:%Integer,AdmDate:%Integer,ServerNme:%String,NameSpce:%String"/>
+</Query>
+
+<Method name="CorrectedNotesExecute">
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,NotesRowID:%String,AdmDate:%Integer]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+	
+ // Get reportid i.e. use $INCREMENT to add another node to ^CacheTemp global. 
+ // We use ^CacheTemp global because it will always use memory before disk
+ New repid,ind
+
+ // Use $Increment to get the next node
+ Set repid=$INCREMENT(^CacheTemp(..#CACHETEMPSUBSCRIPT))
+ 
+ New AuditRowID,AuditTable,AuditTableRowID,AuditAction,AuditDate,AuditTime,CareProvider,CareProviderType,Location,SecurityGrp,OldValue
+ 	,NewValue,Reason,HTMLNotes,idTMPOEAnnot,AnnotData,FLDValue,OldFLDValue,CurrentReason,preOldFLDValue
+ 	 	
+ Set (AuditRowID,AuditTable,AuditTableRowID,AuditAction,AuditDate,AuditTime,CareProvider,CareProviderType,Location,SecurityGrp,OldValue
+ 	,NewValue,Reason,HTMLNotes,idTMPOEAnnot,AnnotData,FLDValue,OldFLDValue,CurrentReason,preOldFLDValue)=""
+ 
+ Set ind=1, END=0
+ 
+ &SQL(DECLARE CorrectedNotes CURSOR FOR
+	SELECT
+        audt.AUD_RowId AS AuditRowID
+        ,audt.AUD_Table AS AuditTable
+        ,audt.AUD_TableRowId AS AuditTableRowID
+        ,audt.AUD_Action AS AuditAction
+        ,audt.AUD_Date AS AuditDate
+        ,audt.AUD_Time AS AuditTime
+        ,audt.AUD_User_DR->SSUSR_CareProv_DR->CTPCP_Desc AS CareProvider
+        ,audt.AUD_User_DR->SSUSR_CareProv_DR->CTPCP_CarPrvTp_DR->CTCPT_Desc AS CareProviderType
+        ,audt.AUD_LogonLocation_DR->CTLOC_Desc AS Location
+        ,audt.AUD_Group_DR->SSGRP_Desc AS SecurityGrp
+        ,nn.NOT_ReasonForCorrection_DR->ENTERR_Desc AS CurrentReason
+	FROM
+        SQLUser.SS_AuditTrail audt
+                LEFT JOIN SQLUser.MR_NursingNotes nn ON (nn.NOT_RowId = audt.AUD_TableRowId)
+    WHERE
+		audt.AUD_Date >= :AdmDate 
+	AND
+		audt.AUD_Table = 'MR_NursingNotes'
+	AND	
+        audt.AUD_TableRowId = :NotesRowID
+    ORDER BY
+    	audt.AUD_Action Desc, audt.AUD_Date Desc, audt.AUD_Time Desc
+   )
+ 	
+ &SQL(OPEN CorrectedNotes)
+
+ //fetch first row
+ Do FetchCorrectedRow
+ 
+ While END=0 {
+	 
+	 If (AuditAction = "U") Do GetNotes, GetReason
+	 If (AuditAction = "I") Do GetOriginalNotes
+	 
+	 Do GetHTMLNotes, FormatCorrectedDates, FormatCorrectedTimes
+	 
+	 Set sort = ind
+	 
+	 // build the row
+	 Set ^CacheTemp(..#CACHETEMPSUBSCRIPT,repid,sort)=$LISTBUILD(AuditRowID,AuditTable,AuditTableRowID,AuditAction,AuditDate,AuditTime,CareProvider,
+	 	CareProviderType,Location,SecurityGrp,OldValue,NewValue,Reason,HTMLNotes,idTMPOEAnnot,AnnotData,FLDValue,OldFLDValue,preOldFLDValue)
+ 		
+ 	 Set ind=ind+1
+	 
+ 	 //fetch rows
+ 	 Do FetchCorrectedRow 	 
+ }
+ 
+ &SQL(Close CorrectedNotes)
+
+ // Build QHandle (AtEnd,ReportID,Index)
+ Set QHandle=$listbuild(0,repid,0)
+
+ Quit $$$OK
+ 
+FetchCorrectedRow
+ &sql(FETCH CorrectedNotes into :AuditRowID,:AuditTable,:AuditTableRowID,:AuditAction,:AuditDate,:AuditTime,:CareProvider,:CareProviderType,:Location,:SecurityGrp,:CurrentReason) 
+ If SQLCODE '= 0 Set END = 1
+ Quit 
+ 
+FormatCorrectedDates // Convert the dates to ODBC date format
+ If AuditDate Set AuditDate=..ConvertDateToODBC(AuditDate)
+ Quit
+ 
+FormatCorrectedTimes // Convert the dates to ODBC date format
+ If AuditTime Set AuditTime=..ConvertTimeToHHMM(AuditTime)  
+ Quit
+ 
+GetOriginalNotes 
+ Set NewValue = OldValue, Reason = "Original Note"
+ Quit
+ 
+GetNotes
+ Set (OldValue,NewValue) = ""
+ &SQL(SELECT audf.FLD_OldValue,audf.FLD_Value INTO :OldValue,:NewValue
+ 	FROM SQLUser.SS_AuditTrailFields audf
+ 	WHERE audf.FLD_ParRef = :AuditRowID
+ 	AND audf.FLD_FieldNo = 'NOT_NotesHTMLRichText')
+ Quit
+ 
+GetReason
+ If OldFLDValue Set preOldFLDValue = OldFLDValue
+ Set (FLDValue,OldFLDValue,Reason) = ""
+ &SQL(SELECT $PIECE(audf.FLD_Value,'^'),$PIECE(audf.FLD_OldValue,'^') INTO :FLDValue, :OldFLDValue FROM SQLUser.SS_AuditTrailFields audf 
+		WHERE audf.FLD_ParRef = :AuditRowID	AND audf.FLD_FieldNo = 'NOT_ReasonForCorrection_DR')
+ If (FLDValue = "") && (OldFLDValue = "") && (preOldFLDValue = ""){Set Reason = CurrentReason} 
+ Elseif (FLDValue = "") && (OldFLDValue = "") {&SQL(SELECT err.ENTERR_Desc INTO :Reason FROM SQLUser.PAC_EnteredInErrorReason err WHERE err.ENTERR_RowID = :preOldFLDValue)}
+ Else {&SQL(SELECT err.ENTERR_Desc INTO :Reason FROM SQLUser.PAC_EnteredInErrorReason err WHERE err.ENTERR_RowID = :FLDValue)}
+ 
+ Quit
+ 
+GetHTMLNotes
+ Set NewValue = $PIECE(NewValue,"^")
+ Set (HTMLNotes,idTMPOEAnnot,AnnotData) = ""
+ Set HTMLNotes=..GetNursingNoteHTMLSource(NotesRowID,NewValue)
+	 Set ANNOTRowId=+$p(HTMLNotes,"annotid='",2)
+	 Set (AnnotData,idTMPOEAnnot)=""
+	 
+	 If ANNOTRowId'=0 {
+		 If ANNOTRowId '= "" {
+			 Set idTMPOEAnnot=##Class(websys.UI.Annotate.Utils).UIAnnotToReportTMPStream(ANNOTRowId)
+		 }
+		 If idTMPOEAnnot '="" Set AnnotData=..GetAnnotation(idTMPOEAnnot)
+	 }
+ Quit
+]]></Implementation>
+</Method>
+
+<Method name="CorrectedNotesFetch">
+<Description>
+This is the Fetch component of the %Library.Query. 
+This should never have to change. It is designed to fetch the row for each subscript of the ^CacheTemp
+global and return this row to the Crystal Report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,&Row:%Library.List,&AtEnd:%Library.Integer=0]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // This fetch method should never have to change. 
+ // repid - Report ID
+ // ind   - sequence index which represents each row
+
+ New repid,ind
+
+ // Restore QHandle
+ Set AtEnd=$LIST(QHandle,1)
+ Set repid=$LIST(QHandle,2)
+ Set ind=$LIST(QHandle,3)
+
+ Set ind=$ORDER(^CacheTemp(..#CACHETEMPSUBSCRIPT,repid,ind))
+ If ind="" {	// if there are no more rows, finish fetching
+	 Set AtEnd=1
+	 Set Row=""
+ }
+ Else      {	// fetch row
+ 	Set Row=^CacheTemp(..#CACHETEMPSUBSCRIPT,repid,ind)
+ }
+
+ // Save QHandle
+ Set QHandle=$LISTBUILD(AtEnd,repid,ind)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="CorrectedNotesClose">
+<Description>
+This is the Close component of the %Library.Query.
+This is standard code and should never have to change.
+This is where all the cleanup is performed, i.e. the purging of the temporary storage global ^CacheTemp.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>QHandle:%Library.Binary</FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+  // Clean up by purging the temporary node in ^CacheTemp global
+ New repid,ind
+ Set repid=$LIST(QHandle,2)
+
+ Kill ^CacheTemp(..#CACHETEMPSUBSCRIPT,repid)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Query name="CorrectedNotes">
+<Type>%Library.Query</Type>
+<FormalSpec>NotesRowID:%String,AdmDate:%Integer</FormalSpec>
+<SqlProc>1</SqlProc>
+<Parameter name="CONTAINID" value="0"/>
+<Parameter name="ROWSPEC" value="AuditRowID:%Integer,AuditTable:%String,AuditTableRowID:%String,AuditAction:%String,AuditDate:%Date,AuditTime:%String,CareProvider:%String,CareProviderType:%String,Location:%String,SecurityGrp:%String,OldValue:%Integer,NewValue:%Integer,Reason:%String,HTMLNotes:%String(MAXLEN=30000),idTMPOEAnnot:%String,AnnotData:%String(MAXLEN=4096),FLDValue:%String,OldFLDValue:%String,preOldFLDValue:%String"/>
+</Query>
+
+<Method name="GetNursingNoteHTMLSource">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>nursingNoteId:%Library.String="",PrevValue:%Library.Integer=0</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	if (nursingNoteId="") quit ""
+	s ^zoak=nursingNoteId
+	// Load the nursing note object
+	set obj = ##Class(User.MRNursingNotes).%OpenId(nursingNoteId)
+	quit:'obj ""
+	quit:'obj.NOTNotesHTMLRichText ""
+	
+	// Get the rich text
+	//set docmentId = obj.NOTNotesHTMLRichText.%Id()
+	set docmentId = PrevValue
+	set document = ##Class(websys.Document).%OpenId(docmentId)
+	quit:'document ""
+	
+	// Get the id of the document stream
+	set documentStreamId = ##Class(websys.HTMLRichText).ParseDoc(docmentId,"","","","","","displaystream","")
+	quit:'documentStreamId ""
+	
+	// Get the document stream and its text
+	set documentStream = ##Class(websys.TMPStream).%OpenId(documentStreamId)
+	set streamText = documentStream.Text
+	
+	// Store the contents of the stream, line by line
+	set readLineStatus = $$$OK
+	set output = ""
+	while 'streamText.AtEnd	{
+		// Read a line, skip lines we fail
+		set streamLine = streamText.ReadLine(,.readLineStatus,.eol)
+		if '($$$ISOK(readLineStatus)) continue
+		
+		set output = output_streamLine
+	}
+	//set output = output_"</div>"
+	
+	//Remove " from <IMG> tag
+	set img=output
+	
+	set ii=$length(img,"<IMG")
+	if ii>1 {
+		set output=""
+		s img0=$piece(img,"<IMG",1)
+		for jj=2:1:ii {
+			s img1=$piece(img,"<IMG",jj)
+			s tag0=$piece(img1,"/>",1)
+			s tag1=$piece(img1,"/>",2,$length(tag0))
+			s tag0="<IMG "_$tr(tag0,"""")_" />"_tag1
+			s output=$s(output="":img0,1:output)_tag0
+		}
+	}
+	quit output
+]]></Implementation>
+</Method>
+
+<Method name="GetAnnotation">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>AnnoId:%Integer</FormalSpec>
+<ReturnType>%Stream</ReturnType>
+<Implementation><![CDATA[
+	New ANTMPdata
+	Set ANTMPdata=""
+	
+	&sql(select text 
+	into :ANTMPdata 
+	from websys.TMPStream where ID=:AnnoId)
+	quit ANTMPdata
+]]></Implementation>
+</Method>
+</Class>
+</Export>

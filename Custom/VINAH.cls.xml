@@ -1,0 +1,574 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.VINAH">
+<SqlTableName>VINAH</SqlTableName>
+<Super>%Persistent</Super>
+<TimeCreated>62731,42459.861817</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/VINAH.xml#1 $</Default>
+</Parameter>
+
+<Property name="ChildVINAHMSG">
+<Type>Custom.VINAHMSG</Type>
+<Cardinality>children</Cardinality>
+<Inverse>MSGVINAHParRef</Inverse>
+<Relationship>1</Relationship>
+</Property>
+
+<Property name="VINAHPAPMIDR">
+<Type>User.PAPatMas</Type>
+<SqlColumnNumber>2</SqlColumnNumber>
+<SqlFieldName>VINAH_PAPMI_DR</SqlFieldName>
+</Property>
+
+<Index name="VINAHPAPMIDRIndex">
+<Properties>VINAHPAPMIDR</Properties>
+</Index>
+
+<Property name="VINAHPAADMDR">
+<Type>User.PAAdm</Type>
+<SqlColumnNumber>3</SqlColumnNumber>
+<SqlFieldName>VINAH_PAADM_DR</SqlFieldName>
+</Property>
+
+<Index name="VINAHPAADMDRIndex">
+<Properties>VINAHPAADMDR</Properties>
+</Index>
+
+<Property name="VINAHAPPTDR">
+<Type>User.RBAppointment</Type>
+<SqlColumnNumber>4</SqlColumnNumber>
+<SqlFieldName>VINAH_APPT_DR</SqlFieldName>
+</Property>
+
+<Index name="VINAHAPPTDRIndex">
+<Properties>VINAHAPPTDR</Properties>
+</Index>
+
+<Property name="VINAHCreateDate">
+<Type>%Date</Type>
+<SqlColumnNumber>5</SqlColumnNumber>
+<SqlFieldName>VINAH_CreateDate</SqlFieldName>
+</Property>
+
+<Property name="VINAHCreateSent">
+<Type>%Boolean</Type>
+<SqlColumnNumber>6</SqlColumnNumber>
+<SqlFieldName>VINAH_CreateSent</SqlFieldName>
+</Property>
+
+<Property name="VINAHUpdateDate">
+<Type>%Date</Type>
+<SqlColumnNumber>7</SqlColumnNumber>
+<SqlFieldName>VINAH_UpdateDate</SqlFieldName>
+</Property>
+
+<Property name="VINAHUpdateSent">
+<Type>%Boolean</Type>
+<SqlColumnNumber>8</SqlColumnNumber>
+<SqlFieldName>VINAH_UpdateSent</SqlFieldName>
+</Property>
+
+<Property name="VINAHDeleteDate">
+<Type>%Date</Type>
+<SqlColumnNumber>9</SqlColumnNumber>
+<SqlFieldName>VINAH_DeleteDate</SqlFieldName>
+</Property>
+
+<Property name="VINAHDeleteSent">
+<Type>%Boolean</Type>
+<SqlColumnNumber>10</SqlColumnNumber>
+<SqlFieldName>VINAH_DeleteSent</SqlFieldName>
+</Property>
+
+<Property name="VINAHMergeDate">
+<Type>%Date</Type>
+<SqlColumnNumber>11</SqlColumnNumber>
+<SqlFieldName>VINAH_MergeDate</SqlFieldName>
+</Property>
+
+<Property name="VINAHMergeSent">
+<Type>%Boolean</Type>
+<SqlColumnNumber>12</SqlColumnNumber>
+<SqlFieldName>VINAH_MergeSent</SqlFieldName>
+</Property>
+
+<Property name="VINAHEventType">
+<Type>%String</Type>
+<SqlColumnNumber>13</SqlColumnNumber>
+<SqlFieldName>VINAH_EventType</SqlFieldName>
+<Parameter name="COLLATION" value="Exact"/>
+<Parameter name="DISPLAYLIST" value=",Client,Merge,Episode,Referral,Contact"/>
+<Parameter name="MAXLEN" value="220"/>
+<Parameter name="TRUNCATE" value="1"/>
+<Parameter name="VALUELIST" value=",P,M,E,R,C"/>
+</Property>
+
+<Method name="Populate">
+<Description>
+Method to populate new Custom.VINAH class with old VINAH indexes stored against the PAPERi/PAADMi/RBAS globals</Description>
+<ClassMethod>1</ClassMethod>
+<ReturnType>%Status</ReturnType>
+<Implementation><![CDATA[
+	k ^Custom.VINAHD,^Custom.VINAHI,^Custom.VINAHS
+	s (vinid,patno,patnew,patnewsent,patupd,patupdsent,admno,pcb,pcbsent,pcc,pccsent,pcd,pcdsent,I12,I12sent,I13,I13sent,I14,I14sent)=""
+	
+	w !,"Adding Client/Episode/Referral/Contact Index Data..."
+	s patid=0 f  s patid=$o(^PAPERi("VINAH","PAPERRowId",patid)) q:patid=""  d
+	. s (patno,patnew,patnewsent,patupd,patupdsent)="",flag=""
+	. s patnew=$p($g(^PAPERi("VINAH","PAPERRowId",patid)),"^")
+	. i $g(patnew)'="" d
+	. . s patnewsent=$g(^PAPERi("VINAH","New",patnew,patid))
+	. s patupd=$p($g(^PAPERi("VINAH","PAPERRowId",patid)),"^",2)
+	. i $g(patupd)'="" d
+	. . s patupdsent=$g(^PAPERi("VINAH","Update",patupd,patid))
+	. ;
+	. i $d(^PAMRi("VINAH",patid)) s flag=1
+	. i patnew,patnewsent="" s patnewsent=0
+	. i patupd,patupdsent="" s patupdsent=0
+	. i patnew'="" d ..InsertUpdate(patid,"Insert",patnew,patnewsent,"P")
+	. i patupd'="" d ..InsertUpdate(patid,"Update",patupd,patupdsent,"P")
+	. i flag d ..InsertUpdate(patid,"Merge",patupd,flag,"M")
+	. ;
+	. ; Get Episode List
+	. s admid=0 f  s admid=$o(^PAPERdr(patid,"ADM","O",admid)) q:admid=""  d
+	. . i $d(^PAADMi("VINAH","PAADMRowId",admid)) d
+	. . . s (admno,pcb,pcbsent,pcc,pccsent,pcd,pcdsent,I12,I12sent,I13,I13sent,I14,I14sent)=""
+	. . . s pcb=$p($g(^PAADMi("VINAH","PAADMRowId",admid)),"^")
+	. . . i $g(pcb)'="" d
+	. . . . s pcbsent=$g(^PAADMi("VINAH","New_PCB",pcb,admid))
+	. . . s pcc=$p($g(^PAADMi("VINAH","PAADMRowId",admid)),"^",2)
+	. . . i $g(pcc)'="" d
+	. . . . s pccsent=$g(^PAADMi("VINAH","Update_PCC",pcc,admid))
+	. . . s pcd=$p($g(^PAADMi("VINAH","PAADMRowId",admid)),"^",3)
+	. . . i $g(pcd)'="" d
+	. . . . s pcdsent=$g(^PAADMi("VINAH","Delete_PCD",pcd,admid))
+	. . . ;
+	. . . s I12=$p($g(^PAADMi("VINAH","PAADMRowId",admid)),"^",4)
+	. . . i $g(I12)'="" d
+	. . . . s I12sent=$g(^PAADMi("VINAH","New_I12",I12,admid))
+	. . . s I13=$p($g(^PAADMi("VINAH","PAADMRowId",admid)),"^",5)
+	. . . i $g(I13)'="" d
+	. . . . s I13sent=$g(^PAADMi("VINAH","Update_I13",I13,admid))
+	. . . s I14=$p($g(^PAADMi("VINAH","PAADMRowId",admid)),"^",6)
+	. . . i $g(I14)'="" d
+	. . . . s I14sent=$g(^PAADMi("VINAH","Delete_I14",I14,admid))
+	. . . ;
+	. . . i pcb,pcbsent="" s pcbsent=0
+	. . . i pcc,pccsent="" s pccsent=0
+	. . . i pcd,pcdsent="" s pcdsent=0
+	. . . i I12,I12sent="" s I12sent=0
+	. . . i I13,I13sent="" s I13sent=0
+	. . . i I14,I14sent="" s I14sent=0
+	. . . i pcb'="" d ..InsertUpdate(admid,"Insert",pcb,pcbsent,"E")
+	. . . i pcc'="" d ..InsertUpdate(admid,"Update",pcc,pccsent,"E")
+	. . . i pcd'="" d ..InsertUpdate(admid,"Delete",pcd,pcdsent,"E")
+	. . . i I12'="" d ..InsertUpdate(admid,"Insert",I12,I12sent,"R")
+	. . . i I13'="" d ..InsertUpdate(admid,"Update",I13,I13sent,"R")
+	. . . i I14'="" d ..InsertUpdate(admid,"Delete",I14,I14sent,"R")
+	. . . ;
+	. . s res=0 f  s res=$o(^RBAS("ADM",admid,res)) q:res=""  d
+	. . . s as=0 f  s as=$o(^RBAS("ADM",admid,res,as)) q:as=""  d
+	. . . . s appt=0 f  s appt=$o(^RBAS("ADM",admid,res,as,appt)) q:appt=""  d
+	. . . . . q:$g(^RBAS(0,"VINAH","APPTRowId",res_"||"_as_"||"_appt))=""
+	. . . . . s apptid=res_"||"_as_"||"_appt
+	. . . . . s (asdate,status,nfmi,new,newsent,upd,updsent,del,delsent)=""
+	. . . . . s new=$p($g(^RBAS(0,"VINAH","APPTRowId",apptid)),"^",1)
+	. . . . . i $g(new)'="" d
+	. . . . . . s newsent=$g(^RBAS(0,"VINAH","New",new,apptid))
+	. . . . . s upd=$p($g(^RBAS(0,"VINAH","APPTRowId",apptid)),"^",2)
+	. . . . . i $g(upd)'="" d
+	. . . . . . s updsent=$g(^RBAS(0,"VINAH","Update",upd,apptid))
+	. . . . . s del=$p($g(^RBAS(0,"VINAH","APPTRowId",apptid)),"^",3)
+	. . . . . i $g(del)'="" d
+	. . . . . . s delsent=$g(^RBAS(0,"VINAH","Delete",del,apptid))
+	. . . . . i new,newsent="" s newsent=0
+	. . . . . i upd,updsent="" s updsent=0
+	. . . . . i del,delsent="" s delsent=0
+	. . . . . i new'="" d ..InsertUpdate(apptid,"Insert",new,newsent,"C")
+	. . . . . i upd'="" d ..InsertUpdate(apptid,"Update",upd,updsent,"C")
+	. . . . . i del'="" d ..InsertUpdate(apptid,"Delete",del,delsent,"C")
+	
+	; Add messages
+	d ##class(Custom.VINAHMSG).Populate()
+	
+	q $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="InsertUpdate">
+<Description>
+Method to insert entries into the Custon.VINAH table</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>id:%String,type:%String,date:%String,sent:%String,event:%String</FormalSpec>
+<ReturnType>%Status</ReturnType>
+<Implementation><![CDATA[
+	i ((event="P")||(event="M")) &SQL(SELECT ID INTO :vinid FROM Custom.VINAH WHERE VINAH_PAPMI_DR=:id AND VINAH_EventType=:event)
+	i ((event="E")||(event="R")) &SQL(SELECT ID INTO :vinid FROM Custom.VINAH WHERE VINAH_PAADM_DR=:id AND VINAH_EventType=:event)
+	i event="C" &SQL(SELECT ID INTO :vinid FROM Custom.VINAH WHERE VINAH_APPT_DR=:id AND VINAH_EventType=:event)
+	i $g(vinid)="" {
+		s obj=##class(Custom.VINAH).%New()
+	} else {
+		s obj=##class(Custom.VINAH).%OpenId(vinid)
+	}
+	i ((event="P")||(event="M")) d obj.VINAHPAPMIDRSetObjectId(id)
+	i ((event="E")||(event="R")) d obj.VINAHPAADMDRSetObjectId(id)
+	i event="C" d obj.VINAHAPPTDRSetObjectId(id)
+	
+	s obj.VINAHEventType=event
+	i type="Insert" {
+		s obj.VINAHCreateDate=date
+		s obj.VINAHCreateSent=sent
+	} elseif type="Update" {
+		s obj.VINAHUpdateDate=date
+		s obj.VINAHUpdateSent=sent
+	} elseif type="Delete" {
+		s obj.VINAHDeleteDate=date
+		s obj.VINAHDeleteSent=sent
+	} elseif type="Merge" {
+		s obj.VINAHMergeDate=date
+		s obj.VINAHMergeSent=sent
+	}
+	s save=obj.%Save()
+	i 'save w !,$system.OBJ.DisplayError(save)
+	d obj.%Close()
+	
+	q save
+]]></Implementation>
+</Method>
+
+<Method name="CreateBaseline">
+<Description>
+Run method to populate VINAH table if no VINAH exists on environment
+Pass ODBC format start date, i.e. "2012-01-01"</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>startdate:%String</FormalSpec>
+<ReturnType>%Status</ReturnType>
+<Implementation><![CDATA[
+	q:startdate=""
+	s res=0
+	f {
+		s res=$o(^RBAS(res))
+		q:res=""
+		s date=$zdh(startdate,3)
+		f {
+			s date=$o(^RBAS(res,0,"DateSTime",date))
+			q:date=""
+			s time=0
+			f {
+				s time=$o(^RBAS(res,0,"DateSTime",date,time))
+				q:time=""
+				s as=0
+				f {
+					s as=$o(^RBAS(res,0,"DateSTime",date,time,as))
+					q:as=""
+					s appt=0
+					f {
+						s appt=$o(^RBAS(res,as,"APPT",appt))
+						q:appt=""
+						i ##class(Custom.AUXXVINAHEXTRACT).GetSessNFMICode(res_"||"_as_"||"_appt,1) {
+							s admid=$p($g(^RBAS(res,as,"APPT",appt)),"^",4)
+							i admid="",$p($g(^PAADM(admid)),"^",2)="O" {
+								; Add client entry
+								s patid=$p($g(^PAADM(admid)),"^")
+								i patid'="" d ..UDFUpdates(id,"PAPerson",date)
+								
+								; Add episode/referral entries
+								d ..UDFUpdates(admid,"PAAdm",date)
+								
+								; Add contact entry
+								d ..UDFUpdates(res_"||"_as_"||"_appt,"RBAppointment",date)
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+	q $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="UDFUpdates">
+<Description>
+Class method to add inserts/updates/deletes to Custom.VINAH class for VINAH extract</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>id:%String,class:%String,idxdate:%String</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	i class="PAAdm" s patid=$p($g(^PAADM(id)),"^")
+	i class="RBAppointment" s patid=$p($g(^RBAS(+id,$p(id,"||",2),"APPT",$p(id,"||",3))),"^",2)
+	
+	; Only allow updates if contact has been updated in the last 90 days
+	s datefrom=+$h-90,dateto=+$h,valid=""
+	&SQL(SELECT ID INTO :valid FROM Custom.VINAH WHERE VINAH_APPT_DR->APPT_PAPMI_DR=:patid AND VINAH_EventType='C'
+	AND ((VINAH_Createdate BETWEEN :datefrom AND :dateto) OR (VINAH_Updatedate BETWEEN :datefrom AND :dateto) OR (VINAH_Deletedate BETWEEN :datefrom AND :dateto)))
+	
+	
+	i $g(idxdate)="" s idxdate=+$h
+	
+	 ; Create/Update VINAH index for extract
+	 i $g(class)="PAPerson",valid {
+		 i $g(id)'="" {
+			 i ##class(Custom.AUXXVINAHEXTRACT).CheckApptAgainstPatient(id) {
+				s date=idxdate
+				i '$d(^Custom.VINAHI("VINAHPAPMIDRIndex",id)) {
+					 s type="Insert"
+				 } else {
+					 s type="Update"
+				 }
+				 d ##class(Custom.VINAH).InsertUpdate(id,type,date,0,"P")
+			 }
+		 }
+	 }
+	 
+	 i $g(class)="PAAdm",valid {
+		 i $g(id) {
+			 i ##class(Custom.AUXXVINAHEXTRACT).CheckApptAgainstEpisode(id) {
+				 s date=idxdate
+				 s stat=$o(^PAC("RST",0,"Code","1",0))
+				 s patid=$p($g(^PAADM(id)),"^")
+				 s (check1,check2)=""
+				 &SQL(SELECT ID INTO :check1 FROM Custom.VINAH WHERE VINAH_EventType='R' AND VINAH_PAADM_DR=:id AND VINAH_CreateDate IS NOT NULL)
+				 &SQL(SELECT ID INTO :check2 FROM Custom.VINAH WHERE VINAH_EventType='E' AND VINAH_PAADM_DR=:id AND VINAH_CreateDate IS NOT NULL)
+				 
+				 ; If patient entry not existent then create
+				 i $g(patid)'="",'$d(^Custom.VINAHI("VINAHPAPMIDRIndex",patid)) d ##class(Custom.VINAH).InsertUpdate(patid,"Insert",date,0,"P")
+
+				 i '$d(^Custom.VINAHI("VINAHPAADMDRIndex",id)) {
+					 ;If episode index does not exist then create new
+					 d ##class(Custom.VINAH).InsertUpdate(id,"Insert",date,0,"E")
+				 }
+				 ;If referral index does not exist then create new
+				 i $p($g(^PAADM(id,2)),"^",14)=$g(stat) {
+					 i 'check1 d ##class(Custom.VINAH).InsertUpdate(id,"Insert",date,0,"R")
+				 }
+				 
+				 i check2'="" d ##class(Custom.VINAH).InsertUpdate(id,"Update",date,0,"E")
+				 
+				 i $p($g(^PAADM(id,2)),"^",14)=$g(stat) {
+				 	 d ##class(Custom.VINAH).InsertUpdate(id,"Update",date,0,"R")
+				 	 ; Remove any deletes
+				 	 &SQL(UPDATE Custom.VINAH SET VINAH_DeleteDate=NULL,VINAH_DeleteSent=NULL WHERE VINAH_EventType='R' AND VINAH_PAADM_DR=:id AND VINAH_DeleteDate IS NOT NULL)
+				 }
+				 ; If referral exists and delete does not exist then set delete index for episode
+				 i $p($g(^PAADM(id,2)),"^",14)'=$g(stat),check1 {
+					 d ##class(Custom.VINAH).InsertUpdate(id,"Delete",date,0,"R")
+				 }
+				 
+				 ; If not cancelled then make sure there is no delete against the episode
+				 i $p($g(^PAADM(id)),"^",20)'="C" {
+					 &SQL(UPDATE Custom.VINAH SET VINAH_DeleteDate=NULL,VINAH_DeleteSent=NULL WHERE VINAH_EventType='E' AND VINAH_PAADM_DR=:id AND VINAH_DeleteDate IS NOT NULL)
+				 } else {
+					 d ##class(Custom.VINAH).InsertUpdate(id,"Delete",date,0,"E")
+					 ;If there are appointments linked to the episode then check they are not cancelled
+					 s res=0 f {
+						 s res=$o(^RBAS("ADM",id,res))
+						 q:res=""
+						 s as=0 f {
+							 s as=$o(^RBAS("ADM",id,res,as))
+							 q:as=""
+							 s appt=0 f {
+								 s appt=$o(^RBAS("ADM",id,res,as,appt))
+								 q:appt=""
+								 d ..UDFUpdates(res_"||"_as_"||"_appt,"RBAppointment",idxdate)
+							 }
+						 }
+					 }
+				 }
+			 } else {
+				 d ..CheckDeletes("ADM",id)
+			 }
+		 }
+	 }
+	 
+	 // Called from RBAppointment OnAfterSave routine
+	 i $g(class)="RBAppointment",valid {
+		 i $g(id)'="" {
+			 i +##class(Custom.AUXXVINAHEXTRACT).GetSessNFMICode(id,1) {
+				 i $p($g(^RBAS(+id,$p(id,"||",2))),"^")>=$zdh("2012-01-01",3)			; Quit if before 30/6/2011
+				 s date=idxdate
+				 
+				 ; Add insert entry
+				 i "A,N"[$p($g(^RBAS(+id,$p(id,"||",2),"APPT",$p(id,"||",3))),"^",3) {
+					 i '$d(^Custom.VINAHI("VINAHAPPTDRIndex",id)) {
+						 d ##class(Custom.VINAH).InsertUpdate(id,"Insert",date,0,"C")
+					 } else {
+					 	 ; Add update entry
+						 d ##class(Custom.VINAH).InsertUpdate(id,"Update",date,0,"C")
+					 }
+				 }
+
+				 ; If appointment is a transfer or cancelled
+				 i "T,X"[$p($g(^RBAS(+id,$p(id,"||",2),"APPT",$p(id,"||",3))),"^",3) {
+				 	 d ##class(Custom.VINAH).InsertUpdate(id,"Delete",date,0,"C")
+				 }
+				 i "T,X"'[$p($g(^RBAS(+id,$p(id,"||",2),"APPT",$p(id,"||",3))),"^",3) {
+					 ; If delete reverted then remove delete
+					 &SQL(UPDATE Custom.VINAH SET VINAH_DeleteDate=NULL,VINAH_DeleteSent=NULL WHERE VINAH_EventType='C' AND VINAH_APPT_DR=:id AND VINAH_DeleteDate IS NOT NULL)
+				 }				 
+			 } else {
+				 d ..CheckDeletes("APPT",id)
+			 }
+		 }
+	 }
+	 q $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="CheckDeletes">
+<Description>
+Referral Delete sent when any of the following occurs
+- If the referral has been reported and there are no previous appointments that were reportable and the a new appointment is made that is not reportable
+- If the referral has been reported and there are no previous appointments that were reportable and the Episode specialty is changed to not reportable</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>type:%String,id:%String</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	s valid=0
+	i type="APPT" s admid=$p($g(^RBAS(+id,$p(id,"||",2),"APPT",$p(id,"||",3))),"^",4)
+	i type="ADM" s admid=id
+	
+	s check1=""
+	&SQL(SELECT ID INTO :check1 FROM Custom.VINAH WHERE VINAH_EventType='R' AND VINAH_PAADM_DR=:admid AND VINAH_CreateDate IS NOT NULL)
+	
+	; If a referral date exists and it has been sent, check for previous appointments
+	i check1'="" {
+		s res=0
+		f {
+			s res=$o(^RBAS("ADM",admid,res))
+			q:res=""
+			s as=0
+			f {
+				s as=$o(^RBAS("ADM",admid,res,as))
+				q:as=""
+				s appt=0
+				f {
+					s appt=$o(^RBAS("ADM",admid,res,as,appt))
+					q:appt=""
+					i +##class(Custom.AUXXVINAHEXTRACT).GetSessNFMICode(res_"||"_as_"||"_appt) {
+						s valid=1
+					}
+				}
+			}
+		}
+	}
+	
+	; If no valid appointent is found then send deletes for referrals
+	i 'valid {
+		d ##class(Custom.VINAH).InsertUpdate(admid,"Delete",+$h,0,"R")
+	}
+	q
+]]></Implementation>
+</Method>
+
+<Index name="TypePAPMIDR">
+<Type>bitmap</Type>
+<Properties>VINAHEventType,VINAHPAPMIDR</Properties>
+</Index>
+
+<Index name="TypePAADMDR">
+<Type>bitmap</Type>
+<Properties>VINAHEventType,VINAHPAADMDR</Properties>
+</Index>
+
+<Index name="TypeAPPTDR">
+<Type>bitmap</Type>
+<Properties>VINAHEventType,VINAHAPPTDR</Properties>
+</Index>
+
+<Index name="TypeCreateDate">
+<Type>bitmap</Type>
+<Properties>VINAHEventType,VINAHCreateDate</Properties>
+</Index>
+
+<Index name="TypeUpdateDate">
+<Type>bitmap</Type>
+<Properties>VINAHEventType,VINAHUpdateDate</Properties>
+</Index>
+
+<Index name="TypeDeleteDate">
+<Type>bitmap</Type>
+<Properties>VINAHEventType,VINAHDeleteDate</Properties>
+</Index>
+
+<Index name="TypeMergeDate">
+<Type>bitmap</Type>
+<Properties>VINAHEventType,VINAHMergeDate</Properties>
+</Index>
+
+<Index name="CreateDate">
+<Type>bitmap</Type>
+<Properties>VINAHCreateDate</Properties>
+</Index>
+
+<Index name="UpdateDate">
+<Type>bitmap</Type>
+<Properties>VINAHUpdateDate</Properties>
+</Index>
+
+<Index name="DeleteDate">
+<Type>bitmap</Type>
+<Properties>VINAHDeleteDate</Properties>
+</Index>
+
+<Index name="MergeDate">
+<Type>bitmap</Type>
+<Properties>VINAHMergeDate</Properties>
+</Index>
+
+<Storage name="Default">
+<Type>%Library.CacheStorage</Type>
+<DataLocation>^Custom.VINAHD</DataLocation>
+<DefaultData>VINAHDefaultData</DefaultData>
+<IdLocation>^Custom.VINAHD</IdLocation>
+<IndexLocation>^Custom.VINAHI</IndexLocation>
+<StreamLocation>^Custom.VINAHS</StreamLocation>
+<ExtentSize>100000</ExtentSize>
+<Data name="VINAHDefaultData">
+<Value name="1">
+<Value>%%CLASSNAME</Value>
+</Value>
+<Value name="2">
+<Value>VINAHPAPMIDR</Value>
+</Value>
+<Value name="3">
+<Value>VINAHPAADMDR</Value>
+</Value>
+<Value name="4">
+<Value>VINAHAPPTDR</Value>
+</Value>
+<Value name="5">
+<Value>VINAHCreateDate</Value>
+</Value>
+<Value name="6">
+<Value>VINAHCreateSent</Value>
+</Value>
+<Value name="7">
+<Value>VINAHUpdateDate</Value>
+</Value>
+<Value name="8">
+<Value>VINAHUpdateSent</Value>
+</Value>
+<Value name="9">
+<Value>VINAHDeleteDate</Value>
+</Value>
+<Value name="10">
+<Value>VINAHDeleteSent</Value>
+</Value>
+<Value name="11">
+<Value>VINAHMergeDate</Value>
+</Value>
+<Value name="12">
+<Value>VINAHMergeSent</Value>
+</Value>
+<Value name="13">
+<Value>VINAHEventType</Value>
+</Value>
+</Data>
+</Storage>
+</Class>
+</Export>

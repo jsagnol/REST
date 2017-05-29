@@ -1,0 +1,213 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.SWARH.Report.RptSvc.StoredProc.SWARHRNAP1018">
+<Description><![CDATA[
+<pre>
+***************************************************************************************************************************************
+* Report Code: SWARHRNAP1018
+* Report Description: Episode Goals
+* Menu Caption: Episode Goals
+* Initial Release: ??/??/??
+* Developer: Tim Beilby
+* Modified: 2015/09/17 - Ross Gladman - Added support for multiple specialties & programs
+***************************************************************************************************************************************
+</pre>]]></Description>
+<ProcedureBlock>0</ProcedureBlock>
+<Super>Custom.SWARH.Report.RptSvc.StoredProc.Abstract</Super>
+<TimeCreated>60905,54849</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/SWARH/Report/RptSvc/StoredProc/SWARHRNAP1018.xml#1 $</Default>
+</Parameter>
+
+<Method name="SWARHRNAP1018Close">
+<Description>
+This is the Close component of the %Library.Query.
+This is standard code and should never have to change.
+This is where all the cleanup is performed, i.e. the purging of the temporary storage global ^CacheTemp.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>QHandle:%Library.Binary</FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Clean up by purging the temporary node in ^CacheTemp global
+ New repid,ind
+ Set repid=$li(QHandle,2)
+
+ //Start Monitor (if configured to capture stats)
+ i mon Do ..MonitorEnd(mon)
+
+ Kill ^CacheTemp("TRAK",repid)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="SWARHRNAP1018Execute">
+<Description>
+This is the Execute section for the %Library.Query. 
+All of the logic will be performed here.
+A new node for the ^CacheTemp global will be created and each subscript of this global will contain
+a row for the report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,Hospital:%Library.String,DateFrom:%Date,DateTo:%Date,Specialty:%Library.String,Program:%Library.String,Issue:%Library.String,URNo:%Library.String]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Get reportid i.e. use $INCREMENT to add another node to ^CacheTemp global. 
+ // We use ^CacheTemp global because it will always use memory before disk
+ New repid,ind
+
+  // Use $Increment to get the next node
+ Set repid=$I(^CacheTemp("TRAK"))
+ 
+ New UrNumber,EpisodeNumber,CPENDDATE,Surname,FirstName,SecondName,EpisodeGoal,EpisodeGoalOutcome,EpisodeIssue,EpisodeIssueOutcome
+ New ISSSpecialty, ISSProgram
+ Set (UrNumber,EpisodeNumber,CPENDDATE,Surname,FirstName,SecondName,EpisodeGoal,EpisodeGoalOutcome,EpisodeIssue,EpisodeIssueOutcome)=""
+ Set (ISSSpecialty, ISSProgram)=""
+
+
+ s ind=1, END=0
+
+ //Start Monitor (if configured to capture stats)
+ s mon=..MonitorBegin()
+ 
+ s Hospital=$zstrip(Hospital,"*CW")
+ s Program=$zstrip(Program,"*CW")
+ s Specialty=$zstrip(Specialty,"*CW")
+ s Issue=$zstrip(Issue,"*CW")
+ s URNo=$zstrip(URNo,"*CW")
+ //Convert ODBC dates to cache format
+ s DateFrom=..ConvertDateToCache(DateFrom)
+ s DateTo=..ConvertDateToCache(DateTo)
+ 
+ &SQL(DECLARE SWARHRNAP1018Cursor CURSOR FOR 
+ 
+ SELECT
+	    ISS_ParRef->CP_PAADM_DR->PAADM_PAPMI_DR->PAPMI_NO AS UrNumber,
+	    ISS_ParRef->CP_PAADM_DR->PAADM_ADMNo As EpisodeNumber,
+	    ISS_ParRef->CP_ENDDATE,
+	    ISS_ParRef->CP_PAPMI_DR->PAPMI_NAME AS Surname,
+	    ISS_ParRef->CP_PAPMI_DR->PAPMI_NAME2 AS FirstName,
+	    ISS_ParRef->CP_PAPMI_DR->PAPMI_NAME3 AS SecondName,
+	    ISS_ParRef->CP_CarePlanGoal_DR->CPGOAL_Desc AS EpisodeGoal,
+	    ISS_ParRef->CP_ClinPathOutcome_DR->CLPO_Desc As EpisodeGoalOutcome,
+	    ISS_Issues_DR->ISSUE_Desc As EpisodeIssue,
+	    ISS_ClinPathOutcome_DR->CLPO_Desc As EpisodeIssueOutcome,
+	    ISS_ParRef->CP_PAADM_DR->PAADM_DepCode_DR->CTLOC_Desc As ISSSpecialty,
+	    ISS_ParRef->CP_PAADM_DR->PAADM_PAADM2_DR->PAADM2_NFMICategDepart_DR->DEP_Desc As ISSProgram
+FROM
+        SQLUser.NR_CarePlanIssues
+WHERE
+        ISS_ParRef->CP_PAADM_DR->PAADM_Hospital_DR = :Hospital
+AND
+        ISS_ParRef->CP_ENDDATE BETWEEN :DateFrom AND :DateTo
+AND
+		-- (ISS_ParRef->CP_PAADM_DR->PAADM_DepCode_DR->CTLOC_RowId = :Specialty OR (:Specialty IS NULL)) -- Single Specialty Only
+        (({fn CONCAT( ',', {fn CONCAT((:Specialty),',')})} [ {fn CONCAT( ',', {fn CONCAT((ISS_ParRef->CP_PAADM_DR->PAADM_DepCode_DR->CTLOC_RowId),',')})}) OR (:Specialty IS NULL))  -- Multiple Specialties
+AND
+		-- (ISS_ParRef->CP_PAADM_DR->PAADM_PAADM2_DR->PAADM2_NFMICategDepart_DR->DEP_RowId = :Program OR (:Program IS NULL)) -- Single Program Only
+		(({fn CONCAT( ',', {fn CONCAT((:Program),',')})} [ {fn CONCAT( ',', {fn CONCAT((ISS_ParRef->CP_PAADM_DR->PAADM_PAADM2_DR->PAADM2_NFMICategDepart_DR->DEP_RowId),',')})}) OR (:Program IS NULL)) -- Multiple Programs
+AND
+		(ISS_Issues_DR->ISSUE_RowId = :Issue OR (:Issue IS NULL))
+AND
+		(ISS_ParRef->CP_PAADM_DR->PAADM_PAPMI_DR->PAPMI_NO = :URNo OR (:URNo IS NULL))
+        
+)
+ &SQL(OPEN SWARHRNAP1018Cursor)
+ 
+ //FETCH FIRST ROW
+ d FetchRow
+  
+ while END=0 {
+  
+	 d FormatDates
+	 d FormatStrings
+  	 
+	 s sort = ind		// don't sort - uncomment this line if you've sorted in the query
+ 
+	 s ^CacheTemp("TRAK",repid,sort)=$LB(UrNumber,EpisodeNumber,CPENDDATE,Surname,FirstName,SecondName,EpisodeGoal,EpisodeGoalOutcome,EpisodeIssue,EpisodeIssueOutcome, ISSSpecialty, ISSProgram)
+	 s ind=ind+1
+ 
+	 //fetch rows
+	 d FetchRow
+ }
+
+ &SQL(CLOSE SWARHRNAP1018Cursor)
+ 
+ // Build QHandle (AtEnd,ReportID,Index)
+ Set QHandle=$lb(0,repid,0)
+
+ Quit $$$OK
+
+FetchRow
+ &sql(FETCH SWARHRNAP1018Cursor INTO :UrNumber,:EpisodeNumber,:CPENDDATE,:Surname,:FirstName,:SecondName,:EpisodeGoal,:EpisodeGoalOutcome,:EpisodeIssue,:EpisodeIssueOutcome, :ISSSpecialty, :ISSProgram)
+ if SQLCODE '= 0 set END = 1
+ q
+ 
+FormatDates
+ s CPENDDATE=..ConvertDateToODBC(CPENDDATE)
+ q
+ 
+FormatStrings
+ if (EpisodeGoal = "") {
+	 set EpisodeGoal = "No Episode Goal"
+ }
+ if (EpisodeGoalOutcome = "") {
+	 set EpisodeGoalOutcome = "No Episode Goal Outcome"
+ }
+ if (EpisodeIssue = "") {
+	 set EpisodeIssue = "No Episode Issue"
+ }
+ if (EpisodeIssueOutcome = "") {
+	 set EpisodeIssueOutcome = "No Episode Issue Outcome"
+ }
+ q
+]]></Implementation>
+</Method>
+
+<Method name="SWARHRNAP1018Fetch">
+<Description>
+This is the Fetch component of the %Library.Query. 
+This should never have to change. It is designed to fetch the row for each subscript of the ^CacheTemp
+global and return this row to the Crystal Report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,&Row:%Library.List,&AtEnd:%Library.Integer=0]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // This fetch method should never have to change. 
+
+ // repid - Report ID
+ // ind   - sequence index which represents each row
+
+ New repid,ind
+
+ // Restore QHandle
+ Set AtEnd=$li(QHandle,1)
+ Set repid=$li(QHandle,2)
+ Set ind=$li(QHandle,3)
+
+ Set ind=$o(^CacheTemp("TRAK",repid,ind))
+ If ind="" {	// if there are no more rows, finish fetching
+	 Set AtEnd=1
+	 Set Row=""
+ }
+ Else      {	// fetch row
+ 	Set Row=^CacheTemp("TRAK",repid,ind)
+ }
+
+ // Save QHandle
+ s QHandle=$lb(AtEnd,repid,ind)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Query name="SWARHRNAP1018">
+<Type>%Library.Query</Type>
+<FormalSpec>Hospital:%Library.String,DateFrom:%Date,DateTo:%Date,Specialty:%Library.String,Program:%Library.String,Issue:%Library.String,URNo:%Library.String</FormalSpec>
+<SqlProc>1</SqlProc>
+<Parameter name="CONTAINID" value="0"/>
+<Parameter name="ROWSPEC" value="UrNumber:%Library.String,EpisodeNumber:%Library.String,CPENDDATE:%Library.Date,Surname:%Library.String,FirstName:%Library.String,SecondName:%Library.String,EpisodeGoal:%Library.String,EpisodeGoalOutcome:%Library.String,EpisodeIssue:%Library.String,EpisodeIssueOutcome:%Library.String,ISSSpecialty:%Library.String,ISSProgram:%Library.String"/>
+<Parameter name="SELECTMODE" value="ODBC"/>
+</Query>
+</Class>
+</Export>

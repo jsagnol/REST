@@ -1,0 +1,491 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.AUXX.Report.ZEN.StoredProc.TRAKCurrentPatient">
+<ProcedureBlock>0</ProcedureBlock>
+<Super>Report.Abstract</Super>
+<TimeCreated>60919,35060.77336</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/AUXX/Report/ZEN/StoredProc/TRAKCurrentPatient.xml#1 $</Default>
+</Parameter>
+
+<Method name="CurrentPatientListClose">
+<Description>
+This is the Close component of the %Library.Query.
+This is standard code and should never have to change.
+This is where all the cleanup is performed, i.e. the purging of the temporary storage global ^CacheTemp.</Description>
+<Final>0</Final>
+<ClassMethod>1</ClassMethod>
+<CodeMode>code</CodeMode>
+<FormalSpec>QHandle:%Library.Binary</FormalSpec>
+<Private>0</Private>
+<ReturnType>%Library.Status</ReturnType>
+<SqlProc>0</SqlProc>
+<Implementation><![CDATA[
+ // Clean up by purging the temporary node in ^CacheTemp global
+ New repid
+ Set repid=$li(QHandle,2)
+ Kill ^CacheTemp(repid)
+ 
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="CurrentPatientListExecute">
+<Description>
+This is the Execute section for the %Library.Query. 
+All of the logic will be performed here.
+A new node for the ^CacheTemp global will be created and each subscript of this global will contain
+a row for the report.</Description>
+<Final>0</Final>
+<ClassMethod>1</ClassMethod>
+<CodeMode>code</CodeMode>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,dfrom:%Library.Date,dto:%Library.Date]]></FormalSpec>
+<Private>0</Private>
+<ReturnType>%Library.Status</ReturnType>
+<SqlProc>0</SqlProc>
+<Implementation><![CDATA[
+ // Get reportid i.e. use $INCREMENT to add another node to ^CacheTemp global. 
+ // We use ^CacheTemp global because it will always use memory before disk
+ k ^zandy
+ New repid,ind
+ n i,id,admrow,PAADMRowId,PAADMType,PAADMVisitStat,AdmissionDate,AdmissionTime,CDN,PAPMIRowId,EpisodeNumber,Surname,GivenName,Sex,DateOfBirth,VIP,CARETYPCode,CARETYPDesc,AdmType,AdmTypeCode,BedCode,WardCode,WardDesc,WARDRowId,HospitalCode,HOSPRowId,HospitalDesc,CampusCode,CampusDesc,WARDLocationDR,SIGNFRowID,UnitCode,UnitDesc,UnitRowID,DivisionId,DivisionCode,DivisionDesc,UnitSpeciality,RURowID,AdmitConsultantID,AdmitConsultantCode,AdmitConsultantDesc,ADSOURowId,ADSOUCode,ADSOUDesc,DischargeDate,AUXITRowId,AccountClassCode,AccountClassDesc,INSChildSub
+
+ s (PAADMType,PAADMVisitStat,AdmissionDate,AdmissionTime,CDN,EpisodeNumber,Surname,GivenName,Sex,DateOfBirth,VIP,CARETYPCode,CARETYPDesc,AdmTypeCode,BedCode,WardCode,WardDesc,HospitalCode,HospitalDesc,CampusCode,CampusDesc,UnitCode,UnitDesc,DivisionCode,DivisionDesc,UnitSpeciality,AdmitConsultantCode,AdmitConsultantDesc,ADSOUCode,ADSOUDesc,DischargeDate,AUXITRowId,AccountClassCode,AccountClassDesc)=""
+ s (i,id,admrow,PAADMRowId,PAPMIRowId,AdmType,WARDRowId,HOSPRowId,WARDLocationDR,SIGNFRowID,UnitRowID,DivisionId,RURowID,AdmitConsultantID,ADSOURowId,INSChildSub)=0
+
+ // Use $Increment to get the next node
+ Set repid=$I(^CacheTemp)
+
+ // Build data into ^CacheTemp(ReportID)
+ // e.g. Set ^CacheTemp(ReportID,Index)=$LB(f1,f2,f3)
+ ;New Number,String,Date,Time,c,n
+ s ind=1
+
+ ;s ^zandy("test")=1
+ ;get repid for inpatient list
+ s id=##class(Custom.TRAKCurrentPatient).FindID()
+ ;s ^zandy("test2")=id
+
+ s i=$o(^CacheTemp(id,0,"PAAdmRowID",i)) q:i=""
+ .s PAADMRowId=$g(^CacheTemp(id,0,"PAAdmRowID",i))
+ .s admrow=PAADMRowId
+ .d adm
+
+ ;s ^zandy("test3")=3
+ k ^CacheTemp(id)    // R1 - sc142338 - A
+ // Build QHandle (AtEnd,ReportID,Index)
+ Set QHandle=$lb(0,repid,0)
+ Quit $$$OK
+
+adm
+ s PAADMVisitStat=$p($g(^PAADM(admrow)),"^",20)
+ s PAADMType="I"
+ s AdmissionDatee=$p($g(^PAADM(admrow)),"^",6)
+ s AdmissionTime=$p($g(^PAADM(admrow)),"^",7)
+ s PAPMIRowId=$p($g(^PAADM(admrow)),"^",1)
+ s CDN=$p($g(^PAPER(PAPMIRowId,"PAT",1)),"^",1)
+ s EpisodeNumber=$p($g(^PAADM(admrow)),"^",81)
+ s Surname=$p($g(^PAPER(PAPMIRowId,"ALL")),"^",1)
+ s GivenName=$p($g(^PAPER(PAPMIRowId,"ALL")),"^",2)
+ s MiddleName=$p($g(^PAPER(PAPMIRowId,"ALL")),"^",19)
+ s DateOfBirth=$p($g(^PAPER(PAPMIRowId,"ALL")),"^",6)
+ s CTSEXRowId=$p($g(^PAPER(PAPMIRowId,"ALL")),"^",7)
+ i CTSEXRowId'="" s SEX=$p($g(^CT("SEX",CTSEXRowId)),"^",1)
+ s VIP=$p($g(^PAPER(PAPMIRowId,"PAT",4)),"^",1)
+ s MRADMRowId=$p($g(^PAADM(admrow)),"^",61)
+ i MRADMRowId'="" {
+ s CTPCPRowId=$p($g(^MR(MRADMRowId,"PRO",1)),"^",59)
+ s CARETYPCode=$p($g(^CTPCP(CTPCPRowId)),"^",1)
+ s CARETYPDesc=$p($g(^CTPCP(CTPCPRowId)),"^",2)
+ }
+ s IPATRowId=$p($g(^PAADM("2",admrow)),"^",28)
+ i IPATRowId'="" {
+ s AdmTypeCode=$p($g(^PAC("IPAT",IPATRowId)),"^",1)
+ s AdmType=$p($g(^PAC("IPAT",IPATRowId)),"^",2) 	
+ }
+ s PAADMBedDR=$p($g(^PAADM(admrow)),"^",73)
+ s PAADMWarddDR=$p($g(^PAADM(admrow)),"^",70)
+ ;s ^zandy(admrow)=PAADMWarddDR_" "_PAADMBedDR
+ i PAADMBedDR'="", PAADMWarddDR'="" {
+ s BEDChildSub=$p(PAADMBedDR,"||",2)
+ i BEDChildSub'=""{
+ s BEDCode=$p($g(^PAWARD(PAADMWarddDR,"BED",BEDChildSub)),"^",1)
+ }
+ }
+ s PAADMTreatDR=$p($g(^PAADM(admrow,2)),"^",32)
+ s AdmitConsultantId=PAADMTreatDR
+ i AdmitConsultantId'="" {
+ s AdmitConsultantCode=$p($g(^CTPCP(AdmitConsultantId,1)),"^",1)
+ S AdmitConsultantDesc=$p($g(^CTPCP(AdmitConsultantId,1)),"^",2) 
+ }
+ i PAADMWarddDR'="" {
+ S WARDRowId=PAADMWarddDR
+ S WARDCode=$p($g(^PAWARD(PAADMWarddDR)),"^",1)
+ S WARDDesc=$p($g(^PAWARD(PAADMWarddDR)),"^",2)
+ s WARDLocationDR=$p($g(^PAWARD(PAADMWarddDR)),"^",5)
+ i WARDLocationDR'="" {
+ s HOSPRowId=$p($g(^CTLOC(WARDLocationDR)),"^",22)
+ i HOSPRowId'="" {
+ s HospitalCode=$p($g(^CT("HOSP",HOSPRowId)),"^",1)
+ s HospitalDesc=$p($g(^CT("HOSP",HOSPRowId)),"^",2)
+ }
+ s SIGNFRowID=$p($g(^CTLOC(WARDLocationDR)),"^",36)
+ i SIGNFRowID'="" {
+ s CampusCode=$p($g(^RBC("SIGNF",SIGNFRowID)),"^",1)
+ s CampusDesc=$p($g(^RBC("SIGNF",SIGNFRowID)),"^",2)
+ }
+ }}
+ s UnitRowId=$p($g(^PAADM(admrow)),"^",4)
+ i UnitRowId'="" {
+ s UnitCode=$p($g(^CTLOC(UnitRowId)),"^",1)
+ s UnitDesc=$p($g(^CTLOC(UnitRowId)),"^",2)
+ s DivisionId=$p($g(^CTLOC(UnitRowId)),"^",19)
+ i DivisionId'="" {
+ s DivisionCode=$p($g(^RBC("DEP",DivisionId)),"^",1)
+ s DivisionDesc=$p($g(^RBC("DEP",DivisionId)),"^",2)
+ }
+ }
+ s ADSOURowId=$p($g(^PAADM(admrow)),"^",10)
+ i ADSOURowId'="" {
+ s ADSOUCode=$p($g(^PAC("ADSOU",ADSOURowId)),"^",1)
+ s ADSOUDesc=$p($g(^PAC("ADSOU",ADSOURowId)),"^",2)
+ }
+ s INSChildsub=$o(^PAADM(admrow,"INS",INSChildsub)) q:INSChildsub=""
+ .s AUXITRowId=$p($g(^PAC("ADSOU",ADSOURowId)),"^",10)
+ .i AUXITRowId'="" {
+ .s AccountClassCode=$p($g(^ARC("AUXIT",AUXITRowId)),"^",1)
+ .s AccountClassDesc=$p($g(^ARC("AUXIT",AUXITRowId)),"^",2)
+ .s ^CacheTemp(repid,ind)=$LB(PAADMType,PAADMVisitStat,AdmissionDate,AdmissionTime,CDN,PAPMIRowId,EpisodeNumber,Surname,GivenName,Sex,DateOfBirth,VIP,CARETYPCode,CARETYPDesc,AdmType,AdmTypeCode,BedCode,WardCode,WardDesc,WARDRowId,HospitalCode,HOSPRowId,HospitalDesc,CampusCode,CampusDesc,WARDLocationDR,SIGNFRowID,UnitCode,UnitDesc,UnitRowID,DivisionId,DivisionCode,DivisionDesc,UnitSpeciality,RURowID,AdmitConsultantID,AdmitConsultantCode,AdmitConsultantDesc,ADSOURowId,ADSOUCode,ADSOUDesc,DischargeDate,AUXITRowId,AccountClassCode,AccountClassDesc,INSChildSub)
+ .s ind=ind+1}	
+
+ q
+
+FormatDates
+ // Convert the dates to ODBC date format
+ If Date Set Date=$ZD(Date,3)
+
+ Quit
+
+FormatTimes
+ // Convert the times to ODBC time format
+ If Time Set Time=$ZT(Time,3)
+
+ Quit
+]]></Implementation>
+</Method>
+
+<Method name="CurrentPatientListFetch">
+<Description>
+This is the Fetch component of the %Library.Query. 
+This should never have to change. It is designed to fetch the row for each subscript of the ^CacheTemp
+global and return this row to the Crystal Report.</Description>
+<Final>0</Final>
+<ClassMethod>1</ClassMethod>
+<CodeMode>code</CodeMode>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,&Row:%Library.List,&AtEnd:%Library.Integer=0]]></FormalSpec>
+<Private>0</Private>
+<ReturnType>%Library.Status</ReturnType>
+<SqlProc>0</SqlProc>
+<Implementation><![CDATA[
+ // This fetch method should never have to change. 
+
+ // repid - Report ID
+ // ind   - sequence index which represents each row
+
+ New repid,ind
+
+ // Restore QHandle
+ ;s ^zandy("QH")=$li(QHandle,2)
+ Set AtEnd=$li(QHandle,1)
+ Set repid=$li(QHandle,2)
+ Set ind=$li(QHandle,3)
+
+ Set ind=$o(^CacheTemp(repid,ind))
+ If ind="" {	// if there are no more rows, finish fetching
+ Set AtEnd=1
+ Set Row=""
+ }
+ Else      {	// fetch row
+ Set Row=^CacheTemp(repid,ind)
+ }
+
+ // Save QHandle
+ s QHandle=$lb(AtEnd,repid,ind)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="FindHistoryID">
+<Final>0</Final>
+<ClassMethod>1</ClassMethod>
+<CodeMode>code</CodeMode>
+<FormalSpec>date:%Library.Date</FormalSpec>
+<Private>0</Private>
+<ReturnType>%Library.Integer</ReturnType>
+<SqlProc>0</SqlProc>
+<Implementation><![CDATA[
+ //This will return a list of patient who were current inpatients at midnight
+ //on the date of the date-parameter entered
+
+ n repid,ind,i,admrow,visitstat,currentdate,daterange,type
+
+ Set repid=$I(^CacheTemp)
+ s i=1
+ s admrow=0
+ s type=""
+
+ ;s ^zandy("id")=repid
+
+ s daterange=date
+ s currentdate=$p($h,",",1)
+
+ ;get patient id	from discharge index
+
+ while daterange'>currentdate {
+ f  s admrow=$o(^PAADMi("DischDate",daterange,admrow)) q:admrow=""  d
+ .s admdate=$p($g(^PAADM(admrow)),"^",6)
+ .s type=$p($g(^PAADM(admrow)),"^",2)
+ .;s ^zandy("ZTYPE",admrow)=type
+ .i admdate<date,type="I" s ^CacheTemp(repid,0,"PAAdmRowID",i)=admrow, i=i+1
+ s daterange=daterange+1		
+ }
+
+ ;get patient id from patients who are current inpatient
+
+ f  s admrow=$o(^PAADMi("AdmTypeCurr","I",admrow)) q:admrow=""  d
+ .s visitstat=$p($g(^PAADM(admrow)),"^",20)
+ .s admdate=$p($g(^PAADM(admrow)),"^",6)
+ .i visitstat="A",admdate<date s ^CacheTemp(repid,0,"PAAdmRowID",i)=admrow, i=i+1
+
+ ;s ^zandy("i")=i
+ q repid
+]]></Implementation>
+</Method>
+
+<Method name="FindID">
+<Final>0</Final>
+<ClassMethod>1</ClassMethod>
+<CodeMode>code</CodeMode>
+<FormalSpec/>
+<Private>0</Private>
+<ReturnType>%Library.Integer</ReturnType>
+<SqlProc>0</SqlProc>
+<Implementation><![CDATA[
+ n repid,ind,i,admrow,visitstat
+
+ Set repid=$I(^CacheTemp)
+ s i=1
+ s admrow=0
+
+ ;get patient id	
+ s admrow=$o(^PAADMi("AdmTypeCurr","I",admrow)) q:admrow=""  d
+ .s visitstat=$p($g(^PAADM(admrow)),"^",20)
+ .s ^CacheTemp(repid,0,"PAAdmRowID",i)=admrow
+ .s i=i+1
+
+ ;s ^zandy("i")=i
+ q repid
+]]></Implementation>
+</Method>
+
+<Method name="FindPatientWard">
+<Final>0</Final>
+<ClassMethod>1</ClassMethod>
+<CodeMode>code</CodeMode>
+<FormalSpec>admrow:%Library.Integer,date:%Library.Date,PAADMAdmDate:%Library.Date</FormalSpec>
+<Private>0</Private>
+<ReturnType>%Library.Integer</ReturnType>
+<SqlProc>0</SqlProc>
+<Implementation><![CDATA[
+ ;get ward for patient id on requested date
+ n x
+ s x=1
+ s date=date-1
+ ;s ^zandy("date")=date
+ ;s ^zandy(admrow)=PAADMAdmDate
+ //get list of transaction for patient in the given date range
+ &sql(DECLARE TRANS CURSOR FOR
+ select  trans_childsub from sqluser.pa_admtransaction
+ where	trans_startdate between :PAADMAdmDate  and :date
+ and	trans_parref=:admrow
+ order by trans_childsub desc)
+
+ &sql(OPEN TRANS)
+ ;s ^zandy("OPEN")=0
+ //loop though transaction to find most recent bed/ward movement
+ d {
+ &sql(FETCH TRANS INTO :TRANSID)	
+ i SQLCODE s TYPE=2,STATUS=0
+ i 'SQLCODE {
+ s TYPE=$p($g(^PAADM(admrow,"TRANS",TRANSID)),"^",21)
+ s STATUS=$p($g(^PAADM(admrow,"TRANS",TRANSID)),"^",12)
+ ;s ^zandy("TRA",admrow,TRANSID)=TYPE
+ }
+ } while TYPE'=2,(STATUS=1!2!6)
+
+ i STATUS=0 s TRANSID=0
+
+ &sql(CLOSE TRANS)
+ ;s ^zandy("CLOSE")=1
+
+ ;f x=PAADMAdmDate:1:date {
+ ;	f  s TRANSID=$o(^PAADMi("TransDateTime",f,x,admrow,TRANSID)) q:TRANSID=""  d
+ ;	s ward=$p($g(^PAADM(admrow,"TRANS",TRANSID)),"^",9)
+ ;}
+ ;f  s ward=$o(^PAADMi("AdmTypeCurr","I",admrow)) q:admrow=""  d
+ ;.s visitstat=$p($g(^PAADM(admrow)),"^",20)
+ ;.s admdate=$p($g(^PAADM(admrow)),"^",6)
+ ;.i visitstat="A",admdate'>date s ^CacheTemp(repid,0,"PAAdmRowID",i)=admrow, i=i+1
+
+ ;s ^zandy("i")=i
+
+ q TRANSID
+]]></Implementation>
+</Method>
+
+<Method name="TESTFindHistoryIDClose">
+<Description>
+This is the Close component of the %Library.Query.
+This is standard code and should never have to change.
+This is where all the cleanup is performed, i.e. the purging of the temporary storage global ^CacheTemp.</Description>
+<Final>0</Final>
+<ClassMethod>1</ClassMethod>
+<CodeMode>code</CodeMode>
+<FormalSpec>QHandle:%Library.Binary</FormalSpec>
+<Private>0</Private>
+<ReturnType>%Library.Status</ReturnType>
+<SqlProc>0</SqlProc>
+<Implementation><![CDATA[
+ // Clean up by purging the temporary node in ^CacheTemp global
+ New repid
+ Set repid=$li(QHandle,2)
+ Kill ^CacheTemp(repid)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="TESTFindHistoryIDExecute">
+<Description>
+This is the Execute section for the %Library.Query. 
+All of the logic will be performed here.
+A new node for the ^CacheTemp global will be created and each subscript of this global will contain
+a row for the report.</Description>
+<Final>0</Final>
+<ClassMethod>1</ClassMethod>
+<CodeMode>code</CodeMode>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,date:%Library.Date]]></FormalSpec>
+<Private>0</Private>
+<ReturnType>%Library.Status</ReturnType>
+<SqlProc>0</SqlProc>
+<Implementation><![CDATA[
+ // Get reportid i.e. use $INCREMENT to add another node to ^CacheTemp global. 
+ // We use ^CacheTemp global because it will always use memory before disk
+ k ^zandy
+ New repid,ind,id,i
+
+ // Use $Increment to get the next node
+ Set repid=$I(^CacheTemp)
+
+ // Convert date to cache format
+ s date=$$intdate^SSUTIL4(date)
+
+ // Build data into ^CacheTemp(ReportID)
+ // e.g. Set ^CacheTemp(ReportID,Index)=$LB(f1,f2,f3)
+ Set (id,ind,i)=0
+
+ // Generate an example report for 'n' number of rows
+ s id=##class(Custom.TRAKCurrentPatient).FindHistoryID(date)
+ ;s ^zandy("test2",id)=id
+
+ f  s i=$o(^CacheTemp(id,0,"PAAdmRowID",i)) q:i=""  d
+ .s PAADMRowId=$g(^CacheTemp(id,0,"PAAdmRowID",i))
+ .Set ^CacheTemp(repid,ind)=$LB(PAADMRowId)
+ .s ind=ind+1
+
+ // Build QHandle (AtEnd,ReportID,Index)
+ Set QHandle=$lb(0,repid,0)
+ Quit $$$OK
+
+
+ Quit
+]]></Implementation>
+</Method>
+
+<Method name="TESTFindHistoryIDFetch">
+<Description>
+This is the Fetch component of the %Library.Query. 
+This should never have to change. It is designed to fetch the row for each subscript of the ^CacheTemp
+global and return this row to the Crystal Report.</Description>
+<Final>0</Final>
+<ClassMethod>1</ClassMethod>
+<CodeMode>code</CodeMode>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,&Row:%Library.List,&AtEnd:%Library.Integer=0]]></FormalSpec>
+<Private>0</Private>
+<ReturnType>%Library.Status</ReturnType>
+<SqlProc>0</SqlProc>
+<Implementation><![CDATA[
+ // This fetch method should never have to change. 
+
+ // repid - Report ID
+ // ind   - sequence index which represents each row
+
+ New repid,ind
+
+ // Restore QHandle
+ ;s ^zandy("QH")=$li(QHandle,2)
+ Set AtEnd=$li(QHandle,1)
+ Set repid=$li(QHandle,2)
+ Set ind=$li(QHandle,3)
+
+ Set ind=$o(^CacheTemp(repid,ind))
+ If ind="" {	// if there are no more rows, finish fetching
+ Set AtEnd=1
+ Set Row=""
+ }
+ Else      {	// fetch row
+ Set Row=^CacheTemp(repid,ind)
+ }
+
+ // Save QHandle
+ s QHandle=$lb(AtEnd,repid,ind)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Query name="CurrentPatientList">
+<Description>
+This is the Stored Procedure Template. For Sample use only.
+It expects one parameter of type integer and will return 4 fields:
+Field1 - Integer
+Field2 - String
+Field3 - Date
+Field4 - Time</Description>
+<Type>%Library.Query</Type>
+<FormalSpec>ID:%Library.Integer</FormalSpec>
+<SqlProc>1</SqlProc>
+<SqlView>0</SqlView>
+<Parameter name="CONTAINID" value="0"/>
+<Parameter name="ROWSPEC" value="PAADMType:%Library.String(MAXLEN=255),PAADMVisitStat:%Library.String(MAXLEN=255),AdmissionDate:%Library.Date,AdmissionTime:%Library.Time,CDN:%Library.String(MAXLEN=255),PAPMIRowId:%Library.Integer,EpisodeNumber:%Library.String(MAXLEN=255),Surname:%Library.String(MAXLEN=255),GivenName:%Library.String(MAXLEN=255),Sex:%Library.String(MAXLEN=255),DateOfBirth:%Library.Date,VIP:%Library.String(MAXLEN=255),CARETYPCode:%Library.String(MAXLEN=255),CARETYPDesc:%Library.String(MAXLEN=255),AdmType:%Library.String(MAXLEN=255),AdmTypeCode:%Library.String(MAXLEN=255),BedCode:%Library.String(MAXLEN=255),WardCode:%Library.String(MAXLEN=255),WardDesc:%Library.String(MAXLEN=255),WARDRowId:%Library.Integer,HospitalCode:%Library.String(MAXLEN=255),HOSPRowId:%Library.Integer,HospitalDesc:%Library.String(MAXLEN=255),CampusCode:%Library.String(MAXLEN=255),CampusDesc:%Library.String(MAXLEN=255),WARDLocationDR:%Library.Integer,SIGNFRowID:%Library.Integer,UnitCode:%Library.String(MAXLEN=255),UnitDesc:%Library.String(MAXLEN=255),UnitRowID:%Library.Integer,DivisionId:%Library.Integer,DivisionCode:%Library.String(MAXLEN=255),DivisionDesc:%Library.String(MAXLEN=255),UnitSpeciality:%Library.String(MAXLEN=255),RURowID:%Library.Integer,AdmitConsultantID:%Library.Integer,AdmitConsultantCode:%Library.String(MAXLEN=255),AdmitConsultantDesc:%Library.String(MAXLEN=255),ADSOURowId:%Library.Integer,ADSOUCode:%Library.String(MAXLEN=255),ADSOUDesc:%Library.String(MAXLEN=255),DischargeDate,AUXITRowId:%Library.String(MAXLEN=255),AccountClassCode:%Library.String(MAXLEN=255),AccountClassDesc:%Library.String(MAXLEN=255),INSChildSub:%Library.Integer"/>
+<Parameter name="SELECTMODE" value="ODBC"/>
+</Query>
+
+<Query name="TESTFindHistoryID">
+<Description>
+This is the Stored Procedure Template. For Sample use only.
+It expects one parameter of type integer and will return 4 fields:
+Field1 - Integer
+Field2 - String
+Field3 - Date
+Field4 - Time</Description>
+<Type>%Library.Query</Type>
+<FormalSpec>date:%Library.Date</FormalSpec>
+<SqlProc>1</SqlProc>
+<SqlView>0</SqlView>
+<Parameter name="CONTAINID" value="0"/>
+<Parameter name="ROWSPEC" value="PAADMRowId:%Library.Integer"/>
+</Query>
+</Class>
+</Export>

@@ -1,0 +1,263 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.SWARH.JS.ORAnaesthesia.Edit">
+<Description>
+Component JavaScript for: ORAnaesthesia.Edit</Description>
+<Modified>0</Modified>
+<Super>websys.AbstractJavaScript</Super>
+<TimeCreated>63537,10516.679998</TimeCreated>
+
+<Method name="JSContent">
+<Description>
+ </Description>
+<Internal>0</Internal>
+<Language>javascript</Language>
+<ClientMethod>1</ClientMethod>
+<Implementation><![CDATA[
+/*********************************************************************
+$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/SWARH/JS/ORAnaesthesia/Edit.xml#1 $
+Version 1
+
+- General custom field validation for oranaesthesia.edit component
+
+REMEMBER to update the versions with initials, date and description for each modification...
+	IF		22/03/2012		- Make date/time mandatory if status is done
+	IF		24/05/2012		- TRC101795 stopped validation executing on anaesthesia record should only be on pacu record
+	IF		19/12/2012		- Change to CustomDoStatusValidation function to allow event capture
+
+**********************************************************************/
+
+function CustomInit() {
+	Init();
+	
+	obj=document.getElementById('ANAPACUStartDate');
+	
+	// Only run if on PACU Record
+	if (obj) {
+		obj=document.getElementById('ANAStatus');
+		if (obj) {
+			obj.onkeydown=CustomDoStatusValidation;
+			obj.onkeyup=CustomDoStatusValidation;
+			obj.onkeypress=CustomDoStatusValidation;
+			obj.onchange=CustomDoStatusValidation;
+			
+		}
+		obj=document.getElementById('update');
+		if (obj) obj.onclick=CustomUpdateAll;
+		if (tsc['update']) websys_sckeys[tsc['update']]=CustomUpdateAll;
+
+		obj=document.getElementById('UpdateClose');
+		if (obj) obj.onclick=CustomUpdateCloseAll;
+		if (tsc['UpdateClose']) websys_sckeys[tsc['UpdateClose']]=CustomUpdateCloseAll;
+	}
+}
+
+function ANAStatusLookupHandler(str){
+	var lu=str.split("^");
+	var obj=document.getElementById("StatusId");
+	if (obj) obj.value=lu[2];
+
+	DoStatusValidation();
+	obj=document.getElementById('ANAPACUStartDate');
+	
+	// Only run if on PACU Record
+	if (obj) {
+		CustomDoStatusValidation();
+	}
+}
+
+function CustomUpdateAll() {
+	UpdateFields();
+	var msg="";
+	if (isMandatory('ANADate')) {
+		msg+=RequiredMsgObj(document.getElementById('ANADate'),false);
+	}
+	if (isMandatory('ANAAnaStartTime')) {
+		msg+=RequiredMsgObj(document.getElementById('ANAAnaStartTime'),false);
+	}
+	if (isMandatory('ANAAreaInDate')) {
+		msg+=RequiredMsgObj(document.getElementById('ANAAreaInDate'),false);
+	}
+	if (isMandatory('ANAAreaInTime')) {
+		msg+=RequiredMsgObj(document.getElementById('ANAAreaInTime'),false);
+	} 
+	if (isMandatory('ANAFinishDate')) {
+		msg+=RequiredMsgObj(document.getElementById('ANAFinishDate'),false);
+	} 
+	if (isMandatory('ANAAnaFinishTime')) {
+		msg+=RequiredMsgObj(document.getElementById('ANAAnaFinishTime'),false);
+	} 
+	if (isMandatory('ANAPACUStartDate')) {
+		msg+=RequiredMsgObj(document.getElementById('ANAPACUStartDate'),false);
+	}
+	if (isMandatory('ANAPACUStartTime')) {
+		msg+=RequiredMsgObj(document.getElementById('ANAPACUStartTime'),false);
+	} 
+	if (isMandatory('ANAPACUFinishDate')) {
+		msg+=RequiredMsgObj(document.getElementById('ANAPACUFinishDate'),false);
+	} 
+	if (isMandatory('ANAPACUFinishTime')) {
+		msg+=RequiredMsgObj(document.getElementById('ANAPACUFinishTime'),false);
+	} 
+	if (msg) {
+		alert(msg);
+	}
+	else {
+		UpdateAll();
+	}
+}
+
+function CustomUpdateCloseAll() {
+	UpdateFields();
+	var msg="";
+	if (isMandatory('ANADate')) {
+		msg+=RequiredMsgObj(document.getElementById('ANADate'),false);
+	}
+	if (isMandatory('ANAAnaStartTime')) {
+		msg+=RequiredMsgObj(document.getElementById('ANAAnaStartTime'),false);
+	}
+	if (isMandatory('ANAAreaInDate')) {
+		msg+=RequiredMsgObj(document.getElementById('ANAAreaInDate'),false);
+	}
+	if (isMandatory('ANAAreaInTime')) {
+		msg+=RequiredMsgObj(document.getElementById('ANAAreaInTime'),false);
+	} 
+	if (isMandatory('ANAFinishDate')) {
+		msg+=RequiredMsgObj(document.getElementById('ANAFinishDate'),false);
+	} 
+	if (isMandatory('ANAAnaFinishTime')) {
+		msg+=RequiredMsgObj(document.getElementById('ANAAnaFinishTime'),false);
+	} 
+	if (isMandatory('ANAPACUStartDate')) {
+		msg+=RequiredMsgObj(document.getElementById('ANAPACUStartDate'),false);
+	}
+	if (isMandatory('ANAPACUStartTime')) {
+		msg+=RequiredMsgObj(document.getElementById('ANAPACUStartTime'),false);
+	} 
+	if (isMandatory('ANAPACUFinishDate')) {
+		msg+=RequiredMsgObj(document.getElementById('ANAPACUFinishDate'),false);
+	} 
+	if (isMandatory('ANAPACUFinishTime')) {
+		msg+=RequiredMsgObj(document.getElementById('ANAPACUFinishTime'),false);
+	} 
+	if (msg) {
+		alert(msg);
+	}
+	else {
+		UpdateCloseAll();
+	}
+}
+
+function CustomDoStatusValidation(e){
+	try {
+		var type=websys_getType(e);
+	    var key=websys_getKey(e);
+	} catch(e) {
+		var type="";
+		var key="";
+	}
+	
+	UpdateFields();
+		
+	//alert(type+' '+key);
+	if ((type=='click')||((type=='keydown')&&(key==117))) ANAStatus_lookuphandler(e);
+	if (type=='blur') ANAStatus_lookuphandler(e);
+	if (type=="keyup") ANAStatus_onkeyuphandler(e);
+	if (type=="keypress") ANAStatus_onkeypresshandler(e);
+	if (type=="change") ANAStatus_changehandler(e);
+}
+
+function UpdateFields() {
+	var obj=document.getElementById('ANAStatus');
+	if ((obj)&&(obj.value!="")) {
+		//alert(obj.value);
+		if ((obj.value.toUpperCase()=="DONE")||(obj.value.toUpperCase()=="D")) {
+			labelMandatory("ANADate");
+			labelMandatory("ANAAnaStartTime");
+			labelMandatory("ANAAreaInDate");
+			labelMandatory("ANAAreaInTime");
+			labelMandatory("ANAFinishDate");
+			//labelMandatory("ANAAnaFinishTime");
+			if (document.getElementById('ANAAnaFinishTime')) document.getElementById('ANAAnaFinishTime').className = "clsRequired";
+			labelMandatory("ANAPACUStartDate");
+			//labelMandatory("ANAPACUStartTime");
+			if (document.getElementById('ANAPACUStartTime')) document.getElementById('ANAPACUStartTime').className = "clsRequired";
+			labelMandatory("ANAPACUFinishDate");
+			//labelMandatory("ANAPACUFinishTime");
+			if (document.getElementById('ANAPACUFinishTime')) document.getElementById('ANAPACUFinishTime').className = "clsRequired";
+		} else {
+			labelNormal("ANAAnaStartTime");
+			labelNormal("ANADate");
+			labelNormal("ANAAreaInDate");
+			labelNormal("ANAAreaInTime");
+			labelNormal("ANAFinishDate");
+			//labelNormal("ANAAnaFinishTime");
+			if (document.getElementById('ANAAnaFinishTime')) document.getElementById('ANAAnaFinishTime').className = "";
+			labelNormal("ANAPACUStartDate");
+			//labelNormal("ANAPACUStartTime");
+			if (document.getElementById('ANAPACUStartTime')) document.getElementById('ANAPACUStartTime').className = "";
+			labelNormal("ANAPACUFinishDate");
+			//labelNormal("ANAPACUFinishTime");
+			if (document.getElementById('ANAPACUFinishTime')) document.getElementById('ANAPACUFinishTime').className = "";
+		}
+	} else {
+		labelNormal("ANAAnaStartTime");
+		labelNormal("ANADate");
+		labelNormal("ANAAreaInDate");
+		labelNormal("ANAAreaInTime");
+		labelNormal("ANAFinishDate");
+		//labelNormal("ANAAnaFinishTime");
+		if (document.getElementById('ANAAnaFinishTime')) document.getElementById('ANAAnaFinishTime').className = "";
+		labelNormal("ANAPACUStartDate");
+		//labelNormal("ANAPACUStartTime");
+		if (document.getElementById('ANAPACUStartTime')) document.getElementById('ANAPACUStartTime').className = "";
+		labelNormal("ANAPACUFinishDate");
+		//labelNormal("ANAPACUFinishTime");
+		if (document.getElementById('ANAPACUFinishDate')) document.getElementById('ANAPACUFinishDate').className = "";
+	}
+}
+
+function labelMandatory(fld) {
+    var lbl = document.getElementById('c' + fld)
+    if (lbl) {
+        lbl.className = "clsRequired";
+    }
+    var fld = document.getElementById(fld)
+    if (fld) {
+        fld.className = "clsRequired";
+    }
+}
+
+function labelNormal(fld) {
+    var lbl = document.getElementById('c' + fld)
+    if (lbl) {
+        lbl.className = "";
+    }
+    var fld = document.getElementById(fld)
+    if (fld) {
+        fld.className = "";
+    }
+}
+
+function isMandatory(fld) {
+    var fld = document.getElementById(fld);
+    if ((fld)&&(fld.value=="")) {
+	    if (fld.className == "clsRequired") return true;
+	    else return false;
+    }
+    return false;
+}
+
+websys_removeListener("load","onload",Init);
+websys_addListener("load","onload",CustomInit);
+]]></Implementation>
+</Method>
+
+<Parameter name="SrcVer">
+<Description>
+This Parameter is updated by Perforce</Description>
+<Internal>0</Internal>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/SWARH/JS/ORAnaesthesia/Edit.xml#1 $</Default>
+</Parameter>
+</Class>
+</Export>

@@ -1,0 +1,302 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.SWARH.Report.RptSvc.StoredProc.SWARHREPR1009">
+<Description><![CDATA[
+<pre>
+***************************************************************************************************************************************
+* Report Code:SWARHREPR1009
+* Report Description:Observations Graphs
+* Menu Caption:Embedded in the standard observations page
+* Initial Release:2016-07-05  Developer:rpgladman
+* Modified: 2016-08-04 (rpgladman) - Updated to ignore EWS score updates with no actual items updated
+***************************************************************************************************************************************
+</pre>]]></Description>
+<ProcedureBlock>0</ProcedureBlock>
+<Super>Custom.SWARH.Report.RptSvc.StoredProc.Abstract</Super>
+<TimeCreated>60905,54849</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/SWARH/Report/RptSvc/StoredProc/SWARHREPR1009.xml#1 $</Default>
+</Parameter>
+
+<Method name="SWARHREPR1009Execute">
+<Description>
+This is the Execute section for the %Library.Query.
+All of the logic will be performed here.
+A new node for the ^CacheTemp global will be created and each subscript of this global will contain
+a row for the report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,Hospital:%Integer,EpisodeID:%Integer,MRCObsGroupID:%String,DateTimeFrom:%String,DateTimeTo:%String,Options:%String]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Get reportid i.e. use $INCREMENT to add another node to ^CacheTemp global.
+ // We use ^CacheTemp global because it will always use memory before disk
+ New repid,ind
+
+ // Use $Increment to get the next node
+ Set repid=$INCREMENT(^CacheTemp(..#CACHETEMPSUBSCRIPT))
+
+ New FullDateTime,EpisodeNumber,PatientNumber,PatientName,PatientDOB,PatientGender,PatientAge,Location,ComplaintDiagnosisType,ComplaintDiagnosis,ObservationDate,ObservationTime
+ New EWSScore,RespiratoryRate,OxygenSaturation,OxygenDeliveryMode,OxygenFlowRate,PctOxygenDelivered,SystolicBP,DiastolicBP,DBPMethod,DBPPosition,HeartRate
+ New HRRhythm,HRECGAttended,Temperature,TRoute,Consciousness,SedationScore,PainScore,GeneralComment
+ New RespiratoryRateCmnt,OxygenSaturationCmnt,OxygenFlowRateCmnt,PctOxygenDeliveredCmnt,SystolicBPCmnt,DiastolicBPCmnt,HeartRateCmnt,TemperatureCmnt
+ New ConsciousnessCmnt,SedationScoreCmnt,PainScoreCmnt,GeneralCommentComment,FullDateTimeMin,FullDateTimeMax,IgnoreRow
+ 
+ New DateTimeLowH,DateTimeHighH
+
+ Set (FullDateTime,EpisodeNumber,PatientNumber,PatientName,PatientDOB,PatientGender,PatientAge,Location,ComplaintDiagnosisType,ComplaintDiagnosis,ObservationDate,ObservationTime)=""
+ Set (EWSScore,RespiratoryRate,OxygenSaturation,OxygenDeliveryMode,OxygenFlowRate,PctOxygenDelivered,SystolicBP,DiastolicBP,DBPMethod,DBPPosition,HeartRate,HRRhythm,HRECGAttended,Temperature,TRoute,Consciousness,SedationScore,PainScore,GeneralComment)=""
+ Set (RespiratoryRateCmnt,OxygenSaturationCmnt,OxygenFlowRateCmnt,PctOxygenDeliveredCmnt,SystolicBPCmnt,DiastolicBPCmnt,HeartRateCmnt,TemperatureCmnt,ConsciousnessCmnt,SedationScoreCmnt,PainScoreCmnt,GeneralCommentComment)=""
+
+ Set (FullDateTimeMin,FullDateTimeMax,IgnoreRow)=""
+ Set DateTimeLowH  = $now()
+ Set DateTimeHighH = $zdatetimeh("1900-01-01 00:00:00",3)
+ 
+ Set ind=1, END=0
+
+ //Start Monitor (if configured to capture stats)
+ Set mon=..MonitorBegin()
+
+ &SQL(DECLARE SWARHREPR1009 CURSOR FOR
+SELECT 
+	:Hospital                                               AS Hospital
+    ,CAST(%ODBCOUT(OBS.OBS_Date)||' '||%ODBCOUT(OBS.OBS_Time) AS SMALLDATETIME)
+                                                            AS FullDateTime
+    ,ADM.PAADM_AdmNo                                        AS EpisodeNumber
+    ,PAP.PAPMI_No                           				AS PatientNumber
+    ,PAP.PAPMI_Name||', '||PAP.PAPMI_Name2||NVL(' '||PAP.PAPMI_Name3,'')
+                                                            AS PatientName
+    ,PAP.PAPMI_DOB											AS PatientDOB
+    ,PAP.PAPMI_Sex_DR->CTSEX_Desc							AS PatientGender
+	,CASE WHEN PAP.PAPMI_PAPER_DR->PAPER_AgeYr>0 THEN PAP.PAPMI_PAPER_DR->PAPER_AgeYr||' Yrs' ELSE (CASE WHEN PAP.PAPMI_PAPER_DR->PAPER_AgeMth>0 THEN PAP.PAPMI_PAPER_DR->PAPER_AgeMth||' Mths' ELSE PAP.PAPMI_PAPER_DR->PAPER_AgeDay||' Days' END) END
+															AS PatientAge
+	,ADM.PAADM_CurrentWard_DR->WARD_Desc          			AS Location
+	,CASE WHEN ADM.PAADM_Type='I' THEN 'Diagnosis' ELSE 'Complaint' END -- I/IP Inpatient=Diagnosis, O/NA Non Admitted + E/ED Emergency=Presenting
+                                                			AS ComplaintDiagnosisType
+	,ADM.PAADM_MainMRADM_DR->MRADM_PresentComplaint 		AS ComplaintDiagnosis
+
+    ,OBS.OBS_Date                                           AS ObservationDate
+    ,OBS.OBS_Time                                           AS ObservationTime
+    -- VALUES --
+    ,LIST(CASE WHEN OBSIT.ITM_Desc='EWS Total'          THEN (CASE WHEN OBSIT.ITM_InputType='L' THEN OBSLU.LU_Desc ELSE OBS.OBS_Value END) END %FOREACH(OBS.OBS_Date,OBS.OBS_Time))             AS EWSScore
+    ,LIST(CASE WHEN OBSIT.ITM_Desc='Respiratory Rate'   THEN (CASE WHEN OBSIT.ITM_InputType='L' THEN OBSLU.LU_Desc ELSE OBS.OBS_Value END) END %FOREACH(OBS.OBS_Date,OBS.OBS_Time))             AS RespiratoryRate
+    ,LIST(CASE WHEN OBSIT.ITM_Desc='Oxygen Saturation'  THEN (CASE WHEN OBSIT.ITM_InputType='L' THEN OBSLU.LU_Desc ELSE OBS.OBS_Value END) END %FOREACH(OBS.OBS_Date,OBS.OBS_Time))             AS OxygenSaturation
+    ,LIST(CASE WHEN OBSIT.ITM_Desc='Oxygen Saturation'  AND OBSAT.OBSAT_ItemAttribute_DR->ATTR_Desc='O2 Delivery Mode' THEN OBSAT.OBSAT_ValueDisplay END %FOREACH (OBS.OBS_Date,OBS.OBS_Time))  AS OxygenDeliveryMode
+    ,LIST(CASE WHEN OBSIT.ITM_Desc='Oxygen Flow Rate'   THEN (CASE WHEN OBSIT.ITM_InputType='L' THEN OBSLU.LU_Desc ELSE OBS.OBS_Value END) END %FOREACH(OBS.OBS_Date,OBS.OBS_Time))             AS OxygenFlowRate
+    ,LIST(CASE WHEN OBSIT.ITM_Desc='% Oxygen Delivered' THEN (CASE WHEN OBSIT.ITM_InputType='L' THEN OBSLU.LU_Desc ELSE OBS.OBS_Value END) END %FOREACH(OBS.OBS_Date,OBS.OBS_Time))             AS PctOxygenDelivered
+    ,LIST(CASE WHEN OBSIT.ITM_Desc='Systolic BP'        THEN (CASE WHEN OBSIT.ITM_InputType='L' THEN OBSLU.LU_Desc ELSE OBS.OBS_Value END) END %FOREACH(OBS.OBS_Date,OBS.OBS_Time))             AS SystolicBP
+    ,$PIECE(LIST(CASE WHEN OBSIT.ITM_Desc='Diastolic BP'THEN (CASE WHEN OBSIT.ITM_InputType='L' THEN OBSLU.LU_Desc ELSE OBS.OBS_Value END) END %FOREACH(OBS.OBS_Date,OBS.OBS_Time)),',')        AS DiastolicBP
+    ,LIST(CASE WHEN OBSIT.ITM_Desc='Diastolic BP'       AND OBSAT.OBSAT_ItemAttribute_DR->ATTR_Desc='Method'       THEN OBSAT.OBSAT_ValueDisplay END %FOREACH (OBS.OBS_Date,OBS.OBS_Time))      AS DBPMethod
+    ,LIST(CASE WHEN OBSIT.ITM_Desc='Diastolic BP'       AND OBSAT.OBSAT_ItemAttribute_DR->ATTR_Desc='Position'     THEN OBSAT.OBSAT_ValueDisplay END %FOREACH (OBS.OBS_Date,OBS.OBS_Time))      AS DBPPosition
+    ,$PIECE(LIST(CASE WHEN OBSIT.ITM_Desc='Heart Rate'  THEN (CASE WHEN OBSIT.ITM_InputType='L' THEN OBSLU.LU_Desc ELSE OBS.OBS_Value END) END %FOREACH(OBS.OBS_Date,OBS.OBS_Time)),',')        AS HeartRate
+    ,LIST(CASE WHEN OBSIT.ITM_Desc='Heart Rate'         AND OBSAT.OBSAT_ItemAttribute_DR->ATTR_Desc='Rhythm'       THEN OBSAT.OBSAT_ValueDisplay END %FOREACH (OBS.OBS_Date,OBS.OBS_Time))      AS HRRhythm
+    ,LIST(CASE WHEN OBSIT.ITM_Desc='Heart Rate'         AND OBSAT.OBSAT_ItemAttribute_DR->ATTR_Desc='ECG Attended' THEN OBSAT.OBSAT_ValueDisplay END %FOREACH (OBS.OBS_Date,OBS.OBS_Time))      AS HRECGAttended
+    ,LIST(CASE WHEN OBSIT.ITM_Desc='Temperature'        THEN (CASE WHEN OBSIT.ITM_InputType='L' THEN OBSLU.LU_Desc ELSE OBS.OBS_Value END) END %FOREACH(OBS.OBS_Date,OBS.OBS_Time))             AS Temperature
+    ,LIST(CASE WHEN OBSIT.ITM_Desc='Temperature'        AND OBSAT.OBSAT_ItemAttribute_DR->ATTR_Desc='Route'        THEN OBSAT.OBSAT_ValueDisplay END %FOREACH (OBS.OBS_Date,OBS.OBS_Time))      AS TRoute
+    ,LIST(CASE WHEN OBSIT.ITM_Desc='Consciousness'      THEN (CASE WHEN OBSIT.ITM_InputType='L' THEN OBSLU.LU_Desc ELSE OBS.OBS_Value END) END %FOREACH(OBS.OBS_Date,OBS.OBS_Time))             AS Consciousness
+    ,LIST(CASE WHEN OBSIT.ITM_Desc='Sedation Score'     THEN (CASE WHEN OBSIT.ITM_InputType='L' THEN OBSLU.LU_Desc ELSE OBS.OBS_Value END) END %FOREACH(OBS.OBS_Date,OBS.OBS_Time))             AS SedationScore
+    ,LIST(CASE WHEN OBSIT.ITM_Desc='Pain Score'         THEN (CASE WHEN OBSIT.ITM_InputType='L' THEN OBSLU.LU_Desc ELSE OBS.OBS_Value END) END %FOREACH(OBS.OBS_Date,OBS.OBS_Time))             AS PainScore
+    ,LIST(CASE WHEN OBSIT.ITM_Desc='General Comment'    THEN (CASE WHEN OBSIT.ITM_InputType='L' THEN OBSLU.LU_Desc ELSE OBS.OBS_Value END) END %FOREACH(OBS.OBS_Date,OBS.OBS_Time))             AS GeneralComment
+    -- COMMENTS --
+    ,LIST(CASE WHEN OBSIT.ITM_Desc='Respiratory Rate'   THEN OBS.OBS_ShortDesc END %FOREACH(OBS.OBS_Date,OBS.OBS_Time))         AS RespiratoryRateCmnt
+    ,LIST(CASE WHEN OBSIT.ITM_Desc='Oxygen Saturation'  THEN OBS.OBS_ShortDesc END %FOREACH(OBS.OBS_Date,OBS.OBS_Time))         AS OxygenSaturationCmnt
+    ,LIST(CASE WHEN OBSIT.ITM_Desc='Oxygen Flow Rate'   THEN OBS.OBS_ShortDesc END %FOREACH(OBS.OBS_Date,OBS.OBS_Time))         AS OxygenFlowRateCmnt
+    ,LIST(CASE WHEN OBSIT.ITM_Desc='% Oxygen Delivered' THEN OBS.OBS_ShortDesc END %FOREACH(OBS.OBS_Date,OBS.OBS_Time))         AS PctOxygenDeliveredCmnt
+    ,LIST(CASE WHEN OBSIT.ITM_Desc='Systolic BP'        THEN OBS.OBS_ShortDesc END %FOREACH(OBS.OBS_Date,OBS.OBS_Time))         AS SystolicBPCmnt
+    ,$PIECE(LIST(CASE WHEN OBSIT.ITM_Desc='Diastolic BP'THEN OBS.OBS_ShortDesc END %FOREACH(OBS.OBS_Date,OBS.OBS_Time)),',')    AS DiastolicBPCmnt
+    ,$PIECE(LIST(CASE WHEN OBSIT.ITM_Desc='Heart Rate'  THEN OBS.OBS_ShortDesc END %FOREACH(OBS.OBS_Date,OBS.OBS_Time)),',')    AS HeartRateCmnt
+    ,LIST(CASE WHEN OBSIT.ITM_Desc='Temperature'        THEN OBS.OBS_ShortDesc END %FOREACH(OBS.OBS_Date,OBS.OBS_Time))         AS TemperatureCmnt
+    ,LIST(CASE WHEN OBSIT.ITM_Desc='Consciousness'      THEN OBS.OBS_ShortDesc END %FOREACH(OBS.OBS_Date,OBS.OBS_Time))         AS ConsciousnessCmnt
+    ,LIST(CASE WHEN OBSIT.ITM_Desc='Sedation Score'     THEN OBS.OBS_ShortDesc END %FOREACH(OBS.OBS_Date,OBS.OBS_Time))         AS SedationScoreCmnt
+    ,LIST(CASE WHEN OBSIT.ITM_Desc='Pain Score'         THEN OBS.OBS_ShortDesc END %FOREACH(OBS.OBS_Date,OBS.OBS_Time))         AS PainScoreCmnt
+    ,LIST(CASE WHEN OBSIT.ITM_Desc='General Comment'    THEN OBS.OBS_ShortDesc END %FOREACH(OBS.OBS_Date,OBS.OBS_Time))         AS GeneralCommentComment
+    -- RANGES --
+    ,:DateTimeFrom  AS DateTimeFrom
+    ,:DateTimeTo 	AS DateTimeTo
+    ,:Options		AS Options
+    ,MIN(CASE WHEN NOT (COUNT(1 %FOREACH(OBS.OBS_Date,OBS.OBS_Time))=1 AND OBS.OBS_Item_DR=195) THEN CAST(%ODBCOUT(OBS.OBS_Date)||' '||%ODBCOUT(OBS.OBS_Time) AS SMALLDATETIME) END)
+                                                            AS FullDateTimeMin			-- Only consider rows that are not singular datetime EWS updates
+    ,MAX(CASE WHEN NOT (COUNT(1 %FOREACH(OBS.OBS_Date,OBS.OBS_Time))=1 AND OBS.OBS_Item_DR=195) THEN CAST(%ODBCOUT(OBS.OBS_Date)||' '||%ODBCOUT(OBS.OBS_Time) AS SMALLDATETIME) END)
+                                                            AS FullDateTimeMax
+	,CASE WHEN COUNT(1 %FOREACH(OBS.OBS_Date,OBS.OBS_Time))=1 AND OBS.OBS_Item_DR=195 THEN 'Yes' END As IgnoreRow
+
+FROM
+    SQLUser.PA_Adm ADM
+    LEFT JOIN SQLUser.PA_Patmas 					AS PAP		ON ADM.PAADM_PAPMI_DR = PAP.PAPMI_RowId
+    LEFT JOIN SQLUser.MR_Observations				AS OBS		ON ADM.PAADM_MainMRADM_DR=OBS.OBS_ParRef
+    LEFT JOIN SQLUser.MR_ObservationsAttribute		AS OBSAT	ON OBS.OBS_RowId=OBSAT.OBSAT_ParRef
+    LEFT JOIN SQLUser.MRC_ObservationItem			AS OBSIT	ON OBS.OBS_Item_DR=OBSIT.ITM_RowId
+    LEFT JOIN SQLUser.MRC_ObservationItemRefRanges	AS OBSRR	ON OBS.OBS_Item_DR=OBSRR.RR_ParRef
+    LEFT JOIN SQLUser.MRC_ObservationGroupItems		AS OBSGI	ON OBS.OBS_Item_DR=OBSGI.ITM_ObsItem_DR
+    LEFT JOIN SQLUser.MRC_ObservationItemLookUp		AS OBSLU	ON (OBSLU.LU_ParRef=OBS.OBS_Item_DR AND OBSLU.LU_Code=OBS.OBS_Value)
+WHERE
+    ADM.PAADM_Hospital_DR=:Hospital
+  AND
+    ADM.PAADM_RowId=:EpisodeID
+  AND
+    OBS.OBS_Date IS NOT NULL                                        -- Sometimes it seems to create rows with no details except the childsub, this culls them
+  AND
+    OBS.OBS_Item_DR<>195 											-- Remove rows where the EWS was updated
+  AND
+    (OBSGI.ITM_EndDate IS NULL OR OBSGI.ITM_EndDate>{fn CURDATE()}) -- Observation item is current
+  AND
+    1=1 -- Need to determine 
+  AND
+    OBSGI.ITM_ParRef=:MRCObsGroupID
+  AND
+    ((OBS.OBS_ErrorReason_DR IS NULL) OR (OBS.OBS_ErrorReason_DR NOT IN (1,2,3,4))) -- Remove items that have been corrected, It should really just remove 1&2 but Trak shows 3&4 as crossed out also.  I think this is incorrect but we will follow their policy.
+  AND
+    CAST(%ODBCOUT(OBS.OBS_Date)||' '||%ODBCOUT(OBS.OBS_Time) AS SMALLDATETIME) BETWEEN CAST(:DateTimeFrom AS SMALLDATETIME) AND CAST(:DateTimeTo AS SMALLDATETIME)
+GROUP BY
+  OBS.OBS_Date||' '||OBS.OBS_Time
+ORDER BY 2
+)
+
+ &SQL(OPEN SWARHREPR1009)
+
+ //FETCH FIRST ROW
+ Do FetchRow
+
+ While END=0 {
+
+	 Do FormatDates
+  	 Do FormatTimes
+  	 Do FormatStrings
+
+	 if IgnoreRow'="Yes" {
+	 	Set sort = ind
+
+	 	Set ^CacheTemp(..#CACHETEMPSUBSCRIPT,repid,sort)=$LISTBUILD(Hospital,FullDateTime,EpisodeNumber,PatientNumber,PatientName,PatientDOB,PatientGender,PatientAge,Location,ComplaintDiagnosisType,ComplaintDiagnosis,ObservationDate,ObservationTime,EWSScore,RespiratoryRate,OxygenSaturation,OxygenDeliveryMode,OxygenFlowRate,PctOxygenDelivered,SystolicBP,DiastolicBP,DBPMethod,DBPPosition,HeartRate,HRRhythm,HRECGAttended,Temperature,TRoute,Consciousness,SedationScore,PainScore,GeneralComment,RespiratoryRateCmnt,OxygenSaturationCmnt,OxygenFlowRateCmnt,PctOxygenDeliveredCmnt,SystolicBPCmnt,DiastolicBPCmnt,HeartRateCmnt,TemperatureCmnt,ConsciousnessCmnt,SedationScoreCmnt,PainScoreCmnt,GeneralCommentComment,DateTimeFrom,DateTimeTo,Options)
+	 	Set ind=ind+1
+	 }
+	 //fetch rows
+	 Do FetchRow
+ }
+ Do OptionsHandling
+
+ &SQL(CLOSE SWARHREPR1009)
+
+ // Build QHandle (AtEnd,ReportID,Index)
+ Set QHandle=$listbuild(0,repid,0)
+
+ Quit $$$OK
+ 
+OptionsHandling
+ // set datetimefromh = $zdatetimeh(DateTimeFrom,3)
+ // set datefromo     = $zdate(datetimefromh,3)
+ // set timefromo     = $ztime($piece(datetimefromh,",",2))
+ 
+ // Check to see the difference and set the low/high to required level - FUTURE
+ 
+ //if DateTimeHighH=$zdatetimeh("1900-01-01 00:00:00",3) Quit 	// No rows returned so do not add min/max rows
+
+ Set SampleFrom = DateTimeFrom
+ Set SampleTo   = DateTimeTo
+ 
+ //if $listfind($listfromstring(Options,","),"auto")>0 {//& ind'=1 {
+ //  Set SampleFrom = FullDateTimeMin
+ //  Set SampleTo   = FullDateTimeMax
+ //}
+ 
+ if $listfind($listfromstring(Options,","),"auto")=0 {		// If auto is set, do not add any min/max range rows
+   if ind'=1 {												// If some data *has* been retrieved then add the min/max rows
+     Set sort = ind
+     Set ^CacheTemp(..#CACHETEMPSUBSCRIPT,repid,sort)=$LISTBUILD("",SampleFrom,"","","","","","","","","",$zdate($zdatetimeh(SampleFrom,3), 3),$ztime($piece($zdatetimeh(SampleFrom,3),",", 2)),"","","","","","","","","","","","","","","","","","","","","","","","","","","","","","","","","","")
+     Set ind=ind+1
+
+     Set sort = ind
+     Set ^CacheTemp(..#CACHETEMPSUBSCRIPT,repid,sort)=$LISTBUILD("",SampleTo,  "","","","","","","","","",$zdate($zdatetimeh(SampleTo,  3), 3),$ztime($piece($zdatetimeh(SampleTo,  3),",", 2)),"","","","","","","","","","","","","","","","","","","","","","","","","","","","","","","","","","")
+     Set ind=ind+1
+   }
+ }
+
+ Quit
+
+FetchRow
+ &sql(FETCH SWARHREPR1009 INTO :Hospital,:FullDateTime,:EpisodeNumber,:PatientNumber,:PatientName,:PatientDOB,:PatientGender,:PatientAge,:Location,:ComplaintDiagnosisType,:ComplaintDiagnosis,:ObservationDate,:ObservationTime,:EWSScore,:RespiratoryRate,:OxygenSaturation,:OxygenDeliveryMode,:OxygenFlowRate,:PctOxygenDelivered,:SystolicBP,:DiastolicBP,:DBPMethod,:DBPPosition,:HeartRate,:HRRhythm,:HRECGAttended,:Temperature,:TRoute,:Consciousness,:SedationScore,:PainScore,:GeneralComment,:RespiratoryRateCmnt,:OxygenSaturationCmnt,:OxygenFlowRateCmnt,:PctOxygenDeliveredCmnt,:SystolicBPCmnt,:DiastolicBPCmnt,:HeartRateCmnt,:TemperatureCmnt,:ConsciousnessCmnt,:SedationScoreCmnt,:PainScoreCmnt,:GeneralCommentComment,:DateTimeFrom,:DateTimeTo,:Options,:FullDateTimeMin,:FullDateTimeMax,:IgnoreRow)
+ If SQLCODE '= 0 Set END = 1
+ Quit
+
+FormatDates
+ Set PatientDOB=..ConvertDateToODBC(PatientDOB)
+ if $Length(PatientNumber)>0 {  // Do not process date/time for our dummy rows needed for SSRS as the values are in ODBC already
+   Set ObservationDate=..ConvertDateToODBC(ObservationDate)
+ }
+ Quit
+
+FormatTimes //Be sure to set fields in Query output as '%String' then format Reporting Services field as Time.
+ if $Length(PatientNumber)>0 {  // Do not process date/time for our dummy rows needed for SSRS as the values are in ODBC already
+   Set ObservationTime=..ConvertTimeToHHMM(ObservationTime)
+ }
+ Quit
+
+FormatStrings
+ Quit
+]]></Implementation>
+</Method>
+
+<Method name="SWARHREPR1009Fetch">
+<Description>
+This is the Fetch component of the %Library.Query.
+This should never have to change. It is designed to fetch the row for each subscript of the ^CacheTemp
+global and return this row to the Crystal Report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,&Row:%Library.List,&AtEnd:%Library.Integer=0]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // This fetch method should never have to change.
+ // repid - Report ID
+ // ind   - sequence index which represents each row
+
+ New repid,ind
+
+ // Restore QHandle
+ Set AtEnd=$LIST(QHandle,1)
+ Set repid=$LIST(QHandle,2)
+ Set ind=$LIST(QHandle,3)
+
+ Set ind=$ORDER(^CacheTemp(..#CACHETEMPSUBSCRIPT,repid,ind))
+ If ind="" {	// if there are no more rows, finish fetching
+	 Set AtEnd=1
+	 Set Row=""
+ }
+ Else      {	// fetch row
+ 	Set Row=^CacheTemp(..#CACHETEMPSUBSCRIPT,repid,ind)
+ }
+
+ // Save QHandle
+ Set QHandle=$LISTBUILD(AtEnd,repid,ind)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="SWARHREPR1009Close">
+<Description>
+This is the Close component of the %Library.Query.
+This is standard code and should never have to change.
+This is where all the cleanup is performed, i.e. the purging of the temporary storage global ^CacheTemp.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>QHandle:%Library.Binary</FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Clean up by purging the temporary node in ^CacheTemp global
+ New repid,ind
+ Set repid=$LIST(QHandle,2)
+
+ Kill ^CacheTemp(..#CACHETEMPSUBSCRIPT,repid)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Query name="SWARHREPR1009">
+<Type>%Library.Query</Type>
+<FormalSpec>Hospital:%Integer,EpisodeID:%Integer,MRCObsGroupID:%String,DateTimeFrom:%String,DateTimeTo:%String,Options:%String</FormalSpec>
+<SqlProc>1</SqlProc>
+<Parameter name="CONTAINID" value="0"/>
+<Parameter name="ROWSPEC" value="Hospital:%String,FullDateTime:%String,EpisodeNumber:%String,PatientNumber:%String,PatientName:%String,PatientDOB:%String,PatientGender:%String,PatientAge:%String,Location:%String,ComplaintDiagnosisType:%String,ComplaintDiagnosis:%String,ObservationDate:%String,ObservationTime:%String,EWSScore:%String,RespiratoryRate:%String,OxygenSaturation:%String,OxygenDeliveryMode:%String,OxygenFlowRate:%String,PctOxygenDelivered:%String,SystolicBP:%String,DiastolicBP:%String,DBPMethod:%String,DBPPosition:%String,HeartRate:%String,HRRhythm:%String,HRECGAttended:%String,Temperature:%String,TRoute:%String,Consciousness:%String,SedationScore:%String,PainScore:%String,GeneralComment:%String,RespiratoryRateCmnt:%String,OxygenSaturationCmnt:%String,OxygenFlowRateCmnt:%String,PctOxygenDeliveredCmnt:%String,SystolicBPCmnt:%String,DiastolicBPCmnt:%String,HeartRateCmnt:%String,TemperatureCmnt:%String,ConsciousnessCmnt:%String,SedationScoreCmnt:%String,PainScoreCmnt:%String,GeneralCommentComment:%String,DateTimeFrom:%String,DateTimeTo:%String,Options:%String"/>
+<Parameter name="SELECTMODE" value="ODBC"/>
+</Query>
+</Class>
+</Export>

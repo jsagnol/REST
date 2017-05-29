@@ -1,0 +1,339 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.AUSW.Report.ZEN.StoredProc.EDAudit">
+<ProcedureBlock>0</ProcedureBlock>
+<Super>Report.Abstract</Super>
+<TimeCreated>63279,54423.139948</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/AUSW/Report/ZEN/StoredProc/EDAudit.xml#1 $</Default>
+</Parameter>
+
+<UDLText name="T">
+<Content><![CDATA[
+// Report Name: ED Audit <br>
+
+]]></Content>
+</UDLText>
+
+<UDLText name="T">
+<Content><![CDATA[
+// Report Code: AUSW. <br>
+
+]]></Content>
+</UDLText>
+
+<UDLText name="T">
+<Content><![CDATA[
+// TRC Number: 172991 <br>
+
+]]></Content>
+</UDLText>
+
+<Method name="GetRecordsClose">
+<Description>
+This is the Close component of the %Library.Query.
+This is standard code and should never have to change.
+This is where all the cleanup is performed, i.e. the purging of the temporary storage global ^CacheTemp.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>QHandle:%Library.Binary</FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Clean up by purging the temporary node in ^CacheTemp global
+ New repid
+ Set repid=$li(QHandle,2)
+ 
+  //Close Monitor (if configured to capture stats)
+           i mon Do ..MonitorEnd(mon)
+
+   Kill ^CacheTemp("TRAK",repid)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="GetRecordsExecute">
+<Description>
+This is the Execute section for the %Library.Query. 
+All of the logic will be performed here.
+A new node for the ^CacheTemp global will be created and each subscript of this global will contain
+a row for the report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,DateFrom:%Date,DateTo:%Date,Hospital:%String,URN:%String]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Get reportid i.e. use $INCREMENT to add another node to ^CacheTemp global. 
+ // We use ^CacheTemp global because it will always use memory before disk
+ New repid,ind
+
+ // Use $Increment to get the next node
+ 	Set repid=$I(^CacheTemp("TRAK"))
+
+ //Start Monitor (if configured to capture stats)
+ 	s mon=..MonitorBegin()
+ 	 
+
+ // Build data into ^CacheTemp(ReportID)
+ // e.g. Set ^CacheTemp(ReportID,Index)=$LB(f1,f2,f3)
+ new Number,String,Date,Time,c,n
+ new FLDFieldNo,PAPMINo,PAADMAdmNo,AUDDate,User,Group,Date,PAPMIRowId,AUDRowId,GrpID,UserID,AUDTable,PAPMIRowId,AUDTableID,TypeA,DiagEp,TypeB,InsEp,TypeC,MREp,TypeD,EpType,EpisodeNo,HospCode
+ 
+ 
+ set (Date,PAPMIRowId,AUDRowId,GrpID,UserID)=0
+ set (FLDFieldNo,PAPMINo,PAADMAdmNo,AUDDate,User,Group,AUDTable,AUDTableID,TypeA,DiagEp,TypeB,InsEp,TypeC,MREp,TypeD,EpType,EpisodeNo,HospCode)=""
+ set ind=1
+
+ //Convert ODBC dates to cache format
+ s DateFrom=..ConvertDateToCache(DateFrom)
+ s DateTo=..ConvertDateToCache(DateTo)
+  
+ // Strip white space/control chars from blank variables
+ i $g(Hospital)'="" s Hospital=$ZSTRIP(Hospital,"*WC")
+ i $g(URN)'="" s URN=$ZSTRIP(URN,"*WC")
+
+  /*
+ ^AUD(0,"PAPMI",{AUD_PAPMI_DR},{AUD_Date},{AUD_RowId})
+ 		    s PAPMINo=$p($g(^AUD(AUDRowId)),"^",10)
+		    s GrpID=$p($g(^AUD(AUDRowId)),"^",11)
+		    i GrpID'="" s Group=$p($g(^SSU("SSGRP",GrpID)),"^",1)
+		    s UserID=$p($g(^AUD(AUDRowId)),"^",7)
+		    i UserID'="" s User=$p($g(^SSU("SSUSR",UserID)),"^",2)
+		    i PAPMINo'=""
+ */
+
+	s PAPMIRowId=""
+	f {
+		s PAPMIRowId=$o(^AUD(0,"PAPMI",PAPMIRowId)) q:PAPMIRowId=""
+
+		s Date=DateFrom-1
+		f {
+		s Date=$o(^AUD(0,"PAPMI",PAPMIRowId,Date)) q:Date=""
+    	q:Date>DateTo
+ 			s AUDRowId=""
+ 			f {
+		    s AUDRowId=$o(^AUD(0,"PAPMI",PAPMIRowId,Date,AUDRowId)) q:AUDRowId=""
+		    d GetData
+		    
+			 }
+		 }
+	 }
+ 
+ Set QHandle=$lb(0,repid,0)
+
+ Quit $$$OK
+
+ // build the row
+BuildRow
+ i EpType="E" Set ^CacheTemp("TRAK",repid,$ZCVT(PAPMINo,"U")_" "_$ZCVT(AUDDate,"U")_ind)=$LB(PAPMIRowId,AUDTable,FLDFieldNo,PAPMINo,AUDDate,User,Group,AUDTableID,HospCode,PAADMAdmNo,TypeA,DiagEp,TypeB,InsEp,TypeC,MREp,TypeD,EpType,EpisodeNo)
+ s ind=ind+1
+
+ ; (AUD_PAPMI_dR=:URN OR :URN IS NULL)-DOES NOT WORK. NO IDEA WHY
+
+GetData
+ &sql(declare EDAUD cursor for
+ SELECT
+ AUD_PAPMI_dr, 
+ aud_table,
+ FLD_FieldNo,
+ aud_PAPMI_dR->PAPMI_NO,
+ AUD_Date,
+ aud_user_Dr->ssusr_name,
+ aud_group_dr->ssgrp_desc,
+ AUD_TableRowId,
+ AUD_LogonLocation_dr->CTLOC_Hospital_Dr->HOSP_Code
+ FROM SQLUSER.ss_audittrail, SQLUSER.ss_audittrailfields
+ WHERE 
+ AUD_LogonLocation_dr->CTLOC_Hospital_Dr->HOSP_RowId=:Hospital
+ AND AUD_RowId=:AUDRowId
+ AND AUD_ROWID=FLD_PARREF
+ and fld_oldvalue is not null  
+ and fld_value is not null 
+ and aud_action='U'
+ and aud_table in ('PA_AdmInsurance', 'PA_Adm', 'MR_Diagnos', 'MR_Adm')
+ and fld_fieldno in (
+'PAADM_AdmDate',
+'PAADM_AdmTime',
+'PAADM_TriageDate',
+'PAADM_TriageTime',
+'PAADM_AdmDocCodeDR',
+'PAADM_Priority_DR',
+'MRADM_TransferMeans_DR',
+'MRADM_PresentComplaint',
+'PAADM_RefClinic_DR',
+'PAADM_UsualAccom_DR',
+'INS_InsType_DR',
+'PAADM_InpatBedReqDate',
+'PAADM_InpatBedReqTime',
+'PAADM_DischgDate',
+'PAADM_DischgTime',
+'MRADM_DischClassif_DR',
+'PAADM_RefClinTo_DR',
+'MRADM_EscortSource_DR',
+'PAPER_Deceased_Date',
+'PAPER_DeceasedTime',
+'MRDIA_ICDCode_DR',
+'PAADM_ActivityInjured_DR',
+'PAADM_HumanIntent_DR',
+'PAADM_CauseInj_DR',
+'PAADM_PlaceOfInj_DR',
+'MRADM_InjuryDesc,',
+'PAADM_SeenDate',
+'PAADM_SeenTime') AND
+(AUD_PAPMI_dR->papmi_no=:URN OR :URN IS NULL)
+ )
+ 
+ &sql(open EDAUD)
+
+ //fetch first row
+ &sql(fetch EDAUD into :PAPMIRowId,:AUDTable,:FLDFieldNo,:PAPMINo,:AUDDate,:User,:Group,:AUDTableID,:HospCode)
+
+ while 'SQLCODE{
+	 
+ do FormatDates
+ do GetEpisodeNo
+ do GetDiagEp
+ do GetInsEp
+ do GetMREp
+ s EpType=""
+ i ((TypeA="E")||(TypeB="E")||(TypeC="E")||(TypeD="E")) {s EpType="E"}
+ s EpisodeNo=PAADMAdmNo_""_DiagEp_""_InsEp_""_MREp
+ 
+ i FLDFieldNo="PAADM_AdmDate" s FLDFieldNo="Arrival date"
+ i FLDFieldNo="PAADM_AdmTime" s FLDFieldNo="Arrival time"
+ i FLDFieldNo="PAADM_TriageDate" s FLDFieldNo="Triage date"
+ i FLDFieldNo="PAADM_TriageTime" s FLDFieldNo="Triage time"
+ i FLDFieldNo="PAADM_AdmDocCodeDR" s FLDFieldNo="Triage clinician"
+ i FLDFieldNo="PAADM_Priority_DR" s FLDFieldNo="Triage category"
+ i FLDFieldNo="MRADM_TransferMeans_DR" s FLDFieldNo="Arrival Transport mode"
+ i FLDFieldNo="MRADM_PresentComplaint" s FLDFieldNo="Presenting problem"
+ i FLDFieldNo="PAADM_RefClinic_DR" s FLDFieldNo="Referred by"
+ i FLDFieldNo="TRANS_StartDate" s FLDFieldNo="Clinician date"
+ i FLDFieldNo="TRANS_StartTime" s FLDFieldNo="Clinician time"
+ i FLDFieldNo="PAADM_UsualAccom_DR" s FLDFieldNo="Usual accommodation"
+ i FLDFieldNo="INS_InsType_DR" s FLDFieldNo="Compensable status"
+ i FLDFieldNo="PAADM_InpatBedReqDate" s FLDFieldNo="Bed request date"
+ i FLDFieldNo="PAADM_InpatBedReqTime" s FLDFieldNo="Bed request time"
+ i FLDFieldNo="PAADM_DischgDate" s FLDFieldNo="Discharge date"
+ i FLDFieldNo="PAADM_DischgTime" s FLDFieldNo="Discharge Time"
+ i FLDFieldNo="MRADM_DischClassif_DR" s FLDFieldNo="Departure Status"
+ i FLDFieldNo="PAADM_RefClinTo_DR" s FLDFieldNo="Referred to on discharge"
+ i FLDFieldNo="MRADM_EscortSource_DR" s FLDFieldNo="Discharge escort"
+ i FLDFieldNo="PAPER_Deceased_Date" s FLDFieldNo="Deceased date"
+ i FLDFieldNo="PAPER_DeceasedTime" s FLDFieldNo="Deceased time"
+ i FLDFieldNo="MRDIA_ICDCode_DR" s FLDFieldNo="Primary diagnosis"
+ i FLDFieldNo="PAADM_ActivityInjured_DR" s FLDFieldNo="Injury-Activity"
+ i FLDFieldNo="PAADM_HumanIntent_DR" s FLDFieldNo="Injury-Human Intent"
+ i FLDFieldNo="PAADM_CauseInj_DR" s FLDFieldNo="Injury-Cause"
+ i FLDFieldNo="PAADM_PlaceOfInj_DR" s FLDFieldNo="Injury-Place"
+ i FLDFieldNo="MRADM_InjuryDesc," s FLDFieldNo="Injury-Description"
+ i FLDFieldNo="PAADM_SeenDate" s FLDFieldNo="First Seen Date"
+ i FLDFieldNo="PAADM_SeenTime" s FLDFieldNo="First Seen Time"
+ 
+ do BuildRow
+	 
+
+ //fetch rows
+ &sql(fetch EDAUD into :PAPMIRowId,:AUDTable,:FLDFieldNo,:PAPMINo,:AUDDate,:User,:Group,:AUDTableID,:HospCode)
+ }
+
+ &sql(close EDAUD)
+ q
+
+FormatDates
+ // Convert the dates to ODBC date format
+ If AUDDate Set AUDDate=..ConvertDateToODBC(AUDDate)
+ Quit
+ 
+GetEpisodeNo
+  s (PAADMAdmNo,TypeA)=""
+ &sql(SELECT
+ PAADM_AdmNo,
+ PAADM_Type
+ INTO :PAADMAdmNo,:TypeA
+ FROM SQLUser.PA_Adm
+	WHERE :AUDTable='PA_Adm' and :AUDTableID=PAADM_RowId
+	)
+ 
+ Quit
+
+GetDiagEp
+  s (DiagEp,TypeB)=""
+ &sql(SELECT
+ MRDIA_MRADM_PARREF->MRADM_ADM_dR->PAADM_AdmNo,
+ MRDIA_MRADM_PARREF->MRADM_ADM_dR->PAADM_Type
+ INTO :DiagEp,:TypeB
+ FROM SQLUser.MR_Diagnos
+	WHERE :AUDTable='MR_Diagnos' and :AUDTableID=MRDIA_RowId
+	)
+ 
+ Quit
+
+GetInsEp
+  s (InsEp,TypeC)=""
+ &sql(SELECT
+ Ins_PARREF->PAADM_AdmNo,
+ Ins_PARREF->PAADM_Type
+ INTO :InsEp,:TypeC
+ FROM SQLUser.PA_AdmInsurance
+	WHERE :AUDTable='PA_AdmInsurance' and :AUDTableID=INS_RowId
+	)
+ 
+ Quit
+
+GetMREp
+  s (MREp,TypeD)=""
+ &sql(SELECT
+ MRADM_ADM_DR->PAADM_AdmNo,
+ MRADM_ADM_dR->PAADM_Type
+ INTO :MREp,:TypeD
+ FROM SQLUser.MR_Adm
+	WHERE :AUDTable='MR_Adm' and :AUDTableID=MRADM_RowId
+	)
+ 
+ Quit
+]]></Implementation>
+</Method>
+
+<Method name="GetRecordsFetch">
+<Description>
+This is the Fetch component of the %Library.Query. 
+This should never have to change. It is designed to fetch the row for each subscript of the ^CacheTemp
+global and return this row to the Crystal Report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,&Row:%Library.List,&AtEnd:%Library.Integer=0]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // This fetch method should never have to change. 
+
+ New repid,ind
+
+ // Restore QHandle
+ Set AtEnd=$li(QHandle,1)
+ Set repid=$li(QHandle,2)
+ Set ind=$li(QHandle,3)
+
+ Set ind=$o(^CacheTemp("TRAK",repid,ind))
+ If ind="" {	// if there are no more rows, finish fetching
+ Set AtEnd=1
+ Set Row=""
+ }
+ Else      {	// fetch row
+ Set Row=^CacheTemp("TRAK",repid,ind)
+ }
+
+ // Save QHandle
+ s QHandle=$lb(AtEnd,repid,ind)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Query name="GetRecords">
+<Type>%Library.Query</Type>
+<FormalSpec>DateFrom:%Date,DateTo:%Date,Hospital:%String,URN:%String</FormalSpec>
+<SqlProc>1</SqlProc>
+<Parameter name="CONTAINID" value="0"/>
+<Parameter name="ROWSPEC" value="PAPMIRowId:%String,AUDTable:%String,FLDFieldNo:%String,PAPMINo:%String,AUDDate:%Date,User:%String,Group:%String,AUDTableID:%String,HospCode:%String,PAADMAdmNo:%String,TypeA:%String,DiagEp:%String,TypeB:%String,InsEp:%String,TypeC:%String,MREp:%String,TypeD:%String,EpType:%String,EpisodeNo:%String"/>
+</Query>
+</Class>
+</Export>

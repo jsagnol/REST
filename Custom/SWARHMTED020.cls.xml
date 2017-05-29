@@ -1,0 +1,252 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.SWARHMTED020">
+<Description><![CDATA[
+SWARH A&E Discharge Summary]]></Description>
+<ClassType/>
+<ProcedureBlock>0</ProcedureBlock>
+<Super>%Library.RegisteredObject</Super>
+<TimeCreated>61221,1747.137664</TimeCreated>
+
+<Method name="EDDischSummaryClose">
+<Description>
+This is the Close component of the %Library.Query.
+This is standard code and should never have to change.
+This is where all the cleanup is performed, i.e. the purging of the temporary storage global ^CacheTemp.</Description>
+<Final>0</Final>
+<ClassMethod>1</ClassMethod>
+<CodeMode>code</CodeMode>
+<FormalSpec>QHandle:%Library.Binary</FormalSpec>
+<Private>0</Private>
+<ReturnType>%Library.Status</ReturnType>
+<SqlProc>0</SqlProc>
+<Implementation><![CDATA[
+ // Clean up by purging the temporary node in ^CacheTemp global
+ New repid
+ Set repid=$li(QHandle,2)
+ Kill ^CacheTemp(repid)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="EDDischSummaryExecute">
+<Description>
+This is the Execute section for the %Library.Query. 
+All of the logic will be performed here.
+A new node for the ^CacheTemp global will be created and each subscript of this global will contain
+a row for the report.</Description>
+<Final>0</Final>
+<ClassMethod>1</ClassMethod>
+<CodeMode>code</CodeMode>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,EpisodeId:%Integer]]></FormalSpec>
+<Private>0</Private>
+<ReturnType>%Library.Status</ReturnType>
+<SqlProc>0</SqlProc>
+<Implementation><![CDATA[
+	//{Call Custom.SWARHMTED018_EDDischSummary()}
+ k ^bernard, ^zwsa
+ // Get reportid i.e. use $INCREMENT to add another node to ^CacheTemp global. 
+ // We use ^CacheTemp global because it will always use memory before disk
+ New repid,ind
+
+ // Use $Increment to get the next node
+ Set repid=$I(^CacheTemp)
+
+ // Build data into ^CacheTemp(ReportID)
+ // e.g. Set ^CacheTemp(ReportID,Index)=$LB(f1,f2,f3)
+ New Number,String,Date,Time,c,n,str,END
+ n CTPCPDesc,PAADMAdmDate,PAADMDischgDate,HOSPDesc,PAPMIMedicare,PAPMIMedicareCode,PAADMAdmTime,PAADMDischgTime,PAPMIRowId,PAPMIDOB,INSTDesc,PAPMIName,PAPMIName2,PAPMIName3,PAPMINo,DSCLDesc,PAPERStName,PAPERForeignAddress,CTZIPCode,CTCITDesc,PAADMMainMRADMDR,CTSEXCode,OEORDADMDR,OEORILabEpisodeNo,ARCIMCode,ARCIMDesc,OEORISttDat,OEORISttTim,OSTATCode,ARCICOrdCatDR
+ s (PAPMIRowId,PAADMMainMRADMDR,OEORDADMDR)=0
+ n OEORDRowId
+ s OEORDRowId=""
+ s (CTPCPDesc,PAADMAdmDate,PAADMDischgDate,HOSPDesc,PAPMIMedicare,PAPMIMedicareCode,PAADMAdmTime,PAADMDischgTime,PAPMIDOB,INSTDesc,PAPMIName,PAPMIName2,PAPMIName3,PAPMINo,DSCLDesc,PAPERStName,PAPERForeignAddress,CTZIPCode,CTCITDesc,PAADMMainMRADMDR,CTSEXCode,OEORILabEpisodeNo,ARCIMCode,ARCIMDesc,OEORISttDat,OEORISttTim,OSTATCode,ARCICOrdCatDR)=""
+ s ^zbernard("1")=1
+ s ind=1
+ s ^zbernard("2")=2
+ s END=0
+
+ &sql(select 
+ TRANS_CTCP_DR->CTPCP_Desc,
+ PAADM_AdmDate,
+ PAADM_DischgDate,
+ PAADM_CurrentWard_DR->WARD_LocationDR->CTLOC_Hospital_DR->HOSP_Desc,
+ PAPMI_Medicare,
+ PAPMI_MedicareCode,
+ PAADM_AdmTime,
+ PAADM_DischgTime,
+ PAPMI_RowId,
+ PAPMI_DOB,
+ INS_InsType_DR->INST_Desc, 
+ PAPMI_Name, 
+ PAPMI_Name2,
+ PAPMI_Name3,
+ PAPMI_No, 
+ PAADM_MAINMRADM_DR->MRADM_DischClassif_DR->DSCL_Desc,
+ PAPMI_PAPER_DR->PAPER_StName,
+ PAPMI_PAPER_DR->PAPER_ForeignAddress,
+ PAPMI_PAPER_DR->PAPER_Zip_DR->CTZIP_Code, 
+ PAPMI_PAPER_DR->PAPER_CityCode_DR->CTCIT_Desc,
+ PAADM_MainMRADM_DR,
+ PAPMI_PAPER_DR->PAPER_Sex_DR->CTSEX_Code
+ INTO :CTPCPDesc,:PAADMAdmDate,:PAADMDischgDate,:HOSPDesc,:PAPMIMedicare,
+:PAPMIMedicareCode,:PAADMAdmTime,:PAADMDischgTime,:PAPMIRowId,:PAPMIDOB,:INSTDesc,
+:PAPMIName,:PAPMIName2,:PAPMIName3,
+:PAPMINo,:DSCLDesc,:PAPERStName,:PAPERForeignAddress,
+:CTZIPCode,:CTCITDesc,:PAADMMainMRADMDR,:CTSEXCode
+ FROM sqluser.PA_Adm, sqluser.PA_PatMas,sqluser.PA_AdmInsurance,
+ sqluser.PA_AdmTransaction
+ WHERE PAADM_PAPMI_DR=PAPMI_RowId AND PAADM_RowId=INS_ParRef and
+ PAADM_RowId=TRANS_ParRef and TRANS_CTCP_DR is not null and
+ PAADM_RowId =:EpisodeId
+ order by TRANS_RowId desc
+ )
+ s ^zbernard("3")=3
+ d FormatDatesADM
+ d FormatTimesADM
+
+ s PAPERStName=$zstrip(PAPERStName,"*C")
+ s PAPERForeignAddress=$zstrip(PAPERForeignAddress,"*C")
+
+ //new select to declare cursor
+ &sql(declare EDDischSummary cursor for 
+ select distinct
+ OEORD_RowId,
+ OEORD_ADM_DR,
+ OEORI_LabEpisodeNo, 
+ OEORI_ItmMast_DR->ARCIM_Code, 
+ OEORI_ItmMast_DR->ARCIM_Desc,
+ OEORI_SttDat, 
+ OEORI_SttTim, 
+ OEORI_ItemStat_DR->OSTAT_Code,
+ OEORI_ItmMast_DR->ARCIM_ItemCat_DR->ARCIC_OrdCat_DR
+ FROM	sqluser.OE_Order, sqluser.OE_OrdItem
+ where OEORD_RowId=OEORI_OEORD_ParRef and 
+ OEORD_ADM_DR=:EpisodeId)
+ &sql(open  EDDischSummary)
+
+ // build the row
+ Set str=$LB(CTPCPDesc,PAADMAdmDate,PAADMDischgDate,HOSPDesc,PAPMIMedicare,PAPMIMedicareCode,PAADMAdmTime,PAADMDischgTime,PAPMIRowId,PAPMIDOB,INSTDesc,PAPMIName,PAPMIName2,PAPMIName3,PAPMINo,DSCLDesc,PAPERStName,PAPERForeignAddress,CTZIPCode,CTCITDesc,PAADMMainMRADMDR,CTSEXCode)
+
+ //fetch first order record
+ &sql(fetch EDDischSummary into :OEORDRowId,:OEORDADMDR,:OEORILabEpisodeNo,:ARCIMCode,:ARCIMDesc,:OEORISttDat,:OEORISttTim,:OSTATCode,:ARCICOrdCatDR)
+ set strNEWOP=$LB(OEORDADMDR,OEORILabEpisodeNo,ARCIMCode,ARCIMDesc,OEORISttDat,OEORISttTim,OSTATCode,ARCICOrdCatDR)
+
+ i OEORDRowId="" s END=1
+
+ d FormatDatesORD,FormatTimesORD
+ d BuildRow
+
+ while END'=1{
+ s (OEORDRowId,OEORDADMDR,OEORILabEpisodeNo,ARCIMCode,ARCIMDesc,OEORISttDat,OEORISttTim,OSTATCode,ARCICOrdCatDR)=""
+ s ^zbernard("4")=4
+
+ //fetch next order records
+ &sql(fetch EDDischSummary into :OEORDRowId,:OEORDADMDR,:OEORILabEpisodeNo,:ARCIMCode,:ARCIMDesc,:OEORISttDat,:OEORISttTim,:OSTATCode,:ARCICOrdCatDR)
+
+ set strNEWOP=$LB(OEORDADMDR,OEORILabEpisodeNo,ARCIMCode,ARCIMDesc,OEORISttDat,OEORISttTim,OSTATCode,ARCICOrdCatDR)
+
+ i OEORDRowId="" {
+	 s END=1
+ } else {
+	d FormatDatesORD
+ d FormatTimesORD
+ d BuildRow
+ }
+}
+
+ &sql(close EDDischSummary)
+
+ // Build QHandle (AtEnd,ReportID,Index)
+ Set QHandle=$lb(0,repid,0)
+ s ^zbernard("5")=5
+
+ Quit $$$OK
+
+ //WSA Edit
+BuildRow
+ s zwsa("buildrow")=""
+ s ^CacheTemp(repid,ind)=str_strNEWOP
+ s ind=ind+1
+ q
+
+FormatDatesADM
+ // Convert the dates to ODBC date format
+ If PAADMAdmDate Set PAADMAdmDate=$ZD(PAADMAdmDate,3)
+ If PAADMDischgDate Set PAADMDischgDate=$ZD(PAADMDischgDate,3)
+ If PAPMIDOB Set PAPMIDOB=$ZD(PAPMIDOB,3)
+ Quit
+
+FormatDatesORD
+ If OEORISttDat Set OEORISttDat=$ZD(OEORISttDat,3)
+ Quit
+
+FormatTimesADM
+ // Convert the times to ODBC time format
+ If PAADMAdmTime Set PAADMAdmTime=$ZT(PAADMAdmTime,2)
+ If PAADMDischgTime Set PAADMDischgTime=$ZT(PAADMDischgTime,2)
+ Quit
+
+FormatTimesORD
+ If OEORISttTim Set OEORISttTim=$ZT(OEORISttTim,2)
+ Quit
+]]></Implementation>
+</Method>
+
+<Method name="EDDischSummaryFetch">
+<Description>
+This is the Fetch component of the %Library.Query. 
+This should never have to change. It is designed to fetch the row for each subscript of the ^CacheTemp
+global and return this row to the Crystal Report.</Description>
+<Final>0</Final>
+<ClassMethod>1</ClassMethod>
+<CodeMode>code</CodeMode>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,&Row:%Library.List,&AtEnd:%Library.Integer=0]]></FormalSpec>
+<Private>0</Private>
+<ReturnType>%Library.Status</ReturnType>
+<SqlProc>0</SqlProc>
+<Implementation><![CDATA[
+ // This fetch method should never have to change. 
+
+ // repid - Report ID
+ // ind   - sequence index which represents each row
+
+ New repid,ind
+
+ // Restore QHandle
+ Set AtEnd=$li(QHandle,1)
+ Set repid=$li(QHandle,2)
+ Set ind=$li(QHandle,3)
+
+ Set ind=$o(^CacheTemp(repid,ind))
+ If ind="" {	// if there are no more rows, finish fetching
+ Set AtEnd=1
+ Set Row=""
+ }
+ Else      {	// fetch row
+ Set Row=^CacheTemp(repid,ind)
+ }
+
+ // Save QHandle
+ s QHandle=$lb(AtEnd,repid,ind)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Query name="EDDischSummary">
+<Description>
+Vic Triage Report
+It expects 1 parameter of type integer and will return 40 odd fields:
+Field1 - Integer
+Field2 - String(MAXLEN=255)
+Field3 - Date
+Field4 - Time</Description>
+<Type>%Library.Query</Type>
+<FormalSpec>EpisodeId:%Integer</FormalSpec>
+<SqlProc>1</SqlProc>
+<SqlView>0</SqlView>
+<Parameter name="CONTAINID" value="0"/>
+<Parameter name="ROWSPEC" value="CTPCPDesc:%String(MAXLEN=255),PAADMAdmDate:%Date,PAADMDischgDate:%Date,HOSPDesc:%String(MAXLEN=255),PAPMIMedicare:%String(MAXLEN=255),PAPMIMedicareCode:%String(MAXLEN=255),PAADMAdmTime:%String(MAXLEN=255),PAADMDischgTime:%String(MAXLEN=255),PAPMIRowId:%Integer,PAPMIDOB:%Date,INSTDesc:%String(MAXLEN=255),PAPMIName:%String(MAXLEN=255),PAPMIName2:%String(MAXLEN=255),PAPMIName3:%String(MAXLEN=255),PAPMINo:%String(MAXLEN=255),DSCLDesc:%String(MAXLEN=255),PAPERStName:%String(MAXLEN=255),PAPERForeignAddress:%String(MAXLEN=255),CTZIPCode:%String(MAXLEN=255),CTCITDesc:%String(MAXLEN=255),PAADMMainMRADMDR:%Integer,CTSEXCode:%String(MAXLEN=255),OEORDADMDR:%Integer,OEORILabEpisodeNo:%String(MAXLEN=255),ARCIMCode:%String(MAXLEN=255),ARCIMDesc:%String(MAXLEN=255),OEORISttDat:%Date,OEORISttTim:%String(MAXLEN=255),OSTATCode:%String(MAXLEN=255),ARCICOrdCatDR:%String(MAXLEN=255)"/>
+<Parameter name="SELECTMODE" value="ODBC"/>
+</Query>
+</Class>
+</Export>

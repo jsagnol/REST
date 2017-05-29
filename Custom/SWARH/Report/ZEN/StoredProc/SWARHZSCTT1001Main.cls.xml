@@ -1,0 +1,245 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.SWARH.Report.ZEN.StoredProc.SWARHZSCTT1001Main">
+<Description>
+Report Name: SCTT Care Coordination Plan Main SP
+Report Code: SWARHZSCTT1001
+Phuong-Dung HOANG
+copied and modified Custom.AUXX.Report.ZEN.StoredProc.SCTTReport</Description>
+<ProcedureBlock>0</ProcedureBlock>
+<Super>Custom.SWARH.Report.ZEN.StoredProc.Abstract</Super>
+<TimeCreated>62970,48071.923811</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/SWARH/Report/ZEN/StoredProc/SWARHZSCTT1001Main.xml#1 $</Default>
+</Parameter>
+
+<Method name="GetQuesAnswerDesc">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>questionnaire:%String,QuesName:%String,QuesAns:%String</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	n QuesAnsDesc
+    s QuesAnsDesc=""
+	s query="SELECT RESP_Desc FROM SQLUser.SS_UserDefWinContResp WHERE RESP_ParRef->CON_ParRef->WIN_Code='"_questionnaire_"' AND %ALPHAUP(RESP_ParRef->CON_Code)='"_QuesName_"' AND RESP_Code='"_QuesAns_"'"
+    s rset = ##class(%ResultSet).%New()
+    d rset.Prepare(query)
+    d rset.Execute()
+    while rset.Next() {
+	    s QuesAnsDesc=rset.Data("RESP_Desc")
+    }
+    d rset.Close()
+    q QuesAnsDesc
+]]></Implementation>
+</Method>
+
+<Method name="MainClose">
+<Description>
+This is the Close component of the %Library.Query.
+This is standard code and should never have to change.
+This is where all the cleanup is performed, i.e. the purging of the temporary storage global ^CacheTemp.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>QHandle:%Library.Binary</FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+	// Clean up by purging the temporary node in ^CacheTemp global
+ 	New repid
+ 	Set repid=$LIST(QHandle,2)
+ 
+ 	//Start Monitor (if configured to capture stats)
+ 	i mon Do ..MonitorEnd(mon)
+
+ 	Kill ^CacheTemp(..#CACHETEMPSUBSCRIPT,repid)
+ 
+ 	Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="MainExecute">
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,EpisodeID:%Library.String,qid:%Library.String,UserID:%Library.String]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+	// Get reportid i.e. use $INCREMENT to add another node to ^CacheTemp("TRAK") global. 
+	// We use ^CacheTemp global because CACHETEMP is a memory resident database
+	New repid,ind
+
+	// Use $Increment to get the next node
+ 	Set repid=$Increment(^CacheTemp(..#CACHETEMPSUBSCRIPT))
+ 
+ 	s ind=1, END=0
+ 	//Start Monitor (if configured to capture stats)
+ 	s mon=..MonitorBegin()
+	
+	/*i $g(UserID)'="" {
+		s UserID=$zstrip(UserID,"*C")
+		i $g(UserID)'="" {
+			s Name=$p($g(^SSU("SSUSR",UserID)),"^",2)
+		}
+	}*/
+	// Get Assessor name as entered on the form
+	s ccpobj=##class(questionnaire.QAUXXSCTTCC).%OpenId(qid)
+	s CareProvId=ccpobj.Q120
+	s Name=""
+	i CareProvId'="" {
+		s cpobj=##class(User.CTCareProv).%OpenId(CareProvId)
+		s Name=cpobj.CTPCPDesc
+	}
+	
+	i $g(EpisodeID) s EpisodeID=$zstrip(EpisodeID,"*CW")
+	
+	s hospid=$p($g(^PAADM(EpisodeID,2)),"^",85)
+	s Agency=$p(^CT("HOSP",hospid),"^",2)
+	s Contact=$p(^CT("HOSP",hospid),"^",11)
+
+	i EpisodeID'="" {
+		//i WINCode="AUXXSCTTCC"
+		s single=1
+		i 'qid s qid=IncludeTCC,single=1
+
+		i qid,single {
+			s FooterCode="CCP",IncludePage=1
+			s PageTitle="Care Coordination Plan"
+			s PageDesc="For consumers with complex and/or multiple issues, to support a coordinated approach. It shows who is involved in a consumer's care, the main issues, agreed goals developed together, planned actions and who is responsible for each action."
+			s PageSideText="Care Coordination Plan"
+			s EpisodeID=$lg(^questionnaire.QAUXXSCTTCCD(qid),1)
+			d ..GetPatDetails(EpisodeID)
+
+			s ind=$i(ind)
+			s ^CacheTemp(..#CACHETEMPSUBSCRIPT,repid,ind)=$lb(EpisodeID,qid,Agency,Contact,Name,ClientName,DOB,Sex,UR,FooterCode_1,PageTitle,PageDesc,PageSideText,IncludePage,ReferralToID,"")
+			s ind=$i(ind)
+			s ^CacheTemp(..#CACHETEMPSUBSCRIPT,repid,ind)=$lb(EpisodeID,qid,Agency,Contact,Name,ClientName,DOB,Sex,UR,FooterCode_2,PageTitle,PageDesc,PageSideText,IncludePage,ReferralToID,"")
+			
+			s FooterCode="RCCP",IncludePage=1
+			s PageTitle="Review of Care Coordination Plan"
+			s PageDesc="For use when the Care Coordination Plan is reviewed.  It shows the outcomes/progress of agreed goals and planned actions."
+			s PageSideText="Review of Care Coordination Plan"
+
+			s ind=$i(ind)
+			s ^CacheTemp(..#CACHETEMPSUBSCRIPT,repid,ind)=$lb(EpisodeID,qid,Agency,Contact,Name,ClientName,DOB,Sex,UR,FooterCode,PageTitle,PageDesc,PageSideText,IncludePage,ReferralToID,"")
+			s single=0,qid=""
+		}
+
+	}
+	
+	// Build QHandle (AtEnd,ReportID,Index)
+	Set QHandle=$LISTBUILD(0,repid,0)
+	Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="MainFetch">
+<Description>
+This is the Fetch component of the %Library.Query. 
+This should never have to change. It is designed to fetch the row for each subscript of the 
+^CacheTemp("TRAK" global and return this row to the Report writer</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,&Row:%Library.List,&AtEnd:%Library.Integer=0]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+	// This fetch method should never have to change. 
+	// repid - Report ID
+	// ind   - sequence index which represents each row
+	New repid,ind
+
+	// Restore QHandle
+	Set AtEnd=$LI(QHandle,1)
+	Set repid=$LI(QHandle,2)
+	Set ind=$LI(QHandle,3)
+
+	Set ind=$order(^CacheTemp(..#CACHETEMPSUBSCRIPT,repid,ind))
+	If ind="" {	// if there are no more rows, finish fetching
+		Set AtEnd=1
+		Set Row=""
+	} else {	// fetch row
+		Set Row=^CacheTemp(..#CACHETEMPSUBSCRIPT,repid,ind)
+	}
+
+	// Save QHandle
+	Set QHandle=$lb(AtEnd,repid,ind)
+	Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Query name="Main">
+<Description>
+This is the Stored Procedure Template. For Sample use only.
+It expects one parameter of type integer and will return 4 fields:
+Field1 - Integer
+Field2 - String
+Field3 - Date
+Field4 - Time</Description>
+<Type>%Library.Query</Type>
+<FormalSpec>EpisodeID:%Library.String,qid:%Library.String,UserID:%Library.String</FormalSpec>
+<SqlProc>1</SqlProc>
+<Parameter name="CONTAINID" value="0"/>
+<Parameter name="ROWSPEC" value="EpisodeId:%String,qid:%String,Agency:%String,Contact:%String,Name:%String,ClientName:%String,DOB:%String,Sex:%String,UR:%String,FooterCode:%String,PageTitle:%String,PageDesc:%String,PageSideText:%String,IncludePage:%String,RefToID:%String,PatID:%String"/>
+</Query>
+
+<Method name="GetPatDetails">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>EpisodeID:%String</FormalSpec>
+<Implementation><![CDATA[
+	s pat=$p($g(^PAADM(EpisodeID)),"^")
+
+	s patobj=##class(User.PAPatMas).%OpenId(pat)
+	i patobj {
+		s ClientName=patobj.PAPMIName_", "_patobj.PAPMIName2
+		s DOB=patobj.PAPMIDOB
+		i DOB s DOB=$zd(DOB,4,,4)
+		s Sex=patobj.PAPMISexDR.CTSEXDesc
+		s UR=patobj.PAPMINo
+		k patobj
+	}
+]]></Implementation>
+</Method>
+
+<Method name="ContinuePage">
+<Description>
+TODO - create method to set multiple page text areas</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>text:%String,lines:%Integer,chrperline:%Integer</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	s characters=chrperline				; Max characters per line is 120
+
+	s maxchar=lines*characters			; Max characters for lines available
+	
+	; if max characters exceeds space then we need to include a page break indicator
+	s (textline,temptext,checksize)=""
+	s maxcnt=1
+	f x=1:1:$l(text," ") {
+		s (maxchrflag,chrflag)=0
+		i $g(temptext)'="" {
+			s checksize=temptext_" "_$p(text," ",x)
+			s checkmaxsize=$p(textline,"^",maxcnt)_" "_checksize_" "_$p(text," ",x)
+			i $l(checkmaxsize)>maxchar s maxchrflag=1,chrflag=1
+			i $l(checksize)>characters s chrflag=1
+			
+			
+			i chrflag {
+				i maxchrflag {
+					s maxcnt=$i(maxcnt)
+					i $g(textline)'="" s textline=textline_$c(13,10)_temptext_$c(13,10)_"<...(PTO)>^"
+					i $g(textline)="" s textline=temptext_$c(13,10)_"<...(PTO)>^"
+				} else {
+					i $g(textline)'="" s textline=textline_$c(13,10)_temptext
+					i $g(textline)="" s textline=temptext
+				}
+				s temptext=""
+			} else {
+				s temptext=temptext_" "_$p(text," ",x)
+			}
+		}
+		i $g(temptext)="" s temptext=$p(text," ",x)
+	}
+	
+	i $g(temptext)'="" s textline=textline_$c(13,10)_temptext
+	
+	q textline
+]]></Implementation>
+</Method>
+</Class>
+</Export>

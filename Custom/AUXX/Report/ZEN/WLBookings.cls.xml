@@ -1,0 +1,210 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.AUXX.Report.ZEN.WLBookings">
+<Super>Custom.AUXX.Report.ZEN.Abstract</Super>
+<TimeCreated>61543,54550.041409</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+This Parameter should be updated when synced from Perforce</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/AUXX/Report/ZEN/WLBookings.xml#1 $</Default>
+</Parameter>
+
+<UDLText name="T">
+<Content><![CDATA[
+// Report Name: Waiting List Bookings <br>
+
+]]></Content>
+</UDLText>
+
+<UDLText name="T">
+<Content><![CDATA[
+// Report Code: Trak.WLBookings <br>
+
+]]></Content>
+</UDLText>
+
+<UDLText name="T">
+<Content><![CDATA[
+// LOGTRAK Number: 72456 <br>
+
+]]></Content>
+</UDLText>
+
+<Property name="DateFrom">
+<Type>%String</Type>
+<Parameter name="ZENURL" value="P1"/>
+</Property>
+
+<Property name="DateTo">
+<Type>%String</Type>
+<Parameter name="ZENURL" value="P2"/>
+</Property>
+
+<Property name="Facility">
+<Type>%String</Type>
+<Parameter name="ZENURL" value="P3"/>
+</Property>
+
+<Property name="WLFacility">
+<Type>%String</Type>
+<Parameter name="ZENURL" value="P4"/>
+</Property>
+
+<Property name="Specialty">
+<Type>%String</Type>
+<Parameter name="ZENURL" value="P5"/>
+</Property>
+
+<Property name="Clinician">
+<Type>%String</Type>
+<Parameter name="ZENURL" value="P6"/>
+</Property>
+
+<Property name="DayCases">
+<Type>%String</Type>
+<Parameter name="ZENURL" value="P7"/>
+</Property>
+
+<XData name="ReportDefinition">
+<XMLNamespace>http://www.intersystems.com/zen/report/definition</XMLNamespace>
+<Data><![CDATA[
+<report xmlns='http://www.intersystems.com/zen/report/definition'
+  name='WLBookings' queryClass='Custom.AUXX.Report.ZEN.StoredProc.WLBookings' queryName='BookingList'>	
+  
+ <parameter expression='..DateFrom'/>
+ <parameter expression='..DateTo'/>
+ <parameter expression='..Facility'/>
+ <parameter expression='..WLFacility'/>
+ <parameter expression='..Specialty'/>
+ <parameter expression='..Clinician'/>
+ <parameter expression='..DayCases'/>
+  
+ 
+ <attribute name="reporttitle" expression='$$$Text("@WaitingListBookings@Waiting List Bookings")' />
+ <attribute name="timestamp" expression="$zdt($h,2,2)" />
+ <attribute name="facility" expression="..Facility" />
+ <attribute name='username' expression='..Username'/>
+ <attribute name='hospitaldesc' expression="..GetHospListDesc(..Facility)"/>
+ <attribute name='WLhospitaldesc' expression="..GetHospListDesc(..WLFacility)"/>
+ <attribute name="datefrom" expression="..DisplayDate(..DateFrom)"/>
+ <attribute name="dateto" expression="..DisplayDate(..DateTo)"/>
+ <attribute name="specialty" expression="..GetSpecialtyListDesc(..Specialty)"/>
+ <attribute name="clinician" expression="..GetCareProvListDesc(..Clinician)"/>
+ <attribute name="daycases" expression="..DayCases"/>
+ 
+  <group name="facility" breakOnField="HOSPDesc">
+  <attribute name="description" field="HOSPDesc" />
+    <aggregate name='HospTotal' type='CUSTOM' field='PAADMAdmNo' class='%ZEN.Report.Aggregate.CountDistinct'/>
+  <group name="specialty" breakOnField="CTLOCDesc">
+  <attribute name="description" field="CTLOCDesc" />
+      <aggregate name='LocnTotal' type='CUSTOM' field='PAADMAdmNo' class='%ZEN.Report.Aggregate.CountDistinct'/>
+           <group name='Detail'>           
+          <attribute field='ADMAdmDate' name='ADMAdmDate' expression='..DisplayDate(%val)'/>	 
+          <attribute field='ADMTime' name='ADMTime'/>	    
+	      <attribute field='PAPMINo' name='PAPMINo'/>
+	      <attribute field='PAADMAdmNo' name='PAADMAdmNo'/>
+  	      <attribute fields='PAPMIName,PAPMIName2,PAPMIName3' name='PatientName' expression='..DisplayName(%val("PAPMIName"),%val("PAPMIName2"),%val("PAPMIName3"))'/>
+          <attribute fields='PAPERDOB,ADMAdmDate' name='PAPERAge' expression='..GetAge(%val("PAPERDOB"),%val("ADMAdmDate"))' />
+          <attribute field='SEXCode' name='SEXCode'/>
+          <attribute field='WARDCode' name='WARDCode'/> 
+          <attribute field='WLRemarks' name='WLRemarks'/> 
+          <attribute field='WLEstLengthOfStay' name='WLEstLengthOfStay'/>
+          <attribute field='WLACCOMTDesc' name='WLACCOMTDesc'/> 
+          <attribute field='CTPCPDesc' name='CTPCPDesc'/>
+          <attribute field='WLHOSPCode' name='WLHOSPCode'/>
+          <attribute field='OPERDesc' name='OPERDesc'/>
+              </group>
+             </group>
+           </group>
+        </report>
+]]></Data>
+</XData>
+
+<XData name="ReportDisplay">
+<XMLNamespace>http://www.intersystems.com/zen/report/display</XMLNamespace>
+<Data><![CDATA[
+<report xmlns='http://www.intersystems.com/zen/report/display'
+xmlns:auxxstyle='http://www.intersystems.com/zen/report/display/auxx/style'
+xmlns:auxx='http://www.intersystems.com/zen/report/display/auxx'
+  name='WLBookings'>
+<document width= "#(..ReportWidth)#" height="#(..ReportHeight)#" marginLeft="#(..DocMarginLeft)#" marginRight="#(..DocMarginRight)#" 
+marginTop="#(..DocMarginTop)#" marginBottom="#(..DocMarginBottom)#" footerHeight="#(..DocFooterHeight)#" headerHeight="#(..DocHeaderHeight)#" 
+regionBeforeExtent="#(..DocHeaderHeight)#" regionAfterExtent="#(..DocFooterHeight)#" >
+<auxxstyle:auxxgroupheader/>
+<auxxstyle:auxxgroupsummary/>
+<auxxstyle:auxxhospitalheader/>
+<auxxstyle:auxxpageheader/>
+<auxxstyle:auxxpagefooter />
+<auxxstyle:auxxparameterheader/>
+<auxxstyle:auxxreporttitle/>
+<auxxstyle:auxxtablecolumn/>
+</document>
+<auxx:PageHeader pagetitle='@reporttitle'/>
+<auxx:PageFooter username='@username' timestamp='@timestamp'/>
+
+<body>
+<!-- REPORT HEADER -->
+<auxx:ReportHeader reporttitle='@reporttitle'/>
+<auxx:ReportParameterHeader xcondition="string-length(@hospitaldesc)>0" label="@Facility:@Facility:" field="@hospitaldesc" />
+<auxx:ReportParameterHeader xcondition="string-length(@WLhospitaldesc)>0" label="@TreatingHospital:@Treating Facility:" field="@WLhospitaldesc" />
+<auxx:ReportParameterHeader label='@Specialty:@Specialty:' field='@specialty' xcondition="string-length(@specialty)>0"/>
+<auxx:ReportParameterHeader label='@Clinician:@Clinician:' field='@clinician' xcondition="string-length(@clinician)>0"/>
+<auxx:ReportParameterHeader label='@DayCasesIncluded@Day Cases Included' xcondition="string-length(@daycases)>0"/>
+<auxx:ReportDateHeader datefrom="@datefrom" dateto="@dateto" />
+<line pattern="solid" width="100%"/>
+<line pattern="empty" width="100%"></line> 
+<auxx:NoResults xcondition="not(facility)" />
+
+<group name='facility' pagebreak="true">
+<auxx:GroupHospitalHeader label="@Facility:@Facility:" field="@description" />
+<line pattern="empty" lineHeight="1mm" />
+<group name='specialty'>
+<auxx:GroupHeader label="@Specialty:@Specialty:" field="@description" />
+<line pattern="empty" lineHeight="2mm" />
+     <table class='auxxtablecolumn' group='Detail'  >
+        <item field='@ADMAdmDate' width="7.5%" caption='@AdmissionDate@Admission Date'/>
+        <item field='@ADMTime' width="4%" caption='@Time@Time'/>
+        <item field='@PAPMINo' width="11%" caption='@URN@URN'/>
+        <item field='@PAADMAdmNo' width="10%" caption='@EpisodeNo@Episode No'/>
+        <item field='@PatientName' width="18%" caption="@Name@Name" />
+        <item field='@PAPERAge' width="3%" caption="@Age@Age" style="text-align:center" />
+        <item field='@SEXCode' width="3%" caption='@Sex@Sex' style="text-align:center"/> 
+        <item field='@WARDCode' width="5%" caption='@Ward@Ward'/> 
+        <item field='@WLRemarks' width="11%" caption='@Comments@Comments'/>
+        <item field='@WLEstLengthOfStay' width="3%" caption='@EstLOS@Est LOS' style="text-align:right"/>
+        <item value='' width=".5%" />
+        <!--<item field='@WLACCOMTDesc' width="6%" caption='@Accom@Accom' style="text-align:center"/> -->
+        <item field='@CTPCPDesc' width="10%" caption='@Clinician@Clinician'/> 
+        <item field='@OPERDesc' width="14%" caption='@Operation/Procedure@Operation/Procedure'/>
+      </table>
+ <line pattern="empty" width="100%"></line> 
+	<auxx:GroupSummary label="@Totalnumberofbookingsfor@Total number of bookings for" group="@description" summaryvalue="LocnTotal" />
+	<line pattern="empty" lineHeight="4mm" />
+   </group>
+ <line pattern="empty" width="100%"></line> 
+	<auxx:GroupSummary label="@Totalnumberofbookingsfor@Total number of bookings for" group="@description" summaryvalue="HospTotal" />
+   </group>
+</body>
+</report>
+]]></Data>
+</XData>
+
+<Method name="GetAge">
+<FormalSpec>dob,agedate</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+            // it's possible for the patient to be missing a dob.
+            if $g(dob) = "" q ""
+            
+            s agestring =..calculateFullAgeFromDates($zdh(dob,3),$zdh(agedate,3))
+            s year = $p(agestring,"^",1)
+            if (year > 0) q year
+            s mon = $p(agestring,"^",2)
+            s day = $p(agestring,"^",3)
+            s age = mon_"m "_day_"d"
+            q age
+]]></Implementation>
+</Method>
+</Class>
+</Export>

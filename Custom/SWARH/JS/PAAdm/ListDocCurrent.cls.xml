@@ -1,0 +1,243 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.SWARH.JS.PAAdm.ListDocCurrent">
+<Description>
+Component JavaScript for: PAAdm.ListDocCurrent</Description>
+<Modified>0</Modified>
+<Super>websys.AbstractJavaScript</Super>
+<TimeCreated>63537,10517.5705</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+This Parameter is updated by Perforce</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/SWARH/JS/PAAdm/ListDocCurrent.xml#2 $</Default>
+</Parameter>
+
+<Method name="JSContent">
+<Description>
+ </Description>
+<Language>javascript</Language>
+<ClientMethod>1</ClientMethod>
+<Implementation><![CDATA[
+var workName;
+var PAADMLDC = {
+	workNameLDC: "SWARH.TCPWorklist",
+	objTable: document.getElementById("tPAAdm_ListDocCurrent"),
+	colIndex: {
+		IconProfile: undefined
+	},
+	init: function() {
+		websys_removeListener("load","onload",ListDocCurrentLoadHandler);
+		websys_addListener("load","onload",function(){PAADMLDC.customLoad.call(PAADMLDC)});
+		this.ePSAGTCP();
+	},
+	ePSAGTCP: function() {
+		objWorkName=document.getElementById('WorkName');
+		if (!workName) workName = (objWorkName ? objWorkName.value : ""); // on reload workname has an empty value so don't reset
+		if (workName==this.workNameLDC) {
+			if (this.objTable) {
+				this.hideBlankImgs();
+				this.colIndex.IconProfile=this.getFieldColIndex("Icon Profile");
+				if (this.colIndex.IconProfile) {		
+					// Overwrite Icon Profile header with icon profile heading (images of icons used for current ward)
+					this.EDDLinks();
+					this.removeEDDIcon();
+					this.ACASLinks();
+					this.removeACASIcon();
+					this.ePSAGTCPHeading();
+					var ColumnArray = [this.colIndex.IconProfile];
+					this.resizeIconProfileCol();
+				}
+			}
+		}
+	},
+	EDDLinks: function() {
+		var rows=this.objTable.getElementsByTagName('tr');
+		if (rows.length > 1) {
+			for (i=1;i<rows.length;i++) {
+				var row=rows[i];
+				var cells=row.getElementsByTagName('td');
+				var IconProfileCell=cells[this.colIndex.IconProfile],
+					spans=cells[this.colIndex.IconProfile].getElementsByTagName('SPAN'),
+					span=0,
+					objspan,
+					spanfound=false;
+				while ((span<spans.length) && (spanfound==false)) {
+					if (spans[span].className=="TCP_EDD") {
+						objspan=spans[span];
+						spanfound=true;
+					}
+					span++;
+				}
+				if (objspan) {
+					var hyperlinks=cells[this.colIndex.IconProfile].getElementsByTagName('a');
+					for (j=0;j<hyperlinks.length-1;j++) {
+						if (hyperlinks[j].innerHTML.indexOf("TCP EDD")>=0) {
+							var EDDindex=j;
+							break;
+						}
+					}
+					var newLink=document.createElement('a');
+					newLink.setAttribute('href','#');
+					newLink.onclick=hyperlinks[j].onclick;
+					
+					//cells[this.colIndex.IconProfile].replaceChild(newLink,objspan); 
+					//-- had to change to lines below for T2016
+					var parent=objspan.parentNode;
+					parent.replaceChild(newLink,objspan);
+					
+					newLink.appendChild(objspan);
+				}
+			}
+		}
+	},
+	removeEDDIcon: function() {
+		var rows=this.objTable.getElementsByTagName('tr');
+		if (rows.length>0) {
+			for (i=1;i<rows.length;i++) {
+				cells=rows[i].getElementsByTagName('td');
+				imgs = cells[this.colIndex.IconProfile].getElementsByTagName('img');
+				for (j=imgs.length-1;j>=0;j--) {
+					if (imgs[j].title=='TCP EDD') {
+						imgs[j].parentNode.removeChild(imgs[j]);
+						break;
+					}
+				}
+			}
+		}
+	},
+	ACASLinks: function() {
+		var rows=this.objTable.getElementsByTagName('tr');
+		if (rows.length > 1) {
+			for (i=1;i<rows.length;i++) {
+				var row=rows[i];
+				var cells=row.getElementsByTagName('td');
+				var IconProfileCell=cells[this.colIndex.IconProfile],
+					spans=cells[this.colIndex.IconProfile].getElementsByTagName('SPAN'),
+					span=0,
+					objspan,
+					spanfound=false;
+				while ((span<spans.length) && (spanfound==false)) {
+					if (spans[span].className=="ACAS_Date") {
+						objspan=spans[span];
+						spanfound=true;
+					}
+					span++;
+				}
+				if (objspan) {
+					var hyperlinks=cells[this.colIndex.IconProfile].getElementsByTagName('a');
+					for (j=0;j<hyperlinks.length-1;j++) {
+						if (hyperlinks[j].innerHTML.indexOf("TCP ACAS")>=0) {
+							var EDDindex=j;
+							break;
+						}
+					}
+					var newLink=document.createElement('a');
+					newLink.setAttribute('href','#');
+					newLink.onclick=hyperlinks[j].onclick;
+					
+					//cells[this.colIndex.IconProfile].replaceChild(newLink,objspan);
+					//-- had to change to lines below for T2016
+					var parent=objspan.parentNode;
+					parent.replaceChild(newLink,objspan);
+					
+					newLink.appendChild(objspan);
+				}
+			}
+		}
+	},
+	removeACASIcon: function() {
+		var rows=this.objTable.getElementsByTagName('tr');
+		if (rows.length>0) {
+			for (i=1;i<rows.length;i++) {
+				cells=rows[i].getElementsByTagName('td');
+				imgs = cells[this.colIndex.IconProfile].getElementsByTagName('img');
+				for (j=imgs.length-1;j>=0;j--) {
+					if (imgs[j].title=='TCP ACAS') {
+						imgs[j].parentNode.removeChild(imgs[j]);
+						break;
+					}
+				}
+			}
+		}
+	},
+	ePSAGTCPHeading: function() {
+		var rows=this.objTable.getElementsByTagName('tr');
+		if (rows.length > 1) {
+			var cells=rows[1].getElementsByTagName('td'),
+				icons=new Array(),
+				titles=new Array(),
+				str="",
+				endSeparatorFound=false,
+				spanClass="",
+				spanWidth="",
+				spans=cells[this.colIndex.IconProfile].getElementsByTagName('SPAN'),
+				span=0;
+			while (span<spans.length) {
+				spanClass=spans[span].className;
+				spanWidth=spans[span].style.width;
+				str=str+'<SPAN class="'+spanClass+'" style="display:inline-block;width:'+spanWidth+'">'+spanClass.replace(/_/g," ")+'</span>'
+				span++;
+				spanClass="";
+				spanWidth="";
+			}
+		
+			var imgs=cells[this.colIndex.IconProfile].getElementsByTagName('IMG'),
+				img=0;
+			while ((img<imgs.length) && (endSeparatorFound==false)) {
+				icons[img]=imgs[img].src.split("_")[0] + "_Header.png";
+				titles[img]=imgs[img].title;
+				if (icons[img].toLowerCase().indexOf("separatorend")>=0) {
+					endSeparatorFound=true;
+				}
+				if (img<imgs.length-1) {
+					if (!(imgs[img].src.toLowerCase().indexOf("blank.gif")>=0) && !((imgs[img].src.split("_")[0].toLowerCase().indexOf("separator")>=0) && (imgs[img+1].src.split("_")[0].toLowerCase().indexOf("separatorend")>=0))) {
+						str=str+"<IMG class=\"clsNormalIcon\" style=\"vertical-align: middle\" src=\""+icons[img]+"\" alt="+titles[img]+" />";
+					}
+				}
+				if (img==imgs.length-1) {
+					str=str+"<IMG class=\"clsNormalIcon\" src=\""+icons[img]+"\" alt="+titles[img]+" />";
+				}
+				img++;
+			}
+		
+			var headerRows=this.objTable.getElementsByTagName('tr'),
+				th=headerRows[0].getElementsByTagName('th');
+			th[this.colIndex.IconProfile].style.paddingLeft="3px";
+			th[this.colIndex.IconProfile].innerHTML=str + " Icon Profile";
+		}
+	},
+	getFieldColIndex: function(str) {
+		var mappings = {
+			"Icon Profile": 28 
+		}
+		if (!mappings.hasOwnProperty(str)) return;
+		var rows=this.objTable.getElementsByTagName('th');
+		for (i=0, l=rows.length; i<l; i++) {
+			if (rows[i].id==mappings[str]) return i;
+		}
+		return;
+	},
+	resizeIconProfileCol: function() {
+		var headerRows=this.objTable.getElementsByTagName('tr'),
+			th=headerRows[0].getElementsByTagName('th');
+		th[this.colIndex.IconProfile].style.width="auto";
+	},
+	hideBlankImgs: function() {
+		var images = this.objTable.getElementsByTagName("img");
+		for (var i = 0, l = images.length; i < l; i++) {
+			var image = images[i];
+			if (image.title && (/^TCP (Days|Expected Discharge Date|Brokerage|ACAS Date)$/.test(image.title)||image.title=="Suburb")) {
+				image.style.display = "none";			
+			}
+		}
+	},
+	customLoad: function() {
+		ListDocCurrentLoadHandler();
+	}
+}
+PAADMLDC.init();
+]]></Implementation>
+</Method>
+</Class>
+</Export>

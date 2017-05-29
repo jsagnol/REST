@@ -1,0 +1,159 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.SWARH.JS.MRObservations.EditList">
+<Description>
+Component JavaScript for: MRObservations.EditList</Description>
+<Modified>0</Modified>
+<Super>websys.AbstractJavaScript</Super>
+<TimeCreated>63537,10516.269376</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+This Parameter is updated by Perforce</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/SWARH/JS/MRObservations/EditList.xml#1 $</Default>
+</Parameter>
+
+<Method name="JSContent">
+<Description>
+ </Description>
+<Language>javascript</Language>
+<ClientMethod>1</ClientMethod>
+<Implementation><![CDATA[
+/*#############################################################################################################################################################
+## Created:  2017-03-06 (rpgladman) - Added aestheticsMod																									 ##
+## Modified: 2017-04-28 (rpgladman) - Now uses tkMakeServerCall to retrieve JSON data																		 ##
+#############################################################################################################################################################*/
+
+//###########################################################################################################################################################//
+function aestheticsMod() {
+	var fnDesc='aestheticsMod(): ';
+	
+	// Parse JSON data
+	try {
+		var saOBS = JSON.parse(tkMakeServerCall('Custom.SWARH.web.MRObservations','EditListAestheticsModDataJSON',document.getElementById('EpisodeID').value,document.getElementById('ObsGrpID').value))
+	} catch(error) {
+		SWARH.log(fnDesc+'Failed to parse JSON data ['+error+']');
+		return;
+	}
+
+    // Process column headers
+    try {
+	    var headersNL  = document.getElementById('tMRObservations_EditList').querySelectorAll('th');	// Get all the elements we care about.
+	    var headersArr = [].map.call(headersNL,function(obj){return obj;});								// Convert the nodeList to an array so we can use it
+	    var matchingArr = headersArr.filter(function(el){if (el instanceof Element) {return el;} return false;}).reverse();	// Return all elements
+	    for (var loop=0;loop<matchingArr.length;loop++) {
+	      if (matchingArr[loop].innerText == 'UOM') {													// UOM: Change text to be the 'Normal Reference Range' instead
+	        var saUOMWidth = parseInt(window.getComputedStyle(matchingArr[loop], null).getPropertyValue('width').replace(/[^0-^9]*$/,'')); //Get UOM Column width, we will need this later 
+	        matchingArr[loop].innerHTML        = 'Reference Range';
+	        matchingArr[loop].style.whiteSpace = '';
+	        matchingArr[loop].style.width      = '120px';
+	        matchingArr[loop].style.minWidth   = '120px';
+	      } else if (matchingArr[loop].innerText == 'Lookup Value') {									// Lookup Value: Hide column header
+	        matchingArr[loop].style.display    = 'none';
+	      } else if (matchingArr[loop].innerText == 'Observation Item') {								// Observation Item: Add ColSep class and normalise width
+	        matchingArr[loop].className        = 'ColSep';
+	        var saUOMDivEl                     = document.createElement('div');
+	        saUOMDivEl.style.width             = (parseInt(window.getComputedStyle(matchingArr[loop], null).getPropertyValue('width').replace(/[^0-^9]*$/,''))+saUOMWidth).toString()+'px';
+	        matchingArr[loop].appendChild(saUOMDivEl);
+	      } else if (!!matchingArr[loop].querySelector('.clsComponentTablePrintIcon')) {				// Print Icon: Remove excessive right padding
+		    matchingArr[loop].style.paddingRight = '0px';
+	      }
+	    }
+	} catch(error) {
+    	SWARH.log(fnDesc+'Failed while processing column headers ['+error+']');
+    }
+    
+    
+    // Move Lookups to the Value column and set original TD to display none
+    try {
+	    var lookupsNL  = document.getElementById('tMRObservations_EditList').querySelectorAll('input');	// Get all the elements we care about.
+	    var lookupsArr = [].map.call(lookupsNL,function(obj){return obj;});								// Convert the nodeList to an array so we can use it
+	    var matchingArr = lookupsArr.filter(function(el){if (!!el.id.match(/^OBSLookupValue/) === true && !el.id.match(/[0-9]r[0-9]/) === true) {return el};});
+	    for (var row=0;row<matchingArr.length;row++) {
+	      matchingArr[row].parentElement.parentElement.style.display = 'none';
+	      document.getElementById(matchingArr[row].id.replace('Lookup','')).parentElement.appendChild(matchingArr[row].parentElement);
+	    };
+    } catch(error) {
+    	SWARH.log(fnDesc+'Failed while moving lookup elements to the Value column ['+error+']');
+    }
+    
+    
+    // Move UOM value into a new DIV attached to the Observation Item and fill the Normal Reference Range field
+    try {
+	    var lookupsNL  = document.getElementById('tMRObservations_EditList').querySelectorAll('label');	// Get all the elements we care about.
+	    var lookupsArr = [].map.call(lookupsNL,function(obj){return obj;});								// Convert the nodeList to an array so we can use it
+	    var matchingArr = lookupsArr.filter(function(el){if (!!el.id.match(/^ITMCTUOMDesc/) === true) {return el};});
+	    for (var row=0;row<matchingArr.length;row++) {
+	      tRow            = saOBS.rows[parseInt(matchingArr[row].id.replace(/\D+/g,''))-1];
+	      if (tRow.modifiedRange == true) { 
+	        matchingArr[row].parentElement.insertAdjacentHTML('beforeend', '<span style=\'font-weight:bold; font-style:italic; color:rgb(32,128,224);\' title=\'['+saOBS.rows[row].itemDesc+']&#13;Altered Reference Range: '+tRow.modifiedRangeLow+' - '+tRow.modifiedRangeHigh+'&#13;Normal Reference Range: '+tRow.rangeLow+' - '+tRow.rangeHigh+'\'>'+tRow.modifiedRangeLow+' - '+tRow.modifiedRangeHigh+'</span><br />');
+	      } else if (!!tRow.rangeLow || !!tRow.rangeLow) {
+	        matchingArr[row].parentElement.insertAdjacentHTML('beforeend', '<span>'+tRow.rangeLow+' - '+tRow.rangeHigh+'</span>');
+	      }
+	      matchingArr[row].style.float = 'right';
+	      document.getElementById(matchingArr[row].id.replace('ITMCTUOM','OBS')).parentElement.className = 'ColSep';
+	      document.getElementById(matchingArr[row].id.replace('ITMCTUOM','OBS')).parentElement.appendChild(matchingArr[row]);
+	    }
+    } catch(error) {
+    	SWARH.log(fnDesc+'Failed while moving UOM labels to Observation Item cells and filling Normal Reference Range fields ['+error+']');
+    }
+    
+    // Expand all items - They are closed by default then some cosmetic changes
+    websys_addListener('load','onload',function() {
+    	try {											// Get all currently folded rows as an array
+	    	var expandArr	= [].map.call(document.querySelectorAll('.NestedStub'),function(obj){return obj;}).filter(function(el){return el}); 
+	    	for (var row=0;row<expandArr.length;row++) {expandArr[row].onclick();}
+    	} catch(error) {
+    		SWARH.log('Custom.SWARH.JS.MRObservations.EditList.cls.aestheticsMod_ExpandAllItems(): Failed while attempting to expand all currently folded observation items ['+error+']');
+    	}
+	});
+	
+	// Hide hidden items where required
+	try {
+		var hiddenArr = saOBS.rows.filter(function(fRow) {return fRow.itemHidden === true})		// Only get the hidden ones
+		hiddenArr.map(function(mRow) {
+			var hideEl				= document.getElementById(mRow.elementPrefix+'z'+mRow.itemPrefix+mRow.rowNo); 
+			hideEl.style.visibility	= 'hidden'; 
+			hideEl.value			= ' 0'.substring(0,1+mRow.itemPrefix.length,mRow.itemPrefix.length);
+		});
+	} catch(error) {
+		SWARH.log(fnDesc+'Hiding an item failed with error ['+error+']')
+	}
+}	
+	
+// Aesthetics Modifications
+aestheticsMod();
+	
+	
+//tknoll-miller (SWARH) 2009-09-16 Load authorise script
+var authcfg = {
+   'buttons': [
+      'update1',
+      'Delete'
+   ],
+   'fields': {
+      'username': 'UserCode',
+      'password': 'PIN'
+   }
+};
+
+//tknoll-miller (SWARH) 2009-09-16 Load authorise script
+// Scope variables
+(function() {
+   var loadScript = function(type, src) {
+      var head = document.getElementsByTagName('head')[0];
+      var script = document.createElement('script');
+      script.type = type;
+      script.src = src;
+      head.appendChild(script);
+      websys_addListener('load', 'onload', function(){document.isLoaded=true});
+      return script;
+   };
+
+   loadScript('text/javascript', '../custom/SWARH/scripts/authorise4.js');
+})();
+//end tknoll-miller (SWARH) 2009-09-16 Load authorise script
+]]></Implementation>
+</Method>
+</Class>
+</Export>

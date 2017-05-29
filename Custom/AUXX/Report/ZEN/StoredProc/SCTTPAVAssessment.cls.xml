@@ -1,0 +1,312 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.AUXX.Report.ZEN.StoredProc.SCTTPAVAssessment">
+<Description>
+Report Name: Confidential Referral Coversheet
+Report Code: AUXX.SCTT0001
+TRC Number: 152012</Description>
+<ProcedureBlock>0</ProcedureBlock>
+<Super>Report.Abstract</Super>
+<TimeCreated>62970,48071.923811</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/AUXX/Report/ZEN/StoredProc/SCTTPAVAssessment.xml#1 $</Default>
+</Parameter>
+
+<Method name="PAVClose">
+<Description>
+This is the Close component of the %Library.Query.
+This is standard code and should never have to change.
+This is where all the cleanup is performed, i.e. the purging of the temporary storage global ^CacheTemp.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>QHandle:%Library.Binary</FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+	// Clean up by purging the temporary node in ^CacheTemp global
+	New repid
+	Set repid=$LIST(QHandle,2)
+
+	//Start Monitor (if configured to capture stats)
+	i mon Do ..MonitorEnd(mon)
+
+	Kill ^CacheTemp("TRAK",repid)
+
+	Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="PAVExecute">
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,EpisodeID:%Library.String,ReferralID:%Library.String,ID:%Library.String]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+	// Get reportid i.e. use $INCREMENT to add another node to ^CacheTemp("TRAK") global. 
+	// We use ^CacheTemp global because CACHETEMP is a memory resident database
+	New repid,ind
+
+	// Use $Increment to get the next node and clean up
+	Set repid=$Increment(^CacheTemp("TRAK"))
+	
+	//Start Monitor (if configured to capture stats)
+	s mon=..MonitorBegin()
+	i $g(EpisodeID)'="" s EpisodeID=$zstrip(EpisodeID,"*CW")
+	i $g(ReferralID)'="" s ReferralID=$zstrip(ReferralID,"*CW")
+	i $g(ID)'="" s ID=$zstrip(ID,"*CW")
+
+	
+	s (ClientName,DOB,Sex,UR,qid,AssessingOrg,AssessingPhone,AssessingFax,AssessingEmail)=""
+	s (NokName(1),NOKAddress(1),NokHomePhone(1),NokWorkPhone(1),NokMobilePhone(1),NokRelation(1),NokAddress1(1),NokAddress2(1))=""
+	s (NokName(2),NOKAddress(2),NokHomePhone(2),NokWorkPhone(2),NokMobilePhone(2),NokRelation(2),NokAddress1(2),NokAddress2(2))=""
+	s (NokName(3),NOKAddress(3),NokHomePhone(3),NokWorkPhone(3),NokMobilePhone(3),NokRelation(3),NokAddress1(3),NokAddress2(3))=""
+	s (NokName(4),NOKAddress(4),NokHomePhone(4),NokWorkPhone(4),NokMobilePhone(4),NokRelation(4),NokAddress1(4),NokAddress2(4))=""
+	s adm=EpisodeID
+
+	s PageTitle="PAV Assessment"
+	s PageDesc="To be used by assessment officers from PAV designated organisations to assess, determine and record the eligibility of applicants for the PAV Service"_$c(13,10)
+	s PageSideText="Personal Alert Victoria Assessment"
+
+	i adm {
+		s pat=$p($g(^PAADM(adm)),"^")
+
+		s patobj=##class(User.PAPatMas).%OpenId(pat)
+		i patobj {
+			s ClientName=patobj.PAPMIName_", "_patobj.PAPMIName2
+			s DOB=patobj.PAPMIDOB
+			i DOB s DOB=$zd(DOB,4,,4)
+			s Sex=patobj.PAPMISexDR.CTSEXDesc
+			s UR=patobj.PAPMINo
+			
+			s Name=patobj.PAPMIName2_" "_patobj.PAPMIName
+			s (HomeAddress,HomeAddress1,HomeAddress2,HomeCity,HomeState,HomeZip)=""
+			s HomeAddress1=patobj.PAPMIPAPERDR.PAPERStName.GetAt(1)
+			s HomeAddress2=patobj.PAPMIPAPERDR.PAPERForeignAddress
+			s HomeCity=patobj.PAPMIPAPERDR.PAPERCityCodeDR.CTCITDesc
+			s HomeState=patobj.PAPMIPAPERDR.PAPERCTProvinceDR.PROVDesc
+			s HomeZip=patobj.PAPMIPAPERDR.PAPERZipDR.CTZIPCode
+			
+			s HomeAddress=HomeAddress1_" "_$s($g(HomeAddress2)'="":HomeAddress2_" ",1:"")_HomeCity_" "_HomeState_" "_HomeZip
+			
+			f x=1:1:patobj.ChildPANok.Count() {
+				i patobj.ChildPANok.GetAt(x).NOKDateFrom<=+$h,$s(patobj.ChildPANok.GetAt(x).NOKDateTo="":+$h,1:patobj.ChildPANok.GetAt(x).NOKDateTo)>=+$h {
+					i $e(patobj.ChildPANok.GetAt(x).NOKContactTypeDR.CONTTPCode,1,3)="PAV" {
+						s pav=$e(patobj.ChildPANok.GetAt(x).NOKContactTypeDR.CONTTPCode,4)
+						
+						i "1,2,3,4"[pav {
+							s NokRelation(pav)=patobj.ChildPANok.GetAt(x).NOKRelationDR.CTRLTDesc
+
+							i patobj.ChildPANok.GetAt(x).NOKPAPERDR'="" {
+								s NokName(pav)=patobj.ChildPANok.GetAt(x).NOKPAPERDR.PAPERName2_" "_patobj.ChildPANok.GetAt(x).NOKPAPERDR.PAPERName
+								s NokAddress1(pav)=patobj.ChildPANok.GetAt(x).NOKPAPERDR.PAPERStName.GetAt(1)
+								s NokAddress2(pav)=patobj.ChildPANok.GetAt(x).NOKPAPERDR.PAPERForeignAddress
+								s NokCity(pav)=patobj.ChildPANok.GetAt(x).NOKPAPERDR.PAPERCityCodeDR.CTCITDesc
+								s NokState(pav)=patobj.ChildPANok.GetAt(x).NOKPAPERDR.PAPERCTProvinceDR.PROVDesc
+								s NokZip(pav)=patobj.ChildPANok.GetAt(x).NOKPAPERDR.PAPERZipDR.CTZIPCode
+								
+								s NOKAddress(pav)=$s($g(NokAddress2(pav))'="":NokAddress2(pav)_$c(13,10),1:"")_NokCity(pav)_" "_NokState(pav)_" "_NokZip(pav)
+								
+								s NokHomePhone(pav)=patobj.ChildPANok.GetAt(x).NOKPAPERDR.PAPERTelH
+								s NokWorkPhone(pav)=patobj.ChildPANok.GetAt(x).NOKPAPERDR.PAPERTelO
+								s NokMobilePhone(pav)=patobj.ChildPANok.GetAt(x).NOKPAPERDR.PAPERMolPhone
+							} else {
+								s NokName(pav)=patobj.ChildPANok.GetAt(x).NOKName2_" "_patobj.ChildPANok.GetAt(x).NOKName
+								s NokAddress1(pav)=patobj.ChildPANok.GetAt(x).NOKStNameLine1
+								s NokAddress2(pav)=patobj.ChildPANok.GetAt(x).NOKAddress2
+								s NokCity(pav)=patobj.ChildPANok.GetAt(x).NOKCityCodeDR.CTCITDesc
+								s NokState(pav)=patobj.ChildPANok.GetAt(x).NOKProvinceDR.PROVDesc
+								s NokZip(pav)=patobj.ChildPANok.GetAt(x).NOKZipDR.CTZIPCode
+								
+								s NOKAddress(pav)=$s($g(NokAddress2(pav))'="":NokAddress2(pav)_$c(13,10),1:"")_NokCity(pav)_" "_NokState(pav)_" "_NokZip(pav)
+								
+								s NokHomePhone(pav)=patobj.ChildPANok.GetAt(x).NOKTelH
+								s NokWorkPhone(pav)=patobj.ChildPANok.GetAt(x).NOKTelO
+								s NokMobilePhone(pav)=patobj.ChildPANok.GetAt(x).NOKMobPhone
+							}	
+						}
+					}
+				}
+			}
+			
+			k patobj
+		}
+		i ReferralID'="" {
+			s quescode=0
+			f {
+				s quescode=$o(^PA("DISSUM",ReferralID,"DET",0,"QuestCode1",quescode))
+				q:quescode=""
+				s quesid=0
+				f {
+					s quesid=$o(^PA("DISSUM",ReferralID,"DET",0,"QuestCode1",quescode,quesid))
+					q:quesid=""
+					i quescode="QAUXXSCTPAV" s qid=quesid
+				}
+			}
+		} else {
+			s qid=ID
+		}
+		
+		s qobj=##class(questionnaire.QAUXXSCTPAV).%OpenId(qid)
+		i qobj {
+			s Q01=qobj.Q01
+			s Q02=qobj.Q02
+			s Q03=qobj.Q03
+			s Q04=qobj.Q04
+			s Q05=qobj.Q05
+			s Q06=qobj.Q06
+			s Q07=qobj.Q07
+			s Q08=qobj.Q08
+			s Q09=qobj.Q09
+			s Q10=qobj.Q10
+			s Q11=qobj.Q11
+			s Q12=..GetTextArea(qobj,"12")
+			
+			f x=$l(Q12,$c(13,10)):1:10 {
+				i $l(Q12,$c(13,10))<10 {
+					s Q12=Q12_$c(13,10)
+				}
+			}
+			
+			s Q13=qobj.Q13
+			s Q14=qobj.Q14
+			s Q15=qobj.Q15
+			s Q16=qobj.Q16
+			s Q17=qobj.Q17
+			s Q18=qobj.Q18
+			s Q19=qobj.Q19
+			s Q20=qobj.Q20
+			s Q21=qobj.Q21
+			s Q22=qobj.Q22
+			s Q23=qobj.Q23
+			s Q24=qobj.Q24
+			s Q25=qobj.Q25
+			s Q26=qobj.Q26
+			s Q27=qobj.Q27
+			s Q28=qobj.Q28
+			s Q29=qobj.Q29
+			s Q30=qobj.Q30
+			s Q31=qobj.Q31
+			s Q32=qobj.Q32
+			s Q33=qobj.Q33
+			s Q34=qobj.Q34
+			s Q35C3=..GetTextArea(qobj,"35C3")
+			f x=$l(Q35C3,$c(13,10)):1:3 {
+				i $l(Q35C3,$c(13,10))<3 {
+					s Q35C3=Q35C3_$c(13,10)
+				}
+			}
+			s Q36=qobj.Q36
+			s Q37=qobj.Q37
+			s Q38=qobj.Q38
+			s Q39=qobj.Q39
+			s Q40=qobj.Q40
+			s Q41=qobj.Q41
+			s Q42=qobj.Q42
+			s Q43=qobj.Q43
+			s Q44=qobj.Q44
+			s Q45T=..GetTextArea(qobj,"45T")
+			f x=$l(Q45T,$c(13,10)):1:3 {
+				i $l(Q45T,$c(13,10))<3 {
+					s Q45T=Q45T_$c(13,10)
+				}
+			}
+			s Q46=qobj.Q46
+			s Q47=qobj.Q47
+			s Q48=qobj.Q48
+			s Q49=qobj.Q49
+			s Q50=qobj.Q50
+			s Q51=qobj.Q51
+			s Q52=qobj.Q52
+			s Q53=qobj.Q53
+			s Q54=qobj.Q54
+			s Q55=qobj.Q55
+			s Q58=qobj.Q58
+			s Q59=qobj.Q59
+			i Q59'="" s Q59=$p($g(^CTPCP(Q59,1)),"^",2)
+			
+			s AssessingOrg=qobj.QUESPAAdmDR.PAADMDepCodeDR.CTLOCHospitalDR.HOSPDesc
+			s AssessingPhone=qobj.QUESPAAdmDR.PAADMDepCodeDR.CTLOCTelephone
+			s AssessingFax=qobj.QUESPAAdmDR.PAADMDepCodeDR.CTLOCFax
+			s AssessingEmail=qobj.QUESPAAdmDR.PAADMDepCodeDR.CTLOCEmail
+			
+			k qobj
+			
+			i $g(NOKAddress(1))="" s NOKAddress(1)=$c(13,10)
+			i $g(NOKAddress(2))="" s NOKAddress(2)=$c(13,10)
+			i $g(NOKAddress(3))="" s NOKAddress(3)=$c(13,10)
+			i $g(NOKAddress(4))="" s NOKAddress(4)=$c(13,10)
+			
+			s ind=$i(ind)
+			s ^CacheTemp("TRAK",repid,ind)=$lb("PAV Assessment",PageTitle,PageDesc,PageSideText,ClientName,DOB,Sex,UR,qid,Q01,Q02,Q03,Q04,Q05,Q06,Q07,Q08,Q09,Q10,Q11,Q12,Q13,Q14,Q15,Q16,Q17,Q18,Q19,Q20,Q21,Q22,Q23,Q24,Q25,Q26,Q27,Q28,Q29,Q30,Q31,Q32,Q33,Q34,Q35C3,Q36,Q37,Q38,Q39,Q40,Q41,Q42,Q43,Q44,Q45T,Q46,Q47,Q48,Q49,Q50,Q51,Q52,Q53,Q54,Q55,Q58,Q59,	NokName(1),NOKAddress(1),NokHomePhone(1),NokWorkPhone(1),NokMobilePhone(1),NokRelation(1),NokName(2),NOKAddress(2),NokHomePhone(2),NokWorkPhone(2),NokMobilePhone(2),NokRelation(2),NokName(3),NOKAddress(3),NokHomePhone(3),NokWorkPhone(3),NokMobilePhone(3),NokRelation(3),NokName(4),NOKAddress(4),NokHomePhone(4),NokWorkPhone(4),NokMobilePhone(4),NokRelation(4),Name,HomeAddress,AssessingOrg,AssessingPhone,AssessingFax,AssessingEmail,NokAddress1(1),NokAddress1(2),NokAddress1(3),NokAddress1(4))
+		}
+	}
+
+	// Build QHandle (AtEnd,ReportID,Index)
+	Set QHandle=$LISTBUILD(0,repid,0)
+	Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="PAVFetch">
+<Description>
+This is the Fetch component of the %Library.Query. 
+This should never have to change. It is designed to fetch the row for each subscript of the 
+^CacheTemp("TRAK" global and return this row to the Report writer</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,&Row:%Library.List,&AtEnd:%Library.Integer=0]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+	// This fetch method should never have to change. 
+	// repid - Report ID
+	// ind   - sequence index which represents each row
+	New repid,ind
+
+	// Restore QHandle
+	Set AtEnd=$LI(QHandle,1)
+	Set repid=$LI(QHandle,2)
+	Set ind=$LI(QHandle,3)
+
+	Set ind=$order(^CacheTemp("TRAK",repid,ind))
+	If ind="" {	// if there are no more rows, finish fetching
+		Set AtEnd=1
+		Set Row=""
+	} else {	// fetch row
+		Set Row=^CacheTemp("TRAK",repid,ind)
+	}
+
+	// Save QHandle
+	Set QHandle=$lb(AtEnd,repid,ind)
+	Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Query name="PAV">
+<Description>
+This is the Stored Procedure Template. For Sample use only.
+It expects one parameter of type integer and will return 4 fields:
+Field1 - Integer
+Field2 - String
+Field3 - Date
+Field4 - Time</Description>
+<Type>%Library.Query</Type>
+<FormalSpec>EpisodeID:%Library.String,ReferralID:%Library.String,ID:%Library.String</FormalSpec>
+<SqlProc>1</SqlProc>
+<Parameter name="CONTAINID" value="0"/>
+<Parameter name="ROWSPEC" value="FormCode:%String,PageTitle:%String,PageDesc:%String,PageSideText:%String,ClientName:%String,DOB:%String,Sex:%String,UR:%String,qid:%String,Q01:%String,Q02:%String,Q03:%String,Q04:%String,Q05:%String,Q06:%String,Q07:%String,Q08:%String,Q09:%String,Q10:%String,Q11:%String,Q12:%String,Q13:%String,Q14:%String,Q15:%String,Q16:%String,Q17:%String,Q18:%String,Q19:%String,Q20:%String,Q21:%String,Q22:%String,Q23:%String,Q24:%String,Q25:%String,Q26:%String,Q27:%String,Q28:%String,Q29:%String,Q30:%String,Q31:%String,Q32:%String,Q33:%String,Q34:%String,Q35C3:%String,Q36:%String,Q37:%String,Q38:%String,Q39:%String,Q40:%String,Q41:%String,Q42:%String,Q43:%String,Q44:%String,Q45T:%String,Q46:%String,Q47:%String,Q48:%String,Q49:%String,Q50:%String,Q51:%String,Q52:%String,Q53:%String,Q54:%String,Q55:%String,Q58:%String,Q59:%String,NokName1:%String,NOKAddress12:%String,NokHomePhone1:%String,NokWorkPhone1:%String,NokMobilePhone1:%String,NokRelation1:%String,NokName2:%String,NOKAddress22:%String,NokHomePhone2:%String,NokWorkPhone2:%String,NokMobilePhone2:%String,NokRelation2:%String,NokName3:%String,NOKAddress32:%String,NokHomePhone3:%String,NokWorkPhone3:%String,NokMobilePhone3:%String,NokRelation3:%String,NokName4:%String,NOKAddress42:%String,NokHomePhone4:%String,NokWorkPhone4:%String,NokMobilePhone4:%String,NokRelation4:%String,Name:%String,HomeAddress:%String,AssessingOrg:%String,AssessingPhone:%String,AssessingFax:%String,AssessingEmail:%String,NokAddress1:%String,NokAddress2:%String,NokAddress3:%String,NokAddress4:%String"/>
+</Query>
+
+<Method name="GetTextArea">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>obj:%CacheObject,num:%String</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	s text=""
+	f z=1:1:$METHOD($PROPERTY(obj,"Q"_num),"Count") {
+		i text'="" s text=text_$c(13,10)_$METHOD($PROPERTY(obj,"Q"_num),"GetAt",z)
+		i text="" s text=$METHOD($PROPERTY(obj,"Q"_num),"GetAt",z)
+	}
+	q text
+]]></Implementation>
+</Method>
+</Class>
+</Export>

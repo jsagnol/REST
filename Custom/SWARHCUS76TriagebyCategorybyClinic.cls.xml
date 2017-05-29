@@ -1,0 +1,301 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.SWARHCUS76TriagebyCategorybyClinic">
+<Description>
+Triage by Category by Clinic</Description>
+<ClassType/>
+<ProcedureBlock>0</ProcedureBlock>
+<Super>%Library.RegisteredObject</Super>
+<TimeCreated>61237,32775.631504</TimeCreated>
+
+<Method name="TriagebyCategorybyClinicClose">
+<Description>
+This is the Close component of the %Library.Query.
+This is standard code and should never have to change.
+This is where all the cleanup is performed, i.e. the purging of the temporary storage global ^CacheTemp.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>QHandle:%Library.Binary</FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Clean up by purging the temporary node in ^CacheTemp global
+ New repid
+ Set repid=$li(QHandle,2)
+ Kill ^CacheTemp(repid)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="TriagebyCategorybyClinicExecute">
+<Description>
+This is the Execute section for the %Library.Query. 
+All of the logic will be performed here.
+A new node for the ^CacheTemp global will be created and each subscript of this global will contain
+a row for the report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,DateFrom:%Date,DateTo:%Date,Hospital:%Integer,TriageCategory:%Integer,Clinic:%Integer]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+	
+ k ^zbernard	
+ // Get reportid i.e. use $INCREMENT to add another node to ^CacheTemp global. 
+ // We use ^CacheTemp global because it will always use memory before disk
+ New repid,ind
+
+ // Use $Increment to get the next node
+ Set repid=$I(^CacheTemp)
+ s ^zBernard("1")=(1)
+
+ // Build data into ^CacheTemp(ReportID)
+ // e.g. Set ^CacheTemp(ReportID,Index)=$LB(f1,f2,f3)
+ New Number,String,Date,Time,c,n
+ n PAADMAdmDate,PAADMTriageDate,PAADMTriageTime,PAADMSeenDate,PAADMSeenTime,CTACUCode,CTACUDesc,PAPMINo,HOSPDesc,CTPCPCode,CLNDesc
+ s (PAPMINo)=0
+ s (PAADMAdmDate,PAADMTriageDate,PAADMTriageTime,PAADMSeenDate,PAADMSeenTime,CTACUCode,CTACUDesc,HOSPDesc,CTPCPCode,CLNDesc)=""
+
+ s ind=1
+
+ //Convert ODBC dates to cache format
+ s DateFrom=$$intdate^SSUTIL4(DateFrom)
+ s DateTo=$$intdate^SSUTIL4(DateTo)
+
+ //s ^bernard("2")=(2)
+
+ &sql(declare TriagebyCategorybyClinic cursor for
+ SELECT 
+  	PAADM_AdmDate,
+  	PAADM_TriageDate,
+ 	PAADM_TriageTime,
+ 	PAADM_SeenDate,
+ 	PAADM_SeenTime,
+ 	PAADM_Priority_DR->CTACU_Code,
+ 	PAADM_Priority_DR->CTACU_Desc,
+ 	PAADM_PAPMI_DR->PAPMI_No,
+ 	PAADM_Hospital_DR->HOSP_Desc,
+ 	PAADM_AdmDocCodeDR->CTPCP_Code,
+ 	CLN_Clinic_DR->CLN_Desc
+ 	
+  
+ FROM
+  	SQLUser.PA_Adm,
+ 	SQLUser.PAC_RefDoctor,
+ 	SQLUser.PAC_RefDoctorClinic
+ 
+ WHERE
+ 	PAADM_AdmDocCodeDR->CTPCP_Code=REFD_Code
+ 	AND REFD_RowID=CLN_ParRef
+ 	AND PAADM_AdmDate between :DateFrom and :DateTo
+ 	AND PAADM_Hospital_DR=:Hospital
+ 	AND PAADM_Priority_DR=:TriageCategory
+ 	AND CLN_Clinic_DR->CLN_RowID=:Clinic
+ 
+ )
+ 
+ &sql(open TriagebyCategorybyClinic)
+
+
+ //fetch first row
+ &sql(fetch TriagebyCategorybyClinic into :PAADMAdmDate,:PAADMTriageDate,:PAADMTriageTime,:PAADMSeenDate,:PAADMSeenTime,:CTACUCode,:CTACUDesc,:PAPMINo,:HOSPDesc,:CTPCPCode,:CLNDesc)
+
+ while 'SQLCODE{
+ d FormatDates
+ d FormatTimes
+
+ // build the row
+ Set ^CacheTemp(repid,ind)=$LB(PAADMAdmDate,PAADMTriageDate,PAADMTriageTime,PAADMSeenDate,PAADMSeenTime,CTACUCode,CTACUDesc,PAPMINo,HOSPDesc,CTPCPCode,CLNDesc)
+ s ind=ind+1
+ //fetch rows
+ &sql(fetch TriagebyCategorybyClinic into :PAADMAdmDate,:PAADMTriageDate,:PAADMTriageTime,:PAADMSeenDate,:PAADMSeenTime,:CTACUCode,:CTACUDesc,:PAPMINo,:HOSPDesc,:CTPCPCode,:CLNDesc)
+ }
+
+ //s ^zBernard("3")=(3)
+ &sql(close TriagebyCategorybyClinic)
+
+ // Build QHandle (AtEnd,ReportID,Index)
+ Set QHandle=$lb(0,repid,0)
+
+ //s ^zBernard("4")=(4)
+ Quit $$$OK
+
+
+FormatDates
+ // Convert the dates to ODBC date format
+ If PAADMAdmDate Set PAADMAdmDate=$ZD(PAADMAdmDate,3)
+ If PAADMTriageDate Set PAADMTriageDate=$ZD(PAADMTriageDate,3)
+ If PAADMSeenDate Set PAADMSeenDate=$ZD(PAADMSeenDate,3)
+
+ //s ^zBernard("5")=(5)
+ Quit
+
+FormatTimes
+ // Convert the times to ODBC time format
+ If PAADMTriageTime Set PAADMTriageTime=$ZT(PAADMTriageTime,2)
+ If PAADMSeenTime Set PAADMSeenTime=$ZT(PAADMSeenTime,2)
+ Quit
+]]></Implementation>
+</Method>
+
+<Method name="TriagebyCategorybyClinicFetch">
+<Description>
+This is the Fetch component of the %Library.Query. 
+This should never have to change. It is designed to fetch the row for each subscript of the ^CacheTemp
+global and return this row to the Crystal Report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,&Row:%Library.List,&AtEnd:%Library.Integer=0]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // This fetch method should never have to change. 
+
+ // repid - Report ID
+ // ind   - sequence index which represents each row
+
+ New repid,ind
+
+ // Restore QHandle
+ Set AtEnd=$li(QHandle,1)
+ Set repid=$li(QHandle,2)
+ Set ind=$li(QHandle,3)
+
+ Set ind=$o(^CacheTemp(repid,ind))
+ If ind="" {	// if there are no more rows, finish fetching
+ Set AtEnd=1
+ Set Row=""
+ }
+ Else      {	// fetch row
+ Set Row=^CacheTemp(repid,ind)
+ }
+
+ // Save QHandle
+ s QHandle=$lb(AtEnd,repid,ind)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Query name="TriagebyCategorybyClinic">
+<Description>
+GHA List reports Stored Procedure
+It expects 2 parameter of type date and will return a list of records:
+Field1 - Integer
+Field2 - String(MAXLEN=255)
+Field3 - Date
+Field4 - Time</Description>
+<Type>%Library.Query</Type>
+<FormalSpec>DateFrom:%Date,DateTo:%Date,Hospital:%Library.Integer,TriageCategory:%Library.Integer,Clinic:%Library.Integer</FormalSpec>
+<SqlProc>1</SqlProc>
+<Parameter name="CONTAINID" value="0"/>
+<Parameter name="ROWSPEC" value="PAADMAdmDate:%Date,PAADMTriageDate:%Date,PAADMTriageTime:%String(MAXLEN=255),PAADMSeenDate:%Date,PAADMSeenTime:%String(MAXLEN=255),CTACUCode:%String(MAXLEN=255),CTACUDesc:%String(MAXLEN=255),PAPMINo:%Integer,HOSPDesc:%String(MAXLEN=255),CTPCPCode:%String(MAXLEN=255),CLNDesc:%String(MAXLEN=255)"/>
+<Parameter name="SELECTMODE" value="ODBC"/>
+</Query>
+
+<Query name="LookUpHospital">
+<Description>
+Lookup on Hospital returning all active services</Description>
+<Type>%Library.SQLQuery</Type>
+<FormalSpec>Hospital:%String</FormalSpec>
+<SqlQuery><![CDATA[SELECT HOSP_Desc, HOSP_RowId, HOSP_Code
+FROM SQLUser.CT_Hospital
+WHERE ((%ALPHAUP HOSP_Desc %STARTSWITH %ALPHAUP :Hospital) OR (%ALPHAUP HOSP_Code %STARTSWITH %ALPHAUP :Hospital))
+AND (HOSP_DateFrom <= CURRENT_DATE)
+AND ((HOSP_DateTo IS NULL) OR (HOSP_DateTo >= CURRENT_DATE))
+ORDER BY HOSP_Desc]]></SqlQuery>
+<Parameter name="CONTAINID" value="2"/>
+<Parameter name="ROWSPEC" value="Description:%String,HIDDEN:%String,Code:%String"/>
+</Query>
+
+<Method name="LookUpBrokerHospital">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>itmjs:%Library.String="",itmjsex:%Library.String="",Hospital:%Library.String=""</FormalSpec>
+<Implementation><![CDATA[
+ n id,code,desc,activedate
+
+ s (id,code,desc)=""
+
+ ; Try and find a matching code
+ &sql(SELECT	HOSP_Desc, HOSP_RowId, HOSP_Code
+ INTO	:desc, :id, :code
+ FROM	SQLUser.CT_Hospital
+ WHERE	((%ALPHAUP HOSP_Desc = %ALPHAUP :Hospital) OR (%ALPHAUP HOSP_Code = %ALPHAUP :Hospital))
+ AND (HOSP_DateFrom <= CURRENT_DATE)
+ AND ((HOSP_DateTo IS NULL) OR (HOSP_DateTo >= CURRENT_DATE))
+ )
+ ;
+ i SQLCODE s desc=Hospital q 0
+ s retval=itmjs_"('"_$ZCVT(desc,"O","JS")_"');"
+ i itmjsex'="""" s retval=retval_itmjsex_"('"_$ZCVT(desc,"O","JS")_"^"_id_"^"_$ZCVT(code,"O","JS")_"');"
+ &javascript<#(retval)#>
+ q 1
+]]></Implementation>
+</Method>
+
+<Query name="LookUpTriageCategory">
+<Description>
+Lookup on TriageCategory </Description>
+<Type>%Library.SQLQuery</Type>
+<FormalSpec>TriageCategory:%String</FormalSpec>
+<SqlQuery>SELECT CTACU_Desc, CTACU_RowId, CTACU_Code 
+FROM SQLUser.CT_Acuity
+WHERE ((%ALPHAUP CTACU_Desc %STARTSWITH %ALPHAUP :TriageCategory) OR (%ALPHAUP CTACU_Code %STARTSWITH %ALPHAUP :TriageCategory))
+ORDER BY CTACU_Desc</SqlQuery>
+<Parameter name="CONTAINID" value="2"/>
+<Parameter name="ROWSPEC" value="Description:%String,HIDDEN:%String,Code:%String"/>
+</Query>
+
+<Method name="LookUpBrokerTriageCategory">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>itmjs:%Library.String="",itmjsex:%Library.String="",TriageCategory:%Library.String=""</FormalSpec>
+<Implementation><![CDATA[
+ n id1,code1,desc1
+
+ s (id1,code1,desc1)=""
+
+ ; Try and find a matching code
+ &sql(SELECT	 CTACU_Desc, CTACU_Code, CTACU_RowId
+ INTO	:desc1, :code1, :id1
+ FROM	SQLUser.CT_Acuity
+ WHERE	((%ALPHAUP CTACU_Desc = %ALPHAUP :TriageCategory) OR (%ALPHAUP CTACU_Code = %ALPHAUP :TriageCategory))
+ )
+ ;
+ i SQLCODE s desc1=TriageCategory q 0
+ s retval=itmjs_"('"_$ZCVT(desc1,"O","JS")_"');"
+ i itmjsex'="""" s retval=retval_itmjsex_"('"_$ZCVT(desc1,"O","JS")_"^"_id1_"^"_$ZCVT(code1,"O","JS")_"');"
+ &javascript<#(retval)#>
+ q 1
+]]></Implementation>
+</Method>
+
+<Query name="LookUpClinic">
+<Description>
+Lookup on Cinics </Description>
+<Type>%Library.SQLQuery</Type>
+<FormalSpec>Clinic:%String</FormalSpec>
+<SqlQuery>SELECT CLN_Desc, CLN_RowId, CLN_Code 
+FROM SQLUser.PAC_Clinic
+WHERE ((%ALPHAUP CLN_Desc %STARTSWITH %ALPHAUP :Clinic) OR (%ALPHAUP CLN_Code %STARTSWITH %ALPHAUP :Clinic))
+ORDER BY CLN_Desc</SqlQuery>
+<Parameter name="CONTAINID" value="2"/>
+<Parameter name="ROWSPEC" value="Description:%String,HIDDEN:%String,Code:%String"/>
+</Query>
+
+<Method name="LookUpBrokerClinic">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>itmjs:%Library.String="",itmjsex:%Library.String="",Clinic:%Library.String=""</FormalSpec>
+<Implementation><![CDATA[
+ n id,code,desc
+
+ s (id,code,desc)=""
+
+ ; Try and find a matching code
+ &sql(SELECT	 CLN_Desc, CLN_Code, CLN_RowId
+ INTO	:desc, :code, :id
+ FROM	SQLUser.PAC_Clinic
+ WHERE	((%ALPHAUP CLN_Desc = %ALPHAUP :Clinic) OR (%ALPHAUP CLN_Code = %ALPHAUP :Clinic))
+ )
+ ;
+ i SQLCODE s desc=Clinic q 0
+ s retval=itmjs_"('"_$ZCVT(desc,"O","JS")_"');"
+ i itmjsex'="""" s retval=retval_itmjsex_"('"_$ZCVT(desc,"O","JS")_"^"_id_"^"_$ZCVT(code,"O","JS")_"');"
+ &javascript<#(retval)#>
+ q 1
+]]></Implementation>
+</Method>
+</Class>
+</Export>

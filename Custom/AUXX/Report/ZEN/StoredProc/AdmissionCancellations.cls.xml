@@ -1,0 +1,219 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.AUXX.Report.ZEN.StoredProc.AdmissionCancellations">
+<ProcedureBlock>0</ProcedureBlock>
+<Super>Report.Abstract</Super>
+<TimeCreated>60873,57869</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/AUXX/Report/ZEN/StoredProc/AdmissionCancellations.xml#1 $</Default>
+</Parameter>
+
+<UDLText name="T">
+<Content><![CDATA[
+// Report Name: Admission Cancellations <br>
+
+]]></Content>
+</UDLText>
+
+<UDLText name="T">
+<Content><![CDATA[
+// Report Code: Trak.AdmissionCancellations <br>
+
+]]></Content>
+</UDLText>
+
+<UDLText name="T">
+<Content><![CDATA[
+// LOGTRAK Number: 72130 <br>
+
+]]></Content>
+</UDLText>
+
+<Method name="AdmissionCancellationsClose">
+<Description>
+This is the Close component of the %Library.Query.
+This is standard code and should never have to change.
+This is where all the cleanup is performed, i.e. the purging of the temporary storage global ^CacheTemp.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>QHandle:%Library.Binary</FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Clean up by purging the temporary node in ^CacheTemp global
+ New repid
+ Set repid=$li(QHandle,2)
+ 
+ //Start Monitor (if configured to capture stats)
+ i mon Do ..MonitorEnd(mon)
+
+ Kill ^CacheTemp("TRAK",repid)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="AdmissionCancellationsExecute">
+<Description>
+This is the Execute section for the %Library.Query. 
+All of the logic will be performed here.
+A new node for the ^CacheTemp global will be created and each subscript of this global will contain
+a row for the report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,DateFrom:%Date,DateTo:%Date,Hospital:%String,Location:%String]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Get reportid i.e. use $INCREMENT to add another node to ^CacheTemp global. 
+ // We use ^CacheTemp global because it will always use memory before disk
+ New repid,ind, END, END1, index, counter
+
+ // Use $Increment to get the next node
+ Set repid=$I(^CacheTemp("TRAK"))
+ 
+ //Start Monitor (if configured to capture stats)
+ s mon=..MonitorBegin()
+  
+ // Build data into ^CacheTemp(ReportID)
+ // e.g. Set ^CacheTemp(ReportID,Index)=$LB(f1,f2,f3)
+ New PAADMRowID,PAADMAdmNo,PAADMAdmDate,PAADMDischgDate,PAPMIRowID,PAPMIName,PAPMIName2,PAPMIName3,PAPMIVIPFlag,CTSEXCode,ADMCRCode,ADMCRDesc,CTLOCCode,CTLOCDesc,AUDDate,SSUSRInitials,SSUSRName,HOSPRowID,HOSPDesc,URNNo,TRANSChildSub,AdmSSUSRInitials,AdmSSUSRName
+
+ Set (PAADMRowID,PAADMAdmNo,PAADMAdmDate,PAADMDischgDate,PAPMIRowID,PAPMIName,PAPMIName2,PAPMIName3,PAPMIVIPFlag,CTSEXCode,ADMCRCode,ADMCRDesc,CTLOCCode,CTLOCDesc,AUDDate,SSUSRInitials,SSUSRName,HOSPRowID,HOSPDesc,URNNo,TRANSChildSub,AdmSSUSRInitials,AdmSSUSRName)=""
+ 
+ n AUDRowId,FLDChildsub,auditdate,SSUSRRowId,Date,WARDCode
+ s (AUDRowId,FLDChildsub,auditdate,SSUSRRowId,Date,WARDCode)=""
+ 
+ //Convert ODBC dates to cache format
+ s DateFrom=..ConvertDateToCache(DateFrom)
+ s DateTo=..ConvertDateToCache(DateTo)
+  
+ // Strip white space/control chars from blank variables
+ i $g(Hospital)'="" s Hospital=$ZSTRIP(Hospital,"*WC")
+ i $g(Location)'="" s Location=$ZSTRIP(Location,"*WC")
+ 
+ do GetCancelledAdmissions
+ 
+ // Build QHandle (AtEnd,ReportID,Index)
+ Set QHandle=$lb(0,repid,0)
+ Quit $$$OK 
+  
+ //Get all cancelled admissions
+GetCancelledAdmissions
+ &SQL(DECLARE CAN CURSOR FOR
+ SELECT paadm_rowid,
+ paadm_admno,
+ paadm_admdate,
+ paadm_dischgdate,
+ paadm_papmi_dr->papmi_rowid,
+ paadm_papmi_dr->papmi_no,
+ paadm_papmi_dr->papmi_name,
+ paadm_papmi_dr->papmi_name2,
+ paadm_papmi_dr->papmi_name3,
+ paadm_papmi_dr->papmi_vipflag,
+ paadm_papmi_dr->papmi_sex_dr->ctsex_code,
+ paadm_cancelreason_dr->admcr_code,
+ paadm_cancelreason_dr->admcr_desc,
+ paadm_depcode_dr->ctloc_code,
+ paadm_depcode_dr->ctloc_Desc,
+ PAADM_CurrentWard_DR->WARD_LocationDR->CTLOC_Hospital_DR->HOSP_RowId,
+ PAADM_CurrentWard_DR->WARD_LocationDR->CTLOC_Hospital_DR->hosp_desc,
+ paadm_currentward_dr->ward_code
+ into :PAADMRowID,:PAADMAdmNo,:PAADMAdmDate,:PAADMDischgDate,:PAPMIRowID,:URNNo,:PAPMIName,:PAPMIName2,:PAPMIName3,:PAPMIVIPFlag,:CTSEXCode,:ADMCRCode,:ADMCRDesc,:CTLOCCode,:CTLOCDesc,:HOSPRowID,:HOSPDesc,:WARDCode
+ FROM sqluser.PA_Adm
+ WHERE paadm_type = 'I'
+ AND paadm_visitstatus = 'C'
+ AND PAADM_AdmDate BETWEEN :DateFrom AND :DateTo
+ AND (({fn CONCAT( ',', {fn CONCAT((:Hospital),',')})} [ {fn CONCAT( ',', {fn CONCAT((PAADM_CurrentWard_DR->WARD_LocationDR->CTLOC_Hospital_DR->HOSP_RowId),',')})}) OR (:Hospital IS NULL))
+ AND (({fn CONCAT( ',', {fn CONCAT((:Location),',')})} [ {fn CONCAT( ',', {fn CONCAT((paadm_depcode_dr->CTLOC_RowId),',')})}) OR (:Location IS NULL)))
+ 
+  &SQL(OPEN CAN) 
+ f  &SQL(fetch CAN) quit:SQLCODE'=0  d
+
+ . do GetOrigAdmissionDetails
+ . do GetCancelDetails
+ . do FormatDates
+ . do BuildRow
+ 
+ &SQL(CLOSE CAN)
+ quit
+
+GetCancelDetails
+ s (auditdate,AUDRowId,FLDChildsub,SSUSRRowId,SSUSRInitials,SSUSRName,AUDDate)=""
+ s auditdate=0 f  s auditdate=$o(^AUD(0,"TableRow","PAADM",PAADMRowID,auditdate)) q:auditdate=""  d
+ . s AUDRowId=0 f  s AUDRowId=$o(^AUD(0,"TableRow","PAADM",PAADMRowID,auditdate,AUDRowId)) q:AUDRowId=""  d
+ . . s FLDChildsub=0 f  s FLDChildsub=$o(^AUD(AUDRowId,"FLD",FLDChildsub)) q:FLDChildsub=""  d
+ . . . i $p($g(^AUD(AUDRowId,"FLD",FLDChildsub)),"^",1)="PAADM_VisitStatus",$$CO5^at1728(AUDRowId_"||"_FLDChildsub)="C" d
+ . . . . s SSUSRRowId=$p($g(^AUD(AUDRowId)),"^",7)
+ . . . . i auditdate'="" s AUDDate=auditdate
+ . . . . i SSUSRRowId'="" s SSUSRInitials=$p($g(^SSU("SSUSR",SSUSRRowId)),"^",1),SSUSRName=$p($g(^SSU("SSUSR",SSUSRRowId)),"^",2)
+ q
+
+GetOrigAdmissionDetails
+ s (auditdate,AUDRowId,FLDChildsub,SSUSRRowId,AdmSSUSRInitials,AdmSSUSRName)=""
+ s auditdate=0 f  s auditdate=$o(^AUD(0,"TableRow","PAADM",PAADMRowID,auditdate)) q:auditdate=""  d
+ . s AUDRowId=0 f  s AUDRowId=$o(^AUD(0,"TableRow","PAADM",PAADMRowID,auditdate,AUDRowId)) q:AUDRowId=""  d
+ . . s FLDChildsub=0 f  s FLDChildsub=$o(^AUD(AUDRowId,"FLD",FLDChildsub)) q:FLDChildsub=""  d
+ . . . i $p($g(^AUD(AUDRowId,"FLD",FLDChildsub)),"^",1)="PAADM_VisitStatus",$p($g(^AUD(AUDRowId,"FLD",FLDChildsub)),"^",2)="A" d
+ . . . . s SSUSRRowId=$p($g(^AUD(AUDRowId)),"^",7)
+ . . . . i SSUSRRowId'="" s AdmSSUSRInitials=$p($g(^SSU("SSUSR",SSUSRRowId)),"^",1),AdmSSUSRName=$p($g(^SSU("SSUSR",SSUSRRowId)),"^",2)
+ q
+
+FormatDates
+ // Convert the dates to ODBC date format
+ If PAADMAdmDate s PAADMAdmDate=..ConvertDateToODBC(PAADMAdmDate)
+ If PAADMDischgDate s PAADMDischgDate=..ConvertDateToODBC(PAADMDischgDate)
+ If AUDDate s AUDDate=..ConvertDateToODBC(AUDDate)
+ Quit
+
+BuildRow
+ // build the row
+ s ind=$i(ind)
+ Set ^CacheTemp("TRAK",repid,$ZCVT(HOSPDesc,"U")_" "_$ZCVT(CTLOCDesc,"U")_" "_$ZCVT(PAPMIName,"U")_" "_$ZCVT(PAPMIName2,"U")_" "_$ZCVT(PAPMIName3,"U")_PAADMAdmNo_ind)=$LB(URNNo,PAADMRowID,PAADMAdmNo,PAADMAdmDate,AdmSSUSRInitials,AdmSSUSRName,PAADMDischgDate,PAPMIRowID,PAPMIName,PAPMIName2,PAPMIName3,PAPMIVIPFlag,CTSEXCode,ADMCRCode,ADMCRDesc,CTLOCCode,CTLOCDesc,AUDDate,SSUSRInitials,SSUSRName,HOSPRowID,HOSPDesc,WARDCode)
+ quit
+]]></Implementation>
+</Method>
+
+<Method name="AdmissionCancellationsFetch">
+<Description>
+This is the Fetch component of the %Library.Query.
+This should never have to change. It is designed to fetch the row for each subscript of the ^CacheTemp
+global and return this row to the Crystal Report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,&Row:%Library.List,&AtEnd:%Library.Integer=0]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // This fetch method should never have to change. 
+
+ // repid - Report ID
+ // ind   - sequence index which represents each row
+
+ New repid,ind
+
+ // Restore QHandle
+ Set AtEnd=$li(QHandle,1)
+ Set repid=$li(QHandle,2)
+ Set ind=$li(QHandle,3)
+
+ Set ind=$o(^CacheTemp("TRAK",repid,ind))
+ If ind="" {	// if there are no more rows, finish fetching
+ Set AtEnd=1
+ Set Row=""
+ }
+ Else      {	// fetch row
+ Set Row=^CacheTemp("TRAK",repid,ind)
+ }
+
+ // Save QHandle
+ s QHandle=$lb(AtEnd,repid,ind)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Query name="AdmissionCancellations">
+<Type>%Library.Query</Type>
+<FormalSpec>DateFrom:%Date,DateTo:%Date,Hospital:%String,Location:%String</FormalSpec>
+<SqlProc>1</SqlProc>
+<Parameter name="CONTAINID" value="0"/>
+<Parameter name="ROWSPEC" value="URNNo:%String(MAXLEN=255),PAADMRowID:%Integer,PAADMAdmNo:%String(MAXLEN=255),PAADMAdmDate:%Date,AdmSSUSRInitials:%String(MAXLEN=255),AdmSSUSRName:%String(MAXLEN=255),PAADMDischgDate:%Date,PAPMIRowID:%Integer,PAPMIName:%String(MAXLEN=255),PAPMIName2:%String(MAXLEN=255),PAPMIName3:%String(MAXLEN=255),PAPMIVIPFlag:%String(MAXLEN=255),CTSEXCode:%String(MAXLEN=255),ADMCRCode:%String(MAXLEN=255),ADMCRDesc:%String(MAXLEN=255),CTLOCCode:%String(MAXLEN=255),CTLOCDesc:%String(MAXLEN=255),AUDDate:%Date,SSUSRInitials:%String(MAXLEN=255),SSUSRName:%String(MAXLEN=255),HOSPRowID:%Integer,HOSPDesc:%String(MAXLEN=255),WARDCode:%String(MAXLEN=255)"/>
+</Query>
+</Class>
+</Export>

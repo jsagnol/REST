@@ -1,0 +1,202 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.SWARH.Report.RptSvc.StoredProc.SWARHRATD1022">
+<Description>
+Class for SWARHRATD1022 Episodes All Hospital Deceased</Description>
+<ClassType/>
+<ProcedureBlock>0</ProcedureBlock>
+<Super>%Library.RegisteredObject</Super>
+<TimeCreated>60905,54849</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/SWARH/Report/RptSvc/StoredProc/SWARHRATD1022.xml#1 $</Default>
+</Parameter>
+
+<UDLText name="T">
+<Content><![CDATA[
+// Report Name: Deceased Patients with Current Episodes <br>
+
+]]></Content>
+</UDLText>
+
+<Method name="SWARHRATD1022Close">
+<Description>
+This is the Close component of the %Library.Query.
+This is standard code and should never have to change.
+This is where all the cleanup is performed, i.e. the purging of the temporary storage global ^CacheTemp.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>QHandle:%Library.Binary</FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Clean up by purging the temporary node in ^CacheTemp global
+ New repid
+ Set repid=$li(QHandle,2)
+ Kill ^CacheTemp("TRAK",repid)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="SWARHRATD1022Execute">
+<Description>
+This is the Execute section for the %Library.Query. 
+All of the logic will be performed here.
+A new node for the ^CacheTemp global will be created and each subscript of this global will contain
+a row for the report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,DateFrom:%Date,DateTo:%Date]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ k ^zbernard	
+ // Get reportid i.e. use $INCREMENT to add another node to ^CacheTemp global. 
+ // We use ^CacheTemp global because it will always use memory before disk
+ New repid,ind
+
+ // Use $Increment to get the next node
+ Set repid=$I(^CacheTemp)
+ s ^zBernard("1")=(1)
+ 
+ // Build data into ^CacheTemp(ReportID)
+ // e.g. Set ^CacheTemp(ReportID,Index)=$LB(f1,f2,f3)
+ 
+ new Number,String,Date,Time,c,n
+ new PAADMAdmDate,PAADMADMNo,PAPMINo,PAPMIName,PAPMIName2,PAPMIName3,PAPMIDOB,Sex,SteetName,City,PostCode,HospRowId,HOSPDesc,CTLOCRowId,ctloccode,ctlocDesc,WARDRowId,wardcode,wardLocationDR,PAPERDeceasedDate,PAPERDeceasedTime,PAADMAdmDocCodeDR,CTPCPCode,CTPCPDesc,PAADMCurrentBedDR,BEDCode,PAADMType,DeathDate,DeathTime
+ set (HOSPRowId,CTLOCRowId,WARDRowId,WARDLocationDR)=0
+ set (PAADMAdmDate,PAADMADMNo,PAPMINo,PAPMIName,PAPMIName2,PAPMIName3,PAPMIDOB,Sex,SteetName,City,PostCode,HOSPDesc,ctloccode,ctlocDesc,wardcode,PAPERDeceasedDate,PAPERDeceasedTime,PAADMAdmDocCodeDR,CTPCPCode,CTPCPDesc,PAADMCurrentBedDR,BEDCode,PAADMType,DeathDate,DeathTime)=""
+ 
+ s ind=1 
+ 
+ //Convert ODBC dates to cache format
+ s DateFrom=$$intdate^SSUTIL4(DateFrom)
+ s DateTo=$$intdate^SSUTIL4(DateTo)
+
+ &sql(declare SWARHRATD1022 cursor for
+ SELECT DISTINCT
+ PAADM_AdmDate,
+ PAADM_ADMNo,   
+ PAADM_PAPMI_DR->PAPMI_No,
+ {fn UCASE(%EXACT(PAADM_PAPMI_DR->PAPMI_Name))},
+ {fn UCASE(%EXACT(PAADM_PAPMI_DR->PAPMI_Name2))},
+ {fn UCASE(%EXACT(PAADM_PAPMI_DR->PAPMI_Name3))},
+ PAADM_PAPMI_DR->PAPMI_DOB,
+ PAADM_PAPMI_DR->PAPMI_Sex_DR->CTSEX_Code AS Sex,
+ {fn UCASE(%EXACT(PAADM_PAPMI_DR->PAPMI_PAPER_DR->PAPER_StName))} AS SteetName,
+ {fn UCASE(%EXACT(PAADM_PAPMI_DR->PAPMI_PAPER_DR->PAPER_ZIP_DR->CTZIP_Desc))} AS City,
+ PAADM_PAPMI_DR->PAPMI_PAPER_DR->PAPER_ZIP_DR->CTZIP_Code AS PostCode,
+ PAADM_currentward_dr->ward_locationdr->CTLOC_HOspital_DR,
+ PAADM_currentward_dr->ward_locationdr->CTLOC_HOspital_DR->HOSP_Desc, 
+ PAADM_DepCode_DR, 
+ PAADM_DepCode_Dr->ctloc_code,
+ PAADM_DepCode_Dr->ctloc_Desc,
+ PAADM_CurrentWard_DR->WARD_RowId,
+ PAADM_Currentward_dr->ward_code,
+ PAADM_Currentward_dr->ward_LocationDR,
+ PAADM_PAPMI_DR->PAPMI_PAPER_DR->PAPER_Deceased_Date,
+ PAADM_PAPMI_DR->PAPMI_PAPER_DR->PAPER_DeceasedTime,
+ PAADM_AdmDocCodeDR,
+ PAADM_AdmDocCodeDR->CTPCP_Code,
+ PAADM_AdmDocCodeDR->CTPCP_Desc,
+ PAADM_CurrentBed_DR,
+ PAADM_CurrentBed_DR->BED_Code,
+ CASE WHEN PAADM_Type='E' THEN 'Emergency' WHEN  PAADM_Type='I' THEN 'InPatient' else 'OutPatient' end as Type,
+ To_Char(PAADM_PAPMI_DR->PAPMI_PAPER_DR->PAPER_Deceased_Date,'DD/MM/YYYY') As DeathDate,
+ Cast(PAADM_PAPMI_DR->PAPMI_PAPER_DR->PAPER_DeceasedTime As VARCHAR(5)) As DeathTime
+ 
+ FROM SQLUser.PA_adm
+ 
+ WHERE PAADM_PAPMI_DR->PAPMI_PAPER_DR->PAPER_Deceased='Y' 
+ AND PAADM_DischgDate  BETWEEN :DateFrom AND :DateTo
+ )
+ 
+ &sql(open SWARHRATD1022)
+
+ //fetch first row
+ &sql(fetch SWARHRATD1022 into :PAADMAdmDate,:PAADMADMNo,:PAPMINo,:PAPMIName,:PAPMIName2,:PAPMIName3,:PAPMIDOB,:Sex,:SteetName,:City,:PostCode,:HospRowId,:HOSPDesc,:CTLOCRowId,:ctloccode,:ctlocDesc,:WARDRowId,:wardcode,:wardLocationDR,:PAPERDeceasedDate,:PAPERDeceasedTime,:PAADMAdmDocCodeDR,:CTPCPCode,:CTPCPDesc,:PAADMCurrentBedDR,:BEDCode,:PAADMType,:DeathDate,:DeathTime)
+
+ while 'SQLCODE{
+	 
+ do FormatDates
+ do FormatTimes
+ do FormatStrings
+
+ // build the row
+ Set ^CacheTemp(repid,ind)=$LB(PAADMAdmDate,PAADMADMNo,PAPMINo,PAPMIName,PAPMIName2,PAPMIName3,PAPMIDOB,Sex,SteetName,City,PostCode,HospRowId,HOSPDesc,CTLOCRowId,ctloccode,ctlocDesc,WARDRowId,wardcode,wardLocationDR,PAPERDeceasedDate,PAPERDeceasedTime,PAADMAdmDocCodeDR,CTPCPCode,CTPCPDesc,PAADMCurrentBedDR,BEDCode,PAADMType,DeathDate,DeathTime)
+ s ind=ind+1
+ //fetch rows
+ &sql(fetch SWARHRATD1022 into :PAADMAdmDate,:PAADMADMNo,:PAPMINo,:PAPMIName,:PAPMIName2,:PAPMIName3,:PAPMIDOB,:Sex,:SteetName,:City,:PostCode,:HospRowId,:HOSPDesc,:CTLOCRowId,:ctloccode,:ctlocDesc,:WARDRowId,:wardcode,:wardLocationDR,:PAPERDeceasedDate,:PAPERDeceasedTime,:PAADMAdmDocCodeDR,:CTPCPCode,:CTPCPDesc,:PAADMCurrentBedDR,:BEDCode,:PAADMType,:DeathDate,:DeathTime)}
+
+ &sql(close SWARHRATD1022)
+
+ // Build QHandle (AtEnd,ReportID,Index)
+ Set QHandle=$lb(0,repid,0)
+
+ Quit $$$OK
+
+FormatDates
+ // Convert the dates to ODBC date format
+ If PAADMAdmDate Set PAADMAdmDate=$ZD(PAADMAdmDate,3)
+ If PAPMIDOB Set PAPMIDOB=$ZD(PAPMIDOB,3)
+ If PAPERDeceasedDate Set PAPERDeceasedDate=$ZD(PAPERDeceasedDate,3)
+ Quit
+ 
+
+FormatTimes
+ // Convert the times to ODBC time format
+ If PAPERDeceasedTime Set PAPERDeceasedTime=$ZT(PAPERDeceasedTime,1)
+ Quit
+ 
+FormatStrings
+ // Cleanup specified strings
+ Set SteetName = $ZStrip(SteetName,"*C")
+ Set City = $ZStrip(City,"*C")
+ Quit
+]]></Implementation>
+</Method>
+
+<Method name="SWARHRATD1022Fetch">
+<Description>
+This is the Fetch component of the %Library.Query. 
+This should never have to change. It is designed to fetch the row for each subscript of the ^CacheTemp
+global and return this row to the Crystal Report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,&Row:%Library.List,&AtEnd:%Library.Integer=0]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // This fetch method should never have to change. 
+
+ // repid - Report ID
+ // ind   - sequence index which represents each row
+
+ New repid,ind
+
+ // Restore QHandle
+ Set AtEnd=$li(QHandle,1)
+ Set repid=$li(QHandle,2)
+ Set ind=$li(QHandle,3)
+
+ Set ind=$o(^CacheTemp(repid,ind))
+ If ind="" {	// if there are no more rows, finish fetching
+ Set AtEnd=1
+ Set Row=""
+ }
+ Else      {	// fetch row
+ Set Row=^CacheTemp(repid,ind)
+ }
+ 
+ // Save QHandle
+ s QHandle=$lb(AtEnd,repid,ind)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Query name="SWARHRATD1022">
+<Type>%Library.Query</Type>
+<FormalSpec>DateFrom:%Date,DateTo:%Date</FormalSpec>
+<SqlProc>1</SqlProc>
+<Parameter name="CONTAINID" value="0"/>
+<Parameter name="ROWSPEC" value="PAADMAdmDate:%Date,PAADMADMNo:%String(MAXLEN=255),PAPMINo:%String(MAXLEN=255),PAPMIName:%String(MAXLEN=255),PAPMIName2:%String(MAXLEN=255),PAPMIName3:%String(MAXLEN=255),PAPMIDOB:%Date,Sex:%String(MAXLEN=255),SteetName:%String(MAXLEN=255),City:%String(MAXLEN=255),PostCode:%String(MAXLEN=255),HospRowId:%Integer,HOSPDesc:%String(MAXLEN=255),CTLOCRowId:%Integer,ctloccode:%String(MAXLEN=255),ctlocDesc:%String(MAXLEN=255),WARDRowId:%Integer,wardcode:%String(MAXLEN=255),wardLocationDR:%Integer,PAPERDeceasedDate:%Date,PAPERDeceasedTime:%String(MAXLEN=255),PAADMAdmDocCodeDR:%String(MAXLEN=255),CTPCPCode:%String(MAXLEN=255),CTPCPDesc:%String(MAXLEN=255),PAADMCurrentBedDR:%String(MAXLEN=255),BEDCode:%String(MAXLEN=255),PAADMType:%String(MAXLEN=255),DeathDate:%String(MAXLEN=255),DeathTime:%String(MAXLEN=255)"/>
+<Parameter name="SELECTMODE" value="ODBC"/>
+</Query>
+</Class>
+</Export>

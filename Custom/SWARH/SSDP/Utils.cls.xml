@@ -1,0 +1,883 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.SWARH.SSDP.Utils">
+<ClassType/>
+<IncludeCode>%systemInclude</IncludeCode>
+<ProcedureBlock>0</ProcedureBlock>
+<Super>%RegisteredObject</Super>
+<TimeCreated>63404,5878.521379</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/SWARH/SSDP/Utils.xml#1 $</Default>
+</Parameter>
+
+<Parameter name="SWARHEmail">
+<Default>sa.devgroup@swarh.vic.gov.au</Default>
+</Parameter>
+
+<Method name="GetFileName">
+<Description>
+Author: Phuong-Dung HOANG - SWARH
+GetFileName method called from report manager definition to determine the file location and filename</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>DischID:%Integer,DocClinId:%String,NGDR:%String,ReportCode:%String</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	n FilenameFound,FileType,FilePath,Folder
+  	n PAPMIRowId,UR,ClinDesc,RefDocDR,DocName,HospCode,HospID,FilePath,Folder,RefDocCode,RefClinCode,NGOCode
+  	s (FileType,FilePath,Folder)=""
+ 	s (PAPMIRowId,UR,ClinDesc,RefDocDR,DocName,HospCode,HospID,FilePath,Folder,RefDocCode,RefClinCode,NGOCode)=""
+	
+	s DocId=$p(DocClinId,"^",1)
+	s ClinId=$p(DocClinId,"^",2)
+ 	s Folder=""
+ 	&sql(SELECT LongDescription,ID INTO :FileType,:ReportID FROM websys.Report WHERE Code=:ReportCode)
+	s FileType=$ZSTRIP(FileType,"<C")
+	&sql(select PATH_Path into :FilePath from SQLUser.CF_SystemFilePath inner join SQLUser.CF_SystemFileDefinition 
+	on PATH_ParRef=FILE_RowId where FILE_Desc like 'WEBDOC')
+	&sql(
+		SELECT 
+			PAADM_AdmNo,
+			PAADM_PAPMI_DR,
+			PAADM_PAPMI_DR->PAPMI_No,
+			PAADM_Hospital_DR->HOSP_RowId 
+		INTO :DSEpisodeNo,:PAPMIRowId,:UR,:HospID
+		FROM SQLUser.PA_Adm 
+		LEFT OUTER JOIN SQLUser.PA_Adm2DischargeSummary ON PAADM_RowId = DIS_ParRef 
+		LEFT OUTER JOIN SQLUser.pa_dischargesummary ON pa_dischargesummary.DIS_RowID = DIS_PADischargeSummary_DR
+		WHERE pa_dischargesummary.DIS_RowId = :DischID
+	)
+ 	
+ 	s HospCode=$p($g(^CT("HOSP",HospID)),"^",1)
+ 	//set DSEpisodeNo=..DSEpisodeNo(DischID)
+ 	
+ 	if ($g(NGDR)="") {
+ 		&sql(
+ 		SELECT
+			REF_RefDoc_DR->REFD_Code,
+			REF_RefDocClinic_DR->CLN_Clinic_DR->CLN_Code,
+			'000'
+		INTO :RefDocCode,:RefClinCode,:NGOCode
+		FROM SQLUser.PA_DischargeSummaryRefDoc WHERE REF_ParRef=:DischID AND REF_RefDoc_DR=:DocId AND (REF_RefDocClinic_DR->CLN_Clinic_DR=:ClinId or :ClinId IS NULL))
+ 		
+		if RefClinCode="" s RefClinCode="000"
+		s Folder="Clinics\"_RefClinCode
+ 	}
+ 	else {
+	 	&sql(SELECT
+	 	'000',
+	 	'000',
+	 	NG_NonGovOrg_DR->NGO_Code
+ 		INTO :RefDocCode,:RefClinCode,:NGOCode 
+ 		FROM SQLUser.PA_DischargeSummaryNonGov WHERE NG_ParRef=:DischID and NG_NonGovOrg_DR=:NGDR)
+ 		s Folder="Organisations\"_NGOCode
+ 	}
+ 
+	set FolderExistsOrCreate=..FolderExistsOrCreate(FilePath,Folder)
+	s PDFFilename=FileType_"_"_HospCode_"_"_NGOCode_"_"_RefClinCode_"_"_RefDocCode_"_"_DSEpisodeNo_"_"_UR_".pdf"
+	q Folder_"\"_PDFFilename
+]]></Implementation>
+</Method>
+
+<Method name="GetSCTTFileName">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>ParamsId:%String,ReportCode:%String</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	n FilenameFound,FileType,FilePath,Folder
+  	n PAPMIRowId,UR,ClinDesc,RefDocDR,DocName,HospCode,HospID,FilePath,Folder,RefDocCode,RefClinCode,NGOCode
+  	s (FileType,FilePath,Folder)=""
+ 	s (PAPMIRowId,UR,ClinDesc,RefDocDR,DocName,HospCode,HospID,FilePath,Folder,RefDocCode,RefClinCode,NGOCode)=""
+	
+	s DischID=$p(ParamsId,"^",1)
+	s DocId=$p(ParamsId,"^",2)
+	s ClinId=$p(ParamsId,"^",3)
+	s NGDR=$p(ParamsId,"^",4)
+ 	s Folder=""
+ 	&sql(SELECT LongDescription,ID INTO :FileType,:ReportID FROM websys.Report WHERE Code=:ReportCode)
+	s FileType=$ZSTRIP(FileType,"<C")
+	&sql(select PATH_Path into :FilePath from SQLUser.CF_SystemFilePath inner join SQLUser.CF_SystemFileDefinition 
+	on PATH_ParRef=FILE_RowId where FILE_Desc like 'WEBDOC')
+	&sql(
+		SELECT 
+			PAADM_AdmNo,
+			PAADM_PAPMI_DR,
+			PAADM_PAPMI_DR->PAPMI_No,
+			PAADM_Hospital_DR->HOSP_RowId 
+		INTO :DSEpisodeNo,:PAPMIRowId,:UR,:HospID
+		FROM SQLUser.PA_Adm 
+		LEFT OUTER JOIN SQLUser.PA_Adm2DischargeSummary ON PAADM_RowId = DIS_ParRef 
+		LEFT OUTER JOIN SQLUser.pa_dischargesummary ON pa_dischargesummary.DIS_RowID = DIS_PADischargeSummary_DR
+		WHERE pa_dischargesummary.DIS_RowId = :DischID
+	)
+ 	
+ 	s HospCode=$p($g(^CT("HOSP",HospID)),"^",1)
+ 	//set DSEpisodeNo=..DSEpisodeNo(DischID)
+ 	
+ 	if ($g(NGDR)="") {
+ 		&sql(
+ 		SELECT
+			REF_RefDoc_DR->REFD_Code,
+			REF_RefDocClinic_DR->CLN_Clinic_DR->CLN_Code,
+			'000'
+		INTO :RefDocCode,:RefClinCode,:NGOCode
+		FROM SQLUser.PA_DischargeSummaryRefDoc WHERE REF_ParRef=:DischID AND REF_RefDoc_DR=:DocId AND (REF_RefDocClinic_DR->CLN_Clinic_DR=:ClinId or :ClinId IS NULL))
+ 		
+		if RefClinCode="" s RefClinCode="000"
+		s Folder="Clinics\"_RefClinCode
+ 	}
+ 	else {
+	 	&sql(SELECT
+	 	'000',
+	 	'000',
+	 	NG_NonGovOrg_DR->NGO_Code
+ 		INTO :RefDocCode,:RefClinCode,:NGOCode 
+ 		FROM SQLUser.PA_DischargeSummaryNonGov WHERE NG_ParRef=:DischID and NG_NonGovOrg_DR=:NGDR)
+ 		s Folder="Organisations\"_NGOCode
+ 	}
+ 
+	set FolderExistsOrCreate=..FolderExistsOrCreate(FilePath,Folder)
+	s PDFFilename=FileType_"_"_HospCode_"_"_NGOCode_"_"_RefClinCode_"_"_RefDocCode_"_"_DSEpisodeNo_"_"_UR_".pdf"
+	q Folder_"\"_PDFFilename
+]]></Implementation>
+</Method>
+
+<Method name="FolderExistsOrCreate">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>FilePath:%String,Folder:%String</FormalSpec>
+<ReturnType>%Boolean</ReturnType>
+<Implementation><![CDATA[
+	n FolderExists
+	set FolderExists=##class(%Library.File).DirectoryExists(FilePath_Folder)
+	if (FolderExists=0) {
+		set CreateDir=##class(%Library.File).CreateDirectory(FilePath_Folder)
+		q CreateDir
+	}
+	else {
+		q FolderExists
+	}
+]]></Implementation>
+</Method>
+
+<Method name="FileExists">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>FilePath:%String,PDFFilename:%String</FormalSpec>
+<ReturnType>%Integer</ReturnType>
+<Implementation><![CDATA[	q ##class(%Library.File).Exists(FilePath_PDFFilename)
+]]></Implementation>
+</Method>
+
+<Method name="EpisodeDetailsClose">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>QHandle:%Library.Binary</FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Clean up by purging the temporary node in ^CacheTemp global
+ New repid
+ Set repid=$li(QHandle,2)
+ Kill ^CacheTemp(repid)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="EpisodeDetailsExecute">
+<Description>
+This is the Execute section for the %Library.Query. 
+All of the logic will be performed here.
+A new node for the ^CacheTemp global will be created and each subscript of this global will contain
+a row for the report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,EpisodeNo:%String]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+            
+ k ^zbernard 
+ // Get reportid i.e. use $INCREMENT to add another node to ^CacheTemp global. 
+ // We use ^CacheTemp global because it will always use memory before disk
+ New repid,ind
+
+ // Use $Increment to get the next node
+ Set repid=$I(^CacheTemp)
+ s ^zBernard("1")=(1)
+
+ // Build data into ^CacheTemp(ReportID)
+ // e.g. Set ^CacheTemp(ReportID,Index)=$LB(f1,f2,f3)
+
+ n CTLOCRowId,CTLOCCode,CTLOCDesc,CTLOCEmail,CTLOCTelephone,CTLOCHOSPCode
+ s CTLOCRowId=0
+ s (CTLOCCode,CTLOCDesc,CTLOCEmail,CTLOCTelephone,CTLOCHOSPCode)=""
+
+ s ind=1
+ 
+ &sql(declare EpisodeDetails cursor for
+ SELECT
+       PAADM_DepCode_DR,
+       CTLOC_Code,
+       CTLOC_Desc,
+       CTLOC_Email,
+       CTLOC_Telephone,
+       HOSP_Code
+ FROM SQLUser.PA_Adm 
+ INNER JOIN SQLUser.CT_Loc ON PAADM_DepCode_DR=CTLOC_RowId
+ INNER JOIN SQLUser.CT_Hospital ON CTLOC_Hospital_DR=HOSP_RowId 
+ WHERE PAADM_AdmNo=:EpisodeNo)
+ 
+ &sql(open EpisodeDetails) 
+
+ //fetch first row
+ d FetchRowEpisodeDetails
+
+ while 'SQLCODE{
+ 	// build the row
+ 	Set ^CacheTemp(repid,ind)=$LB(CTLOCRowId,CTLOCCode,CTLOCDesc,CTLOCEmail,CTLOCTelephone,CTLOCHOSPCode)
+ 	s ind=ind+1
+ 	//fetch rows
+  	d FetchRowEpisodeDetails
+ }
+
+ &sql(close EpisodeDetails)
+ 
+ // Build QHandle (AtEnd,ReportID,Index)
+ Set QHandle=$lb(0,repid,0)
+
+ Quit $$$OK
+ 
+FetchRowEpisodeDetails
+ &sql(FETCH EpisodeDetails INTO :CTLOCRowId,:CTLOCCode,:CTLOCDesc,:CTLOCEmail,:CTLOCTelephone,:CTLOCHOSPCode)
+ if SQLCODE '= 0 set END = 1
+ q
+]]></Implementation>
+</Method>
+
+<Method name="EpisodeDetailsFetch">
+<Description>
+This is the Fetch component of the %Library.Query. 
+This should never have to change. It is designed to fetch the row for each subscript of the ^CacheTemp
+global and return this row to the Crystal Report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,&Row:%Library.List,&AtEnd:%Library.Integer=0]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // This fetch method should never have to change. 
+
+ // repid - Report ID
+ // ind - sequence index which represents each row
+
+ New repid,ind
+
+ // Restore QHandle
+ Set AtEnd=$li(QHandle,1)
+ Set repid=$li(QHandle,2)
+ Set ind=$li(QHandle,3)
+
+ Set ind=$o(^CacheTemp(repid,ind))
+ If ind="" {        // if there are no more rows, finish fetching
+ Set AtEnd=1
+ Set Row=""
+ }
+ Else      {         // fetch row
+ Set Row=^CacheTemp(repid,ind)
+ }
+
+ // Save QHandle
+ s QHandle=$lb(AtEnd,repid,ind)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Query name="EpisodeDetails">
+<Type>%Library.Query</Type>
+<FormalSpec>EpisodeNo:%String</FormalSpec>
+<SqlProc>1</SqlProc>
+<Parameter name="CONTAINID" value="0"/>
+<Parameter name="ROWSPEC" value="CTLOCRowId:%Integer,CTLOCCode:%String,CTLOCDesc:%String,CTLOCEmail:%String,CTLOCTelephone:%String,CTLOCHOSPCode:%String"/>
+</Query>
+
+<Method name="SSDPUserDetailsClose">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>QHandle:%Library.Binary</FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Clean up by purging the temporary node in ^CacheTemp global
+ New repid
+ Set repid=$li(QHandle,2)
+ Kill ^CacheTemp(repid)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="SSDPUserDetailsExecute">
+<Description>
+This is the Execute section for the %Library.Query. 
+All of the logic will be performed here.
+A new node for the ^CacheTemp global will be created and each subscript of this global will contain
+a row for the report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,DisID:%String,OrgCode:%String,ClinCode:%String,RefDocCode:%String]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+            
+ k ^zbernard 
+ // Get reportid i.e. use $INCREMENT to add another node to ^CacheTemp global. 
+ // We use ^CacheTemp global because it will always use memory before disk
+ New repid,ind
+
+ // Use $Increment to get the next node
+ Set repid=$I(^CacheTemp)
+ s ^zBernard("1")=(1)
+
+ // Build data into ^CacheTemp(ReportID)
+ // e.g. Set ^CacheTemp(ReportID,Index)=$LB(f1,f2,f3)
+ n SSDPUserCode,SSDPUserDesc,SSDPUserEmail,SSDPUserType,SSDPUserTrakTable
+ s (SSDPUserCode,SSDPUserDesc,SSDPUserEmail,SSDPUserType,SSDPUserTrakTable)=""
+
+ s ind=1
+ 
+ if (OrgCode'="000") {
+ 	&sql(declare SSDPUserDetails cursor for
+ 	SELECT
+ 		NG_NonGovOrg_DR->NGO_Code,
+		NG_NonGovOrg_DR->NGO_Desc,
+		NG_NonGovOrg_DR->NGO_Email,
+		'Non-government Organisation',
+		'PAC_NonGovOrg'
+ 		FROM SQLUser.PA_DischargeSummaryNonGov WHERE NG_ParRef=:DisID and NG_NonGovOrg_DR->NGO_Code=:OrgCode)
+ 	&sql(open SSDPUserDetails) 
+ 	//fetch first row
+ 	d FetchRowSSDPUserDetails
+ 	while 'SQLCODE{
+ 		// build the row
+ 		Set ^CacheTemp(repid,ind)=$LB(SSDPUserCode,SSDPUserDesc,SSDPUserEmail,SSDPUserType,SSDPUserTrakTable)
+ 		s ind=ind+1
+ 		//fetch rows
+  		d FetchRowSSDPUserDetails
+ 	}
+ 	&sql(close SSDPUserDetails)
+ }
+ else {
+	 if (ClinCode="000") {
+	 	&sql(declare SSDPUserDetailsRefDoc cursor for
+ 		SELECT 
+ 			REFD_Code,
+ 			REFD_Desc||' '||REFD_Forename,
+ 			NULL,
+ 			'Referral Doctor',
+ 			'PAC_RefDoctor'
+ 		FROM SQLUser.PAC_RefDoctor WHERE REFD_Code=:RefDocCode)
+ 		&sql(open SSDPUserDetailsRefDoc) 
+ 		//fetch first row
+ 		d FetchRowSSDPUserDetails
+ 		while 'SQLCODE{
+ 			// build the row
+ 			Set ^CacheTemp(repid,ind)=$LB(SSDPUserCode,SSDPUserDesc,SSDPUserEmail,SSDPUserType,SSDPUserTrakTable)
+ 			s ind=ind+1
+ 			//fetch rows
+  			d FetchRowSSDPUserDetails
+ 		}
+ 	&sql(close SSDPUserDetailsRefDoc)
+	 }
+	 else {
+		 &sql(declare SSDPUserDetailsClin cursor for
+		 SELECT 
+		 	CLN_Code,
+		 	CLN_Desc, 
+		 	CLN_Email,
+		 	'Clinic',
+		 	'PAC_Clinic'
+		 FROM SQLUser.PAC_Clinic WHERE CLN_Code=:ClinCode)
+		 &sql(open SSDPUserDetailsClin) 
+ 		//fetch first row
+ 		d FetchRowSSDPUserDetails
+ 		while 'SQLCODE{
+ 			// build the row
+ 			Set ^CacheTemp(repid,ind)=$LB(SSDPUserCode,SSDPUserDesc,SSDPUserEmail,SSDPUserType,SSDPUserTrakTable)
+ 			s ind=ind+1
+ 			//fetch rows
+  			d FetchRowSSDPUserDetails
+ 		}
+ 		&sql(close SSDPUserDetailsClin)
+	 }
+ }
+ 
+ // Build QHandle (AtEnd,ReportID,Index)
+ Set QHandle=$lb(0,repid,0)
+
+ Quit $$$OK
+ 
+FetchRowSSDPUserDetails
+ if (OrgCode'="000") {
+ 	&sql(FETCH SSDPUserDetails INTO :SSDPUserCode,:SSDPUserDesc,:SSDPUserEmail,:SSDPUserType,:SSDPUserTrakTable)
+ }
+ else {
+	 if (ClinCode="000") {
+		 &sql(FETCH SSDPUserDetailsRefDoc INTO :SSDPUserCode,:SSDPUserDesc,:SSDPUserEmail,:SSDPUserType,:SSDPUserTrakTable)
+	 }
+	 else {
+		 &sql(FETCH SSDPUserDetailsClin INTO :SSDPUserCode,:SSDPUserDesc,:SSDPUserEmail,:SSDPUserType,:SSDPUserTrakTable)
+	 }
+ }
+ if SQLCODE '= 0 set END = 1
+ q
+]]></Implementation>
+</Method>
+
+<Method name="SSDPUserDetailsFetch">
+<Description>
+This is the Fetch component of the %Library.Query. 
+This should never have to change. It is designed to fetch the row for each subscript of the ^CacheTemp
+global and return this row to the Crystal Report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,&Row:%Library.List,&AtEnd:%Library.Integer=0]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // This fetch method should never have to change. 
+
+ // repid - Report ID
+ // ind - sequence index which represents each row
+
+ New repid,ind
+
+ // Restore QHandle
+ Set AtEnd=$li(QHandle,1)
+ Set repid=$li(QHandle,2)
+ Set ind=$li(QHandle,3)
+
+ Set ind=$o(^CacheTemp(repid,ind))
+ If ind="" {        // if there are no more rows, finish fetching
+ Set AtEnd=1
+ Set Row=""
+ }
+ Else      {         // fetch row
+ Set Row=^CacheTemp(repid,ind)
+ }
+
+ // Save QHandle
+ s QHandle=$lb(AtEnd,repid,ind)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Query name="SSDPUserDetails">
+<Type>%Library.Query</Type>
+<FormalSpec>DisID:%String,OrgCode:%String,ClinCode:%String,RefDocCode:%String</FormalSpec>
+<SqlProc>1</SqlProc>
+<Parameter name="CONTAINID" value="0"/>
+<Parameter name="ROWSPEC" value="SSDPUserCode:%String,SSDPUserDesc:%String,SSDPUserEmail:%String,SSDPUserType:%String,SSDPUserTrakTable:%String"/>
+</Query>
+
+<UDLText name="T">
+<Content><![CDATA[
+// PH - used for SSDP web documents summary Zen reports
+
+]]></Content>
+</UDLText>
+
+<UDLText name="T">
+<Content><![CDATA[
+/*ClassMethod GetSSDPUserEmail(DisID As %String, OrgCode As %String, ClinCode As %String, RefDocCode As %String) As %String
+{
+	s UserEmail=""
+	if (OrgCode'="000") {
+		&sql(SELECT
+		NG_NonGovOrg_DR->NGO_Email into :UserEmail
+ 		FROM SQLUser.PA_DischargeSummaryNonGov WHERE NG_ParRef=:DisID)
+	}
+	else {
+		if (ClinCode="000") {
+			&sql(SELECT
+ 			rd.REFD_Email into :UserEmail
+ 			FROM SQLUser.PA_DischargeSummaryRefDoc dsrd LEFT JOIN
+ 			SQLUser.PAC_RefDoctor rd ON dsrd.REF_RefDoc_DR=rd.REFD_RowId WHERE dsrd.REF_ParRef=:DisID
+ 			and dsrd.REF_RefDocClinic_DR IS NULL
+ 			and dsrd.REF_RefDoc_DR->REFD_Code=:RefDocCode)
+		}
+		else {
+			&sql(SELECT
+ 			dsrd.REF_RefDocClinic_DR->CLN_Email into :UserEmail
+ 			FROM SQLUser.PA_DischargeSummaryRefDoc dsrd LEFT JOIN
+ 			SQLUser.PAC_RefDoctor rd ON dsrd.REF_RefDoc_DR=rd.REFD_RowId WHERE dsrd.REF_ParRef=:DisID
+ 			and dsrd.REF_RefDocClinic_DR->CLN_Clinic_DR->CLN_Code=:RefDocCode
+ 			and dsrd.REF_RefDoc_DR->REFD_Code=:RefDocCode)
+		}
+	}
+	q UserEmail
+}
+
+ClassMethod GetSSDPUser(OrgCode As %String, ClinCode As %String, RefDocCode As %String) As %String
+{
+	n SSDPUser,SSDPUserDesc
+	s (SSDPUser,SSDPUserDesc)=""
+	s ^zphd("GetSSDPUserOrgCode")=$g(OrgCode)
+	s ^zphd("GetSSDPUserClinCode")=$g(ClinCode)
+	s ^zphd("GetSSDPUserRefDocCode")=$g(RefDocCode)
+	if (OrgCode'="000") {
+		&sql(SELECT NGO_Desc INTO :SSDPUserDesc FROM SQLUser.PAC_NonGovOrg WHERE NGO_Code=:OrgCode)
+		s SSDPUser="Non-government Organisation "_OrgCode
+	}
+	else {
+		if (ClinCode'="000") {
+			&sql(SELECT CLN_Desc INTO :SSDPUserDesc FROM SQLUser.PAC_Clinic WHERE CLN_Code=:ClinCode)
+			s SSDPUser="Clinic "_ClinCode
+		}
+		else {
+			&sql(SELECT REFD_Desc||' '||REFD_Forename INTO :SSDPUserDesc FROM SQLUser.PAC_RefDoctor WHERE REFD_Code=:RefDocCode)
+			s SSDPUser="Doctor "_RefDocCode
+		}
+	}
+	s SSDPUser=SSDPUser_" ("_SSDPUserDesc_")"
+	q SSDPUser
+}*/
+]]></Content>
+</UDLText>
+
+<Method name="SendSSDPEmail">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>Address:%String,SubjectText:%String,MessageText:%String,CCAddress:%String=""</FormalSpec>
+<Implementation><![CDATA[
+	Set MailServer="smtprelay.swarh.net"
+	Set FromAddress="ssdp-donotreply@swarh.vic.gov.au"
+	Set HeaderInfo="Recipient Email: "_Address_$char(13,10,13,10)
+	//only send to real location email addresses if the namespace is LIVE-TRAK
+	//for non LIVE environments, emails are sent to our SWARH email and if the intended recipient is not SWARH, we add who the intended recipient
+	//is in the first line of the message.
+    if ($NAMESPACE="LIVE-TRAK") {
+    	do ##class(Custom.SWARH.Utils).SendEmail(FromAddress,Address,SubjectText,MessageText,MailServer,CCAddress)
+    }
+    else {
+	    if (Address'=..#SWARHEmail) {
+		    Set MessageText=HeaderInfo_MessageText
+	    }
+	    do ##class(Custom.SWARH.Utils).SendEmail(FromAddress,..#SWARHEmail,SubjectText,MessageText,MailServer,CCAddress)
+    }
+    Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="DistributeToSSDP">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>DisID:%String,PDFFilepathName:%String</FormalSpec>
+<Implementation><![CDATA[
+	n FilepathName,FileName,FileType,HospCode,OrgCode,ClinCode,RefDocCode,UserEmail,UserType,UserTrakTable,UserDesc,sc,MessageBody,
+	SpecialtyId,SpecialtyCode,SpecialtyDesc,SpecialtyEmail,SpecialtyPhone,HospId,HospCode,HospDesc,
+	EnquiryLocId,EnquiryLocCode,EnquiryLocDesc,EnquiryEmail,EnquiryPhone,
+	SummaryCode,SummaryReportCode,HLLocCode,HLLocEmail,episodeType,defaultLocId,defaultLocCode,defaultLocEmail,defaultLocPhone,
+	defaultLocActive,copyToSWARH,LastUpdateUser
+	s (FilepathName,FileName,FileType,OrgCode,ClinCode,RefDocCode,UserEmail,UserType,UserTrakTable,UserDesc,sc,MessageBody,
+	SpecialtyId,SpecialtyCode,SpecialtyDesc,SpecialtyEmail,SpecialtyPhone,HospId,HospCode,HospDesc,
+	EnquiryLocId,EnquiryLocCode,EnquiryLocDesc,EnquiryEmail,EnquiryPhone,
+	SummaryCode,SummaryReportCode,HLLocCode,HLLocEmail,episodeType,defaultLocId,defaultLocCode,defaultLocEmail,defaultLocPhone,
+	defaultLocActive,copyToSWARH,LastUpdateUser)=""
+	
+	s FileName=$p(PDFFilepathName, "\", $l(PDFFilepathName, "\"))
+	s FileType=$p(FileName,"_",1)
+	s HospCode=$p(FileName,"_",2)
+	s OrgCode=$p(FileName,"_",3)
+	s ClinCode=$p(FileName,"_",4)
+	s RefDocCode=$p(FileName,"_",5)
+	s EpisodeNo=$p(FileName,"_",6)
+	s UR=$replace($p(FileName,"_",7),".pdf","")
+	
+	s HospId=$o(^CT("HOSP",0,"Code",HospCode,""))
+	s HospDesc=$p(^CT("HOSP",HospId),"^",2)
+	
+	&sql(SELECT PA_DischargeSummary.DIS_UpdateUser_DR->SSUSR_Name INTO :LastUpdateUser 
+ 	FROM SQLUser.pa_dischargesummary 
+ 	WHERE pa_dischargesummary.DIS_RowId = :DisID)
+	
+	// get specialty email (for SCTT referral acknowledgement and error messages)
+	set rs=##Class(%ResultSet).%New("Custom.SWARH.SSDP.Utils:EpisodeDetails")
+	do rs.Execute(EpisodeNo)
+	if rs.Next() {
+		set SpecialtyId=$get(rs.Data("CTLOCRowId"))
+		set SpecialtyCode=$get(rs.Data("CTLOCCode"))
+		set SpecialtyDesc=$get(rs.Data("CTLOCDesc"))
+		set SpecialtyEmail=$get(rs.Data("CTLOCEmail"))
+		set SpecialtyPhone=$get(rs.Data("CTLOCTelephone"))
+		set HospCode=$get(rs.Data("CTLOCHOSPCode"))
+	}
+	do rs.%Close()
+	
+	// get file path from code tables
+	&sql(SELECT PATH_Path INTO :FilePath FROM SQLUser.CF_SystemFilePath INNER JOIN SQLUser.CF_SystemFileDefinition 
+	ON PATH_ParRef=FILE_RowId WHERE FILE_Desc like 'WEBDOC')
+	
+	// get file path name (relative to the WEBDOC file path)
+	set FilepathName=$replace(PDFFilepathName,FilePath,"")
+	
+	// default hospital location for notifications 
+	
+	//Find report and summary from FileType
+	//IMPORTANT: we are relying on the naming convention for this
+	//The PDF report code has to be the Summary Report code (Trak dummy print) followed by "PDF"
+	//From the file type (long description in PDF report definition) we get the summary report code
+	//and then we look up the summary code
+	//Please note: SSDP should look up these values from Trak using a linked server but for initial release these codes are hard coded in 
+	//the SSDP SQL table
+	set index=""
+	For {
+		Set index = $O(^websys.ReportD(index))
+		Quit:(index="")
+		Set longdesc = $LISTGET(^websys.ReportD(index),46)
+		if (longdesc'="") s longdesc=$LISTTOSTRING(longdesc)
+		If longdesc = FileType { 
+			set SummaryReportCode=$p($LISTGET(^websys.ReportD(index),1),"PDF",1)
+			Quit
+		}
+	}
+	if SummaryReportCode="" {
+		d ..SendSSDPEmail(..#SWARHEmail,"SSDP error: cannot find summary code.", 
+		"No report code found.")
+		Quit $$$OK
+	}
+
+	&sql(SELECT DSTCode,DSTEpisodeType INTO :SummaryCode,:SummaryEpisodeType FROM epr.CTDischargeSummaryType WHERE DSTReportDR->Code=:SummaryReportCode)
+	if (SummaryCode="") {
+		d ..SendSSDPEmail(..#SWARHEmail,"SSDP error: cannot find summary code.", 
+		"Code of the report linked to the summary is """_SummaryReportCode_""".")
+		Quit $$$OK
+	}
+	else {
+		set episodeType="E,I"
+		set defaultLocCode=""
+		if (SummaryEpisodeType [ "O") set episodeType="O"
+		set defaultLocCode=$LG($G(^Custom.SWARH.SSDP.DefaultLocD(HospId,episodeType)),2)
+		set defaultLocActive=$LG($G(^Custom.SWARH.SSDP.DefaultLocD(HospId,episodeType)),3)
+		set copyToSWARH=$LG($G(^Custom.SWARH.SSDP.DefaultLocD(HospId,episodeType)),4)
+		
+		if (defaultLocCode'="") {
+			&sql(SELECT CTLOC_RowId,CTLOC_Desc,CTLOC_Email,CTLOC_Telephone
+					INTO :defaultLocId,:defaultLocDesc,:defaultLocEmail,:defaultLocPhone
+				 FROM SQLUser.CT_LOC WHERE CTLOC_Code=:defaultLocCode)
+		}
+	}
+	
+	//check file existence
+	if (##class(%Library.File).Exists(PDFFilepathName)) {
+		
+		set rs=##Class(%ResultSet).%New("Custom.SWARH.SSDP.Utils:SSDPUserDetails")		
+		do rs.Execute(DisID,OrgCode,ClinCode,RefDocCode)
+		
+		if rs.Next() {
+			set UserCode=$get(rs.Data("SSDPUserCode"))
+			set UserDesc=$get(rs.Data("SSDPUserDesc"))
+			set UserEmail=$get(rs.Data("SSDPUserEmail"))
+			set UserType=$get(rs.Data("SSDPUserType"))
+			set UserTrakTable=$get(rs.Data("SSDPUserTrakTable"))
+		}
+		do rs.%Close()
+		s MessageBody=""
+		s ErrorDetails=""
+		s FileType=$CASE(FileType,
+              "ReferralAcknowledgement": "Referral Acknowledgement",
+              "ClientDischMgmtPlan":"Client Discharge Management Plan",
+              "SCTTReport":"SCTT Referral",
+              "DischargeSummary":"Discharge Summary",
+              "ClientFeedback":"Client Feedback",
+              :FileType)
+		if (UserEmail="") {
+			s MessageBody=
+			"SSDP Notification of a new "_FileType_" created for UR "_UR_" and episode "_EpisodeNo_" ("_SpecialtyDesc_") has not been sent for: "_$char(13,10)_
+			""""_FilepathName_""" in "_$replace(FilePath," ","%20")_" "_$char(13,10,13,10)
+			if UserType="Referral Doctor" {
+				s ErrorDetails=UserType_" "_UserCode_" ("_UserDesc_") populated in the distribution list is not linked to a clinic."_$char(13,10)_
+				"Check the Trak code table """_UserTrakTable_""" and/or the patient's local doctor history (refer to the SSDP troubleshooting guide)."_$char(13,10)_
+				"You will need to create a new version of this document if a record for this doctor correctly linked to a clinic isn't already showing in "_
+				"the distribution list."_$char(13,10,13,10)
+			}
+			else {
+				s ErrorDetails=UserType_" "_UserCode_" ("_UserDesc_") does not have an email address."_$char(13,10,13,10)_
+				"Check Trak code table: """_UserTrakTable_"""."_$char(13,10)_
+				"You will need to create a new version of this document."_$char(13,10,13,10)	
+			}
+			s ErrorDetails=ErrorDetails_"This "_FileType_" was created by "_LastUpdateUser_"."_$char(13,10,13,10)_"DischID: "_DisID
+			s MessageBody=MessageBody_ErrorDetails
+			s Subject="("_$NAMESPACE_") SSDP error for "_HospDesc_": notification failed to send to SSDP"
+			s sc=..SendSSDPNotification(defaultLocCode,defaultLocActive,defaultLocEmail,copyToSWARH,Subject,MessageBody,HospDesc)
+			Quit $$$OK
+		}
+		else {
+			if (SummaryCode'="") {				
+				// create new document object	
+				set document=##class(Custom.SWARH.SSDP.ws.tns.Document).%New()
+				set document.Id=0
+				set document.Filename=$replace(PDFFilepathName,FilePath,"")
+				set document.DocumentCode=SummaryCode
+				set document.RecipientEmail=UserEmail
+				
+				if ((SpecialtyEmail="")&&(SpecialtyPhone="")) {
+					if ((defaultLocEmail'="") || (defaultLocPhone'="")) {
+						set document.EnquiryLocId=defaultLocId
+						set document.EnquiryLocCode=defaultLocCode
+						set document.EnquiryLocDesc=defaultLocDesc
+						set document.EnquiryEmail=defaultLocEmail
+						set document.EnquiryPhone=defaultLocPhone
+					}
+					else {set EnquiryEmail=..#SWARHEmail}
+				}
+				else {
+					set document.EnquiryLocId=SpecialtyId
+					set document.EnquiryLocCode=SpecialtyCode
+					set document.EnquiryLocDesc=SpecialtyDesc
+					set document.EnquiryEmail=SpecialtyEmail
+					if (SpecialtyPhone'="") {set document.EnquiryPhone=SpecialtyPhone}
+					else {set document.EnquiryPhone=defaultLocPhone}
+				}
+				
+				set document.SpecialtyId=SpecialtyId	
+				set document.SpecialtyCode=SpecialtyCode
+				set document.SpecialtyDesc=SpecialtyDesc
+				set document.HospId=HospId
+				set document.HospCode=HospCode
+				set document.HospDesc=HospDesc
+				
+				// get last modified date of file to populate UploadDatetime property of document
+				set dateModified=##class(%Library.File).GetFileDateModified(PDFFilepathName)
+				set document.UploadDatetime=$ZDATETIME(dateModified,3,1)
+				
+				s sc=..ProcessDocument(document)
+				if sc="" {quit $$$OK}
+				else {quit $$$ERROR("SSDPError",sc)}
+			}
+		}
+	}
+	else {
+		// file does not exist - send SSDP notification email to sa.devgroup@swarh.vic.gov.au and default location email
+		s MessageBody=
+			"File """_FilepathName_""" in "_$ZCONVERT(FilePath, "o", "URL")_
+			" has not printed successfully. Document notification was not sent to SSDP."_
+			" Please check the Print History in Trak."
+		s Subject="("_$NAMESPACE_") SSDP error for "_HospDesc_": "_FileType_" PDF copy not generated successfully"
+		s sc=..SendSSDPNotification(defaultLocCode,defaultLocActive,defaultLocEmail,copyToSWARH,Subject,MessageBody,HospDesc)
+		Quit $$$ERROR("SSDPError", "File did not exist")
+	}
+]]></Implementation>
+</Method>
+
+<Method name="SendSSDPNotification">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>defaultLocCode:%String,defaultLocActive:%Boolean,defaultLocEmail:%String,copyToSWARH:%Boolean,Subject:%String,MessageBody:%String,HospDesc:%String</FormalSpec>
+<Implementation><![CDATA[
+	s Footer=$char(13,10,13,10)_"*** PLEASE DO NOT REPLY TO THIS EMAIL ***"
+	if (defaultLocCode="") {
+		s MessageBody = "No "_episodeType_" default location for SSDP error notifications for "_HospDesc_$char(13,10,13,10)_MessageBody
+		d ..SendSSDPEmail(..#SWARHEmail,Subject,MessageBody_Footer)
+		Quit $$$OK
+	}
+	else {
+		if (defaultLocActive=1) {
+			if (defaultLocEmail="") {
+				s MessageBody = "No email address against default location "_defaultLocCode_" in TrakCare for "_HospDesc_$char(13,10,13,10)_MessageBody
+				d ..SendSSDPEmail(..#SWARHEmail,Subject,MessageBody_Footer)
+			}
+			else {
+				if (copyToSWARH=1) {d ..SendSSDPEmail(defaultLocEmail,Subject,MessageBody_Footer,..#SWARHEmail)}
+				else {d ..SendSSDPEmail(defaultLocEmail,Subject,MessageBody_Footer)}
+			}
+		}
+		else {
+			s MessageBody = "No active "_episodeType_" default location for SSDP error notifications for "_HospDesc_$char(13,10,13,10)_MessageBody
+			d ..SendSSDPEmail(..#SWARHEmail,Subject,MessageBody_Footer)
+		}
+	}
+	q $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="ProcessDocument">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>document:Custom.SWARH.SSDP.ws.tns.Document</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	n output,qry,dateModified,result,filename,longdesc
+	s (output,dateModified)=""
+	set qry=##class(Custom.SWARH.SSDP.ws.SSDPWSSoap).%New()
+	if qry {
+		set $ZERROR=""
+		try {
+			new result
+			// get file path name
+			&sql(SELECT PATH_Path INTO :FilePath FROM SQLUser.CF_SystemFilePath INNER JOIN SQLUser.CF_SystemFileDefinition 
+			ON PATH_ParRef=FILE_RowId WHERE FILE_Desc like 'WEBDOC')
+			
+			// call SSDP web service to process the document object
+			//set ^phdSOAP(PDFFilepathName)=UserEmail
+			set result=qry.ProcessNewDocument(document)
+			
+        } catch {
+	        new error
+	        if $ZERROR["<ZSOAP>" {
+		        set error=$System.Status.DisplayError(%objlasterror)
+		        set errordesc=$p($p(%objlasterror,"faultactor=",2),"detail=",1)
+		        /*if errordesc = "" {
+		        	set fault = qry.SoapFault
+		        	set errordesc = fault.Reason.GetAt(1).Text // qry.SoapFault.faultstring
+		        }*/
+		        set err=$System.Status.GetErrorText(%objlasterror)
+		        set fault = qry.SoapFault
+		        set errorfaultstr = fault.Reason.GetAt(1).Text // qry.SoapFault.faultstring
+		        d ..SendSSDPEmail(..#SWARHEmail,"SSDP SOAP error","An error has occured in SSDP. "_errordesc_" "_errorfaultstr_" for document """_$replace(PDFFilepathName,FilePath,"")_""" in "_$replace(FilePath," ","%20"))
+            } else {
+	            // set error=$System.Status.DisplayError($$$ERROR($$$CacheError,$ZERROR))
+	            set error=$System.Status.GetErrorText($$$ERROR($$$CacheError,$ZERROR))
+	            d ..SendSSDPEmail(..#SWARHEmail,"SSDP error (not SOAP)","Document """_$replace(PDFFilepathName,FilePath,"")_""" in "_$replace(FilePath," ","%20"))
+            }
+            set output=error
+        }
+        kill qry
+	}
+	q output
+]]></Implementation>
+</Method>
+
+<Method name="GetDummyFileName">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>P1:%String,P2:%String,P3:%String,P4:%String,P6:%String,P8:%String,ReportCode:%String</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	n FileType,ReportID,PrintHistoryID
+	s (FileType,ReportID,PrintHistoryID)=""
+	
+	&sql(SELECT LongDescription,ID INTO :FileType,:ReportID FROM websys.Report WHERE Code=:ReportCode)
+	s FileType=$ZSTRIP(FileType,"<C")
+ 	
+ 	&sql(SELECT ID INTO :PrintHistoryID FROM WEBSYS.PRINTHISTORY WHERE 
+ 	P1=:P1 AND 
+ 	(:P2 IS NULL OR P2=:P2) AND 
+ 	(:P3 IS NULL OR P3=:P3) AND
+ 	(:P4 IS NULL OR P4=:P4) AND
+	(:P6 IS NULL OR P6=:P6) AND
+	(:P8 IS NULL OR P8=:P8))
+ 	
+ 	s Filename=FileType_"_"_PrintHistoryID_".pdf"
+ 	q Filename
+]]></Implementation>
+</Method>
+
+<Method name="CleanupDummyFilePath">
+<ClassMethod>1</ClassMethod>
+<ReturnType>%Status</ReturnType>
+<Implementation><![CDATA[
+	&sql(select PATH_Path into :FilePath from SQLUser.CF_SystemFilePath inner join SQLUser.CF_SystemFileDefinition 
+	on PATH_ParRef=FILE_RowId where FILE_Desc like 'WEBDOCDummy')
+
+	set rs=##class(%Library.ResultSet).%New("%File:FileSet")
+	do rs.Execute(FilePath)
+	while rs.Next() {
+		set DateH=$p($h,",",1)
+		set TimeH=$p($h,",",2)
+		set tFilePathName = rs.Name
+		set tFilename = ##class(%File).GetFilename(tFilePathName)
+		set CreateDateTimeH=##class(%File).GetFileDateCreated(tFilePathName)
+		set CreateDateH=$p(CreateDateTimeH,",",1)
+		set CreateTimeH=$p(CreateDateTimeH,",",2)
+		if ((DateH-CreateDateH>1) || ((DateH-CreateDateH=1) && (TimeH-CreateTimeH>0))) {
+			do ##class(%Library.File).Delete(tFilePathName)
+		}
+	}
+	do rs.%Close()
+]]></Implementation>
+</Method>
+</Class>
+</Export>

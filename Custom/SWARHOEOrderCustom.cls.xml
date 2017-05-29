@@ -1,0 +1,91 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.SWARHOEOrderCustom">
+<Super>%RegisteredObject</Super>
+<TimeCreated>61985,47963.827479</TimeCreated>
+
+<Method name="IsAuthorisedToAdminister">
+<Description>
+TRC 53946:
+Checks if the given is appropriately authorised to action an administration
+by checking that they are not in the 'Student Nurse' Security Group.
+Parameters : A string containing the TrakCare user login name
+Returns 1 if valid, else 0 as a string.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>arg:%String=""</FormalSpec>
+<ReturnType>%Integer</ReturnType>
+<Implementation><![CDATA[
+	q:arg="" 0
+	s valid=0
+	s ousr=arg
+	s ssu=0 f  s ssu=$o(^SSU("SSUSR",ssu)) q:ssu=""  d
+	. i $p(^SSU("SSUSR",ssu),"^")=ousr d
+	. . s ossug=$p($g(^SSU("SSGRP",$p(^SSU("SSUSR",ssu),"^",5))),"^")
+	. . ;i ossug'="",ossug'="Student Nurse" d
+	. . i ossug'="",ossug'="SWARH Prescribing",ossug'="Student Nurse",ossug'="Enrolled Nurse - Medication Training" d
+	. . . s valid=1
+	. . . q
+	. q:valid=1
+	q valid
+]]></Implementation>
+</Method>
+
+<Method name="ValidateFirstSignature">
+<Description>
+TRC 53946</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>arg:%String=""</FormalSpec>
+<ReturnType>%Integer</ReturnType>
+<Implementation><![CDATA[
+	
+	q:arg="" 0
+	s (argx,valid)=0
+	s (ctpcptypedr,ctpcpid,typecode)=""
+	s initial=$zconvert(arg,"U")
+	s initial=$zstrip(initial,"*CW")
+	s argx=$o(^SSU("SSUSR",0,"SSUSR_Initials",initial,argx))
+	i argx="" q:0
+	i argx'="" d
+	. s ousr=argx
+	. s ctpcpid=$p(^SSU("SSUSR",argx),"^",14)
+	. i ctpcpid'="" d
+	. . s ctpcptypedr=$p($g(^CTPCP(ctpcpid,1)),"^",4)
+	. . i ctpcptypedr'="" d
+	. . . s typecode=$zconvert($p($g(^CT("CPT",ctpcptypedr)),"^",1),"U")
+	. . . i typecode'="" d
+	. . . . i (typecode="NUM")||(typecode="NUR1")||(typecode="NUR4")||(typecode="DR")||(typecode="PHARM")||(typecode="NUR7")||(typecode="NUR8") d
+	. . . . . s valid=1
+	q valid
+]]></Implementation>
+</Method>
+
+<Method name="ValidateList">
+<Description>
+TRC 53946</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>arg:%String=""</FormalSpec>
+<ReturnType>%Integer</ReturnType>
+<Implementation><![CDATA[
+
+	q:arg="" 0
+	s (argx,valid)=0
+	s (ctpcptypedr,ctpcpid,typecode)=""
+	s initial=$zconvert(arg,"U")
+	s initial=$zstrip(initial,"*CW")
+	s argx=$o(^SSU("SSUSR",0,"SSUSR_Initials",initial,argx))
+	i argx="" q:0
+	i argx'="" d
+	. s ousr=argx
+	. s ctpcpid=$p(^SSU("SSUSR",argx),"^",14)
+	. i ctpcpid'="" d
+	. . s ctpcptypedr=$p($g(^CTPCP(ctpcpid,1)),"^",4)
+	. . i ctpcptypedr'="" d
+	. . . s typecode=$zconvert($p($g(^CT("CPT",ctpcptypedr)),"^",1),"U")
+	. . . i typecode'="" d
+	. . . . i (typecode="NUM")||(typecode="NUR1")||(typecode="NUR4")||(typecode="DR")||(typecode="PHARM")||(typecode="NUR7")||(typecode="NUR8") d
+	. . . . . s valid=1
+	q valid
+]]></Implementation>
+</Method>
+</Class>
+</Export>

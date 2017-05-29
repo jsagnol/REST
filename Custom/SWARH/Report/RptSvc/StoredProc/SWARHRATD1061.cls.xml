@@ -1,0 +1,175 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.SWARH.Report.RptSvc.StoredProc.SWARHRATD1061">
+<Description><![CDATA[
+<pre>
+**************************************************************************************************************************************
+* Report Code: SWARHRATD1061
+* Report Description: Last Batch Number
+* Menu Caption: Last Batch Number
+* Initial release: 22/07/2015
+* Developer: Ross Gladman
+* Modified:  
+* 
+**************************************************************************************************************************************
+</pre>]]></Description>
+<ProcedureBlock>0</ProcedureBlock>
+<Super>Custom.SWARH.Report.RptSvc.StoredProc.Abstract</Super>
+<TimeCreated>60905,54849</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/SWARH/Report/RptSvc/StoredProc/SWARHRATD1061.xml#1 $</Default>
+</Parameter>
+
+<Method name="SWARHRATD1061Close">
+<Description>
+This is the Close component of the %Library.Query.
+This is standard code and should never have to change.
+This is where all the cleanup is performed, i.e. the purging of the temporary storage global ^CacheTemp.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>QHandle:%Library.Binary</FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Clean up by purging the temporary node in ^CacheTemp global
+ New repid,ind
+ Set repid=$List(QHandle,2)
+
+ //Start Monitor (if configured to capture stats)
+ If mon Do ..MonitorEnd(mon)
+
+ Kill ^CacheTemp("TRAK",repid)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="SWARHRATD1061Execute">
+<Description>
+This is the Execute section for the %Library.Query. 
+All of the logic will be performed here.
+A new node for the ^CacheTemp global will be created and each subscript of this global will contain
+a row for the report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,Hospital:%Library.Integer,Facility:%Library.Integer]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Get reportid i.e. use $INCREMENT to add another node to ^CacheTemp global. 
+ // We use ^CacheTemp global because it will always use memory before disk
+ New repid,ind
+
+  // Use $Increment to get the next node
+ Set repid=$I(^CacheTemp("TRAK"))
+ 
+ // Define and initialise appropriate column variables to describe output rowset columns
+ New FacilityCode,FacilityDesc,BatchNumber,StartDate,ClosingDate,FileName,RollBackDate,RollBackTime,RollBackUserName,RollBackUserInitials
+ Set (FacilityCode,FacilityDesc,BatchNumber,StartDate,ClosingDate,FileName,RollBackDate,RollBackTime,RollBackUserName,RollBackUserInitials)=""
+ 
+
+ Set ind=1, END=0
+
+ //Start Monitor (if configured to capture stats)
+ Set mon=..MonitorBegin()
+ 
+ //Clean up parameter variables - $zstrip(<variable>,"*CW") strips all control characters and whitespace, "<>W" just strips leading/trailing whitespace
+ //Set Facility=$ZStrip(Location,"*CW")
+ 
+	&SQL(DECLARE FacilityCursor CURSOR FOR
+		SELECT TOP 1	
+				:Hospital																		As Hospital
+			,	EXT.EXTR_SignifFacility_DR->SIGNF_Code      As FacilityCode	
+    	,	EXT.EXTR_SignifFacility_DR->SIGNF_Desc      As FacilityDesc	
+    	,	EXT.EXTR_BatchNumber                        As BatchNumber	
+    	,	CONVERT(VARCHAR(10),EXT.EXTR_PRS2LastBatchStartDate,103)             As StartDate	
+    	,	CONVERT(VARCHAR(10),EXT.EXTR_PRS2LastBatchClosingDat,103)            As ClosingDate	
+    	,	EXT.EXTR_FileName                           As FileName	
+    	,	CONVERT(VARCHAR(10),EXT.EXTR_RollBackDate,103)                       As RollBackDate	
+    	,	CONVERT(VARCHAR(10),EXT.EXTR_RollBackTime,108)                       As RollBackTime	
+    	,	EXT.EXTR_RollBackUser_DR->SSUSR_Name        As RollBackUserName	
+    	,	EXT.EXTR_RollBackUser_DR->SSUSR_Initials    As RollBackUserInitials	
+		FROM	
+  			SQLUser.PA_Extract EXT	
+		WHERE	
+				--EXTR_SignifFacility_DR=1	
+				--EXTR_SignifFacility_DR IN(12,5)	
+				EXTR_SignifFacility_DR=:Facility	
+		ORDER BY	
+ 				EXTR_PRS2LastBatchStartDate DESC	
+
+	)
+ &SQL(OPEN FacilityCursor)
+ 
+ //FETCH FIRST ROW
+ Do FetchRow
+  
+ While END=0 {
+  
+	 Set sort = ind		// don't sort
+ 
+	 Set ^CacheTemp("TRAK",repid,sort)=$ListBuild(Hospital,FacilityCode,FacilityDesc,BatchNumber,StartDate,ClosingDate,FileName,RollBackDate,RollBackTime,RollBackUserName,RollBackUserInitials)
+	 Set ind=ind+1
+ 
+	 //fetch rows
+	 Do FetchRow
+ }
+
+ &SQL(CLOSE FacilityCursor)
+ 
+ // Build QHandle (AtEnd,ReportID,Index)
+ Set QHandle=$ListBuild(0,repid,0)
+
+ Quit $$$OK
+
+FetchRow
+ &SQL(FETCH FacilityCursor INTO :Hospital,:FacilityCode,:FacilityDesc,:BatchNumber,:StartDate,:ClosingDate,:FileName,:RollBackDate,:RollBackTime,:RollBackUserName,:RollBackUserInitials)
+ If SQLCODE '= 0 Set END = 1
+ Quit
+]]></Implementation>
+</Method>
+
+<Method name="SWARHRATD1061Fetch">
+<Description>
+This is the Fetch component of the %Library.Query. 
+This should never have to change. It is designed to fetch the row for each subscript of the ^CacheTemp
+global and return this row to the Crystal Report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,&Row:%Library.List,&AtEnd:%Library.Integer=0]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // This fetch method should never have to change. 
+
+ // repid - Report ID
+ // ind   - sequence index which represents each row
+
+ New repid,ind
+
+ // Restore QHandle
+ Set AtEnd=$li(QHandle,1)
+ Set repid=$li(QHandle,2)
+ Set ind=$li(QHandle,3)
+
+ Set ind=$o(^CacheTemp("TRAK",repid,ind))
+ If ind="" {	// if there are no more rows, finish fetching
+	 Set AtEnd=1
+	 Set Row=""
+ }
+ Else      {	// fetch row
+ 	Set Row=^CacheTemp("TRAK",repid,ind)
+ }
+
+ // Save QHandle
+ Set QHandle=$ListBuild(AtEnd,repid,ind)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Query name="SWARHRATD1061">
+<Type>%Library.Query</Type>
+<FormalSpec>Hospital:%Library.Integer,Facility:%Library.Integer</FormalSpec>
+<SqlProc>1</SqlProc>
+<Parameter name="CONTAINID" value="0"/>
+<Parameter name="ROWSPEC" value="Hospital:%Library.String,FacilityCode:%Library.String,FacilityDesc:%Library.String,BatchNumber:%Library.String,StartDate:%Library.String,ClosingDate:%Library.String,FileName:%Library.String,RollBackDate:%Library.String,RollBackTime:%Library.String,RollBackUserName:%Library.String,RollBackUserInitials:%Library.String"/>
+<Parameter name="SELECTMODE" value="ODBC"/>
+</Query>
+</Class>
+</Export>

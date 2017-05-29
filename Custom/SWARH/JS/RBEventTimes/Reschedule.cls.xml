@@ -1,0 +1,141 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.SWARH.JS.RBEventTimes.Reschedule">
+<Description>
+Component JavaScript for: RBEventTimes.Reschedule</Description>
+<Modified>0</Modified>
+<Super>websys.AbstractJavaScript</Super>
+<TimeCreated>63537,10520.302527</TimeCreated>
+
+<Method name="JSContent">
+<Description>
+ </Description>
+<Internal>0</Internal>
+<Language>javascript</Language>
+<ClientMethod>1</ClientMethod>
+<Implementation><![CDATA[
+var RBET = {
+	dateChange : undefined,
+	timeChange : undefined,
+	updateClick : undefined,
+	init : function() {
+		var select = document.getElementById('SNAPRoom');
+		var label = document.getElementById('cSNAPRoom');
+
+		if (label) label.className = 'clsRequired'; // labelMandatory('SNAPRoom');
+		//if (obj) obj.onchange = RBET.roomSelected;
+
+		SWARH.onReady(SWARH.addStringTrim);
+		var dt = document.getElementById('TIMEDate');
+		if (dt) {
+			dateChange = dt.onchange;
+			dt.onchange = RBET.dateChangeCustom;
+		}
+
+		var tm = document.getElementById('TIMEStartTime');
+		if (tm) {
+			timeChange = tm.onchange;
+			tm.onchange = RBET.timeChangeCustom;
+		}
+
+		var update = document.getElementById('update1');
+		if (update) {
+			RBET.updateClick = update.onclick;
+			update.onclick = RBET.updateClickCustom;
+		}
+
+		RBET.createSNAPRoomList();
+	},
+	updateClickCustom : function (e) {
+		var errors = [];
+
+		var objDate = document.getElementById('TIMEDate');
+		if ((objDate) && (objDate.value === "")) {
+			errors.push(t['TIMEDate'] + ": " + t['XMISSING']);
+		} else if (objDate && (!IsValidDate(objDate))) {
+			errors.push(t['TIMEDate'] + ": " + t['XINVALID']);
+		}
+
+		var objTime = document.getElementById('TIMEStartTime');
+		if ((objTime) && (objTime.value === "")) {
+			errors.push(t['TIMEStartTime'] + ": " + t['XMISSING']);
+		} else if (objTime && (!IsValidTime(objTime))) {
+			errors.push(t['TIMEStartTime'] + ": " + t['XINVALID']);
+		}
+
+		var select = document.getElementById('SNAPRoom');
+		var label = document.getElementById('cSNAPRoom');
+		if ((select) && (select.disabled !== "disabled") && (select.value === "")) {
+			errors.push(label.innerHTML.trim() + ": " + t['XMISSING']);
+		}
+
+		if (errors.length > 0) {
+			alert(errors.join("\n"));
+			return false;
+		}
+		RBET.updateClick(e);
+	},
+	dateChangeCustom : function(e) {
+		dateChange(e);
+		RBET.updateRoomList();
+	},
+	timeChangeCustom : function(e) {
+		timeChange(e);
+		RBET.updateRoomList();
+	},
+	createSNAPRoomList : function() {
+		var config = {
+			invalidMessage : "Please Select a valid Date and Time",
+			roomChange : RBET.roomSelected,
+			stateChange : RBET.roomStateChanged,
+			validParams : RBET.getValidParams,
+			methodName : "GetRoomOptionsJSONForEventSession"
+		};
+
+		if (typeof SNAP === "undefined") SWARH.loadSNAP(RBET.createSNAPRoomList);
+		else SNAP.createSNAPRoomList(config);
+	},
+	getValidParams : function () {
+		var objEvent = document.getElementById('PARREF');
+		var tm = document.getElementById('TIMEStartTime');
+		var dt = document.getElementById('TIMEDate');
+		var eventId;
+		var startDate = SWARH.convertStrDatetoISO(dt.value.trim());
+		var startTime = tm.value.trim();
+		if (objEvent) eventId = objEvent.value;
+
+		if ((eventId) && (dt.value.length > 0) && (tm.value.length > 0) && IsValidDate(dt) && IsValidTime(tm)) {
+			return [eventId, startDate, startTime];
+		}
+		return false;
+	},
+	updateRoomList : function() {
+		if (typeof SNAP === "undefined") SWARH.loadSNAP(RBET.updateRoomList);
+		else setTimeout(function() {SNAP.refreshRoomList("SNAPRoom");}, 1);
+	},
+	roomSelected : function() {
+
+	},
+	roomStateChanged : function (oldState, newState) {
+		
+	}
+};
+
+websys_removeListener("load","onload",DocumentLoadHandler);
+websys_addListener("load","onload",CustomDocumentLoadHandler);
+
+function CustomDocumentLoadHandler() {
+	DocumentLoadHandler();
+	RBET.init();
+}
+]]></Implementation>
+</Method>
+
+<Parameter name="SrcVer">
+<Description>
+This Parameter is updated by Perforce</Description>
+<Internal>0</Internal>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/SWARH/JS/RBEventTimes/Reschedule.xml#1 $</Default>
+</Parameter>
+</Class>
+</Export>

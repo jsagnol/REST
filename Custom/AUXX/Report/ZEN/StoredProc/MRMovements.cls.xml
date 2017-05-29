@@ -1,0 +1,203 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.AUXX.Report.ZEN.StoredProc.MRMovements">
+<ProcedureBlock>0</ProcedureBlock>
+<Super>Report.Abstract</Super>
+<TimeCreated>61017,51204.964063</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/AUXX/Report/ZEN/StoredProc/MRMovements.xml#1 $</Default>
+</Parameter>
+
+<UDLText name="T">
+<Content><![CDATA[
+// Report Name: AUXX Medical Record Movements  <br>
+
+]]></Content>
+</UDLText>
+
+<UDLText name="T">
+<Content><![CDATA[
+// Report Code: AUXX.MED0003 <br>
+
+]]></Content>
+</UDLText>
+
+<Method name="MRMovementsClose">
+<Final>0</Final>
+<ClassMethod>1</ClassMethod>
+<CodeMode>code</CodeMode>
+<FormalSpec>QHandle:%Library.Binary</FormalSpec>
+<Private>0</Private>
+<ReturnType>%Library.Status</ReturnType>
+<SqlProc>0</SqlProc>
+<Implementation><![CDATA[
+ // Clean up by purging the temporary node in ^CacheTemp global
+ New repid
+ Set repid=$li(QHandle,2)
+ 
+   //Close Monitor (if configured to capture stats)
+ 	i mon Do ..MonitorEnd(mon)
+
+ 
+ Kill ^CacheTemp("TRAK",repid)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="MRMovementsExecute">
+<Description>
+This is the Execute section for the %Library.Query. 
+All of the logic will be performed here.
+A new node for the ^CacheTemp global will be created and each subscript of this global will contain
+a row for the report.</Description>
+<ClassMethod>1</ClassMethod>
+<CodeMode>code</CodeMode>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,DateFrom:%Date,DateTo:%Date,Hospital:%String,User:%String]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+	
+ // Get reportid i.e. use $INCREMENT to add another node to ^CacheTemp global. 
+ // We use ^CacheTemp global because it will always use memory before disk
+ New repid,ind
+
+ // Use $Increment to get the next node
+ Set repid=$I(^CacheTemp("TRAK"))
+
+ //Start Monitor (if configured to capture stats)
+ 	s mon=..MonitorBegin()
+ 	
+ // Build data into ^CacheTemp(ReportID)
+ // e.g. Set ^CacheTemp(ReportID,Index)=$LB(f1,f2,f3)
+ New Number,String,Date,Time,c,n
+ n PAPMINo,RTMAVVolDesc,RTMVTRowId,RTMVTType,UserID,SSUSRInitials,SSUSRName,RTMVTDate,RTMVTTime,LocFromID,LocFromCode,LocFromDesc,LocToID,LocToCode,LocToDesc,RTMASMRNO,TYPDesc,TYPRowId,TYPCode,HOSPRowId,HOSPDesc
+ s (UserID,LocFromID,LocToID,TYPRowId,HOSPRowId)=0
+ s (PAPMINo,RTMAVVolDesc,RTMVTRowId,RTMVTType,SSUSRInitials,SSUSRName,RTMVTDate,RTMVTTime,LocFromCode,LocFromDesc,LocToCode,LocToDesc,RTMASMRNO,TYPDesc,TYPCode,HOSPDesc)=""
+ s ind=1
+ 
+ // Strip white space/control chars from blank variables
+ i $g(Hospital)'="" s Hospital=$ZSTRIP(Hospital,"*WC")
+ i $g(User)'="" s User=$ZSTRIP(User,"*WC")
+
+  //Convert ODBC dates to cache format
+ s DateFrom=..ConvertDateToCache(DateFrom)
+ s DateTo=..ConvertDateToCache(DateTo)
+ 
+ &sql(declare MRMovements cursor for
+ SELECT
+	PAPMI_No,
+	RTMAV_VolDesc, 
+	RTMVT_RowId, 
+	RTMVT_Type, 
+	RTMVT_UserIDFrom_DR, 
+	RTMVT_UserIDFrom_DR->SSUSR_Initials, 
+	RTMVT_UserIDFrom_DR->SSUSR_Name, 
+	RTMVT_Date,
+	RTMVT_Time, 
+	RTMVT_LocFrom_DR, 
+	RTMVT_LocFrom_DR->CTLOC_Code,
+	RTMVT_LocFrom_DR->CTLOC_Desc,
+	RTMVT_LocTo_DR, 
+	RTMVT_LocTo_DR->CTLOC_Code,
+	RTMVT_LocTo_DR->CTLOC_Desc,
+	RTMAS_MRNo,
+	RTMAS_MRType_DR->TYP_Desc,
+	RTMAS_MRType_DR->TYP_RowId,
+	RTMAS_MRType_DR->TYP_Code,
+	RTMVT_LocFrom_DR->CTLOC_Hospital_DR,
+	RTMVT_LocFrom_DR->CTLOC_Hospital_DR->HOSP_Desc
+ FROM SQLUser.RT_Master,SQLUser.RT_MVTrans,SQLUser.RT_MasVol,SQLUser.PA_Patmas
+ WHERE RTMVT_Date between :DateFrom and :DateTo 
+ AND RTMAS_PatNo_DR=PAPMI_RowId 
+ AND RTMAS_RowId=RTMAV_RTMAS_ParRef 
+ AND RTMAV_RowId=RTMVT_RTMAV_Parref
+ AND (({fn CONCAT( ',', {fn CONCAT((:Hospital),',')})} [ {fn CONCAT( ',', {fn CONCAT((RTMVT_LocFrom_DR->CTLOC_Hospital_DR->HOSP_RowId),',')})}) OR (:Hospital IS NULL))
+ AND (({fn CONCAT( ',', {fn CONCAT((:User),',')})} [ {fn CONCAT( ',', {fn CONCAT((RTMVT_UserIDFrom_DR->SSUSR_RowId),',')})}) OR (:User IS NULL)))
+
+ &sql(open MRMovements)
+
+ //fetch first row
+ &sql(fetch MRMovements into :PAPMINo,:RTMAVVolDesc,:RTMVTRowId,:RTMVTType,:UserID,:SSUSRInitials,:SSUSRName,:RTMVTDate,:RTMVTTime,:LocFromID,:LocFromCode,:LocFromDesc,:LocToID,:LocToCode,:LocToDesc,:RTMASMRNO,:TYPDesc,:TYPRowId,:TYPCode,:HOSPRowId,:HOSPDesc)
+
+ while 'SQLCODE{
+ do FormatDates
+ do FormatTimes
+ if SSUSRName = "" {set SSUSRName = "*Unknown User*"}
+ if HOSPDesc = "" {set HOSPDesc = "*Unknown Hospital*"}
+ 
+ // build the row
+ Set ^CacheTemp("TRAK",repid,$ZCVT(HOSPDesc,"U")_" "_$ZCVT(SSUSRName,"U")_" "_PAPMINo_" "_$ZCVT(RTMAVVolDesc,"U")_" "_ind)=$LB(PAPMINo,RTMAVVolDesc,RTMVTRowId,RTMVTType,UserID,SSUSRInitials,SSUSRName,RTMVTDate,RTMVTTime,LocFromID,LocFromCode,LocFromDesc,LocToID,LocToCode,LocToDesc,RTMASMRNO,TYPDesc,TYPRowId,TYPCode,HOSPRowId,HOSPDesc)
+ s ind=ind+1
+ //fetch rows
+ &sql(fetch MRMovements into :PAPMINo,:RTMAVVolDesc,:RTMVTRowId,:RTMVTType,:UserID,:SSUSRInitials,:SSUSRName,:RTMVTDate,:RTMVTTime,:LocFromID,:LocFromCode,:LocFromDesc,:LocToID,:LocToCode,:LocToDesc,:RTMASMRNO,:TYPDesc,:TYPRowId,:TYPCode,:HOSPRowId,:HOSPDesc)
+ }
+
+ &sql(close MRMovements)
+
+ // Build QHandle (AtEnd,ReportID,Index)
+ Set QHandle=$lb(0,repid,0)
+
+ Quit $$$OK
+
+
+FormatDates
+ // Convert the dates to ODBC date format
+ If RTMVTDate Set RTMVTDate=..ConvertDateToODBC(RTMVTDate)
+
+ Quit
+
+FormatTimes
+ // Convert the times to ODBC time format
+ If RTMVTTime Set RTMVTTime=..ConvertTimeToODBC(RTMVTTime)
+ Quit
+]]></Implementation>
+</Method>
+
+<Method name="MRMovementsFetch">
+<Description>
+This is the Fetch component of the %Library.Query. 
+This should never have to change. It is designed to fetch the row for each subscript of the ^CacheTemp
+global and return this row to the Crystal Report.</Description>
+<Final>0</Final>
+<ClassMethod>1</ClassMethod>
+<CodeMode>code</CodeMode>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,&Row:%Library.List,&AtEnd:%Library.Integer=0]]></FormalSpec>
+<Private>0</Private>
+<ReturnType>%Library.Status</ReturnType>
+<SqlProc>0</SqlProc>
+<Implementation><![CDATA[
+ // This fetch method should never have to change. 
+
+ New repid,ind
+
+ // Restore QHandle
+ Set AtEnd=$li(QHandle,1)
+ Set repid=$li(QHandle,2)
+ Set ind=$li(QHandle,3)
+
+ Set ind=$o(^CacheTemp("TRAK",repid,ind))
+ If ind="" {	// if there are no more rows, finish fetching
+ Set AtEnd=1
+ Set Row=""
+ }
+ Else      {	// fetch row
+ Set Row=^CacheTemp("TRAK",repid,ind)
+ }
+
+ // Save QHandle
+ s QHandle=$lb(AtEnd,repid,ind)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Query name="MRMovements">
+<Type>%Library.Query</Type>
+<FormalSpec>DateFrom:%Date,DateTo:%Date,Hospital:%String,User:%String</FormalSpec>
+<SqlProc>1</SqlProc>
+<Parameter name="CONTAINID" value="0"/>
+<Parameter name="ROWSPEC" value="PAPMINo:%String,RTMAVVolDesc:%String,RTMVTRowId:%String,RTMVTType:%String,UserID:%Integer,SSUSRInitials:%String,SSUSRName:%String,RTMVTDate:%Date,RTMVTTime:%String,LocFromID:%Integer,LocFromCode:%String,LocFromDesc:%String,LocToID:%Integer,LocToCode:%String,LocToDesc:%String,RTMASMRNO:%String,TYPDesc:%String,TYPRowId:%Integer,TYPCode:%String,HOSPRowId:%Integer,HOSPDesc:%String"/>
+</Query>
+</Class>
+</Export>

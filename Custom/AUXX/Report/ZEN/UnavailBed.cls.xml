@@ -1,0 +1,145 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.AUXX.Report.ZEN.UnavailBed">
+<Super>Custom.AUXX.Report.ZEN.Abstract</Super>
+<TimeCreated>61577,38068.550997</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/AUXX/Report/ZEN/UnavailBed.xml#1 $</Default>
+</Parameter>
+
+<UDLText name="T">
+<Content><![CDATA[
+// Report Name: Unavailable Beds <br>
+
+]]></Content>
+</UDLText>
+
+<UDLText name="T">
+<Content><![CDATA[
+// Report Code: AUXX.ATD0020 <br>
+
+]]></Content>
+</UDLText>
+
+<Property name="DateFrom">
+<Type>%String</Type>
+<Parameter name="ZENURL" value="P1"/>
+</Property>
+
+<Property name="DateTo">
+<Type>%String</Type>
+<Parameter name="ZENURL" value="P2"/>
+</Property>
+
+<Property name="Facility">
+<Type>%String</Type>
+<Parameter name="ZENURL" value="P3"/>
+</Property>
+
+<Property name="Ward">
+<Type>%String</Type>
+<Parameter name="ZENURL" value="P4"/>
+</Property>
+
+<XData name="ReportDefinition">
+<XMLNamespace>http://www.intersystems.com/zen/report/definition</XMLNamespace>
+<Data><![CDATA[
+<report xmlns='http://www.intersystems.com/zen/report/definition'
+   queryClass='Custom.AUXX.Report.ZEN.StoredProc.UnavailBed' queryName='UnavailBed' name='UnavailBed'>
+  <parameter expression='..DateFrom'/>
+  <parameter expression='..DateTo'/>
+  <parameter expression='..Facility'/>
+  <parameter expression='..Ward'/>
+  <attribute name='datefrom' expression='..DisplayDate(..DateFrom)'/>
+  <attribute name='dateto' expression='..DisplayDate(..DateTo)'/>
+  <attribute name='facility' expression='..GetHospListDesc(..Facility)'/>
+  <attribute name='ward' expression='..GetWardListDesc(..Ward)'/>
+  <attribute name='ReportTitle' expression='$$$Text("@UnavailableBeds@Unavailable Beds")'/>
+  <attribute name='timestamp' expression='$ZDATETIME($H, 2, 2)'/>  
+  <attribute name='username' expression='..Username'/>
+  
+  <group name="facility" breakOnField="HOSPDesc">
+ <attribute name="description" field="HOSPDesc" />
+  <aggregate name='HospTotal' type='CUSTOM' field='BedRowId' class='%ZEN.Report.Aggregate.CountDistinct'/>
+   <group name="Ward" breakOnField="WARDDesc">
+  <attribute name="description" field="WARDDesc" />
+      <aggregate name='WardTotal' type='CUSTOM' field='BedRowId' class='%ZEN.Report.Aggregate.CountDistinct'/>
+      <group name='Detail'>
+       <attribute field='WARDDesc' name='WARDDesc'/>
+       <attribute field='BEDCode' name='BEDCode'/>
+       <attribute field='STATDate' name='STATDate' expression='..DisplayDate(%val)'/>
+       <attribute field='STATTime' name='STATTime' expression='..DisplayTime(%val)' />
+       <attribute field='STATDateTo' name='STATDateTo' expression='..DisplayDate(%val)'/>
+       <attribute field='STATTimeTo' name='STATTimeTo' expression='..DisplayTime(%val)' />
+       <attribute field='DurationHours' name='DurationHours'/>
+       <attribute field='RNAVDesc' name='RNAVDesc'/>
+      </group>
+  </group>
+  </group>
+ </report>
+]]></Data>
+</XData>
+
+<XData name="ReportDisplay">
+<XMLNamespace>http://www.intersystems.com/zen/report/display</XMLNamespace>
+<Data><![CDATA[
+<report xmlns='http://www.intersystems.com/zen/report/display'
+xmlns:auxxstyle='http://www.intersystems.com/zen/report/display/auxx/style'
+xmlns:auxx='http://www.intersystems.com/zen/report/display/auxx'
+  name='UnavailBed'>
+<document width= "#(..ReportWidth)#" height="#(..ReportHeight)#" marginLeft="#(..DocMarginLeft)#" marginRight="#(..DocMarginRight)#" 
+marginTop="#(..DocMarginTop)#" marginBottom="#(..DocMarginBottom)#" footerHeight="#(..DocFooterHeight)#" headerHeight="#(..DocHeaderHeight)#" 
+regionBeforeExtent="#(..DocHeaderHeight)#" regionAfterExtent="#(..DocFooterHeight)#">
+<auxxstyle:auxxgroupheader/>
+<auxxstyle:auxxgroupsummary/>
+<auxxstyle:auxxhospitalheader/>
+<auxxstyle:auxxpageheader/>
+<auxxstyle:auxxpagefooter/>
+<auxxstyle:auxxparameterheader/>
+<auxxstyle:auxxreporttitle/>
+<auxxstyle:auxxtablecolumn/>
+</document>
+<auxx:PageHeader pagetitle='@ReportTitle'/>
+<auxx:ReportFooter username='@username' timestamp='@timestamp'/>
+
+<body>
+<!-- REPORT HEADER -->
+<auxx:ReportHeader reporttitle='@ReportTitle'/>
+<auxx:ReportParameterHeader label='@Facility:@Facility:' field='@facility' xcondition="string-length(@facility)>0"/>
+<auxx:ReportParameterHeader label='@Ward:@Ward:' field='@ward' xcondition="string-length(@ward)>0"/>
+<auxx:ReportDateHeader datefrom="@datefrom" dateto="@dateto" />
+<line pattern="solid" width="100%"/>
+<line pattern="empty" width="100%"></line> 
+<auxx:NoResults xcondition="not(facility)" />
+<group name='facility' pagebreak="true">
+<auxx:GroupHospitalHeader label="@Facility:@Facility:" field="@description" />
+<line pattern="empty" lineHeight="1mm" />
+<group name='Ward'>
+<auxx:GroupHeader label="@Ward:@Ward:" field="@description"/>
+<line pattern="empty" lineHeight="2mm" />
+     <table class='auxxtablecolumn' group='Detail'>
+        <item field='@BEDCode' width="6%" caption='@Bed@Bed'/>
+        <item field='@STATDate' width="11%" caption="@UnavailableDate@Unavailable Date " />
+        <item field='@STATTime' width="8%" caption='@Time@Time'/> 
+        <item field='@STATDateTo' width="15%" caption="@UnavailableToDate@Unavailable To Date " />
+        <item field='@STATTimeTo' width="8%" caption='@Time@Time'/> 
+        <item field='@DurationHours' width="11%" formatNumber="######0" style='text-align:right' caption='@Duration(Hours)@Duration (Hours)'/>  
+        <item value='' width="2%" /> 
+       <item field='@RNAVDesc' width="35%" caption='@ReasonUnavailable@Reason Unavailable'/>
+     </table>
+       <line pattern="empty" width="100%"></line> 
+	<auxx:GroupSummary label="@NumberofBedsUnavailablefor@Number of Beds Unavailable for" group="@description" summaryvalue="WardTotal" />
+	<line pattern="empty" lineHeight="4mm" />
+   </group>
+   <line pattern="empty" width="100%"></line> 
+   <auxx:GroupSummary label="@TotalNumberOfBedsUnavailablefor@Total Number of Beds Unavailable for" group="@description" summaryvalue="HospTotal" />
+   </group>
+</body>
+</report>
+]]></Data>
+</XData>
+</Class>
+</Export>

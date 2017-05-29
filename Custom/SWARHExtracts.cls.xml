@@ -1,0 +1,875 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.SWARHExtracts">
+<ClassType/>
+<ProcedureBlock>0</ProcedureBlock>
+<Super>%RegisteredObject</Super>
+<TimeCreated>60471,58724.96519</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/SWARHExtracts.xml#1 $</Default>
+</Parameter>
+
+<UDLText name="T">
+<Content><![CDATA[
+// $Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/SWARHExtracts.xml#1 $
+
+]]></Content>
+</UDLText>
+
+<UDLText name="T">
+<Content><![CDATA[
+// Version 1
+
+]]></Content>
+</UDLText>
+
+<Method name="getpmi">
+<Description>
+SWARH PMI Extract
+All non-deceased patients from SWARH PMI
+Fields separated by "|" and extra "|" on end
+Surname|Given name 1|Given name 2|Address line 1|Birth Date(dd/mm/ccyy)|Sex|UR Number|Medical Record Type|
+Path getpmi is required in file path definitions
+Filename: getpmi.txt</Description>
+<ClassMethod>1</ClassMethod>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	; Sets the process to LOW and BATCH
+	; BATCH uses only 25% of the global buffers
+	d SET^%PRIO("LOW,BATCH")
+
+	s repid=$i(^CacheTemp("EXTRACT"))
+	s ind=0
+	s paths=..GetFilePath("getpmi")
+	i $p(paths,"^",3)'="" w !,$p(paths,"^",3)
+	
+	i $p(paths,"^",3)="" d
+	. s filename=$s($p(paths,"^")'="":$p(paths,"^"),1:$p(paths,"^",2))_"getpmi.txt"
+	. s file=##class(%File).%New(filename)
+	. d file.Open("WSN")
+	. ;
+	. s patid=0 f  s patid=$o(^PAPER(patid)) q:patid=""  d
+	. . q:$p($g(^PAPER(patid,"ALL")),"^",13)'=""		; Quit if deceased
+	. . s ind=$i(ind)
+	. . ;
+	. . s patobj=##class(User.PAPatMas).%OpenId(patid)
+	. . i patobj d
+	. . . s dob=patobj.PAPMIDOB
+	. . . i $g(dob)'="" s dob=$zd(dob,4,,4)
+	. . . ;
+	. . . s (mrtypeid,mrtype)=""
+	. . . s mr=0 f  s mr=$o(^RT(0,"PAT",patid,mr)) q:mr=""  d
+	. . . . s mrtypeid=$p($g(^RT(mr)),"^",6)
+	. . . . i $g(mrtypeid)'="" d
+	. . . . . i $g(mrtype)'="" s mrtype=mrtype_"; "_$p($g(^RTC("TYPE",mrtypeid)),"^")
+	. . . . . i $g(mrtype)="" s mrtype=$p($g(^RTC("TYPE",mrtypeid)),"^")
+	. . . ;
+	. . . d file.WriteLine(patobj.PAPMIName_"|"_patobj.PAPMIName2_"|"_patobj.PAPMIName3_"|"_patobj.PAPMIPAPERDR.PAPERStName.GetAt(1)_"|"_$g(dob)_"|"_patobj.PAPMISexDR.CTSEXCode_"|"_patobj.PAPMINo_"|"_$g(mrtype)_"|")
+	. . . d patobj.%Close()
+	. ;
+	. d file.Close()
+	
+	q 1
+]]></Implementation>
+</Method>
+
+<Method name="TrendCare">
+<Description>
+Hamilton Trendcare extract (2 files)
+Colac Trendcare extract (2 files)</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>hosp:%String</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	; Sets the process to LOW and BATCH
+	; BATCH uses only 25% of the global buffers
+	d SET^%PRIO("LOW,BATCH")
+	
+	d ..dwnpmi(hosp)
+	d ..dwnbook(hosp)
+	
+	q 1
+]]></Implementation>
+</Method>
+
+<Method name="dwnpmi">
+<Description>
+Hamilton Trendcare extract (2 files)
+All current Inpatient epsiodes for Hamilton (hosp_code 10) where admission ward is not HITH (Hospital In The Home) ordered by admission ward
+Fields separated by "|" and extra "|" on end
+Path dwnpmi is required in file path definitions
+Filename: dwnpmi.txt
+
+Hamilton Format
+Last ward|Admission date/time|Last room|UR number|Episode No|Surname|Given name 1 + " " + given name 2|Birth date|Local doctor name|Today's date|Provisional diagnosis|
+
+Colac Trendcare extract (2 files)
+All current Inpatient episodes for Colac (hosp_code 2) where admission ward is not HITH (Hospital In The Home) ordered by admission ward
+Fields separated by "|" and extra "|" on end
+Path dwnpmi is required in file path definitions
+Filename: dwnpmi.txt
+
+Colac Format
+Last ward|Today's date|Last room|UR number|Episode number|Surname|Given name 1 + " " + given name 2|Provisional diagnosis|Birth date|Local doctor name|Local doctor first name/initials|Admission date|</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>hosp:%String</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	s repid=$i(^CacheTemp("EXTRACT"))
+	s ind=0
+	s paths=..GetFilePath("dwnpmi")
+	i $p(paths,"^",3)'="" w !,$p(paths,"^",3)
+	i $g(hosp)="" w !,"No Hospital Parameter."
+	
+	i $p(paths,"^",3)="",$g(hosp)'="" d
+	. s admid=0 f  s admid=$o(^PAADMi("AdmTypeCurr","I",admid)) q:admid=""  d
+	. . s pass=1
+	. . q:$p($g(^PAADM(admid,2)),"^",85)'=$o(^CT("HOSP",0,"Code",hosp,""))		;Restrict to hospital
+	. . s x=0 f  s x=$o(^PAWARD(0,"WARD_Code","HITH",x)) q:x=""  d
+	. . . i $p($g(^PAADM(admid)),"^",70)=x s pass=0		;Do not include wards with a code of HITH
+	. . q:pass=0
+	. . s patid=$p($g(^PAADM(admid)),"^")
+	. . q:patid=""
+	. . s ind=$i(ind)
+	. . ;
+	. . s (ward,room,bed,admno,gp,provdiag,admdate,admtime,patno,dob,surname,givenname,middlename,doc,doctitle)=""
+	. . s admobj=##class(User.PAAdm).%OpenId(admid)
+	. . i admobj d
+	. . . s ward=admobj.PAADMCurrentWardDR.WARDCode
+	. . . i ward="" d
+	. . . . s ward=##Class(web.PAAdmTransaction).GetBed("","ward",admid)
+	. . . . s ward=##class(web.PACWard).GetIdFromCodeOrDescription(ward)
+	. . . . i ward'="" s ward=$p($g(^PAWARD(ward)),"^")
+	. . . q:ward="HITH"
+	. . . s room=admobj.PAADMCurrentRoomDR.ROOMCode
+	. . . i room="" s room=##Class(web.PAAdmTransaction).GetBed("","room",admid)
+	. . . s bed=admobj.PAADMCurrentBedDR.BEDCode
+	. . . i bed="" s bed=##Class(web.PAAdmTransaction).GetBed("","bed",admid)
+	. . . s admno=admobj.PAADMADMNo
+	. . . i admobj.PAADMRefDocListDR'="" d
+	. . . . s gp=admobj.PAADMRefDocListDR.REFDForename
+	. . . . s gp=gp_" "_admobj.PAADMRefDocListDR.REFDDesc
+	. . . . ;i admobj.PAADMRefDocListDR.REFDDesc="NO GP NOMINATED" s gp=admobj.PAADMRefDocListDR.REFDDesc
+	. . . s doc=admobj.PAADMAdmDocCodeDR.CTPCPDesc
+	. . . s doctitle=admobj.PAADMAdmDocCodeDR.CTPCPTitleDR.TTLCode
+	. . . i admobj.PAADMWaitListDR'="" s provdiag=admobj.PAADMWaitListDR.WLProvisionalDiagnosis
+	. . . i $g(provdiag)="" s provdiag=admobj.PAADMMainMRADMDR.MRADMPresentComplaint
+	. . . s admdate=admobj.PAADMAdmDate
+	. . . s admtime=admobj.PAADMAdmTime
+	. . . s patno=admobj.PAADMPAPMIDR.PAPMINo
+	. . . s dob=admobj.PAADMPAPMIDR.PAPMIDOB
+	. . . s surname=admobj.PAADMPAPMIDR.PAPMIName
+	. . . s givenname=admobj.PAADMPAPMIDR.PAPMIName2
+	. . . s middlename=admobj.PAADMPAPMIDR.PAPMIName3
+	. . . d admobj.%Close()
+	. . ;
+	. . ; Hamilton
+	. . i hosp="1071" d
+	. . . i $g(ward)="" s ward="BOOK"
+	. . . i $g(dob)'="" s dob=$zstrip($zd(dob,3),"*P")
+	. . . i $g(admdate)'="" s admdate=$zstrip($zd(admdate,3),"*P")
+	. . . i $g(admtime)'="" s admtime=$zt(admtime,1)
+	. . . 
+	. . . s ^||EPISODE("SORT",repid,ward,ind)=ward_"|"_$zstrip($zd(+$h,3),"*P")_"|"_$zstrip(room,"*A")_bed_"|"_patno_"|"_admno_"|"_surname_"|"_givenname_" "_middlename_"|"_provdiag_"|"_dob_"|"_admdate_"|"_doc_"|"_doctitle_"|"
+	. . ;
+	. . ; Colac
+	. . i hosp="1130" d
+	. . . i $g(ward)="" s ward="BOOK"
+	. . . i dob s dob=$e($zd($p($g(patstr),"^",5),8),3,8)
+	. . . i $g(admdate)'="" s admdate=$e($zd(admdate,8),3,8)
+	. . . s ^||EPISODE("SORT",repid,ward,ind)=ward_"|"_$zstrip($zd(+$h,3),"*P")_"|"_room_"|"_patno_"|"_admno_"|"_surname_"|"_givenname_" "_middlename_"|"_provdiag_"|"_dob_"|"_$p(gp," ",2)_"|"_$p(gp," ")_"|"_admdate_" "_admtime_"|"
+	. ;
+	. s filename=$s($p(paths,"^")'="":$p(paths,"^"),1:$p(paths,"^",2))_$s(hosp="1130":"C",1:"")_"dwnpmi.txt"
+	. s file=##class(%File).%New(filename)
+	. d file.Open("WSN")
+	. s ward=0 f  s ward=$o(^||EPISODE("SORT",repid,ward)) q:ward=""  d
+	. . s ind=0 f  s ind=$o(^||EPISODE("SORT",repid,ward,ind)) q:ind=""  d
+	. . . d file.WriteLine($g(^||EPISODE("SORT",repid,ward,ind)))
+	. d file.Close()
+	
+	q 1
+]]></Implementation>
+</Method>
+
+<Method name="dwnbook">
+<Description>
+Hamilton Trendcare extract (2 files)
+All Inpatient preadmissions for Hamilton (hosp_code 10) for today and tomorrow where admission ward is not HITH (Hospital In The Home) ordered by admission ward
+Fields separated by "|" and extra "|" on end
+Path dwnbook is required in file path definitions
+Filename: dwnbook.txt
+
+Hamilton Format
+Admission ward|Admission date/time|Last room|UR number|Episode number|Surname|Given name 1 + " " + given name 2|Birth date|Local doctor name|Provisional diagnosis|
+
+Colac Trendcare extract (2 files)
+All Inpatient preadmissions for Colac (hosp_code 10) for today and tomorrow where admission ward is not HITH (Hospital In The Home) ordered by admission ward
+Fields separated by "|" and extra "|" on end
+Path dwnbook is required in file path definitions
+Filename: dwnbook.txt
+
+Colac Format
+Admission ward|Admission date|07:00|Last room|UR number|Episode number|Surname|Given name 1 + " " + given name 2|Provisional diagnosis|Birth date|Local doctor name|Local doctor first name/initials|</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>hosp:%String</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	s repid=$i(^CacheTemp("EXTRACT"))
+	s ind=0
+	s paths=..GetFilePath("dwnbook")
+	i $p(paths,"^",3)'="" w !,$p(paths,"^",3)
+	i $g(hosp)="" w !,"No Hospital Parameter."
+	
+	i $p(paths,"^",3)="",$g(hosp)'="" d
+	. s admid=0 f  s admid=$o(^PAADMi("PAADM_VisitStatus","P",admid)) q:admid=""  d
+	. . q:$p($g(^PAADM(admid,2)),"^",85)'=$o(^CT("HOSP",0,"Code",hosp,""))
+	. . s pass=1
+	. . s x=0 f  s x=$o(^PAWARD(0,"WARD_Code","HITH",x)) q:x=""  d
+	. . . i $p($g(^PAADM(admid)),"^",70)=x s pass=0		;Do not include wards with a code of HITH
+	. . q:pass=0
+	. . q:($p($g(^PAADM(admid)),"^",6)<+$h)||($p($g(^PAADM(admid)),"^",6)>(+$h+1))
+	. . s patid=$p($g(^PAADM(admid)),"^")
+	. . q:patid=""
+	. . s ind=$i(ind)
+	. . s (ward,room,bed,admno,gp,provdiag,admdate,admtime,patno,dob,surname,givenname,middlename,doc,doctitle)=""
+	. . s admobj=##class(User.PAAdm).%OpenId(admid)
+	. . i admobj d
+	. . . s ward=admobj.PAADMCurrentWardDR.WARDCode
+	. . . i ward="" d
+	. . . . s ward=##Class(web.PAAdmTransaction).GetBed("","ward",admid)
+	. . . . s ward=##class(web.PACWard).GetIdFromCodeOrDescription(ward)
+	. . . . i ward'="" s ward=$p($g(^PAWARD(ward)),"^")
+	. . . q:ward="HITH"
+	. . . s room=admobj.PAADMCurrentRoomDR.ROOMCode
+	. . . i room="" s room=##Class(web.PAAdmTransaction).GetBed("","room",admid)
+	. . . s bed=admobj.PAADMCurrentBedDR.BEDCode
+	. . . i bed="" s bed=##Class(web.PAAdmTransaction).GetBed("","bed",admid)
+	. . . s admno=admobj.PAADMADMNo
+	. . . i admobj.PAADMRefDocListDR'="" d
+	. . . . s gp=admobj.PAADMRefDocListDR.REFDForename
+	. . . . s gp=gp_" "_admobj.PAADMRefDocListDR.REFDDesc
+	. . . . ;i admobj.PAADMRefDocListDR.REFDDesc="NO GP NOMINATED" s gp=admobj.PAADMRefDocListDR.REFDDesc
+	. . . s doc=admobj.PAADMAdmDocCodeDR.CTPCPDesc
+	. . . s doctitle=admobj.PAADMAdmDocCodeDR.CTPCPTitleDR.TTLCode
+	. . . i admobj.PAADMWaitListDR'="" s provdiag=admobj.PAADMWaitListDR.WLProvisionalDiagnosis
+	. . . i $g(provdiag)="" s provdiag=admobj.PAADMMainMRADMDR.MRADMPresentComplaint
+	. . . s admdate=admobj.PAADMAdmDate
+	. . . s admtime=admobj.PAADMAdmTime
+	. . . s patno=admobj.PAADMPAPMIDR.PAPMINo
+	. . . s dob=admobj.PAADMPAPMIDR.PAPMIDOB
+	. . . s surname=admobj.PAADMPAPMIDR.PAPMIName
+	. . . s givenname=admobj.PAADMPAPMIDR.PAPMIName2
+	. . . s middlename=admobj.PAADMPAPMIDR.PAPMIName3
+	. . . d admobj.%Close()
+	. . ;
+	. . i $g(ward)="" s ward="BOOK"
+	. . ; Hamilton
+	. . i hosp="1071" d
+	. . . i $g(dob)'="" s dob=$zstrip($zd(dob,3),"*P")
+	. . . i $g(admdate)'="" s admdate=$zstrip($zd(admdate,3),"*P")
+	. . . i $g(admtime)'="" s admtime=$zt(admtime,2)
+	. . . 
+	. . . s ^||EPISODE("SORT",repid,ward,ind)=ward_"|"_admdate_"|"_admtime_"|"_$zstrip(room,"*A")_bed_"|"_patno_"|"_admno_"|"_surname_"|"_givenname_" "_middlename_"|"_provdiag_"|"_dob_"|"_doc_"|"_doctitle_"|"
+	. . ;
+	. . ; Colac
+	. . i hosp="1130" d
+	. . . i dob s dob=$e($zd(dob,8),3,8)
+	. . . i $g(admdate)'="" s admdate=$e($zd(admdate,8),3,8)
+	. . . s ^||EPISODE("SORT",repid,ward,ind)=ward_"|"_$g(admdate)_"|"_admtime_"|"_room_"|"_patno_"|"_admno_"|"_surname_"|"_givenname_" "_middlename_"|"_provdiag_"|"_dob_"|"_$p(gp," ",2)_"|"_$p(gp," ")_"|"
+	. ;
+	. s filename=$s($p(paths,"^")'="":$p(paths,"^"),1:$p(paths,"^",2))_$s(hosp="1130":"C",1:"")_"dwnbook.txt"
+	. s file=##class(%File).%New(filename)
+	. d file.Open("WSN")
+	. s ward=0 f  s ward=$o(^||EPISODE("SORT",repid,ward)) q:ward=""  d
+	. . s ind=0 f  s ind=$o(^||EPISODE("SORT",repid,ward,ind)) q:ind=""  d
+	. . . d file.WriteLine($g(^||EPISODE("SORT",repid,ward,ind)))
+	. d file.Close()
+		
+	q 1
+]]></Implementation>
+</Method>
+
+<Method name="pmiepisode">
+<Description>
+PMI/Episode data extract for Warrnambool
+All Inpatient admissions in the last 14 days for Warrnambool (hosp_code 1)
+where admission source is C (Casualty) or admission type is C (Emergency admission through ED at this hospital) ordered by episode number
+Fields separated by "|" and extra "|" on end
+Path gribbpats is required in file path definitions
+Filename: gribbpats.txt
+
+Empty field|Episode number|UR number|Given names|Surname|Financial condensed code|Admission date|Admission source| 
+hosp=2160,days=14,type=gribbpats
+
+PMI/Episode data extract for Portland
+All Inpatient admissions in the last 60 days for Portland (hosp_code 7)
+where admission source is C (Casualty) or admission type is C (Emergency admission through ED at this hospital) ordered by episode number
+Fields separated by "|" and extra "|" on end
+Path pdhpats is required in file path definitions
+Filename: pdhpats.txt
+
+Empty field|Episode number|Surname|Given name 1|Birth date|Sex|Postcode|Admission date|Admission Type|Financial condensed code|Discharge date|Discharge destination|UR number|
+hosp=2460,days=60,type=pdhpats</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>hosp:%String,days:%String,type:%String</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	; Sets the process to LOW and BATCH
+	; BATCH uses only 25% of the global buffers
+	d SET^%PRIO("LOW,BATCH")
+	
+	i $g(days)="" s days=0
+	s datefrom=+$h-days
+	s dateto=+$h
+
+	s repid=$i(^CacheTemp("EXTRACT"))
+	s ind=0
+	s paths=..GetFilePath(type)
+	i $p(paths,"^",3)'="" w !,$p(paths,"^",3)
+	i $g(hosp)="" w !,"No Hospital Parameter."
+	
+	i $p(paths,"^",3)="",$g(hosp)'="" d
+	. f date=datefrom:1:dateto d
+	. . s admid=0 f  s admid=$o(^PAADMi("PAADM_AdmDate",date,admid)) q:admid=""  d
+	. . . q:$p($g(^PAADM(admid,2)),"^",85)'=$o(^CT("HOSP",0,"Code",hosp,""))
+	. . . q:$p($g(^PAADM(admid)),"^",2)'="I"
+	. . . q:$p($g(^PAADM(admid,2)),"^",28)'=$o(^PAC("IPAT",0,"Code","C",""))	; Filter by Inpatient Admission Type
+	. . . s patid=$p($g(^PAADM(admid)),"^")
+	. . . q:patid=""
+	. . . s ind=$i(ind)
+	. . . ;
+	. . . s (admno,admdate,admtime,disdate,distime,disdest,patno,dob,sex,surname,givenname,middlename,zip,fincode,admsrc)=""
+	. . . s admobj=##class(User.PAAdm).%OpenId(admid)
+	. . . i admobj d
+	. . . . s admno=admobj.PAADMADMNo
+	. . . . s admdate=admobj.PAADMAdmDate
+	. . . . s admtime=admobj.PAADMAdmTime
+	. . . . s disdate=admobj.PAADMDischgDate
+	. . . . s distime=admobj.PAADMDischgTime
+	. . . . s disdest=admobj.PAADMMainMRADMDR.MRADMTransfDestDR.TRDCode
+	. . . . s patno=admobj.PAADMPAPMIDR.PAPMINo
+	. . . . s dob=admobj.PAADMPAPMIDR.PAPMIDOB
+	. . . . s sex=admobj.PAADMPAPMIDR.PAPMISexDR.CTSEXCode
+	. . . . s surname=admobj.PAADMPAPMIDR.PAPMIName
+	. . . . s givenname=admobj.PAADMPAPMIDR.PAPMIName2
+	. . . . s middlename=admobj.PAADMPAPMIDR.PAPMIName3
+	. . . . s zip=admobj.PAADMPAPMIDR.PAPMIPAPERDR.PAPERZipDR.CTZIPCode
+	. . . . s admsrc=admobj.PAADMAdmSrcDR.ADSOUCode
+	. . . . f x=1:1:admobj.ChildPAAdmInsurance.Count() d
+	. . . . . s fincode=admobj.ChildPAAdmInsurance.GetAt(x).INSInsTypeDR.INSTPayorGroupDR.PGRPCode
+	. . . . 
+	. . . . d admobj.%Close()
+	. . . ;
+	. . . i hosp="2160" d
+	. . . . i $g(admdate)'="" s admdate=$zd(admdate,4)
+	. . . . i $g(admtime)'="" s admtime=$zt(admtime,1)
+	. . . . ;
+	. . . . s ^||EPISODE("SORT",repid,admno,ind)="|"_admno_"|"_patno_"|"_givenname_" "_middlename_"|"_surname_"|"_$g(fincode)_"|"_admdate_" "_admtime_"|"_admsrc_"|"
+	. . . ;
+	. . . i hosp="2460" d
+	. . . . i $g(dob)'="" s dob=$zd(dob,4)
+	. . . . i $g(admdate)'="" s admdate=$zd(admdate,4)	
+	. . . . i $g(admtime)'="" s admtime=$zt(admtime,1)
+	. . . . i $g(disdate)'="" s disdate=$zd(disdate,4)	
+	. . . . i $g(distime)'="" s distime=$zt(distime,1)
+	. . . . ;
+	. . . . s ^||EPISODE("SORT",repid,admno,ind)="|"_admno_"|"_surname_"|"_givenname_"|"_dob_"|"_sex_"|"_zip_"|"_$g(admdate)_" "_$g(admtime)_"|E|"_$g(fincode)_"|"_$g(disdate)_" "_$g(distime)_"|"_disdest_"|"_patno_"|"
+	. ;
+	. s filename=$s($p(paths,"^")'="":$p(paths,"^"),1:$p(paths,"^",2))_type_".txt"
+	. s file=##class(%File).%New(filename)
+	. d file.Open("WSN")
+	. s sort=0 f  s sort=$o(^||EPISODE("SORT",repid,sort)) q:sort=""  d
+	. . s ind=0 f  s ind=$o(^||EPISODE("SORT",repid,sort,ind)) q:ind=""  d
+	. . . d file.WriteLine($g(^||EPISODE("SORT",repid,sort,ind)))
+	. d file.Close()
+	
+	q 1
+]]></Implementation>
+</Method>
+
+<Method name="curpats">
+<Description>
+TV Extract for Hamilton
+Inpatients currently in the hospital specified in the hosp-code parameter sorted by ward, room, bed, surname, given name
+Fields separated by "|" and extra "|" on end
+Path curpats is required in file path definitions
+Filename: curpats.txt
+
+Ward Code|Room No.|Bed No.|Patient Category|Episode No.|Title|Surname|Given Name|Financial Class|Financial Description|Admission Date|</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>hosp:%String=1071</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	; Sets the process to LOW and BATCH
+	; BATCH uses only 25% of the global buffers
+	d SET^%PRIO("LOW,BATCH")
+	
+	s repid=$i(^CacheTemp("EXTRACT"))
+	s ind=0
+	s paths=..GetFilePath("curpats")
+	i $p(paths,"^",3)'="" w !,$p(paths,"^",3)
+	i $g(hosp)="" w !,"No Hospital Parameter."
+	
+	i $p(paths,"^",3)="",$g(hosp)'="" d
+	. s admid=0 f  s admid=$o(^PAADMi("AdmTypeCurr","I",admid)) q:admid=""  d
+	. . q:$p($g(^PAADM(admid)),"^",17)'=""
+	. . q:$p($g(^PAADM(admid,2)),"^",85)'=$o(^CT("HOSP",0,"Code",hosp,""))		;Restrict to hospital
+	. . ;q:$p($g(^PAADM(admid)),"^",70)=$o(^PAWARD(0,"WARD_Code","HITH",""))		;Do not include wards with a code of HITH
+	. . s patid=$p($g(^PAADM(admid)),"^")
+	. . q:patid=""
+	. . s ind=$i(ind)
+	. . s (ward,room,bed,admno,gp,provdiag,admdate,admtime,disdate,distime,disdest,patno,title,dob,sex,surname,givenname,middlename,zip,patcat,finclass,findesc)=""
+	. . s admobj=##class(User.PAAdm).%OpenId(admid)
+	. . i admobj d
+	. . . s ward=admobj.PAADMCurrentWardDR.WARDCode
+	. . . i ward="" d
+	. . . . s ward=##Class(web.PAAdmTransaction).GetBed("","ward",admid)
+	. . . . s ward=##class(web.PACWard).GetIdFromCodeOrDescription(ward)
+	. . . . i ward'="" s ward=$p($g(^PAWARD(ward)),"^")
+	. . . s room=admobj.PAADMCurrentRoomDR.ROOMCode
+	. . . i room="" s room=##Class(web.PAAdmTransaction).GetBed("","room",admid)
+	. . . s room=$zstrip(room,"*AW")
+	. . . s bed=admobj.PAADMCurrentBedDR.BEDCode
+	. . . i bed="" s bed=##Class(web.PAAdmTransaction).GetBed("","bed",admid)
+	. . . s admno=$zstrip(admobj.PAADMADMNo,"*A")
+	. . . i admobj.PAADMRefDocListDR'="" d
+	. . . . s gp=admobj.PAADMRefDocListDR.REFDForename
+	. . . . s gp=gp_" "_admobj.PAADMRefDocListDR.REFDDesc
+	. . . . i admobj.PAADMRefDocListDR.REFDDesc="NO GP NOMINATED" s gp=admobj.PAADMRefDocListDR.REFDDesc
+	. . . s provdiag=admobj.PAADMMainMRADMDR.MRADMPresentComplaint
+	. . . s admdate=admobj.PAADMAdmDate
+	. . . s admtime=admobj.PAADMAdmTime
+	. . . s disdate=admobj.PAADMDischgDate
+	. . . s distime=admobj.PAADMDischgTime
+	. . . s disdest=admobj.PAADMMainMRADMDR.MRADMTransfDestDR.TRDCode
+	. . . ;
+	. . . s patno=admobj.PAADMPAPMIDR.PAPMINo
+	. . . s title=admobj.PAADMPAPMIDR.PAPMITitleDR.TTLCode
+	. . . s dob=admobj.PAADMPAPMIDR.PAPMIDOB
+	. . . s sex=admobj.PAADMPAPMIDR.PAPMISexDR.CTSEXCode
+	. . . s surname=admobj.PAADMPAPMIDR.PAPMIName
+	. . . s givenname=admobj.PAADMPAPMIDR.PAPMIName2
+	. . . s middlename=admobj.PAADMPAPMIDR.PAPMIName3
+	. . . s zip=admobj.PAADMPAPMIDR.PAPMIPAPERDR.PAPERZipDR.CTZIPCode
+	. . . 
+	. . . d admobj.%Close()
+	. . ;
+	. . f x=1:1:admobj.ChildPAAdmInsurance.Count() d
+	. . . s patcat=admobj.ChildPAAdmInsurance.GetAt(x).INSInsTypeDR.INSTPayorGroupDR.PGRPCode
+	. . . s findesc=admobj.ChildPAAdmInsurance.GetAt(x).INSInsTypeDR.INSTPayorGroupDR.PGRPDesc
+	. . i (",P,D,")[(","_patcat_",") s patcat="PR"
+	. . i patcat="M" s patcat="HO"
+	. . i (",A,T,W,S,X,O,C,J,")[(","_patcat_",") s patcat="SC"
+	. . s finclass=patcat
+	. . ;
+	. . s sort=ward_room_bed_surname_givenname
+	. . i $g(admdate)'="" s admdate=$zstrip($zd(admdate,4,,2),"*P")
+	. . s ^||EPISODE("SORT",repid,sort,ind)=..txt(ward,4)_"|"_..rtxt(room,3)_"|"_..txt(bed,3)_"|"_..txt(patcat,3)_"|"_..txt(admno,7)_"|"_..txt(title,4)_"|"_..txt(surname,20)_"|"_..txt(givenname,20)_"|"_..txt(finclass,3)_"|"_..txt(findesc,20)_"|"_..txt(admdate,6)_"|"
+	. ;
+	. s filename=$s($p(paths,"^")'="":$p(paths,"^"),1:$p(paths,"^",2))_"curpats.txt"
+	. s file=##class(%File).%New(filename)
+	. d file.Open("WSN")
+	. s sort=0 f  s sort=$o(^||EPISODE("SORT",repid,sort)) q:sort=""  d
+	. . s ind=0 f  s ind=$o(^||EPISODE("SORT",repid,sort,ind)) q:ind=""  d
+	. . . d file.WriteLine($g(^||EPISODE("SORT",repid,sort,ind)))
+	. d file.Close()
+	
+	q 1
+]]></Implementation>
+</Method>
+
+<Method name="txt">
+<Description>
+left pad with spaces</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>str,length</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[	q $e($e(str,1,length)_$j("",length),1,length)
+]]></Implementation>
+</Method>
+
+<Method name="rtxt">
+<Description>
+right pad with spaces</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>str,length</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	s str=$e(str,($l(str)+1)-length,$l(str))
+	i str'="" d
+	. f x=1:1:length d
+	. . i $l(str)<length s str="0"_str
+	i str="" s str=$j("",length)
+	q str
+]]></Implementation>
+</Method>
+
+<Method name="pjbappoint">
+<Description>
+Future O/P Bookings
+All O/P Appointments from today (including today) into the future for all hospitals
+in SWARH database sorted by appointment date, hosp code, clinic type and episode number
+Fields separated by "|" and extra "|" on end
+Path pjbappoint is required in file path definitions
+Filename: pjbappoint.txt
+
+Episode No|Appointment Date|Appointment Time|Start Time|Finish Time|UR Number|Clinic Code|Episode Status|Practitioner Code|Hospital Code|Financial Code| </Description>
+<ClassMethod>1</ClassMethod>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	; Sets the process to LOW and BATCH
+	; BATCH uses only 25% of the global buffers
+	d SET^%PRIO("LOW,BATCH")
+	
+	s repid=$i(^CacheTemp("EXTRACT"))
+	s ind=0
+	s paths=..GetFilePath("pjbappoint")
+	i $p(paths,"^",3)'="" w !,$p(paths,"^",3)
+	
+	i $p(paths,"^",3)="" d
+	. s res=0 f  s res=$o(^RBAS(res)) q:res=""  d
+	. . s date=(+$h-1) f  s date=$o(^RBAS(res,0,"DateSTime",date)) q:date=""  d
+	. . . s time=0 f  s time=$o(^RBAS(res,0,"DateSTime",date,time)) q:time=""  d
+	. . . . s as=0 f  s as=$o(^RBAS(res,0,"DateSTime",date,time,as)) q:as=""  d
+	. . . . . s appt=0 f  s appt=$o(^RBAS(res,as,"APPT",appt)) q:appt=""  d
+	. . . . . . s apptobj=##class(User.RBAppointment).%OpenId(res_"||"_as_"||"_appt)
+	. . . . . . i apptobj d
+	. . . . . . . q:apptobj.APPTAdmDR.PAADMType'="O"
+	. . . . . . . s (admno,asdate,astime,starttime,finishtime,patno,clinic,status,doccode,hospcode,fincode,apptno)=""
+	. . . . . . . s admno=apptobj.APPTAdmDR.PAADMADMNo
+	. . . . . . . s asdate=date
+	. . . . . . . s astime=time
+	. . . . . . . i apptobj.APPTCustomText2="" d
+	. . . . . . . . s apptno=##class(Region.AUXX.Utility.Utilities).IncrementCounter("PJBAPPOINTMENTNO",10,1100000000)
+	. . . . . . . . s apptobj.APPTCustomText2=$g(apptno)
+	. . . . . . . . d apptobj.%Save()
+	. . . . . . . i apptobj.APPTCustomText2'="" s apptno=apptobj.APPTCustomText2
+	. . . . . . . s starttime=apptobj.APPTArrivalTime
+	. . . . . . . s finishtime=apptobj.APPTEndTime
+	. . . . . . . s patno=apptobj.APPTPAPMIDR.PAPMINo
+	. . . . . . . s clinic=apptobj.APPTASParRef.ASRESParRef.RESCTLOCDR.CTLOCCode
+	. . . . . . . s status=apptobj.APPTStatus
+	. . . . . . . ;s status=##class(websys.StandardTypeItem).GetDescriptionFromCode("AppointmentStatus",status)
+	. . . . . . . s doccode=apptobj.APPTASParRef.ASRESParRef.RESCode
+	. . . . . . . s hospcode=apptobj.APPTAdmDR.PAADMHospitalDR.HOSPCode
+	. . . . . . . f x=1:1:apptobj.APPTAdmDR.ChildPAAdmInsurance.Count() d
+	. . . . . . . . s fincode=apptobj.APPTAdmDR.ChildPAAdmInsurance.GetAt(x).INSAuxInsTypeDR.AUXITCode
+	. . . . . . . s sort=date_hospcode_clinic_admno
+	. . . . . . . i $g(asdate)'="" s asdate=$zd(asdate,4)
+	. . . . . . . i $g(astime)'="" s astime=$zt(astime,2)
+	. . . . . . . i $g(starttime)'="" s starttime=$zt(starttime,2)
+	. . . . . . . i $g(finishtime)'="" s finishtime=$zt(finishtime,2)
+	. . . . . . . ;
+	. . . . . . . s ind=$i(ind)
+	. . . . . . . s ^||APPT("SORT",repid,sort,ind)=$g(apptno)_"|"_asdate_"|"_$s(astime="":"     ",1:astime)_"|"_$s(starttime="":"     ",1:starttime)_"|"_$s(finishtime="":"     ",1:finishtime)_"|"_patno_"|"_clinic_"|"_status_"|"_$e(doccode,1,7)_"|"_hospcode_"|"_$s(fincode="":"N",1:fincode)_"|"
+	. . . . . . . d apptobj.%Close()
+	. ;
+	. s filename=$s($p(paths,"^")'="":$p(paths,"^"),1:$p(paths,"^",2))_"pjbappoint.txt"
+	. s file=##class(%File).%New(filename)
+	. d file.Open("WSN")
+	. s sort=0 f  s sort=$o(^||APPT("SORT",repid,sort)) q:sort=""  d
+	. . s ind=0 f  s ind=$o(^||APPT("SORT",repid,sort,ind)) q:ind=""  d
+	. . . d file.WriteLine($g(^||APPT("SORT",repid,sort,ind)))
+	. d file.Close()
+	
+	q 1
+]]></Implementation>
+</Method>
+
+<Method name="SWHTheatreExtract">
+<Description>
+Theatre extract for Warrnambool (Shiine)
+All theatre bookings for the last 40 days for Warrnambool (hosp_code 1) sorted by appointment date, hosp code, clinic type and episode number
+Fields separated by "|" and extra "|" on end
+Path SWHTheatreExtract is required in file path definitions
+Filename: SWH_Theatre_Extract.txt
+
+099|UR number|Surname|Given name 1|Booking id|Procedure description|Procedure code|Operation start date/time|Operation end date/time|Operation called date/time|Surgeon code|Surgeon name|Wound classification code|Blank|N|Blank|Blank|Blank|Blank|Blank|Blank|</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>hosp:%String=2160</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	; Sets the process to LOW and BATCH
+	; BATCH uses only 25% of the global buffers
+	d SET^%PRIO("LOW,BATCH")
+	
+	s repid=$i(^CacheTemp("EXTRACT"))
+	s ind=0
+	s paths=..GetFilePath("SWHTheatreExtract")
+	i $p(paths,"^",3)'="" w !,$p(paths,"^",3)
+	i $g(hosp)="" w !,"No Hospital Parameter."
+
+	s datefrom=+$h-40
+	s dateto=+$h
+
+	i $p(paths,"^",3)="",$g(hosp)'="" d
+	. f date=datefrom:1:dateto d
+	. . s admid=0 f  s admid=$o(^OR(0,"Date",date,admid)) q:admid=""  d
+	. . . s ana=0 f  s ana=$o(^OR(0,"Date",date,admid,ana)) q:ana=""  d
+	. . . . s anaop=0 f  s anaop=$o(^OR(0,"Date",date,admid,ana,anaop)) q:anaop=""  d
+	. . . . . s op=##class(User.ORAnaestOperation).%Open($lb(admid_"||"_ana_"||"_anaop))
+	. . . . . i op d
+	. . . . . . i op.ANAOPParRef.ANAPAADMParRef.PAADMHospitalDR.HOSPCode=hosp d
+	. . . . . . . s (patno,surname,givenname,bookingno,proccode,procdesc,operdate,opertime,operenddate,operendtime,opercalleddate,opercalledtime,surgcode,surgdesc,wound)=""
+	. . . . . . . s patno=op.ANAOPParRef.ANAPAADMParRef.PAADMPAPMIDR.PAPMINo
+	. . . . . . . s surname=op.ANAOPParRef.ANAPAADMParRef.PAADMPAPMIDR.PAPMIName
+	. . . . . . . s givenname=op.ANAOPParRef.ANAPAADMParRef.PAADMPAPMIDR.PAPMIName2
+	. . . . . . . i op.ANAOPParRef.ANARBOperatingRoomDR d
+	. . . . . . . . s bookingno=op.ANAOPParRef.ANARBOperatingRoomDR.%Id()
+	. . . . . . . . s opercalleddate=op.ANAOPParRef.ANARBOperatingRoomDR.RBOPDateArrived
+	. . . . . . . . s opercalledtime=op.ANAOPParRef.ANARBOperatingRoomDR.RBOPApproxTimeOper
+	. . . . . . . s proccode=op.ANAOPStatePPPDR.SPPPCode
+	. . . . . . . s procdesc=op.ANAOPStatePPPDR.SPPPDesc
+	. . . . . . . s operdate=op.ANAOPOpStartDate
+	. . . . . . . s opertime=op.ANAOPOpStartTime
+	. . . . . . . s operenddate=op.ANAOPOpEndDate
+	. . . . . . . s operendtime=op.ANAOPOpEndTime
+	. . . . . . . s surgcode=op.ANAOPSurgeonDR.CTPCPCode
+	. . . . . . . s surgdesc=op.ANAOPSurgeonDR.CTPCPDesc
+	. . . . . . . s wound=op.ANAOPBladeDR.BLDTPCode
+	. . . . . . . ;
+	. . . . . . . s sort=operdate_hosp
+	. . . . . . . i $g(operdate)'="" s operdate=$zd(operdate,3)
+	. . . . . . . i $g(opertime)'="" s opertime=$zt(opertime,2)
+	. . . . . . . i $g(operenddate)'="" s operenddate=$zd(operenddate,3)
+	. . . . . . . i $g(operendtime)'="" s operendtime=$zt(operendtime,2)
+	. . . . . . . i $g(opercalleddate)'="" s opercalleddate=$zd(opercalleddate,3)
+	. . . . . . . i $g(opercalledtime)'="" s opercalledtime=$zt(opercalledtime,2)
+	. . . . . . . ;
+	. . . . . . . s ind=$i(ind)
+	. . . . . . . s ^||APPT("SORT",repid,sort,ind)="099|"_patno_"|"_surname_"|"_givenname_"|"_bookingno_"|"_procdesc_"|"_proccode_"|"_$zstrip(operdate_opertime,"*P")_"|"_$zstrip(operenddate_operendtime,"*P")_"|"_$zstrip(opercalleddate_opercalledtime,"*P")_"|"_surgcode_"|"_surgdesc_"|"_wound_"||N|||||||"
+	. . . . . . d op.%Close()
+	. ;
+	. s filename=$s($p(paths,"^")'="":$p(paths,"^"),1:$p(paths,"^",2))_"SWH_Theatre_Extract.txt"
+	. s file=##class(%File).%New(filename)
+	. d file.Open("WSN")
+	. s sort=0 f  s sort=$o(^||APPT("SORT",repid,sort)) q:sort=""  d
+	. . s ind=0 f  s ind=$o(^||APPT("SORT",repid,sort,ind)) q:ind=""  d
+	. . . d file.WriteLine($g(^||APPT("SORT",repid,sort,ind)))
+	. d file.Close()
+	
+	q 1
+]]></Implementation>
+</Method>
+
+<Method name="IPICDExtract">
+<Description>
+IP Diagnosis Extract
+All Inpatient discharges and ICD diagnosis codes within the specified date range for the specified hospital ordered by episode number
+Fields separated by "|" and extra "|" on end
+Path ipextrdiag is required in file path definitions
+Path ipextrproc is required in file path definitions
+Filename: ipextrdiag.txt/ipextrproc.txt
+
+Patient Id.|Episode No.|UR Number|Surname|Given Name|Birth date|Age|Sex|Adm Doctor Code|Adm Doctor Name|Patient Category|Financial Class|Sub Class|Care Type|Admission date|Discharge Date|Discharge Destination|Disch To Hosp Code|Disch To Hosp Desc|DRG Code|Admission Ward|Last Ward|Admission Source|Ventilation Duration|Ethnicity|Diagnosis code 1 - 30|Diagnosis description 1 - 30|</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>DateFrom:%String,DateTo:%String,hosp:%String,type:%String</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	; Sets the process to LOW and BATCH
+	; BATCH uses only 25% of the global buffers
+	d SET^%PRIO("LOW,BATCH")
+	
+	s repid=$i(^CacheTemp("EXTRACT"))
+	s ind=0
+	i type="DIAG" s paths=..GetFilePath("ipextrdiag")
+	i type="PROC" s paths=..GetFilePath("ipextrproc")
+	i $p(paths,"^",3)'="" w !,$p(paths,"^",3)
+	i $g(hosp)="" w !,"No Hospital Parameter."
+
+ 	s DateFrom=##class(websys.Conversions).DateHtmlToLogical(DateFrom)
+ 	s DateTo=##class(websys.Conversions).DateHtmlToLogical(DateTo)
+ 	s date=DateFrom
+ 	
+	i $p(paths,"^",3)="",$g(hosp)'="" d
+	. f date=DateFrom:1:DateTo d
+	. . s admid=0 f  s admid=$o(^PAADMi("DischDate",date,admid)) q:admid=""  d
+	. . . q:$p($g(^PAADM(admid)),"^",2)'="I"
+	. . . s admobj=##class(User.PAAdm).%OpenId(admid)
+	. . . i admobj d
+	. . . . s (patid,admno,patno,surname,givenname,dob,age,sex,admdoccode,admdocdesc,patcat,finclass,subclass,caretype,admdate,disdate,disdest,distohospcode,distohospdesc,drgcode,admward,lastward,admsrc,ventdur,ethn,diagproclist)=""
+	. . . . q:hosp'=admobj.PAADMHospitalDR.HOSPCode
+	. . . . s patid=admobj.PAADMPAPMIDR.%Id()
+	. . . . s admno=admobj.PAADMADMNo
+	. . . . s patno=admobj.PAADMPAPMIDR.PAPMINo
+	. . . . s surname=admobj.PAADMPAPMIDR.PAPMIName
+	. . . . s givenname=admobj.PAADMPAPMIDR.PAPMIName2
+	. . . . s dob=admobj.PAADMPAPMIDR.PAPMIDOB
+	. . . . s age=admobj.PAADMPAPMIDR.PAPMIPAPERDR.PAPERAgeYr
+	. . . . s sex=admobj.PAADMPAPMIDR.PAPMISexDR.CTSEXCode
+	. . . . s admdoccode=admobj.PAADMAdmDocCodeDR.CTPCPCode
+	. . . . s admdocdesc=admobj.PAADMAdmDocCodeDR.CTPCPDesc
+	. . . . s caretype=admobj.PAADMMainMRADMDR.MRADMCareTypeDR.CARETYPCode
+	. . . . s admdate=admobj.PAADMAdmDate
+	. . . . s disdate=admobj.PAADMDischgDate
+	. . . . s disdest=admobj.PAADMMainMRADMDR.MRADMDischDestinDR.DDESTCode
+	. . . . s distohospcode=admobj.PAADMMainMRADMDR.MRADMTransfDestDR.TRDCode
+	. . . . s distohospdesc=admobj.PAADMMainMRADMDR.MRADMTransfDestDR.TRDDesc
+	. . . . s drgcode=admobj.PAADMMainMRADMDR.MRADMDRGDR.DRGCode
+	. . . . s x=0 f  s x=$o(^PAADM(admid,"TRANS",x)) q:x=""  d
+	. . . . . q:admward'=""
+	. . . . . q:$p($g(^PAADM(admid,"TRANS",x)),"^",12)'=$o(^PAC("REQST",0,"Code","D",""))
+	. . . . . s admward=$p($g(^PAADM(admid,"TRANS",x)),"^",9)
+	. . . . i admward'="" s admward=$p($g(^PAWARD(admward)),"^")
+	. . . . s lastward=admobj.PAADMCurrentWardDR.WARDCode
+	. . . . s admsrc=admobj.PAADMAdmSrcDR.ADSOUCode
+	. . . . s ventdur=admobj.PAADMMainMRADMDR.MRADMDurationMechVent
+	. . . . s ethn=admobj.PAADMPAPMIDR.PAPMIPAPERDR.PAPERNationDR.CTNATCode
+	. . . . s diagproclist=..GetDiagProcList(admobj.PAADMMainMRADMDR.%Id(),type)
+	. . . . ;
+	. . . . i $g(dob)'="" s dob=$zd(dob,4)
+	. . . . i $g(admdate)'="" s admdate=$zd(admdate,4)
+	. . . . i $g(disdate)'="" s disdate=$zd(disdate,4)
+	. . . . ;
+	. . . . f x=1:1:admobj.ChildPAAdmInsurance.Count() d
+	. . . . . s patcat=admobj.ChildPAAdmInsurance.GetAt(x).INSInsTypeDR.INSTPayorGroupDR.PGRPCode
+	. . . . . s finclass=patcat
+	. . . . . s subclass=admobj.ChildPAAdmInsurance.GetAt(x).INSInsTypeDR.INSTPayorGroupDR.PGRPDesc
+	. . . . ;
+	. . . . s ind=$i(ind)
+	. . . . s ^||EPISODE("SORT",repid,admno,ind)=patid_"|"_admno_"|"_patno_"|"_surname_"|"_givenname_"|"_dob_"|"_age_"|"_sex_"|"_admdoccode_"|"_admdocdesc_"|"_patcat_"|"_finclass_"|"_subclass_"|"_caretype_"|"_admdate_"|"_disdate_"|"_disdest_"|"_distohospcode_"|"_distohospdesc_"|"_drgcode_"|"_admward_"|"_lastward_"|"_admsrc_"|"_ventdur_"|"_ethn_"|"_diagproclist
+	. . . . d admobj.%Close()
+	. ;
+	. s filename=$s($p(paths,"^")'="":$p(paths,"^"),1:$p(paths,"^",2))_"ipextr"_$s(type="DIAG":"diag",1:"proc")_".txt"
+	. s file=##class(%File).%New(filename)
+	. d file.Open("WSN")
+	. s sort=0 f  s sort=$o(^||EPISODE("SORT",repid,sort)) q:sort=""  d
+	. . s ind=0 f  s ind=$o(^||EPISODE("SORT",repid,sort,ind)) q:ind=""  d
+	. . . d file.WriteLine($g(^||EPISODE("SORT",repid,sort,ind)))
+	. d file.Close()
+	
+	q 1
+]]></Implementation>
+</Method>
+
+<Method name="GetDiagProcList">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>mrid:%String,type:%String</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	s list="||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||"
+	s x=0
+	i $g(mrid)'="" d
+	. i type="DIAG" d
+	. . ; Get Diagnosis List
+	. . s sub=0 f  s sub=$o(^MR(mrid,"DIA",sub)) q:sub=""  d
+	. . . s diag=##class(User.MRDiagnos).%OpenId(mrid_"||"_sub)
+	. . . i diag d
+	. . . . ; Limit the list the the top 30
+	. . . . i x<=30 d
+	. . . . . s x=$i(x)
+	. . . . . s $p(list,"|",x)=diag.MRDIAICDCodeDR.MRCIDCode
+	. . . . . s x=$i(x)
+	. . . . . s $p(list,"|",x)=diag.MRDIAICDCodeDR.MRCIDDesc
+	. i type="PROC" d
+	. . ; Get Procedure List
+	. . s sub=0 f  s sub=$o(^MR(mrid,"PROC",sub)) q:sub=""  d
+	. . . s proc=##class(User.MRProcedures).%OpenId(mrid_"||"_sub)
+	. . . i proc d
+	. . . . ; Limit the list the the top 30
+	. . . . i x<=30 d
+	. . . . . s x=$i(x)
+	. . . . . s $p(list,"|",x)=proc.PROCOperationDR.OPERCode
+	. . . . . s x=$i(x)
+	. . . . . s $p(list,"|",x)=proc.PROCOperationDR.OPERDesc
+	
+	q list
+]]></Implementation>
+</Method>
+
+<Method name="VMOExtract">
+<Description>
+VMO Extract
+All Inpatient episodes admitted on or after a specified date for the specified hospital sorted by admission date.
+Fields separated by "|" and extra "|" on end
+Path docpay is required in file path definitions
+Filename: docpay_extract.txt
+
+UR Number|Episode No.|Surname|Given Name|DOB|Sex|Post Code|Admission Date/Time|Admission Type|Financial Code|Discharge Date/Time|Discharge Destination|</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>DateFrom:%String,DateTo:%String,hosp:%String</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	; Sets the process to LOW and BATCH
+	; BATCH uses only 25% of the global buffers
+	d SET^%PRIO("LOW,BATCH")
+	
+	s repid=$i(^CacheTemp("EXTRACT"))
+	s ind=0
+	s paths=..GetFilePath("docpay")
+	i $p(paths,"^",3)'="" w !,$p(paths,"^",3)
+	i $g(hosp)="" w !,"No Hospital Parameter."
+
+ 	s DateFrom=##class(websys.Conversions).DateHtmlToLogical(DateFrom)
+ 	s DateTo=##class(websys.Conversions).DateHtmlToLogical(DateTo)
+ 	s date=DateFrom
+ 	
+	i $p(paths,"^",3)="",$g(hosp)'="" d
+	. f date=DateFrom:1:DateTo d
+	. . s admid=0 f  s admid=$o(^PAADMi("PAADM_AdmDate",date,admid)) q:admid=""  d
+	. . . q:$p($g(^PAADM(admid)),"^",2)'="I"
+	. . . s admobj=##class(User.PAAdm).%OpenId(admid)
+	. . . i admobj d
+	. . . . s (patno,admno,surname,givenname,dob,sex,zip,admdate,admtime,admtype,fincode,disdate,distime,disdest)=""
+	. . . . q:hosp'=admobj.PAADMHospitalDR.HOSPCode
+	. . . . s patno=admobj.PAADMPAPMIDR.PAPMINo
+	. . . . s admno=admobj.PAADMADMNo
+	. . . . s surname=admobj.PAADMPAPMIDR.PAPMIName
+	. . . . s givenname=admobj.PAADMPAPMIDR.PAPMIName2
+	. . . . s dob=admobj.PAADMPAPMIDR.PAPMIDOB
+	. . . . s sex=admobj.PAADMPAPMIDR.PAPMISexDR.CTSEXCode
+	. . . . s zip=admobj.PAADMPAPMIDR.PAPMIPAPERDR.PAPERZipDR.CTZIPCode
+	. . . . s admdate=admobj.PAADMAdmDate
+	. . . . s admtime=admobj.PAADMAdmTime
+	. . . . s admtype=admobj.PAADMInPatAdmTypeDR.IPATCode
+	. . . . f x=1:1:admobj.ChildPAAdmInsurance.Count() d
+	. . . . . s fincode=admobj.ChildPAAdmInsurance.GetAt(x).INSInsTypeDR.INSTPayorGroupDR.PGRPCode
+	. . . . s disdate=admobj.PAADMDischgDate
+	. . . . s distime=admobj.PAADMDischgTime
+	. . . . s disdest=admobj.PAADMMainMRADMDR.MRADMDischDestinDR.DDESTCode
+	. . . . ;
+	. . . . i $g(dob)'="" s dob=$zd(dob,4,,4)
+	. . . . i $g(admdate)'="" s admdate=$zd(admdate,4,,4)
+	. . . . i $g(admtime)'="" s admtime=$zt(admtime,1)
+	. . . . i $g(disdate)'="" s disdate=$zd(disdate,4,,4)
+	. . . . i $g(distime)'="" s distime=$zt(distime,1)
+	. . . . ;
+	. . . . ; TODO: financial code
+	. . . . ;
+	. . . . s admdatetime=$s(admdate'="":admdate,1:"")_$s(admtime'="":" "_admtime,1:"")
+	. . . . s disdatetime=$s(disdate'="":disdate,1:"")_$s(distime'="":" "_distime,1:"")
+	. . . . s ind=$i(ind)
+	. . . . s ^||EPISODE("SORT",repid,admobj.PAADMAdmDate,ind)=patno_"|"_admno_"|"_surname_"|"_givenname_"|"_dob_"|"_sex_"|"_zip_"|"_$g(admdatetime)_"|"_admtype_"|"_fincode_"|"_$g(disdatetime)_"|"_disdest_"|"
+	. . . . d admobj.%Close()
+	. ;
+	. s filename=$s($p(paths,"^")'="":$p(paths,"^"),1:$p(paths,"^",2))_"docpay_extract_"_hosp_".txt"
+	. s file=##class(%File).%New(filename)
+	. d file.Open("WSN")
+	. s sort=0 f  s sort=$o(^||EPISODE("SORT",repid,sort)) q:sort=""  d
+	. . s ind=0 f  s ind=$o(^||EPISODE("SORT",repid,sort,ind)) q:ind=""  d
+	. . . d file.WriteLine($g(^||EPISODE("SORT",repid,sort,ind)))
+	. d file.Close()
+	
+	q 1
+]]></Implementation>
+</Method>
+
+<Method name="GetFilePath">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>filetype:%String</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	s (unixpath,winpath,errormsg)=""
+	&SQL(SELECT PATH_Path,PATH_UNIXPath INTO :winpath,:unixpath FROM SQLUser.CF_SystemFilePath WHERE %ALPHAUP(PATH_ParRef->FILE_Desc)=%ALPHAUP(:filetype))
+	i $e(unixpath,$l(unixpath))'="/",$g(unixpath)'="" s unixpath=unixpath_"/"
+	i $e(winpath,$l(winpath))'="\",$g(winpath)'="" s winpath=winpath_"\"
+	i unixpath="",winpath="" s errormsg="No filepath defined for "_filetype_" extract."
+	
+	q unixpath_"^"_winpath_"^"_errormsg
+]]></Implementation>
+</Method>
+</Class>
+</Export>

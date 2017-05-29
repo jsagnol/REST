@@ -1,0 +1,271 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.SWARHCUS111PsychAHMPNoUpdate30d">
+<ClassType/>
+<ProcedureBlock>0</ProcedureBlock>
+<Super>%Library.RegisteredObject,%XML.Adaptor</Super>
+<TimeCreated>62216,40002.554041</TimeCreated>
+<Inheritance>right</Inheritance>
+
+<Method name="PsychAHMPNoUpdate30dClose">
+<Description>
+This is the Close component of the %Library.Query.
+This is standard code and should never have to change.
+This is where all the cleanup is performed, i.e. the purging of the temporary storage global ^CacheTemp.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>QHandle:%Library.Binary</FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Clean up by purging the temporary node in ^CacheTemp global
+ New repid
+ Set repid=$li(QHandle,2)
+ Kill ^CacheTemp(repid)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="PsychAHMPNoUpdate30dExecute">
+<Description>
+This is the Execute section for the %Library.Query. 
+All of the logic will be performed here.
+A new node for the ^CacheTemp global will be created and each subscript of this global will contain
+a row for the report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,Hospital:%Integer,DateFrom:%Date,DateTo:%Date]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+	
+ k ^zbernard	
+ // Get reportid i.e. use $INCREMENT to add another node to ^CacheTemp global. 
+ // We use ^CacheTemp global because it will always use memory before disk
+ New repid,ind
+
+ // Use $Increment to get the next node
+ Set repid=$I(^CacheTemp)
+ s ^zBernard("1")=(1)
+
+ // Build data into ^CacheTemp(ReportID)
+ // e.g. Set ^CacheTemp(ReportID,Index)=$LB(f1,f2,f3)
+ New Number,String,Date,Time,c,n
+ n PAADMRowId,PAPMIRowId,PAPMINo,PAPMIName,PAPMIName2,PAPMIName3,PAADMAdmNo,PAADMDischgDate,PAADMDischgTime,Ward,QID,QUESDate,QUESTime,Q12,QUESPAAdmDR,PAADMDepCodeDR,
+ CTLOCDesc,DateDiff
+ s (PAADMRowId,PAPMIRowId,QID,QUESPAAdmDR,DateDiff)=0
+ s (PAPMINo,PAPMIName,PAPMIName2,PAPMIName3,PAADMAdmNo,PAADMDischgDate,PAADMDischgTime,Ward,QUESDate,QUESTime,Q12,PAADMDepCodeDR,CTLOCDesc)=""
+  
+ s ind=1
+ //Convert ODBC dates to cache format
+ s DateFrom=$$intdate^SSUTIL4(DateFrom)
+ s DateTo=$$intdate^SSUTIL4(DateTo)
+ 
+ &sql(declare PsychAHMPNoUpdate30d cursor for
+ 
+ select
+p.PAADM_RowID,
+p.PAADM_PAPMI_DR,
+p.PAADM_PAPMI_DR->PAPMI_No,
+p.PAADM_PAPMI_DR->PAPMI_Name,
+p.PAADM_PAPMI_DR->PAPMI_Name2,
+p.PAADM_PAPMI_DR->PAPMI_Name3,
+p.PAADM_AdmNo,p.PAADM_DischgDate,p.PAADM_DischgTime,
+CTLoc_Desc,
+q.ID,q.QUESDate,q.QUESTime,
+q.Q12,q.QUESPAADMDR,p3.PAADM_DepCode_DR,
+ p3.PAADM_DepCode_DR->CTLOC_Desc,
+DateDiff(day,p.PAADM_AdmDate,q.QUESDate)
+from SQLUser.PA_Adm p left join SQLUser.PA_Adm p2 on (p2.PAADM_PAPMI_DR=p.PAADM_PAPMI_DR and (p2.PAADM_AdmDate>p.PAADM_AdmDate OR (p2.PAADM_AdmDate=p.PAADM_AdmDate AND p2.PAADM_AdmTime>p.PAADM_AdmTime)) and p.PAADM_Type=p2.PAADM_Type
+and p.PAADM_CurrentWard_DR=p2.PAADM_CurrentWard_DR and p.PAADM_Hospital_DR=p2.PAADM_Hospital_DR
+)
+
+left join
+(questionnaire.QPSYCHMAN q left join questionnaire.QPSYCHMAN q2 on (q2.QUESPAPatMasDR=q.QUESPAPatMasDR AND (q2.QUESDate>q.QUESDate OR (q2.QUESDate=q.QUESDate AND q2.QUESTime>q.QUESTime))))
+ on (q.QUESPAPatMasDR=p.PAADM_PAPMI_DR AND q2.ID IS NULL)
+ left join SQLUser.PA_Adm p3 on q.QUESPAADMDR=p3.PAADM_RowId
+ 
+ ,SQLUser.PAC_Ward,SQLUser.CT_Loc
+where
+ p2.PAADM_RowId is null and
+ p.PAADM_CurrentWard_DR =79 and
+ p.PAADM_Hospital_DR=:Hospital and
+ p.PAADM_Type='I' and
+ p.PAADM_DischgDate is not null and
+ (p.PAADM_DischgDate between :DateFrom and :DateTo) and
+ (q.QUESDate is null or (DateDiff(day,p.PAADM_AdmDate,q.QUESDate)>30))
+ and
+ Ward_RowId=p.PAADM_CurrentWard_DR and Ward_LocationDR=CTLoc_RowId
+)
+	
+	
+ &sql(open PsychAHMPNoUpdate30d)
+
+  //fetch first row 
+  
+ &sql(fetch PsychAHMPNoUpdate30d into :PAADMRowId,:PAPMIRowId,:PAPMINo,:PAPMIName,:PAPMIName2,:PAPMIName3,:PAADMAdmNo,
+ :PAADMDischgDate,:PAADMDischgTime,:Ward,:QID,:QUESDate,:QUESTime,:Q12,:QUESPAAdmDR,:PAADMDepCodeDR,
+ :CTLOCDesc,:DateDiff
+ )
+
+ while 'SQLCODE{
+
+ 
+ d FormatDates
+ // build the row
+ Set ^CacheTemp(repid,ind)=$LB(PAADMRowId,PAPMIRowId,PAPMINo,PAPMIName,PAPMIName2,PAPMIName3,PAADMAdmNo,PAADMDischgDate,PAADMDischgTime,Ward,QID,QUESDate,QUESTime,
+ Q12,QUESPAAdmDR,PAADMDepCodeDR,CTLOCDesc,DateDiff)
+ s ind=ind+1
+ //fetch rows
+ &sql(fetch PsychAHMPNoUpdate30d into :PAADMRowId,:PAPMIRowId,:PAPMINo,:PAPMIName,:PAPMIName2,:PAPMIName3,:PAADMAdmNo,:PAADMDischgDate,:PAADMDischgTime,:Ward,:QID,:QUESDate,:QUESTime,
+ :Q12,:QUESPAAdmDR,:PAADMDepCodeDR,:CTLOCDesc,:DateDiff
+ )
+ }
+
+ //s ^zBernard("3")=(3)
+ &sql(close PsychAHMPNoUpdate30d)
+
+ // Build QHandle (AtEnd,ReportID,Index)
+ Set QHandle=$lb(0,repid,0)
+
+ //s ^zBernard("4")=(4)
+
+ Quit $$$OK
+
+
+FormatDates
+ // Convert the dates to ODBC date format
+ If PAADMDischgDate Set PAADMDischgDate=$ZD(PAADMDischgDate,4)
+ If PAADMDischgTime Set PAADMDischgTime=$ZTime(PAADMDischgTime,2)
+ If QUESDate Set QUESDate=$ZD(QUESDate,4)
+ If QUESTime Set QUESTime=$ZTime(QUESTime,2)
+ Quit
+]]></Implementation>
+</Method>
+
+<Method name="PsychAHMPNoUpdate30dFetch">
+<Description>
+This is the Fetch component of the %Library.Query. 
+This should never have to change. It is designed to fetch the row for each subscript of the ^CacheTemp
+global and return this row to the Crystal Report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,&Row:%Library.List,&AtEnd:%Library.Integer=0]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // This fetch method should never have to change. 
+
+ // repid - Report ID
+ // ind   - sequence index which represents each row
+
+ New repid,ind
+
+ // Restore QHandle
+ Set AtEnd=$li(QHandle,1)
+ Set repid=$li(QHandle,2)
+ Set ind=$li(QHandle,3)
+
+ Set ind=$o(^CacheTemp(repid,ind))
+ If ind="" {	// if there are no more rows, finish fetching
+ Set AtEnd=1
+ Set Row=""
+ }
+ Else      {	// fetch row
+ Set Row=^CacheTemp(repid,ind)
+ }
+
+ // Save QHandle
+ s QHandle=$lb(AtEnd,repid,ind)
+
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Query name="PsychAHMPNoUpdate30d">
+<Description>
+GHA List reports Stored Procedure
+It expects 2 parameter of type date and will return a list of records:
+Field1 - Integer
+Field2 - String(MAXLEN=255)
+Field3 - Date
+Field4 - Time</Description>
+<Type>%Library.Query</Type>
+<FormalSpec>Hospital:%Integer,DateFrom:%Date,DateTo:%Date</FormalSpec>
+<SqlProc>1</SqlProc>
+<Parameter name="CONTAINID" value="0"/>
+<Parameter name="ROWSPEC" value="PAADMRowId:%Integer,PAPMIRowId:%Integer,PAPMINo:%String(MAXLEN=255),PAPMIName:%String(MAXLEN=255),PAPMIName2:%String(MAXLEN=255),PAPMIName3:%String(MAXLEN=255),PAADMAdmNo:%String(MAXLEN=255),PAADMDischgDate:%String(MAXLEN=255),PAADMDischgTime:%String(MAXLEN=255),Ward:%String(MAXLEN=255),QID:%Integer,QUESDate:%String(MAXLEN=255),QUESTime:%String(MAXLEN=255),Q12:%String(MAXLEN=255),QUESPAAdmDR:%Integer,PAADMDepCodeDR:%String(MAXLEN=255),CTLOCDesc:%String(MAXLEN=255),DateDiff:%Integer"/>
+<Parameter name="SELECTMODE" value="ODBC"/>
+</Query>
+
+<Query name="LookUpHospital">
+<Description>
+Lookup on Hospital returning all active services</Description>
+<Type>%Library.SQLQuery</Type>
+<FormalSpec>Hospital:%String</FormalSpec>
+<SqlQuery><![CDATA[SELECT HOSP_Desc, HOSP_RowId, HOSP_Code
+FROM SQLUser.CT_Hospital
+WHERE ((%ALPHAUP HOSP_Desc %STARTSWITH %ALPHAUP :Hospital) OR (%ALPHAUP HOSP_Code %STARTSWITH %ALPHAUP :Hospital))
+AND (HOSP_DateFrom <= CURRENT_DATE)
+AND ((HOSP_DateTo IS NULL) OR (HOSP_DateTo >= CURRENT_DATE))
+ORDER BY HOSP_Desc]]></SqlQuery>
+<Parameter name="CONTAINID" value="2"/>
+<Parameter name="ROWSPEC" value="Description:%String,HIDDEN:%String,Code:%String"/>
+</Query>
+
+<Method name="LookUpBrokerHospital">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>itmjs:%Library.String="",itmjsex:%Library.String="",Hospital:%Library.String=""</FormalSpec>
+<Implementation><![CDATA[
+ n id,code,desc,activedate
+
+ s (id,code,desc)=""
+
+ ; Try and find a matching code
+ &sql(SELECT	HOSP_Desc, HOSP_RowId, HOSP_Code
+ INTO	:desc, :id, :code
+ FROM	SQLUser.CT_Hospital
+ WHERE	((%ALPHAUP HOSP_Desc = %ALPHAUP :Hospital) OR (%ALPHAUP HOSP_Code = %ALPHAUP :Hospital))
+ AND (HOSP_DateFrom <= CURRENT_DATE)
+ AND ((HOSP_DateTo IS NULL) OR (HOSP_DateTo >= CURRENT_DATE))
+ )
+ ;
+ i SQLCODE s desc=Hospital q 0
+ s retval=itmjs_"('"_$ZCVT(desc,"O","JS")_"');"
+ i itmjsex'="""" s retval=retval_itmjsex_"('"_$ZCVT(desc,"O","JS")_"^"_id_"^"_$ZCVT(code,"O","JS")_"');"
+ &javascript<#(retval)#>
+ q 1
+]]></Implementation>
+</Method>
+
+<Query name="LookUpAlert">
+<Description>
+Lookup on Alerts </Description>
+<Type>%Library.SQLQuery</Type>
+<FormalSpec>Alert:%String</FormalSpec>
+<SqlQuery>SELECT Alert_Desc, Alert_RowId, Alert_Code 
+FROM SQLUser.PAC_PatientAlert
+WHERE ((%ALPHAUP Alert_Desc %STARTSWITH %ALPHAUP :Alert) OR (%ALPHAUP Alert_Code %STARTSWITH %ALPHAUP :Alert))
+ORDER BY Alert_Desc</SqlQuery>
+<Parameter name="CONTAINID" value="2"/>
+<Parameter name="ROWSPEC" value="Description:%String,HIDDEN:%String,Code:%String"/>
+</Query>
+
+<Method name="LookUpBrokerAlert">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>itmjs:%Library.String="",itmjsex:%Library.String="",Alert:%Library.String=""</FormalSpec>
+<Implementation><![CDATA[
+ n id,code,desc
+
+ s (id,code,desc)=""
+
+ ; Try and find a matching code
+ &sql(SELECT	 Alert_Desc, Alert_Code, Alert_RowId
+ INTO	:desc, :code, :id
+ FROM	SQLUser.PAC_PatientAlert
+ WHERE	((%ALPHAUP Alert_Desc = %ALPHAUP :Alert) OR (%ALPHAUP Alert_Code = %ALPHAUP :Alert))
+ )
+ ;
+ i SQLCODE s desc=Alert q 0
+ s retval=itmjs_"('"_$ZCVT(desc,"O","JS")_"');"
+ i itmjsex'="""" s retval=retval_itmjsex_"('"_$ZCVT(desc,"O","JS")_"^"_id_"^"_$ZCVT(code,"O","JS")_"');"
+ &javascript<#(retval)#>
+ q 1
+]]></Implementation>
+</Method>
+</Class>
+</Export>

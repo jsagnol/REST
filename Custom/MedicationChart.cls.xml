@@ -1,0 +1,639 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.MedicationChart">
+<Description><![CDATA[
+Report Name: Stored Procedure Template <br>
+Report Code: insert report code here that is found in the report manager screen <br>
+Logtrak Number: insert logtrak number here <br>
+Report Description: insert a description of what the stored procedure does.]]></Description>
+<ProcedureBlock>0</ProcedureBlock>
+<Super>Report.Abstract</Super>
+<TimeCreated>59388,55236.125</TimeCreated>
+
+<Method name="DateValidation">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>date1:%String,date2:%String</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	s pass=0
+	i date1'="",date2'="" d
+	. i $zdh(date1,4)>$zdh(date2,4) s pass=1
+	q pass
+]]></Implementation>
+</Method>
+
+<Method name="GetPreviewURL">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>val:%String</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	s val=$zstrip(val,"*C")
+	k ^zRpt
+	s date1=$p(val,"^"),date2=$p(val,"^",2),admno=$p(val,"^",3),url=$p(val,"^",4)
+	n purl,admid,rptid,rpt,rdsn,pathtoreports,pathtoscripts,cdsn,urltoreports,repid,d1,d2,m1,m2,y1,y2
+	s (purl,admid,rptid,rpt,rdsn,pathtoreports,pathtoscripts,cdsn,urltoreports,repid,d1,d2,m1,m2,y1,y2)=""
+	i date1="",date2="" s date1=$zd((+$h-6),4),date2=$zd(+$h,4)
+	i date1'="",date2="" d
+	. ;i ($$intdate^SSUTIL4(date1)+7)>=+$h s date2=$zd(+$h,4)
+ 	. ;i ($$intdate^SSUTIL4(date1)+7)<+$h s date2=$zd(($$intdate^SSUTIL4(date1)+7),4)
+	. s date2=$zd((##class(websys.Conversions).DateHtmlToLogical(date1)+6),4)
+	
+ 	i admno'="" d
+ 	. s admid=$o(^PAADMi("No",admno,""))
+ 	. ;
+ 	. s rptid=##class(websys.Report).GetIdFromCodeOrDescription("MEDCHART.Report")
+ 	. s rpt=$lg(^websys.ReportD(rptid),11)
+ 	. s rdsn=$lg(^websys.ReportD(rptid),33)
+ 	. i $lg(^websys.ConfigurationD(1),69)'="" d
+ 	. . f x=1:1:$l($lg(^websys.ConfigurationD(1),69),"\") d
+ 	. . . i pathtoreports'="" s pathtoreports=pathtoreports_"\\"_$p($lg(^websys.ConfigurationD(1),69),"\",x)
+ 	. . . i pathtoreports="" s pathtoreports=$p($lg(^websys.ConfigurationD(1),69),"\",x)
+ 	. s pathtoreports="\\\\"_pathtoreports
+ 	. s pathtoreports=$lg(^websys.ConfigurationD(1),69)
+ 	. ;
+  	. i $lg(^websys.ConfigurationD(1),1)'="" d
+ 	. . f x=1:1:$l($lg(^websys.ConfigurationD(1),1),"\") d
+ 	. . . i pathtoscripts'="" s pathtoscripts=pathtoscripts_"\\"_$p($lg(^websys.ConfigurationD(1),1),"\",x)
+ 	. . . i pathtoscripts="" s pathtoscripts=$p($lg(^websys.ConfigurationD(1),1),"\",x)
+ 	. s pathtoscripts="\\\\"_pathtoscripts
+ 	. s pathtoscripts=$lg(^websys.ConfigurationD(1),1)
+ 	. ;
+ 	. s cdsn=$lg(^websys.ConfigurationD(1),24)
+ 	. s urltoreports=$lg(^websys.ConfigurationD(1),65)
+	. ; 
+ 	. s repid=$i(^zCacheTemp("MEDCHART"))
+ 	. s ^zRpt("para")=admid_":"_repid_":"_date1_":"_date2
+ 	. j ##class(Custom.MedicationChartData).GetPatientData(admid,repid,date1,date2)
+ 	. s x=0 f  s x=$g(^zCacheTemp("MEDCHART",repid,"END")) q:x=1  h 2
+	. ;
+ 	. s ^zRpt("jurl")=url
+ 	. i url'="" d
+ 	. . f x=1:1:($l($p(url,"."),"/")-1) d
+ 	. . . i purl'="" s purl=purl_"/"_$p($p(url,"."),"/",x)
+ 	. . . i purl="" s purl=$p($p(url,"."),"/",x)
+ 	. ;
+ 	. ;s url="http://isvm-swarh/trakcare/TEST/web/csp"
+ 	. s purl=purl_"/crystalpreview.csp?a=a&ID="_rptid_"&report="_rpt_"&init=actx&pathtoreports="_pathtoreports
+ 	. s purl=purl_"&pathtoscripts="_pathtoscripts_"&reportmanagerdsn="_rdsn_"&configmanagerdsn="_cdsn_"&urltocrystal="_urltoreports
+ 	. ;
+ 	. s d1=$p(date1,"/",1),d2=$p(date2,"/",1)
+ 	. s m1=$p(date1,"/",2),m2=$p(date2,"/",2)
+ 	. s y1=$p(date1,"/",3),y2=$p(date2,"/",3)
+ 	. ;
+ 	. s purl=purl_"&prompt0=Date("_y1_","_m1_","_d1_")&prompt1=Date("_y2_","_m2_","_d2_")&prompt2="_admid_"&prompt3="_repid_"&prompt4=&prompt5=&prompt6=&prompt7=&prompt8=&viewer=0"
+ 	s ^zRpt("url")=purl
+ 	
+ 	q purl
+]]></Implementation>
+</Method>
+
+<Method name="MedicationClose">
+<Description>
+This is the Close component of the %Library.Query.
+This is standard code and should never have to change.
+This is where all the cleanup is performed, i.e. the purging of the temporary storage global ^CacheTemp.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>QHandle:%Library.Binary</FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Clean up by purging the temporary node in ^CacheTemp global
+ New repid
+ Set repid=$LIST(QHandle,2)
+ 
+ //Start Monitor (if configured to capture stats)
+ i mon Do ..MonitorEnd(mon)
+
+ Kill ^CacheTemp("TRAK",repid)
+ 
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="MedicationExecute">
+<Description>
+This is the Execute section for the %Library.Query. 
+All of the logic will be performed here.
+A new node for the ^CacheTemp("TRAK") global will be created and each subscript of this global will contain
+a row for the report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,DateFrom:%Library.String,DateTo:%Library.String,EpisodeID:%Library.Integer,id:%Library.Integer]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Get reportid i.e. use $INCREMENT to add another node to ^CacheTemp("TRAK") global. 
+ // We use ^CacheTemp global because CACHETEMP is a memory resident database
+ New repid,ind
+
+ // Use $Increment to get the next node and clean up
+ Set repid=$Increment(^CacheTemp("TRAK"))
+ Kill ^CacheTemp("TRAK",repid)
+ 
+ //Start Monitor (if configured to capture stats)
+ s mon=..MonitorBegin()
+ 
+ //Convert ODBC dates to cache format
+
+ i $g(DateFrom)'="" s DateFrom=$zstrip(DateFrom,"*C")
+ i $g(DateFrom)'="" s DateFrom=$zdh(DateFrom,4)
+ i $g(DateTo)'="" s DateTo=$zstrip(DateTo,"*C")
+ i $g(DateTo)'="" s DateTo=$zdh(DateTo,4)
+ 
+ ;s DateFrom=##class(websys.Conversions).DateLogicalToHijra(DateFrom)
+ ;s DateTo=##class(websys.Conversions).DateLogicalToHijra(DateTo)
+ s EpisodeID=$zstrip(EpisodeID,"*CW")
+ s id=$zstrip(id,"*CW")
+ 
+ // Clear old data so ^zCacheTemp("MEDCHART") does not grow out of hand as this global is used for sub reports
+ ;k ^zCacheTemp("MEDCHART",(id-50))
+ s oldid=0 f  s oldid=$o(^zCacheTemp("MEDCHART",oldid)) q:oldid=""  d
+ . q:oldid>=(id-10)
+ . k ^zCacheTemp("MEDCHART",oldid)
+ 
+ n code,oe,oei,arcim,ARCIMCode,ARCIMDesc,INCIRowId,INRECsub,Item,Qty,UOM,Additives,Volume,Rate,Route,Priority,Dose,UOM,Freq,Duration,Instr,qa,Indication,TargetINR,WarfarinEdu,StartDate,StartTime,EndDate,EndTime,maxdose,noallow,status,doctor,itmcat,phorder,datepoau,timepoau,dateaureq,timeaureq,yesno,vardose,doctype,Notes,reason,statuscode,authdoctor,rtfuom
+ s (code,oe,oei,arcim,ARCIMCode,ARCIMDesc,INCIRowId,INRECsub,Item,Qty,UOM,Additives,Volume,Rate,Route,Priority,Dose,UOM,Freq,Duration,Instr,qa,Indication,TargetINR,WarfarinEdu,StartDate,StartTime,EndDate,EndTime,maxdose,noallow,status,doctor,itmcat,phorder,datepoau,timepoau,dateaureq,timeaureq,yesno,vardose,doctype,Notes,reason,statuscode,authdoctor,rtfuom)=""
+
+ n st,stdate,sttime,list,flag
+ s (st,stdate,sttime,list)=""
+ s flag=0
+ i id'="" d
+ . s code=0 f  s code=$o(^zCacheTemp("MEDCHART",id,"PATIENT",code)) q:code=""  d
+ . . s oe=0 f  s oe=$o(^zCacheTemp("MEDCHART",id,"PATIENT",code,oe)) q:oe=""  d
+ . . . s oei=0 f  s oei=$o(^zCacheTemp("MEDCHART",id,"PATIENT",code,oe,oei)) q:oei=""  d
+ . . . . ;
+ . . . . s flag=0
+ . . . . s (oldoei,itmcat,arcim,ARCIMCode,ARCIMDesc,INCIRowId,INRECsub,Item,Qty,UOM,Additives,Volume,Rate,Route,Priority,Dose,UOM,Freq,Duration,Instr,qa,Indication,TargetINR,WarfarinEdu,StartDate,StartTime,EndDate,EndTime,maxdose,noallow,status,doctor,phorder,datepoau,timepoau,dateaureq,timeaureq,yesno,vardose,doctype,Notes,reason,statuscode,authdoctor,rtfuom)=""
+ . . . . ;
+ . . . . ; If variable dose only get first order details
+ . . . . i $p($g(^zCacheTemp("MEDCHART",id,"PATIENT",code,oe,oei)),"^",23)=0 d
+ . . . . . i '$d(^OEORD(oe,"I",oei)),$d(^OEORDi(0,"VarDose",oe,oei)) d
+ . . . . . . s oldoei=oei
+ . . . . . . s oei=$o(^OEORDi(0,"VarDose",oe,oei,0))
+ . . . . s vardose=$p($g(^OEORD(oe,"I",oei,13)),"^",33)
+ . . . . ;
+ . . . . s arcim=$p($g(^OEORD(oe,"I",oei,1)),"^",2)
+ . . . . q:arcim=""
+ . . . . s ARCIMCode=$p($g(^ARCIM(+arcim,$p(arcim,"||",2),1)),"^",2)
+ . . . . s ARCIMDesc=$p($g(^ARCIM(+arcim,$p(arcim,"||",2),1)),"^",2)
+ . . . . s itmcat=$p($g(^ARCIM(+arcim,$p(arcim,"||",2),1)),"^",10)
+ . . . . i itmcat'="" s itmcat=$p($g(^ARC("IC",itmcat)),"^",1)
+ . . . . s phorder=$p($g(^OEORD(oe,"I",oei,12)),"^",44)
+ . . . . s datepoau=$p($g(^OEORD(oe,"I",oei,12)),"^",46)
+ . . . . i $g(datepoau) s datepoau=$zd(datepoau,3)
+ . . . . s timepoau=$p($g(^OEORD(oe,"I",oei,12)),"^",47)
+ . . . . i $g(timepoau) s timepoau=$zt(timepoau,2)
+ . . . . s dateaureq=$p($g(^OEORD(oe,"I",oei,12)),"^",48)
+ . . . . i $g(dateaureq) s dateaureq=$zd(dateaureq,3)
+ . . . . s timeaureq=$p($g(^OEORD(oe,"I",oei,12)),"^",49)
+ . . . . i $g(timeaureq) s timeaureq=$zt(timeaureq,2)
+ . . . . s authdoctor=$p($g(^OEORD(oe,"I",oei,11)),"^",53)
+ . . . . i $g(authdoctor)'="" s authdoctor=$p($g(^CTPCP(authdoctor,1)),"^",2)
+ . . . . s yesno=$p($g(^OEORD(oe,"I",oei,13)),"^",24)
+ . . . . s vardose=$p($g(^OEORD(oe,"I",oei,13)),"^",33)
+ . . . . s (grgfrm,gendrg,rtf,gendrgdesc,rtfform,rtfroute,rtfstrength)=""
+ . . . . s drgfrm=$p($g(^ARCIM(+arcim,$p(arcim,"||",2),1)),"^",12)
+ . . . . i drgfrm'="" d
+ . . . . . s gendrg=$p($g(^PHCD(+drgfrm,4)),"^",1)
+ . . . . . i gendrg'="" s gendrgdesc=$p($g(^PHCGE("GE",+gendrg)),"^",2)
+ . . . . . s rtf=$p($g(^PHCD(+drgfrm,"DF",$p(drgfrm,"||",2),3)),"^",8)
+ . . . . . s rtfuom=$p($g(^PHCD(+drgfrm,"DF",$p(drgfrm,"||",2),2)),"^",4)
+ . . . . . i $g(rtfuom)'="" s rtfuom=$p($g(^CT("UOM",rtfuom)),"^",2)
+ . . . . . i rtf'="" d
+ . . . . . . s rtfform=$p($g(^PHCGE("GE",+rtf,"RTF",$p(rtf,"||",2))),"^",1)
+ . . . . . . s rtfroute=$p($g(^PHCGE("GE",+rtf,"RTF",$p(rtf,"||",2))),"^",2)
+ . . . . . . s rtfstrength=$p($g(^PHCGE("GE",+rtf,"RTF",$p(rtf,"||",2))),"^",3)
+ . . . . . i rtf="" d
+ . . . . . . s rtfform=$p($g(^PHCD(+drgfrm,"DF",$p(drgfrm,"||",2),1)),"^",1)
+ . . . . . . s rtfroute=$p($g(^PHCD(+drgfrm,"DF",$p(drgfrm,"||",2),3)),"^",9)
+ . . . . . . s rtfstrength=$p($g(^PHCD(+drgfrm,"DF",$p(drgfrm,"||",2),1)),"^",6)
+ . . . . . . s rtfuom=$p($g(^PHCD(+drgfrm,"DF",$p(drgfrm,"||",2),2)),"^",4)
+ . . . . . i rtfform'="" s rtfform=$p($g(^PHCF(+rtfform)),"^",2)
+ . . . . . i rtfroute'="" s rtfroute=$p($g(^OEC("ROUTE",+rtfroute)),"^",2)
+ . . . . . i rtfstrength'="" s rtfstrength=$p($g(^PHCS(+rtfstrength)),"^",2)
+ . . . . . s ARCIMDesc=gendrgdesc_" "_rtfroute_" "_rtfform_" "_rtfstrength
+ . . . . s INCIRowId=0 f  s INCIRowId=$o(^INCI(0,"ARCIM_DR",+arcim,INCIRowId)) q:INCIRowId=""  d
+ . . . . . s INRECsub=0 f  s INRECsub=$o(^INCI(INCIRowId,"REC",INRECsub)) q:INRECsub=""  d
+ . . . . . . s INRINsub=0 f  s INRINsub=$o(^INCI(INCIRowId,"REC",INRECsub,"ING",INRINsub)) q:INRINsub=""  d
+ . . . . . . . s Item=$p($g(^INCI(INCIRowId,"REC",INRECsub,"ING",INRINsub)),"^",1)
+ . . . . . . . i Item'="" s Item=$p($g(^INCI(INCIRowId,1)),"^",2)
+ . . . . . . . s Qty=$p($g(^INCI(INCIRowId,"REC",INRECsub,"ING",INRINsub)),"^",2)
+ . . . . . . . s UOM=$p($g(^INCI(INCIRowId,"REC",INRECsub,"ING",INRINsub)),"^",3)
+ . . . . . . . i UOM'="" s UOM=$p($g(^CT("UOM",UOM)),"^",2)
+ . . . . . . . s Additives=Item_" "_Qty_" "_UOM
+ . . . . s Volume=$p($g(^OEORD(oe,"I",oei,3)),"^",22)
+ . . . . s Rate=$p($g(^OEORD(oe,"I",oei,3)),"^",22)_$p($g(^OEORD(oe,"I",oei,3)),"^",14)_" / "_$p($g(^OEORD(oe,"I",oei,3)),"^",15)_$p($g(^OEORD(oe,"I",oei,3)),"^",16)
+ . . . . ;i Rate'="" s Rate=$p($g(^OEC("SFR",Rate)),"^",2)
+ . . . . s Route=$p($g(^OEORD(oe,"I",oei,12)),"^",7)
+ . . . . i Route'="" s Route=$p($g(^PHC("ADMR",Route)),"^",2)
+ . . . . s reason=$p($g(^OEORD(oe,"I",oei,9)),"^",13)
+ . . . . i $g(reason)'="" s reason=$p($g(^MRC("VR",reason)),"^",2)
+ . . . . s Priority=$p($g(^OEORD(oe,"I",oei,1)),"^",8)
+ . . . . i Priority'="" s Priority=$p($g(^OECPR(Priority)),"^",2)
+ . . . . s Dose=$p($g(^OEORD(oe,"I",oei,2)),"^",1)
+ . . . . s UOM=$p($g(^OEORD(oe,"I",oei,2)),"^",3)
+ . . . . i UOM'="" s UOM=$p($g(^CT("UOM",UOM)),"^",2)
+ . . . . s Freq=$p($g(^OEORD(oe,"I",oei,2)),"^",4)
+ . . . . i Freq'="" s Freq=$p($g(^PHCFR(Freq)),"^",3)
+ . . . . s Duration=$p($g(^OEORD(oe,"I",oei,2)),"^",6)
+ . . . . i Duration'="" s Duration=$p($g(^PHCDU(Duration)),"^",3)
+ . . . . s Instr=$p($g(^OEORD(oe,"I",oei,2)),"^",7)
+ . . . . i Instr'="" d
+ . . . . . s Instr=$p($g(^PHCIN(Instr)),"^",2)
+ . . . . s x=0 f  s x=$o(^OEORD(oe,"I",oei,"REM",x)) q:x=""  d
+ . . . . . i Notes'="" s Notes=Notes_$c(13)_$g(^OEORD(oe,"I",oei,"REM",x))
+ . . . . . i Notes="" s Notes=$g(^OEORD(oe,"I",oei,"REM",x))
+ . . . . ;. . i $p(Instr," ",2)'="",$g(^OEORD(oe,"I",oei,"REM",x))'="" s Instr=Instr_$g(^OEORD(oe,"I",oei,"REM",x))
+ . . . . ;. . i $p(Instr," ",2)="",$g(^OEORD(oe,"I",oei,"REM",x))'="" s Instr=Instr_" "_$g(^OEORD(oe,"I",oei,"REM",x))
+ . . . . ;
+ . . . . s x=0 f  s x=$o(^OEORD(oe,"I",oei,"PRNIND",x)) q:x=""  d
+ . . . . . i Indication'="" s Indication=Indication_" "_$g(^OEORD(oe,"I",oei,"PRNIND",x))
+ . . . . . i Indication="" s Indication=$g(^OEORD(oe,"I",oei,"PRNIND",x))
+ . . . . ; Indication Question against the order.  At site may need to change the code "IND"
+ . . . . ;s qa=0 f  s qa=$o(^OEORD(oe,"I",oei,"QA",qa)) q:qa=""  d
+ . . . . ;. i $p($g(^OEORD(oe,"I",oei,"QA",qa)),"^",1)=$o(^PAC("QUES",0,"Code","IND",0)) d
+ . . . . ;. . s Indication=$p($g(^OEORD(oe,"I",oei,"QA",qa)),"^",2)
+ . . . . ;
+ . . . . k ^zCacheTemp("MEDCHART",id,"WARFARINEDU")
+ . . . . s WarfarinEdu=""
+ . . . . s mradm=$p($g(^PAADM($p($g(^OEORD(oe)),"^",1))),"^",61)
+ . . . . s obs=0 f  s obs=$o(^MR(mradm,"OBS",obs)) q:obs=""  d
+ . . . . . i $p($g(^MR(mradm,"OBS",obs)),"^",1)'="" d
+ . . . . . . i $o(^MRC("OBITM",0,"Code","INRED",0))=$p($g(^MR(mradm,"OBS",obs)),"^",1) d
+ . . . . . . . i $p($g(^MR(mradm,"OBS",obs)),"^",2)'="" d
+ . . . . . . . . s ^zCacheTemp("MEDCHART",id,"WARFARINEDU",$p($g(^MR(mradm,"OBS",obs)),"^",3),$p($g(^MR(mradm,"OBS",obs)),"^",4))=$p($g(^MR(mradm,"OBS",obs)),"^",2)
+ . . . . s date=0 f  s date=$o(^zCacheTemp("MEDCHART",id,"WARFARINEDU",date)) q:date=""  d
+ . . . . . s time=0 f  s time=$o(^zCacheTemp("MEDCHART",id,"WARFARINEDU",date,time)) q:time=""  d
+ . . . . . . i WarfarinEdu'="" s WarfarinEdu=WarfarinEdu_$c(13)_$g(^zCacheTemp("MEDCHART",id,"WARFARINEDU",date,time))_" ("_$zd(date,4)_" "_$zt(time,2)_")"
+ . . . . . . i WarfarinEdu="" s WarfarinEdu=$g(^zCacheTemp("MEDCHART",id,"WARFARINEDU",date,time))_" ("_$zd(date,4)_" "_$zt(time,2)_")"
+ . . . . k ^zCacheTemp("MEDCHART",id,"WARFARINEDU")
+ . . . . ;
+ . . . . s StartDate=$p($g(^OEORD(oe,"I",oei,1)),"^",9)
+ . . . . i StartDate'="" s StartDate=$zd(StartDate,3)
+ . . . . s StartTime=$p($g(^OEORD(oe,"I",oei,1)),"^",10)
+ . . . . i StartTime'="" s StartTime=$zt(StartTime,2)
+ . . . . s dur=$p($g(^OEORD(oe,"I",oei,2)),"^",6)
+ . . . . i dur'="" s dur=+$p($g(^PHCDU(dur)),"^",2)
+ . . . . s SttDate=+$p($g(^OEORD(oe,"I",oei,1)),"^",9)
+ . . . . s EndDate=$g(SttDate)+$g(dur)
+ . . . . i EndDate'="" s EndDate=$zd(EndDate,3)
+ . . . . s EndTime=""
+ . . . . s maxdur=0
+ . . . . i vardose'="",$p($g(^zCacheTemp("MEDCHART",id,"PATIENT",code,oe,vardose)),"^",23)=0 d
+ . . . . . s voei=$o(^OEORDi(0,"VarDose",oe,vardose,""))
+ . . . . . i voei'="" d
+ . . . . . . s oee=$o(^OEORD(oe,"I",voei,"X",0))
+ . . . . . . i oee'="" d
+ . . . . . . . s st=$p($g(^OEORD(oe,"I",voei,"X",oee)),"^",1)
+ . . . . . s voei=$o(^OEORDi(0,"VarDose",oe,vardose,""),-1)
+ . . . . . i voei'="" d
+ . . . . . . s oee=$o(^OEORD(oe,"I",voei,"X",""),-1)
+ . . . . . . i oee'="" d
+ . . . . . . . s ed=$p($g(^OEORD(oe,"I",voei,"X",oee)),"^",1)
+ . . . . . s Duration=(ed-st)
+ . . . . . i Duration=0 s Duration=1
+ . . . . . s Duration=Duration_" Days"
+ . . . . . s EndDate=ed
+ . . . . . i EndDate'="" s EndDate=$zd(EndDate,3)
+ . . . . s maxdose=$p($g(^OEORD(oe,"I",oei,12)),"^",8)
+ . . . . s noallow=$p($g(^OEORD(oe,"I",oei,12)),"^",9)
+ . . . . s status=$p($g(^OEORD(oe,"I",oei,1)),"^",13)
+ . . . . i status'="" s statuscode=$p($g(^OEC("OSTAT",status)),"^",1),status=$p($g(^OEC("OSTAT",status)),"^",2)
+ . . . . s st=$o(^OEORD(oe,"I",oei,"ST",""),-1)
+ . . . . i st'="" d
+ . . . . . s stdate=$p($g(^OEORD(oe,"I",oei,"ST",st)),"^",1)
+ . . . . . s sttime=$p($g(^OEORD(oe,"I",oei,"ST",st)),"^",2)
+ . . . . . i stdate s stdate=$zd(stdate,4)
+ . . . . . i sttime s sttime=$zt(sttime,2)
+ . . . . s status=status_" "_stdate_" "_sttime
+ . . . . s doctor=$p($g(^OEORD(oe,"I",oei,1)),"^",11)
+ . . . . i doctor'="" d
+ . . . . . s doctype=$p($g(^CTPCP(doctor,1)),"^",4)
+ . . . . . i doctype'="" s doctype=$p($g(^CT("CPT",doctype)),"^",4)
+ . . . . . s doctor=$p($g(^CTPCP(doctor,1)),"^",2)
+ . . . . s OEORIRowId=oe_"||"_oei
+ . . . . ;
+ . . . . i vardose="" d
+ . . . . . s list=$g(^zCacheTemp("MEDCHART",id,"PATIENT",code,oe,oei))
+ . . . . . s OEORIRowId=oe_"||"_oei
+ . . . . i vardose'="" d
+ . . . . . s flag=$p($g(^zCacheTemp("MEDCHART",id,"PATIENT",code,oe,oei)),"^",23)
+ . . . . . i flag="" s flag=$p($g(^zCacheTemp("MEDCHART",id,"PATIENT",code,oe,vardose)),"^",23)
+ . . . . . i flag=0 d
+ . . . . . . s list=$g(^zCacheTemp("MEDCHART",id,"PATIENT",code,oe,vardose))
+ . . . . . . s OEORIRowId=oe_"||"_vardose
+ . . . . . i flag=1 d
+ . . . . . . s list=$g(^zCacheTemp("MEDCHART",id,"PATIENT",code,oe,oei))
+ . . . . . . s OEORIRowId=oe_"||"_oei
+ . . . . i $g(list)'="" d
+ . . . . . s ind=$i(ind)
+ . . . . . s ^CacheTemp("TRAK",repid,ind)=$lb($p(list,"^"),$p(list,"^",2),$p(list,"^",3),$p(list,"^",4),$p(list,"^",5),$p(list,"^",6),$p(list,"^",7),$p(list,"^",8),$p(list,"^",9),$p(list,"^",10),$p(list,"^",11),$p(list,"^",12),$p(list,"^",13),$p(list,"^",14),$p(list,"^",15),$p(list,"^",16),$p(list,"^",17),$p(list,"^",18),code,oe,oei,arcim,ARCIMCode,ARCIMDesc,Additives,Volume,Rate,Route,Priority,Dose,UOM,Freq,Duration,Instr,Indication,TargetINR,WarfarinEdu,StartDate,StartTime,EndDate,EndTime,maxdose,noallow,status,doctor,OEORIRowId,itmcat,phorder,datepoau,timepoau,dateaureq,timeaureq,yesno,vardose,doctype,Notes,flag,reason,statuscode,authdoctor,rtfuom)
+ . . . . i oldoei'="" s oei=oldoei
+ 
+ 
+ s (oe,oei,arcim,ARCIMCode,ARCIMDesc,Item,Qty,UOM,Additives,Volume,Rate,Route,Priority,Dose,UOM,Freq,Duration,Instr,Indication,TargetINR,WarfarinEdu,StartDate,StartTime,EndDate,EndTime,maxdose,noallow,status,doctor,itmcat,phorder,datepoau,timepoau,dateaureq,timeaureq,yesno,vardose,doctype,flag)="" 
+ 
+ s itemlist="IV,NIO,PO,POE,DIS,WARFARIN,ADJ,VAR,OTH,INSULIN,PRN,ONE,STAT"
+ 
+ f x=1:1:$l(itemlist,",") d
+ . i '$d(^zCacheTemp("MEDCHART",id,"PATIENT",$p(itemlist,",",x))) d
+ . . d GetPatientInfo
+ . . i $p($g(list),"^",1)="" s list=$g(^zCacheTemp("MEDCHART",id,"PATIENT"))
+ . . s ind=$i(ind)
+ . . s ^CacheTemp("TRAK",repid,ind)=$lb($p(list,"^"),$p(list,"^",2),$p(list,"^",3),$p(list,"^",4),$p(list,"^",5),$p(list,"^",6),$p(list,"^",7),$p(list,"^",8),$p(list,"^",9),$p(list,"^",10),$p(list,"^",11),$p(list,"^",12),$p(list,"^",13),$p(list,"^",14),$p(list,"^",15),$p(list,"^",16),$p(list,"^",17),$p(list,"^",18),$p(itemlist,",",x),"","","","","","","","","","","","","","","","","","","","","","","","","","","","","","","","","","","","","","","","","")
+
+ /*
+ i '$d(^zCacheTemp("MEDCHART",id,"PATIENT","WARFARIN")) d
+ . d GetPatientInfo
+ . i $p($g(list),"^",1)="" s list=$g(^zCacheTemp("MEDCHART",id,"PATIENT"))
+ . s ind=$i(ind)
+ . s ^CacheTemp("TRAK",repid,ind)=$lb($p(list,"^"),$p(list,"^",2),$p(list,"^",3),$p(list,"^",4),$p(list,"^",5),$p(list,"^",6),$p(list,"^",7),$p(list,"^",8),$p(list,"^",9),$p(list,"^",10),$p(list,"^",11),$p(list,"^",12),$p(list,"^",13),$p(list,"^",14),$p(list,"^",15),$p(list,"^",16),$p(list,"^",17),$p(list,"^",18),"WARFARIN",oe,oei,arcim,ARCIMCode,ARCIMDesc,Additives,Volume,Rate,Route,Priority,Dose,UOM,Freq,Duration,Instr,Indication,TargetINR,WarfarinEdu,StartDate,StartTime,EndDate,EndTime,maxdose,noallow,status,doctor,OEORIRowId,itmcat,phorder,datepoau,timepoau,dateaureq,timeaureq,yesno,vardose,doctype,Notes)
+ i '$d(^zCacheTemp("MEDCHART",id,"PATIENT","INSULIN")) d
+ . d GetPatientInfo
+ . i $p($g(list),"^",1)="" s list=$g(^zCacheTemp("MEDCHART",id,"PATIENT"))
+ . s ind=$i(ind)
+ . s ^CacheTemp("TRAK",repid,ind)=$lb($p(list,"^"),$p(list,"^",2),$p(list,"^",3),$p(list,"^",4),$p(list,"^",5),$p(list,"^",6),$p(list,"^",7),$p(list,"^",8),$p(list,"^",9),$p(list,"^",10),$p(list,"^",11),$p(list,"^",12),$p(list,"^",13),$p(list,"^",14),$p(list,"^",15),$p(list,"^",16),$p(list,"^",17),$p(list,"^",18),"INSULIN",oe,oei,arcim,ARCIMCode,ARCIMDesc,Additives,Volume,Rate,Route,Priority,Dose,UOM,Freq,Duration,Instr,Indication,TargetINR,WarfarinEdu,StartDate,StartTime,EndDate,EndTime,maxdose,noallow,status,doctor,OEORIRowId,itmcat,phorder,datepoau,timepoau,dateaureq,timeaureq,yesno,vardose,doctype,Notes)
+ i '$d(^zCacheTemp("MEDCHART",id,"PATIENT","REGULAR")) d
+ . d GetPatientInfo
+ . i $p($g(list),"^",1)="" s list=$g(^zCacheTemp("MEDCHART",id,"PATIENT"))
+ . s ind=$i(ind)
+ . s ^CacheTemp("TRAK",repid,ind)=$lb($p(list,"^"),$p(list,"^",2),$p(list,"^",3),$p(list,"^",4),$p(list,"^",5),$p(list,"^",6),$p(list,"^",7),$p(list,"^",8),$p(list,"^",9),$p(list,"^",10),$p(list,"^",11),$p(list,"^",12),$p(list,"^",13),$p(list,"^",14),$p(list,"^",15),$p(list,"^",16),$p(list,"^",17),$p(list,"^",18),"REGULAR",oe,oei,arcim,ARCIMCode,ARCIMDesc,Additives,Volume,Rate,Route,Priority,Dose,UOM,Freq,Duration,Instr,Indication,TargetINR,WarfarinEdu,StartDate,StartTime,EndDate,EndTime,maxdose,noallow,status,doctor,OEORIRowId,itmcat,phorder,datepoau,timepoau,dateaureq,timeaureq,yesno,vardose,doctype,Notes) i '$d(^zCacheTemp("MEDCHART",id,"PATIENT","VARIABLE")) d
+ . d GetPatientInfo
+ . i $p($g(list),"^",1)="" s list=$g(^zCacheTemp("MEDCHART",id,"PATIENT"))
+ . s ind=$i(ind)
+ . s ^CacheTemp("TRAK",repid,ind)=$lb($p(list,"^"),$p(list,"^",2),$p(list,"^",3),$p(list,"^",4),$p(list,"^",5),$p(list,"^",6),$p(list,"^",7),$p(list,"^",8),$p(list,"^",9),$p(list,"^",10),$p(list,"^",11),$p(list,"^",12),$p(list,"^",13),$p(list,"^",14),$p(list,"^",15),$p(list,"^",16),$p(list,"^",17),$p(list,"^",18),"VARIABLE",oe,oei,arcim,ARCIMCode,ARCIMDesc,Additives,Volume,Rate,Route,Priority,Dose,UOM,Freq,Duration,Instr,Indication,TargetINR,WarfarinEdu,StartDate,StartTime,EndDate,EndTime,maxdose,noallow,status,doctor,OEORIRowId,itmcat,phorder,datepoau,timepoau,dateaureq,timeaureq,yesno,vardose,doctype,Notes)
+ i '$d(^zCacheTemp("MEDCHART",id,"PATIENT","IV")) d
+ . d GetPatientInfo
+ . i $p($g(list),"^",1)="" s list=$g(^zCacheTemp("MEDCHART",id,"PATIENT"))
+ . s ind=$i(ind)
+ . s ^CacheTemp("TRAK",repid,ind)=$lb($p(list,"^"),$p(list,"^",2),$p(list,"^",3),$p(list,"^",4),$p(list,"^",5),$p(list,"^",6),$p(list,"^",7),$p(list,"^",8),$p(list,"^",9),$p(list,"^",10),$p(list,"^",11),$p(list,"^",12),$p(list,"^",13),$p(list,"^",14),$p(list,"^",15),$p(list,"^",16),$p(list,"^",17),$p(list,"^",18),"IV",oe,oei,arcim,ARCIMCode,ARCIMDesc,Additives,Volume,Rate,Route,Priority,Dose,UOM,Freq,Duration,Instr,Indication,TargetINR,WarfarinEdu,StartDate,StartTime,EndDate,EndTime,maxdose,noallow,status,doctor,OEORIRowId,itmcat,phorder,datepoau,timepoau,dateaureq,timeaureq,yesno,vardose,doctype,Notes)
+ */
+ 
+ // Build QHandle (AtEnd,ReportID,Index)
+ Set QHandle=$LISTBUILD(0,repid,0)
+ Quit $$$OK
+ 
+GetPatientInfo
+ n loop  s loop="IV,NIO,PO,POE,DIS,WARFARIN,ADJ,VAR,OTH,INSULIN,PRN,ONE,STAT"
+ n cnt,val,found  s cnt=1,val="",found=0
+ s cnt=1 f  s val=$p(loop,",",cnt) q:val=""  d
+ . s cnt=cnt+1
+ . i found=1 q
+ . s oe=0 f  s oe=$o(^zCacheTemp("MEDCHART",id,"PATIENT",val,oe)) q:oe=""  d
+ . . i found=1 q
+ . . s oei=0 f  s oei=$o(^zCacheTemp("MEDCHART",id,"PATIENT",val,oe,oei)) q:oei=""  d
+ . . . i $p($g(^zCacheTemp("MEDCHART",id,"PATIENT",val,oe,oei)),"^",1)'="" d
+ . . . . s found=1
+ . . . . s list=(^zCacheTemp("MEDCHART",id,"PATIENT",val,oe,oei)) q
+ q
+]]></Implementation>
+</Method>
+
+<Method name="MedicationFetch">
+<Description>
+This is the Fetch component of the %Library.Query. 
+This should never have to change. It is designed to fetch the row for each subscript of the 
+^CacheTemp("TRAK" global and return this row to the Report writer</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,&Row:%Library.List,&AtEnd:%Library.Integer=0]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // This fetch method should never have to change. 
+ // repid - Report ID
+ // ind   - sequence index which represents each row
+
+ New repid,ind
+
+ // Restore QHandle
+ Set AtEnd=$LI(QHandle,1)
+ Set repid=$LI(QHandle,2)
+ Set ind=$LI(QHandle,3)
+
+ Set ind=$order(^CacheTemp("TRAK",repid,ind))
+ If ind="" {	// if there are no more rows, finish fetching
+ 	Set AtEnd=1
+ 	Set Row=""
+ }  Else  {	// fetch row
+ 	Set Row=^CacheTemp("TRAK",repid,ind)
+ }
+
+ // Save QHandle
+ Set QHandle=$lb(AtEnd,repid,ind)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Query name="Medication">
+<Description>
+This is the Stored Procedure Template. For Sample use only.
+It expects one parameter of type integer and will return 4 fields:
+Field1 - Integer
+Field2 - String
+Field3 - Date
+Field4 - Time</Description>
+<Type>%Library.Query</Type>
+<FormalSpec>DateFrom:%Library.String,DateTo:%Library.String,EpisodeID:%Library.Integer,id:%Library.Integer</FormalSpec>
+<SqlProc>1</SqlProc>
+<Parameter name="CONTAINID" value="0"/>
+<Parameter name="ROWSPEC" value="PAPMINo:%String,PAADMAdmNo:%String,PAPMIName:%String(MAXLEN=255),PAPMIName2:%String(MAXLEN=255),PAPMIName3:%String(MAXLEN=255),CTSEXCode:%String,PAPMIDOB:%Date,Address:%String(MAXLEN=255),Height:%String,Weight:%String,BSL:%String,PAADMAdmDate:%Date,PAADMAdmTime:%String,PAADMDischgDate:%Date,PAADMDischgTime:%String,WARDDesc:%String(MAXLEN=255),HOSPDesc:%String(MAXLEN=255),BEDCode:%String,code:%String,oe:%String,oei:%String,arcim:%String,ARCIMCode:%String(MAXLEN=255),ARCIMDesc:%String(MAXLEN=255),Additives:%String(MAXLEN=255),Volume:%String,Rate:%String,Route:%String,Priority:%String,Dose:%String,UOM:%String,Freq:%String,Duration:%String,Instr:%String(MAXLEN=3000),Indication:%String(MAXLEN=3000),TargetINR:%String,WarfarinEdu:%String(MAXLEN=3000),StartDate:%Date,StartTime:%String,EndDate:%Date,EndTime:%String,maxdose:%String,noallow:%String,status:%String,doctor:%String(MAXLEN=200),OEORIRowId:%String,itmcat:%String,phorder:%String,datepoau:%Date,timepoau:%String,dateaureq:%Date,timeaureq:%String,yesno:%String,vardose:%String,doctype:%String,Notes:%String(MAXLEN=3000),flag:%Integer,reason:%String(MAXLEN=255),statuscode:%String,authdoctor:%String(MAXLEN=255),rtfuom:%String(MAXLEN=255)"/>
+<Parameter name="SELECTMODE" value="ODBC"/>
+</Query>
+
+<Method name="LookUpURNClose">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>QHandle:%Library.Binary</FormalSpec>
+<PlaceAfter>LookUpURNFetch</PlaceAfter>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ n repid
+ s repid=$li(QHandle,2)
+ k ^CacheTemp("TRAK",repid)
+ q $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="LookUpURNExecute">
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,var:%Library.String=""]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+	n repid,ind
+	s repid=$i(^CacheTemp("TRAK"))
+	k ^CacheTemp("TRAK",repid)
+	
+	s var=$zcvt(var,"U")
+	
+	; Get Surnames
+	s surname=0 f  s surname=$o(^PAPERi("PAPER_PatName",surname)) q:surname=""  d
+	. ; If match save id
+	. i surname[var d
+	. . s id=0 f  s id=$o(^PAPERi("PAPER_PatName",surname,id)) q:id=""  d
+	. . . s ind=$i(ind)
+	. . . s ^CacheTemp("TRAK",repid,ind)=$lb($p($g(^PAPER(id,"PAT",1)),"^",1),id,$p($g(^PAPER(id,"ALL")),"^",1)_", "_$p($g(^PAPER(id,"ALL")),"^",2))
+	
+	; Get URN
+	s urn=0 f  s urn=$o(^PAPERi("PAPMI_PatNo",urn)) q:urn=""  d
+	. ; If match save id
+	. i urn[var d
+	. . s id=0 f  s id=$o(^PAPERi("PAPMI_PatNo",urn,id)) q:id=""  d
+	. . . s ind=$i(ind)
+	. . . s ^CacheTemp("TRAK",repid,ind)=$lb($p($g(^PAPER(id,"PAT",1)),"^",1),id,$p($g(^PAPER(id,"ALL")),"^",1)_", "_$p($g(^PAPER(id,"ALL")),"^",2))
+	
+	
+	Set QHandle=$LISTBUILD(0,repid,0)
+	Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="LookUpURNFetch">
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,&Row:%Library.List,&AtEnd:%Library.Integer=0]]></FormalSpec>
+<PlaceAfter>LookUpURNExecute</PlaceAfter>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ New repid,ind
+
+ // Restore QHandle
+ Set AtEnd=$LI(QHandle,1)
+ Set repid=$LI(QHandle,2)
+ Set ind=$LI(QHandle,3)
+
+ Set ind=$order(^CacheTemp("TRAK",repid,ind))
+ If ind="" {	// if there are no more rows, finish fetching
+ 	Set AtEnd=1
+ 	Set Row=""
+ }  Else  {	// fetch row
+ 	Set Row=^CacheTemp("TRAK",repid,ind)
+ }
+
+ // Save QHandle
+ Set QHandle=$lb(AtEnd,repid,ind)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Query name="LookUpURN">
+<Type>%Library.Query</Type>
+<FormalSpec>var:%Library.String</FormalSpec>
+<Parameter name="CONTAINID" value="2"/>
+<Parameter name="ROWSPEC" value="URN:%String,HIDDEN:%String,Name:%String"/>
+</Query>
+
+<Method name="LookUpBrokerURN">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>itmjs:%Library.String="",itmjsex:%Library.String="",URN:%Library.String=""</FormalSpec>
+<Implementation><![CDATA[
+ n id,code,desc,activedate
+
+ s (id,code,desc)=""
+ 
+ s id=$o(^PAPERi("PAPMI_PatNo",$zcvt(URN,"U"),0))
+ i id="" s desc=URN q 0
+ i id'="" d
+ . s desc=$p($g(^PAPER(id,"PAT",1)),"^",1)
+ . s code=$p($g(^PAPER(id,"ALL")),"^",1)_", "_$p($g(^PAPER(id,"ALL")),"^",2)
+ . s retval=itmjs_"('"_$ZCVT(desc,"O","JS")_"');"
+ . i itmjsex'="""" s retval=retval_itmjsex_"('"_$ZCVT(desc,"O","JS")_"^"_id_"^"_$ZCVT(code,"O","JS")_"');"
+ . &javascript<#(retval)#>
+ 
+ q 1
+]]></Implementation>
+</Method>
+
+<Method name="LookUpEpisodeByURNClose">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>QHandle:%Library.Binary</FormalSpec>
+<PlaceAfter>LookUpEpisodeByURNFetch</PlaceAfter>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ n repid
+ s repid=$li(QHandle,2)
+ k ^CacheTemp("TRAK",repid)
+ q $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="LookUpEpisodeByURNExecute">
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,var:%Library.String="",URN:%Library.String]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+	n repid,ind
+	s repid=$i(^CacheTemp("TRAK"))
+	k ^CacheTemp("TRAK",repid)
+	
+	s URN=$zcvt($zstrip(URN,"*CW"),"U")
+	
+	; Get using patient id
+	i URN'="" d
+	. s type=0 f  s type=$o(^PAPERdr(URN,"ADM",type)) q:type=""  d
+	. . s id=0 f  s id=$o(^PAPERdr(URN,"ADM",type,id)) q:id=""  d
+	. . . s ind=$i(ind)
+	. . . s ^CacheTemp("TRAK",repid,ind)=$lb($p($g(^PAADM(id)),"^",81),id,$zd($p($g(^PAADM(id)),"^",6),4),$p($g(^PAPER(URN,"PAT",1)),"^",1),$p($g(^PAPER(URN,"ALL")),"^",1)_", "_$p($g(^PAPER(URN,"ALL")),"^",2))
+	
+	i $g(URN)="" d
+	. s no=0 f  s no=$o(^PAADMi("No",no)) q:no=""  d
+	. . i no[var d
+	. . . s id=0 f  s id=$o(^PAADMi("No",no,id)) q:id=""  d
+	. . . . s ind=$i(ind)
+	. . . . s ^CacheTemp("TRAK",repid,ind)=$lb($p($g(^PAADM(id)),"^",81),id,$zd($p($g(^PAADM(id)),"^",6),4),$p($g(^PAPER($p($g(^PAADM(id)),"^",1),"PAT",1)),"^",1),$p($g(^PAPER($p($g(^PAADM(id)),"^",1),"ALL")),"^",1)_", "_$p($g(^PAPER($p($g(^PAADM(id)),"^",1),"ALL")),"^",2))
+	
+	
+	Set QHandle=$LISTBUILD(0,repid,0)
+	Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="LookUpEpisodeByURNFetch">
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,&Row:%Library.List,&AtEnd:%Library.Integer=0]]></FormalSpec>
+<PlaceAfter>LookUpEpisodeByURNExecute</PlaceAfter>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ New repid,ind
+
+ // Restore QHandle
+ Set AtEnd=$LI(QHandle,1)
+ Set repid=$LI(QHandle,2)
+ Set ind=$LI(QHandle,3)
+
+ Set ind=$order(^CacheTemp("TRAK",repid,ind))
+ If ind="" {	// if there are no more rows, finish fetching
+ 	Set AtEnd=1
+ 	Set Row=""
+ }  Else  {	// fetch row
+ 	Set Row=^CacheTemp("TRAK",repid,ind)
+ }
+
+ // Save QHandle
+ Set QHandle=$lb(AtEnd,repid,ind)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Query name="LookUpEpisodeByURN">
+<Type>%Library.SQLQuery</Type>
+<FormalSpec>var:%String,URN:%String</FormalSpec>
+<Parameter name="CONTAINID" value="2"/>
+<Parameter name="ROWSPEC" value="Episode:%String,HIDDEN:%String,Adm Date:%Library.Date,URN:%String,Name:%String"/>
+</Query>
+
+<Method name="LookUpBrokerEpisodeByURN">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>itmjs:%Library.String="",itmjsex:%Library.String="",EpisodeID:%String="",URN:%String=""</FormalSpec>
+<Implementation><![CDATA[
+ n id,code,desc
+ ;
+ s (id,code,desc)=""
+
+ s id=$o(^PAADMi("No",$zcvt(EpisodeID,"U"),0))
+ i id="" s desc=EpisodeID q 0
+ i id'="" d
+ . s desc=$p($g(^PAADM(id)),"^",81)
+ . s code=$p($g(^PAPER($p($g(^PAADM(id)),"^",1),"ALL")),"^",1)_", "_$p($g(^PAPER($p($g(^PAADM(id)),"^",1),"ALL")),"^",2)
+ . s retval=itmjs_"('"_$ZCVT(desc,"O","JS")_"');"
+ . i itmjsex'="""" s retval=retval_itmjsex_"('"_$ZCVT(desc,"O","JS")_"^"_id_"^"_$ZCVT(code,"O","JS")_"');"
+ . &javascript<#(retval)#>
+ 
+ q 1
+]]></Implementation>
+</Method>
+</Class>
+</Export>

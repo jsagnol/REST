@@ -1,0 +1,246 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.SWARH.JS.PAAdm.Tree">
+<Description>
+Component JavaScript for: PAAdm.Tree</Description>
+<Modified>0</Modified>
+<Super>websys.AbstractJavaScript</Super>
+<TimeCreated>63537,10517.67627</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+This Parameter is updated by Perforce</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/SWARH/JS/PAAdm/Tree.xml#1 $</Default>
+</Parameter>
+
+<Method name="JSContent">
+<Description>
+ </Description>
+<Language>javascript</Language>
+<ClientMethod>1</ClientMethod>
+<Implementation><![CDATA[
+//// SWARH Phuong-Dung HOANG 13/06/2012
+
+///Workflow SWARH.SNAP.Appt
+
+/// Load SNAP.js script
+
+/// 14/07/2014 require reload via CCR to Test post upload to live in AUSW1315
+SWARH.loadSNAP();
+
+var logonUserId=session['LOGON.USERID'];
+var logonLocId=session['LOGON.CTLOCID'];
+var logonGroupId=session['LOGON.GROUPID'];
+
+function GetEpisodeID() {
+	var frm = window.top.frames['eprmenu'].document.forms["fEPRMENU"];	
+	var EID=frm.EpisodeID.value;
+	return EID;
+}
+
+function SetEpisodeID(value) {
+	var frm = window.top.frames['eprmenu'].document.forms["fEPRMENU"];	
+	frm.EpisodeID.value = value;
+}
+
+function createButton(name,label) {
+	var obj=document.createElement('input');	// 2016-10-05 (RG) - Changed from '<input type="text" />' to 'input' 
+	obj.setAttribute('type','button');
+	obj.setAttribute('name',name);
+	obj.setAttribute('id',name);
+	obj.setAttribute('value',label);
+	obj.setAttribute('title',name);
+	obj.className = 'clsButton';
+	return obj;
+}
+
+websys_removeListener("load","onload",BodyLoadHandler);
+websys_addListener("load","onload",custom_body_onload);
+
+function custom_body_onload() {
+	
+	// OVERRIDE ONCLICK FOR EPR ICON TO OPEN EPR FOR SELECTED EPISODE //
+	// If no episode is selected, the EPR opens for the latest episode (Trak's default behaviour)
+	
+	var eprlink = '';
+	var formBanner = window.top.frames['TRAK_main'].document.forms["fPAPerson_Banner"];
+	if (formBanner) {
+		// Iterate through fPAPerson_Banner form to find all 'a' tags, find one containing img with title="EPR"
+		var atags = formBanner.getElementsByTagName('a');
+		for (i=0;i<atags.length;i++) {
+			var imgs = atags[i].getElementsByTagName('img');
+			if (imgs.length>0) {
+				for (j=0;j<imgs.length;j++) {
+					if (imgs[j].title == 'EPR') {
+						eprlink = atags[i];
+						break;
+					}
+				}
+			}
+		}
+		if (eprlink){
+			// parse base URL and options from string, save into eprlink.baseURL and eprlink.baseURLOptions
+			var eprurl = eprlink.getAttribute('onClick').toString().split("(")[1].split(")")[0].replace(/'/g, "");	// 2016-10-10 (RG) - Removed '.split("{")[1].split("}")[0]' after toString() & before .split("(")
+			eprlink.baseURL = eprurl.split(",false,")[0];
+			eprlink.baseURLOptions = eprurl.split(",false,")[1];
+			
+			// build onclick:
+			eprlink.onclick=function() {
+				var obj = document.getElementById("BANNEREpisodeID");
+				if (obj) var ep = obj.value;
+				websys_lu(eprlink.baseURL + (ep ? '&EpisodeID=' + ep : ''),false,eprlink.baseURLOptions);	
+				return false;
+			}
+		}
+	}
+	// END OVERRIDE ONCLICK FOR EPR ICON TO OPEN EPR FOR SELECTED EPISODE //
+	
+	var tPAAdm_Tree=document.getElementById('tPAAdm_Tree');
+	var obj=document.getElementById('WKFL');
+	if (obj) var TWKFL=document.getElementById('WKFL').value;
+	
+	if (TWKFL) {
+		if ((TWKFL=='SWARH.SNAP.Appt') || (TWKFL=='SWARH.SNAP.AddApptReferral')) {	//// SNAP appointment workflow
+			
+			//// Create and insert Appointments button
+			var newApptBtn=createButton('NewApptBtn','Appointments');
+			
+			var objTable=document.getElementById('tPAAdm_Tree');
+			if (objTable) {
+				objTable.parentElement.insertBefore(newApptBtn,objTable);
+				objTable.parentElement.insertBefore(document.createTextNode(" "),objTable);
+			}
+			
+			newApptBtn.onclick=function() {
+				if (GetEpisodeID()=="") {
+					alert("Please select an episode");
+				}
+				else if (tPAAdm_Tree) {
+					var rows=tPAAdm_Tree.getElementsByTagName('tr');
+					if (rows.length>0) {
+						for (i=1;i<rows.length;i++) {
+							if (rows[i].className == "clsRowSelected") {
+								TRAKListIndex=rows[i].getAttribute("TRAKListIndex");
+								break;
+							}
+						}
+						//EpisodeNo=document.getElementById("PAADMADMNoHIDDENz"+TRAKListIndex).value;
+						EpisodeId=document.getElementById("EpisodeIDz"+TRAKListIndex).value;
+						EpisodeNoLink=document.getElementById("PAADM_ADMNoz"+TRAKListIndex);
+						if (EpisodeNoLink) EpisodeNo=EpisodeNoLink.innerText;
+						VisitStatus=document.getElementById("HidPAADMVisitStatusz"+TRAKListIndex).value;
+						if (EpisodeNo.substring(0,3)!="SNA" && EpisodeNo.substring(0,2)!="NA") {
+							alert('Appointments only exist for episodes with a prefix of "SNA" or"NA"')
+						}
+						else if (VisitStatus=='C') {
+							alert('No appointments for cancelled episodes');
+						}
+						else {
+							SNAP.openSWARHSNAP('ClientAppointmentList.aspx?'+'LogonUserId='+logonUserId+'&LogonLocId='+logonLocId+'&PatientID='+PatientID+'&EpisodeNo='+EpisodeNo+'&LogonGroupId='+logonGroupId,'AppointmentList');
+						}
+					}
+				}
+				// if (GetEpisodeID()!="") {
+				// var url=snapserver+'ClientAppointmentList.aspx?'+'LogonUserId='+logonUserId+'&LogonLocId='+logonLocId+'&PatientID='+PatientID+'&EpisodeID='+GetEpisodeID();
+				// window.open(url,'AppointmentList',options);
+				// }
+				// else {
+					// alert("Please select an episode");
+				// }
+			}
+		
+			var PatientID=document.getElementById('PatientID').value;
+			//// Find list of episodes for patient selected
+			if (tPAAdm_Tree) {
+				var rows=tPAAdm_Tree.getElementsByTagName('tr');
+				if (rows.length>0) {
+					//// iterate through each episode listed and override href link for each episode date link
+					for (i=1;i<rows.length;i++) {
+						var episodeLink=document.getElementById('PAADM_ADMNoz'+i);
+						if (episodeLink) {
+							var episodeNo=episodeLink.innerText;
+						}
+						var dateLink=document.getElementById('displayDatez'+i);
+						//console.log(dateLink.innerText);
+						if (dateLink) {	
+							var anchor = document.createElement('A');
+							anchor.innerHTML = dateLink.innerHTML;
+							anchor.id = dateLink.id;
+							dateLink.parentNode.replaceChild(anchor, dateLink);
+							if (episodeNo.substring(0,3)=="SNA"||episodeNo.substring(0,2)=="NA") {
+								anchor.href='#';
+								anchor.onclick=function(e) {
+									e = e || window.event;
+									var target = e.srcElement || e.target;
+									var targetNo = target.id.split("z")[1];
+									var targetAdmNoField = document.getElementById('PAADM_ADMNoz'+targetNo);
+									if (targetAdmNoField) {
+										var targetAdmNo = targetAdmNoField.innerText;
+										SNAP.openSWARHSNAP('ClientAppointmentList.aspx?LogonUserId='+logonUserId+'&LogonLocId='+logonLocId+'&PatientID='+PatientID+'&EpisodeNo='+targetAdmNo+'&LogonGroupId='+logonGroupId,'appointmentList');
+									}
+									return false;
+								};
+							} else {
+								anchor.onclick=function(e) {
+									alert('Appointments only exist for episodes with a prefix of "SNA" or "NA"');
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+	BodyLoadHandler();
+}
+
+// STORE EPISODEID OF EPISODE SELECTED IN HIDDEN FIELD OF PATIENT BANNER BANNEREpisodeID //
+var TrakSelectRowHandler2 = SelectRowHandler2;
+SelectRowHandler2 = function(e) {
+	TrakSelectRowHandler2(e);
+	var eSrc=websys_getSrcElement(e)
+    if (eSrc.tagName=="IMG") eSrc=websys_getParentElement(eSrc);
+    var objTblSel=getTable(eSrc);
+    //???just ignore if selected row is from nested component
+    //TN 19-Nov-2004: don't override that selected from nested component rbapptepisode.list 
+    if (objTblSel.id.indexOf("tPAAdm_Tree")==-1) return;
+    
+    var objRowSel=getRow(eSrc);
+	var paadmrow=objRowSel.rowIndex;
+	var episid = "", episno = "";
+    if (objRowSel.className=='clsRowSelected') {
+        var arrfld=objRowSel.getElementsByTagName('INPUT');
+        for (var j=0; j<arrfld.length; j++) {
+            if (arrfld[j].id.indexOf("EpisodeIDz")==0) {
+                episid=arrfld[j].value;
+				break;
+            }
+        }
+		var links=objRowSel.getElementsByTagName('A');
+		for (var j=0; j<links.length;j++) {
+			if (links[j].id.indexOf("PAADM_ADMNoz")==0) {
+				episno=links[j].innerText;
+				break;
+			}
+		}
+    }
+	
+	var BANNEREpisodeID=document.getElementById("BANNEREpisodeID");
+	var BANNERPAADMADMNo=document.getElementById("BANNERPAADMADMNo");
+	if (BANNEREpisodeID) {
+		BANNEREpisodeID.value=episid;
+		SetEpisodeID(episid);
+	}
+	if (BANNERPAADMADMNo) {
+		BANNERPAADMADMNo.value=episno;
+		BANNERPAADMADMNo.innerText=episno;
+	}
+}
+// END STORE EPISODEID OF EPISODE SELECTED IN HIDDEN FIELD OF PATIENT BANNER BANNEREpisodeID //
+
+
+//// END SWARH Phuong-Dung HOANG 13/06/2012
+]]></Implementation>
+</Method>
+</Class>
+</Export>

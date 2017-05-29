@@ -1,0 +1,1567 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.AUXXESISExtract">
+<Description>
+ESIS Extract
+Stored procedure developed to replace UARMCPESIS* routines.
+
+Change Log
+IF	10/12/2012		TRC132642 - Changed reason code to be national code
+IF	15/10/2013		TRC160808 - Check to make sure there are no future cancellations and if so then don't sent Set SAD
+IF	23/12/2013		I10647 - Limit the cancelation search to only this booking
+IF	26/02/2014		TRC170839 - set the starting id of the booking transactions
+</Description>
+<ClassType/>
+<ProcedureBlock>0</ProcedureBlock>
+<Super>%Library.RegisteredObject,Report.Abstract</Super>
+<TimeCreated>62805,33150.138954</TimeCreated>
+
+<Parameter name="SrcVer">
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/AUXXESISExtract.xml#1 $</Default>
+</Parameter>
+
+<Method name="Print">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>hospid:%String,datefrom:%String,dateto:%String,final:%String</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	s rs=##class(%ResultSet).%New("Custom.AUXXESISExtract:ESISExtract")
+	i rs {
+		s sc=rs.Execute(hospid,datefrom,dateto,final)
+		i 'sc d ..ProcessError(sc,hospid,datefrom,dateto,final)
+		d rs.Close()
+	}
+	q 1
+]]></Implementation>
+</Method>
+
+<Method name="ProcessError">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>error:%String,hospid:%String,datefrom:%String,dateto:%String,final:%String</FormalSpec>
+<Implementation><![CDATA[
+	s reportdr=##class(websys.Report).GetIdFromCodeOrDescription("ESISNEW")
+	s rhid=$o(^websys.PrintHistoryI("ReportDRP1Index",reportdr," "_hospid,""),-1)
+	i $g(rhid)'="" {
+		s obj=##class(websys.PrintHistory).%OpenId(rhid)
+		i obj {
+			; If parameters match then update print history with error
+			i obj.P1=hospid,obj.P2=datefrom,obj.P3=dateto,obj.P4=final {
+				s obj.ErrorDescription=$g(error)
+				s obj.Status="E"
+				d obj.%Save(0)
+			}
+			d obj.%Close()
+		}
+	}
+	q
+]]></Implementation>
+</Method>
+
+<Method name="ESISExtractClose">
+<Description>
+This is the Close component of the %Library.Query.
+This is standard code and should never have to change.
+This is where all the cleanup is performed, i.e. the purging of the temporary storage global ^CacheTemp.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>QHandle:%Library.Binary</FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Clean up by purging the temporary node in ^CacheTemp global
+ New repid
+ Set repid=$li(QHandle,2)
+ 
+ //Start Monitor (if configured to capture stats)
+ i mon Do ..MonitorEnd(mon)
+
+ Kill ^CacheTemp(repid)
+ 
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="ESISExtractExecute">
+<Description>
+This is the Execute section for the %Library.Query. 
+All of the logic will be performed here.
+A new node for the ^CacheTemp global will be created and each subscript of this global will contain
+a row for the report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,hospid:%String,datefrom:%String,dateto:%String,final:%String]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+	// Get reportid i.e. use $INCREMENT to add another node to ^CacheTemp global. 
+	// We use ^CacheTemp global because it will always use memory before disk
+	n repid
+	
+	// Use $Increment to get the next node
+	s repid=$I(^CacheTemp)
+	
+	//Start Monitor (if configured to capture stats)
+	s mon=..MonitorBegin()
+	
+	i datefrom["-" {
+		s datefrom=$$intdate^SSUTIL4(datefrom)
+		s dateto=$$intdate^SSUTIL4(dateto)
+	}
+	s del=$c(9)
+	
+	; Sets the process to LOW and BATCH
+	; BATCH uses only 25% of the global buffers
+	d SET^%PRIO("LOW,BATCH")
+
+	k ^||TMP("ESIS",$j),^||TMP("ESIS1")
+	k ^||TMP("IB",$j)
+	k ^||TMP("MVB",$j)
+	d ..CreateNationalCodeIndex("CT_Country","CTCOU_Code",5)
+	d ..CreateNationalCodeIndex("CT_City","CTCIT_NationalCode",5)
+	d ..CreateNationalCodeIndex("PAC_PreferredLanguage","PREFL_VEMDCode",4)
+	d ..CreateNationalCodeIndex("PAC_IndigStatus","INDST_NationalCode",7)
+	k ^||TMP("MVB",$j)
+	
+	s wl=0
+	f {
+		s wl=$o(^PAWL(wl)) q:wl=""
+		i hospid=$p($g(^PAWL(wl)),"^",71) {
+			s err=..CheckWLEntry(wl,datefrom,dateto,hospid,final)
+		}
+	}
+	
+	s wl=0
+	f {
+		s wl=$o(^||TMP("ESIS1","EPISODE",wl))
+		q:wl=""
+		i '$d(^||TMP("ESIS1","URGENCY",wl)),'$d(^||TMP("ESIS1","READINESS",wl)) s ^TMP("ESIS1",wl)=""
+	}
+	
+	d ..CheckMergedRecords(datefrom,dateto,hospid,final)
+	
+	d ..CheckUnMergedRecords(datefrom,dateto,hospid,final)
+	
+	s qty=+$g(^||TMP("ESIS",$j,"STAT","REG"))
+	s eventtype="Number of registrations year-to-date" s str=..FormatFieldLeft(1,1)_del_eventtype_del_qty
+	
+	d ..AddRecord("R",str,"")
+	
+	s qty=+$g(^||TMP("ESIS",$j,"STAT","REM"))
+	s eventtype="Number of removals year-to-date" s str=..FormatFieldLeft(2,1)_del_eventtype_del_qty
+	
+	d ..AddRecord("R",str,"")
+	
+	d ..ProcessRemovals(datefrom,dateto,hospid,final)
+	
+	d ..GenerateFiles(datefrom,dateto,hospid,final,repid,ind)
+	
+	i final="Y" d ..UpdatePAExtract(datefrom,dateto,hospid,final)
+	
+	k ^||TMP("ESIS",$j)
+	k ^||TMP("IB",$j)
+	k ^||TMP("MVB",$j)
+	
+	// Build QHandle (AtEnd,ReportID,Index)
+	Set QHandle=$lb(0,repid,0)
+	Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="ESISExtractFetch">
+<Description>
+This is the Fetch component of the %Library.Query. 
+This should never have to change. It is designed to fetch the row for each subscript of the ^CacheTemp
+global and return this row to the Crystal Report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,&Row:%Library.List,&AtEnd:%Library.Integer=0]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // This fetch method should never have to change. 
+
+ // repid - Report ID
+ // ind   - sequence index which represents each row
+
+ New repid,ind
+
+ // Restore QHandle
+ Set AtEnd=$li(QHandle,1)
+ Set repid=$li(QHandle,2)
+ Set ind=$li(QHandle,3)
+
+ Set ind=$o(^CacheTemp(repid,ind))
+ If ind="" {	// if there are no more rows, finish fetching
+ Set AtEnd=1
+ Set Row=""
+ }
+ Else      {	// fetch row
+ Set Row=^CacheTemp(repid,ind)
+ }
+
+ // Save QHandle
+ s QHandle=$lb(AtEnd,repid,ind)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Query name="ESISExtract">
+<Description>
+This is the Stored Procedure Template. For Sample use only.
+It expects one parameter of type integer and will return 4 fields:
+Field1 - Integer
+Field2 - String
+Field3 - Date
+Field4 - Time</Description>
+<Type>%Library.Query</Type>
+<FormalSpec>hospid:%String,datefrom:%String,dateto:%String,final:%String</FormalSpec>
+<SqlProc>1</SqlProc>
+<Parameter name="CONTAINID" value="0"/>
+<Parameter name="ROWSPEC" value="Line"/>
+</Query>
+
+<Method name="CheckWLEntry">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>wl:%String,datefrom:%String,dateto:%String,hospid:%String,final:%String</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	q:$g(wl)="" 0
+	q:wl["^" 0
+	
+	s del=$c(9)
+	
+	s dateto=$g(dateto)
+	s dt=$zd(dateto),mm=$p(dt,"/"),dd=$p(dt,"/",2),yy=$p(dt,"/",3) s:yy<100 yy=1900+yy
+	i mm'<7 s date0=$zdh(yy_"0701",5)
+	i mm<7 s date0=$zdh(yy-1_"0701",5)
+	
+	s $p(space," ",80)=""
+	
+	s wls=$g(^PAWL(+wl))
+	q:wls="" 0
+	
+	s wlstatcode=""
+	s pat=$p(wls,"^",12),adm=$p(wls,"^",25),wlno=$p(wls,"^",80),episoper=$p(wls,"^",72),wlloc=$p(wls,"^",3)
+	s (wldate1,wldate)=$p(wls,"^",13),wldateofflist=$p(wls,"^",26),wlstat=$p(wls,"^",10),upddate=$p(wls,"^",66),resubdate=$p(wls,"^",104)
+	s wlstat=..GetCurrentWLStatus(wl,dateto)
+	s wlstatcode=$p($g(^PAC("WLS",wlstat)),"^")
+	
+	; Check admission status
+	i adm'="",$p($g(^PAADM(adm)),"^",20)="C" {
+		; get most recent admission id
+		s pre=0
+		f {
+			s pre=$o(^PAWL(wl,"ADM",pre))
+			q:pre=""
+			i $p($g(^PAWL(wl,"ADM",pre)),"^",3)="",$p($g(^PAWL(wl,"ADM",pre)),"^")'="" {
+				s adm=$p($g(^PAWL(wl,"ADM",pre)),"^")
+			}
+		}
+	}
+
+	s resubflag=0
+	i resubdate'<datefrom,resubdate'>dateto s resubflag=1
+
+	;AUXX
+	s wllocnc=""
+	s wlloc=$p(wls,"^",3)
+	s spec=""
+	s spec=$s($p(wls,"^",7)="":$p(wls,"^",11),1:$p(wls,"^",7))
+	i spec'="" {
+		s spec=$p($g(^CTPCP(spec,1)),"^",10)
+		i spec'="" s spec=$p($g(^CT("SPC",spec)),"^")
+	}
+	i spec'="" s wllocnc=spec
+	
+	; If waiting list speciality is blank then quit
+	i $g(wllocnc)="" q 0
+
+	; If procedure code is not ESIS reportable then quit
+	s sppp=$p(wls,"^",78)
+	i $p($g(^PAC("SPPP",+sppp)),"^",6)'="Y" q 0
+	i sppp s sppp=$p($g(^PAC("SPPP",+sppp)),"^",5)
+	i sppp s sppp=$p($g(^PAC("NPPP",+sppp)),"^")
+
+	; if wldateofflist is prior to reporting date the quit
+	;i wldateofflist,wldateofflist<$zdh("2012-12-01",3) q 0
+	
+	i wldate'<date0,wldate'>dateto {
+		s ^||TMP("ESIS",$j,"STAT","REG")=$g(^||TMP("ESIS",$j,"STAT","REG"))+1
+	}
+	
+	i wldateofflist'<date0,wldateofflist'>dateto {
+		s ^||TMP("ESIS",$j,"STAT","REM")=$g(^||TMP("ESIS",$j,"STAT","REM"))+1
+	}
+	
+	; If waiting list date is greater than reporting date to then quit
+	i wldate>dateto q 0
+	
+	; If waiting list status is Removed or Done and date off list is lessthan reporting date from and this is not a resubmission then quit
+	i " R D "[(" "_wlstatcode_" "),wldateofflist<datefrom,'resubflag q 0
+
+	; If waiting list status is not Initial, Suspend, Preadmission, Removed, Done then quit
+	i " OT I S PRE R D "'[(" "_wlstatcode_" ") q 0
+	
+	s mr=$p($g(^PAADM(+adm)),"^",61)
+	s stat=$p($g(^PAADM(+adm)),"^",20) 
+	s admdate=$p($g(^PAADM(+adm)),"^",6)
+	s admtype=$p($g(^PAADM(+adm)),"^",2)
+	s instype1="",insind=$o(^PAADM(+adm,"INS",0))
+	i insind s instype1=$p(^(insind),"^")
+	s admdep=$g(PAADM(5)),floor=$e($p($g(^CTLOC(+admdep)),"^",16))
+	s err=$$select^MVBPAPMI(pat) q:err 0
+	i $d(PLIST) m PAPMI=PLIST
+	s err=$$select^MVBPAPER(pat) q:err 0
+	i $d(PLIST) m PAPER=PLIST
+	s dva=$p($g(^PAPER(+pat,"PAT",3)),"^",6)
+	s rego=$g(PAPMI(8)),medicare=$g(PAPMI(98)),medicode=$g(PAPMI(106)),medsuff1=$g(PAPMI(105))
+	s medicare=$tr(medicare,"-")
+	s medicare=$e(medicare,1,11)
+	s medicare1=medicare
+	i medsuff1 s medsuff1=$p($g(^PAC("MEDSUF",+medsuff1)),"^")
+	i $tr(medicare,"0")="" s medicare1=$e(space,1,11)
+	s name1=##Class(%Collation).Upper($p($g(PAPMI(4)),$c(1))) 
+	s name2=##Class(%Collation).Upper($p($g(PAPMI(5)),$c(1))) 
+	s name3=##Class(%Collation).Upper($p($g(PAPMI(99)),$c(1))) 
+	s medsuff=medsuff1
+	i medsuff="" s medsuff=$e(name2,1,3)
+	s speccat=$g(PAADM(188))
+	s sex=$p($g(PAPER(15)),$c(1)) 
+	i sex s sex=$p($g(^CT("SEX",+sex)),"^",3)
+	s dob=$p($g(PAPER(11)),$c(1))
+	i dob {
+		s dt=$zd(dob,1),dd=$p(dt,"/",2),mm=$p(dt,"/"),yy=$p(dt,"/",3) s:yy<100 yy=1900+yy s dob=dd_mm_yy
+	}
+	s estdob=$p($g(PAPER(152)),$c(1))
+	s estdob=$s(estdob="Y":"EEE",1:"AAA")
+	s zip=$p($g(PAPER(35)),$c(1)) 
+	i zip s zip=$p($g(^CT("ZIP",+zip)),"^",1)
+	s indst=$p($g(PAPER(141)),$c(1))
+	i indst s indst=$p($g(^PAC("INDST",+indst)),"^",5)
+	s city=$p($g(PAPER(33)),$c(1)) 
+	s citync=$p($g(^CT("CIT",+city)),"^",8)
+	i city s city=$p($g(^CT("CIT",+city)),"^",2)
+	s citync=..GetNationalCode("CT_City","CTCIT_NationalCode",5,citync)
+	s indst=..GetNationalCode("PAC_IndigStatus","INDST_NationalCode",7,indst)
+	i " 1000 9988 "[(" "_zip_" ") s city=""
+	i " 8888 "[(" "_zip_" ") s city=citync
+	
+	s wlp=$p(wls,"^",2)
+	s wlpnc=$p($g(^PAC("WLP",+wlp)),"^",6)
+	s admcatnc=""
+	s admcat=$p(wls,"^",35)
+	i admcat {
+		s admcatnc=$p($g(^PAC("ADMCAT",+admcat)),"^",1)
+		i admcatnc=2 s admcatnc=4
+	}
+	s wldate=$p(wls,"^",13)
+	s (clinregdate1,clinregdate)=$p(wls,"^",105)
+	i 'clinregdate s clinregdate=wldate
+	s sourceadd=$p(wls,"^",57) i sourceadd 
+	s sourceaddnc=$p($g(^PAC("SADD",+sourceadd)),"^",4)
+	;AUXX
+	i 'sourceaddnc s sourceaddnc=$p($g(^PAC("SADD",+sourceadd)),"^",1)
+	;AUXX
+	s transsrc=$p(wls,"^",83)
+	s transsrcnc=$p($g(^PAC("TRD",+transsrc)),"^",7)
+	s urgreasdate="",lasturgdate=""
+	s wlp=$p(wls,"^",2)
+	s wlp=..GetCurrentWLPriority(wl,dateto)
+	s wlpnc=$p($g(^PAC("WLP",+wlp)),"^",6)
+
+	s wlstatcode1=..GetWLStatus(wl,dateto)
+	s wlna=..CheckNAStatus(wl,dateto)
+	s (prevstat,prevstatrow,prevstatdate,prevstatcode)=""
+	
+	s prevstat=..GetPreviousWLStatus(wl,dateto)
+	i $g(prevstat)'="" {
+		s prevstatrow=$p(prevstat,"^",2)
+		s prevstatdate=$p($g(^PAWL(+prevstatrow,"TRANS",+$p(prevstatrow,"||",2))),"^",1)
+		s prevstatcode=$p($g(^PAC("WLS",+prevstat)),"^",1)
+	}
+	s wlnadate=""
+	i wlstatcode="S" s wlnadate=$p(wlna,"^")
+	i wlstatcode'="S",prevstatcode="S",$p(wlna,"^",2) s wlnadate=$p(wlna,"^",2)+1
+	s wlnadate=..FormatDate(wlnadate)
+	s reasna=$p(wlna,"^",3)
+	s reasgrp=$p($g(^PAC("WLREA",+reasna)),"^",8)
+	i reasgrp s reasgrp=$p($g(^PAC("WLRG",+reasgrp)),"^",1)
+	
+	i (",S,R,")'[(","_wlstatcode_","),prevstatcode'="S" s reasgrp=""
+	
+	s wladm="",wladm1="",ind=$o(^PAWL(wl,"ADM",""),-1)
+	i ind {
+		s wladm=^(ind)
+		s ind=$o(^PAWL(wl,"ADM",ind),-1)
+		i ind s wladm1=^(ind)
+	}
+	
+	s (admcancrea,admbkdate,admbknum,wladmdate,admcancdate,admcancrea1)=""
+	k WLADM
+	s ind=0
+	f {
+		s ind=$o(^PAWL(wl,"ADM",ind)) q:ind=""
+		s wladm=^(ind)
+		s admbknum=$p(wladm,"^",10)
+		s WLADM(+admbknum)=wladm
+		i 'resubflag,$p(wladm,"^",19)>dateto q
+		s admbkdate=$p(wladm,"^",19)
+		s wladmdate=$p(wladm,"^",2)
+		s admcancdate=$p(wladm,"^",3)
+		i admcancdate>dateto s (admcancdate,$p(wladm,"^",5))=""
+		i $p(wladm,"^",5) s admcancrea1=admcancrea,admcancrea=$p(wladm,"^",5)
+	}
+	i admbkdate>dateto s (wladmdate,admbknum,admbkdate)=""
+	s admbkdate=..FormatDate(admbkdate)
+	s admreasgrp=$p($g(^PAC("WLREA",+admcancrea)),"^",8)
+	i admreasgrp s admreasgrp=$p($g(^PAC("WLRG",+admreasgrp)),"^",1)
+	i admreasgrp=99,admcancrea1,admcancrea1-admcancrea {
+		s admreasgrp=$p($g(^PAC("WLREA",+admcancrea)),"^",8)
+		i admreasgrp s admreasgrp=$p($g(^PAC("WLRG",+admreasgrp)),"^",1)
+	}
+	s dateofflist=$p(wls,"^",26)
+	
+	; If status is "R" then set removal date WL_EffectiveRemovalDate
+	i wlstatcode="R" s dateofflist=$p(wls,"^",34)
+	s reasremov=..GetRemovalReason(wl)
+
+	s rbopdate=$p(wladm,"^",13)
+	i rbopdate>dateto s rbopdate=""
+	
+	; TRC132642 - Changed reason code to be national code
+	s (reasremovgrp,reasremovtol)=""
+	;s reasremovgrp=$p($g(^PAC("WLREA",+reasremov)),"^",8)
+	i reasremov'="" {
+		s reasremovgrp=$p($g(^PAC("WLREA",+reasremov)),"^",12)
+		s reasremovtol=$p($g(^PAC("WLREA",+reasremov)),"^",5)
+		i " S "[(" "_reasremovgrp_" "),reasremovtol'="Y" s (rbopdate)=""
+		i reasremovtol'="Y" s reasremovgrp=""
+	}
+	;i reasremovgrp s reasremovgrp=$p($g(^PAC("WLRG",+reasremovgrp)),"^",1)
+	
+	; if waiting list status is "Done" then reason for removal is "W"
+	i wlstatcode="D" s reasremovgrp="W"
+	
+	i admcancdate," S X "'[(" "_reasremovgrp_" "),admreasgrp'=99  s wladmdate=""
+	s wladmdate=..FormatDate(wladmdate)
+	i reasremov s reasremov=$p($g(^PAC("WLREA",+reasremov)),"^",1)
+	s instype=$p(wls,"^",50)
+	s admdateothhosp=$p(wls,"^",101)
+	s transdest=$p(wls,"^",73)
+	i " W "[(" "_reasremovgrp_" ") {
+		i instype1'="" s instype=instype1
+		i admdate'="" s admdateothhosp=admdate
+		i dateofflist,dateofflist<admdateothhosp s dateofflist=admdateothhosp 
+	}
+
+	s instypecode3=$p($g(^ARC("INST",+instype)),"^",24)
+	i instypecode3 s instypecode3=$p($g(^ARC("PGRP",instypecode3)),"^",1)
+
+	i " B I U "[(" "_reasremovgrp_" ") s instypecode3=""
+	i " T N R Z Q F "[(" "_reasremovgrp_" ") s (instypecode3,admdateothhosp,transdest)=""
+	i " E "[(" "_reasremovgrp_" "),dateofflist'<datefrom,dateofflist'>dateto,'$d(^PA("EXTR",0,"WL",+wl)) q 0
+	i " E "[(" "_reasremovgrp_" ") s reasremovgrp="DELETE"
+	i dateofflist,dateofflist>dateto s admdateothhosp=""
+	s transdestnc=$p($g(^PAC("TRD",+transdest)),"^",7)
+	s daysnrc="" i $p(wlna,"^",2) s daysnrc=$p(wlna,"^",2)-wlna
+	i '$p(wlna,"^",2),wlna s daysnrc=datefrom-wlna
+	s daysnrc2="" i wlstatcode="S",$p(wlna,"^",2) s daysnrc2=$p(wlna,"^",2)-prevstatdate
+	i wlstatcode="S",'$p(wlna,"^",2),wlna s daysnrc2=prevstatdate-wlna
+	s hips=$p(wls,"^",81)
+	s hips=..GetHips(wl,dateto)
+	
+	s hosp=$p(wls,"^",71)
+	s hospnc=$p($g(^CT("HOSP",+hosp)),"^",7)
+	
+	s (lasturgdate1,lasturgdate)=..GetPriorityIncreaseDate(wl,dateto),wlp1=$p(lasturgdate,"^",2),lasturgdate=..FormatDate($p(lasturgdate,"^"))
+	s (urgreasdate1,urgreasdate)=..GetPriorityChangedDate(wl,dateto),urgreasdate=..FormatDate(urgreasdate)
+	s (daysnrc1,daysnrc2)="" 
+	
+	i lasturgdate1 {
+		s dt2=dateto
+		i dateofflist,dateofflist<dateto s dt2=dateofflist
+		s nn=0
+		f {
+			s nn=$o(^PAWL(+wl,"NA",nn)) q:nn=""
+			s s=^(nn)
+			s nadfrom=$p(s,"^"),nadto=$p(s,"^",2)
+			q:nadfrom>dt2
+			i 'nadto s nadto=dt2
+			i nadto>dt2 s nadto=dt2
+			i nadto,nadto<lasturgdate1 q
+			s daysnrc2=daysnrc2+$s('nadto:dt2,1:nadto)-$s(nadfrom<lasturgdate1:lasturgdate1,1:nadfrom)+1
+		}
+	}
+	i urgreasdate1 {
+		s dt2=dateto
+		i dateofflist,dateofflist<dateto s dt2=dateofflist
+		s nn=0
+		f {
+			s nn=$o(^PAWL(+wl,"NA",nn)) q:nn=""
+			s s=^(nn)
+			s nadfrom=$p(s,"^"),nadto=$p(s,"^",2)
+			q:nadfrom>dt2
+			i 'nadto s nadto=dt2
+			i nadto>dt2 s nadto=dt2
+			i nadto,nadto<urgreasdate1 q
+			s daysnrc1=daysnrc1+$s('nadto:dt2,1:nadto)-$s(nadfrom<urgreasdate1:urgreasdate1,1:nadfrom)+1
+		}
+	}
+	
+	k wlnadate
+	s wlnadate=""
+	
+	s dt2=dateto
+	i dateofflist,dateofflist<dateto s dt2=dateofflist
+	s daysnrc=0
+	s nn=0
+	f {
+		s nn=$o(^PAWL(+wl,"NA",nn)) q:nn=""
+		s s=^(nn)
+		s nadfrom=$p(s,"^"),nadto=$p(s,"^",2),nadto1=nadto
+		i nadto1 s nadto1=nadto1+1
+		q:nadfrom>dt2
+		s wlnadate(nadfrom)=""
+		i nadto1,nadto1'>dt2 s wlnadate(nadto1)=""
+		i 'nadto s nadto=dt2
+		i nadto>dt2 s nadto=dt2
+		q:nadfrom>nadto
+		s daysnrc=daysnrc+nadto-nadfrom+1
+	}
+	
+	i dateofflist,(dateofflist-wldate)<daysnrc s daysnrc=dateofflist-wldate
+	s wlnadate=$o(wlnadate(""),-1)
+	s wlnadate=..FormatDate(wlnadate)
+	i dateofflist>dateto s (reasremovgrp,instypecode3,dateofflist)=""
+	s dateofflist=..FormatDate(dateofflist),wldate=..FormatDate(wldate),clinregdate=..FormatDate(clinregdate)
+	
+	s wlpnc1=$p($g(^PAC("WLP",+wlp1)),"^",6)
+	
+	i " W "'[(" "_reasremovgrp_" ") s (rbopdate)=""
+	
+	i 'admbknum s (admreasgrp,hips)=""
+	i wlstatcode1="R" s reasgrp=""
+	i admreasgrp=99 s admreasgrp=""
+	s admdateothhosp=..FormatDate(admdateothhosp)
+	s refid=$p(wls,"^",102)
+	s refhosp=$p(wls,"^",20)
+	i refhosp s refhosp=$p($g(^CT("RFC",+refhosp)),"^",1)
+	s refid=transsrcnc_refid
+	s proctext="",ii=0
+	f {
+		s ii=$o(^PAWL(+wl,"PROC",ii)) q:ii=""
+		s ss=^(ii)
+		s proctext=proctext_ss
+	}
+	
+	;s str=..FormatFieldRight(wlno,8)_del_..FormatFieldRight(rego,10)_del_..FormatFieldLeft(medicare_medicode,11)_del_..FormatFieldLeft(medsuff,3)_del_..FormatFieldLeft(episoper,2)_del_..FormatFieldLeft(dob,8)_del_..FormatFieldLeft(sex,1)_del_..FormatFieldLeft(zip,4)_del_..FormatFieldLeft(city,22)
+	;s str=str_del_..FormatFieldLeft(sppp,3)_del_..FormatFieldLeft(wllocnc,2)_del_..FormatFieldLeft(wlpnc,1)_del_..FormatFieldLeft(admcatnc,1)_del_..FormatFieldLeft(wldate,8)_del_..FormatFieldLeft(sourceaddnc,1)_del_..FormatFieldLeft(transsrcnc,4)
+	;s str=str_del_..FormatFieldLeft(urgreasdate,8)_del_..FormatFieldLeft(lasturgdate,8)_del_..FormatFieldLeft(wlpnc1,1)_del_..FormatFieldLeft(wlstatcode1,1)_del_..FormatFieldLeft(wlnadate,8)_del_..FormatFieldLeft(reasgrp,1)_del_..FormatFieldLeft(admbkdate,8)
+	;;s str=str_del_..FormatFieldLeftZeros(admbknum,2)_del_..FormatFieldLeft(admreasgrp,1)_del_..FormatFieldLeft(wladmdate,8)_del_..FormatFieldLeft(dateofflist,8)_del_..FormatFieldLeft(reasremovgrp,1)_del_..FormatFieldLeft(instypecode3,1)_del_..FormatFieldLeft(transdestnc,4)
+	;s str=str_del_..FormatFieldLeftZeros(daysnrc,4)_del_..FormatFieldLeftZeros(daysnrc1,4)_del_..FormatFieldLeftZeros(daysnrc2,4)_del_..FormatFieldLeftZeros(hips,2)_del_..FormatFieldLeft(rbopdate,8)_del_..FormatFieldLeft(hospnc,4)
+	
+	s ok=0
+	s ok=..Episodes(wl,datefrom,dateto,hospid,final,wlno,rego,dob,estdob,indst,sex,medicare,medicode,medsuff,zip,city,admdateothhosp,transdestnc,instypecode3,admcatnc,sppp,proctext,reasremovgrp,clinregdate,dateofflist,sourceaddnc,wllocnc,hospnc,refid,wldate)
+	
+	i ok {
+		d ..Urgency(wl,datefrom,dateto,hospid,final)
+		
+		d ..Readyness(wl,datefrom,dateto,hospid,final)
+		
+		d ..SAD(wl,datefrom,dateto,hospid,final)
+
+		d ..MAPT(wl,datefrom,dateto,hospid,final)
+	}	
+ 
+	q 1
+]]></Implementation>
+</Method>
+
+<Method name="Episodes">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>wl:%String,datefrom:%String,dateto:%String,hospid:%String,final:%String,wlno:%String="",rego:%String="",dob:%String="",estdob:%String="",indst:%String="",sex:%String="",medicare:%String="",medicode:%String="",medsuff:%String="",zip:%String="",city:%String="",admdateothhosp:%String="",transdestnc:%String="",instypecode3:%String="",admcatnc:%String="",sppp:%String="",proctext:%String="",reasremovgrp:%String="",clinregdate:%String="",dateofflist:%String="",sourceaddnc:%String="",wllocnc:%String="",hospnc:%String="",refid:%String="",wldate:%String="",wladmdate:%String=""</FormalSpec>
+<Implementation><![CDATA[
+	s del=$c(9),ok=0
+	s clinregdate1=$p($g(^PAWL(wl)),"^",105)
+	s wldate1=$p($g(^PAWL(wl)),"^",13),resubdate=$p($g(^PAWL(wl)),"^",104),wldateofflist=$p($g(^PAWL(wl)),"^",26),wlno=$p($g(^PAWL(wl)),"^",80),upddate=$p($g(^PAWL(wl)),"^",66)
+	s resubflag=0
+	i resubdate'<datefrom,resubdate'>dateto s resubflag=1
+	s epflag=0
+	
+	i wldateofflist>datefrom,wldateofflist<dateto,reasremovgrp="DELETE" s epflag=1
+	i wldate1>datefrom,wldate1<dateto s epflag=1
+	i upddate>datefrom,upddate<dateto s epflag=1
+	i resubflag s epflag=1
+
+	i 'epflag {
+		s tr=0
+		f {
+			s tr=$o(^PAWL(wl,"TRANS",tr)) q:tr=""
+			s s=^(tr)
+			s dfrom=$p(s,"^",10),wstat=$p(s,"^",8),admbknum1=$p(s,"^",13)
+			i 'resubflag {
+				i dfrom>=datefrom,dfrom<=dateto {
+					;i 'resubflag q:dfrom>dateto
+					;i 'resubflag q:dfrom<datefrom
+					s wstatcode=$p($g(^PAC("WLS",+wstat)),"^")
+					s wladm=$g(WLADM(+admbknum1))
+					s admstat=$p(wladm,"^",34)
+					i wstatcode="D",admstat="D" q
+					s epflag=1
+				}
+			} else {
+				i resubdate>=datefrom,resubdate<=dateto {
+					s wstatcode=$p($g(^PAC("WLS",+wstat)),"^")
+					s wladm=$g(WLADM(+admbknum1))
+					s admstat=$p(wladm,"^",34)
+					i wstatcode="D",admstat="D" q
+					s epflag=1
+				}
+			}
+		}
+		s tr=0
+		f {
+			s tr=$o(^PAWL(wl,"NA",tr)) q:tr=""
+			s s=^(tr)
+			s nadfrom=$p(s,"^"),nadto=$p(s,"^",2),nadate=$p(s,"^",6)
+
+			i (((nadfrom<=dateto)&&(nadfrom>=datefrom))||((resubflag)&&(nadfrom<=dateto))) {
+				s epflag=1
+			}
+			i $g(nadto)'="" {
+				i (((nadto<=dateto)&&(nadto>=datefrom))||((resubflag)&&(nadto<=dateto))) {
+					s epflag=1
+				}
+			}
+		}
+	}
+	i epflag {
+		i wldateofflist'<datefrom,wldateofflist'>dateto {
+		} elseif 'resubflag {
+			s transdestnc=""
+		}
+		s str=..FormatFieldRight(wlno,9)_del_..FormatFieldRight(rego,10)_del_..FormatFieldLeft(admdateothhosp,8)_del_..FormatFieldLeft(transdestnc,4)_del_..FormatFieldLeft(instypecode3,1)_del_..FormatFieldLeft(admcatnc,1)_del_..FormatFieldLeft(sppp,3)_del_..FormatFieldLeft(proctext,100)_del_..FormatFieldLeft(reasremovgrp,1)
+		s str=str_del_..FormatFieldLeft(clinregdate,8)_del_..FormatFieldLeft(dateofflist,8)_del_..FormatFieldLeft(sourceaddnc,1)_del_..FormatFieldLeft(wllocnc,2)_del_..FormatFieldLeft(hospnc,4)_del_..FormatFieldLeft(refid,13)_del_..FormatFieldLeft(wldate,8)
+		i reasremovgrp="DELETE" s str=..FormatFieldRight(wlno,9),$p(str,del,9)="DELETE"
+		d ..AddRecord("E",str,wl)
+		s ok=1
+		s ^||TMP("ESIS1","EPISODE",wl)=""
+		w !,str
+		i '$d(^||TMP("ESIS",$j,"PAT",+pat)) {
+			s str=..FormatFieldRight(rego,10)_del_..FormatFieldLeft(dob,8)_del_..FormatFieldLeft(estdob,8)_del_indst_del_..FormatFieldLeft(sex,1)_del_..FormatFieldLeft(medicare_medicode,11)_del_..FormatFieldLeft(medsuff,3)_del_..FormatFieldLeft(zip,4)_del_..FormatFieldLeft(city,30)
+			d ..AddRecord("P",str,wl)
+			w !,str
+			s ok=1
+			s ^||TMP("ESIS",$j,"PAT",+pat)=""
+		}
+	}
+	q ok
+]]></Implementation>
+</Method>
+
+<Method name="Urgency">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>wl:%String,datefrom:%String,dateto:%String,hospid:%String,final:%String</FormalSpec>
+<Implementation><![CDATA[
+	k WLUR
+	s del=$c(9)
+	s wldate=$p($g(^PAWL(wl)),"^",13)
+	s resubdate=$p($g(^PAWL(wl)),"^",104)
+	s clinregdate=$p($g(^PAWL(wl)),"^",105)
+
+
+	i resubdate>=datefrom,resubdate<=dateto {
+		s resubflag=1
+	} else {
+		s resubflag=0
+	}
+	
+	s firstprior=""
+	s (added,tr)=0
+	f {
+		s tr=$o(^PAWL(wl,"TRANS",tr)) q:tr=""
+		s s=^(tr)
+		i $p(s,"^",5)'="",firstprior="" s firstprior=$p($g(^PAC("WLP",$p(s,"^",5))),"^",6)
+		s dfrom=$p(s,"^",10),prior=$p(s,"^",5)
+		i $g(prior)'="",dfrom'="",$p(s,"^",14)="Y",dateto>=$p(s,"^",10) {
+			s priorcode=$p($g(^PAC("WLP",+prior)),"^",6)
+			i (((dfrom<=dateto)&&(dfrom>=datefrom))||((resubflag)&&(dfrom<=dateto))) {
+				s WLUR(dfrom)=priorcode
+				i wldate=dfrom,clinregdate'="" s WLUR(clinregdate)=priorcode
+			}
+		}
+	}
+
+	i clinregdate,'$d(WLUR(clinregdate)) {
+		i (((clinregdate>=datefrom)&&(clinregdate<=dateto))||((resubflag)&&(clinregdate<=dateto))) {
+			s WLUR(clinregdate)=firstprior
+		}
+	}
+	s eventdate=""
+	f {
+		s eventdate=$o(WLUR(eventdate))
+		q:eventdate=""
+		s eventtype="Urgency"
+		s priorcode=WLUR(eventdate)
+		s dfrom=..FormatDate(eventdate)
+		s wlno=$p($g(^PAWL(wl)),"^",80)
+		s str=..FormatFieldRight(wlno,9)_del_..FormatFieldLeft(eventtype,12)_del_..FormatFieldLeft(dfrom,8)_del_..FormatFieldLeft(priorcode,8)
+		i '$d(^||TMP("ESIS1","URGENCY",wl,$zstrip(str,"*PW"))) {
+			d ..AddRecord("I",str,wl)
+			s ^||TMP("ESIS1","URGENCY",wl,$zstrip(str,"*PW"))=""
+			s added=$i(added)
+			w !,str
+		}
+	}
+	q
+]]></Implementation>
+</Method>
+
+<Method name="Readyness">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>wl:%String,datefrom:%String,dateto:%String,hospid:%String,final:%String</FormalSpec>
+<Implementation><![CDATA[
+	k WLNA
+	s del=$c(9)
+	s resubdate=$p($g(^PAWL(wl)),"^",104)
+	s clinregdate=$p($g(^PAWL(wl)),"^",105)
+	s wldate=$p($g(^PAWL(wl)),"^",13)
+	s wldateofflist=$p($g(^PAWL(wl)),"^",26)
+
+	i resubdate>=datefrom,resubdate<=dateto {
+		s resubflag=1
+	} else {
+		s resubflag=0
+	}
+	
+	; Report waiting list and clinical reg date if waiting list date in date range
+	i (((wldate<=dateto)&&(wldate>=datefrom))||((resubflag)&&(wldate<=dateto))) {
+		s WLNA(wldate)="R"
+		s WLNA(clinregdate)="R"
+	}
+	
+	i clinregdate,'$d(WLNA(clinregdate)) {
+		i (((clinregdate>=datefrom)&&(clinregdate<=dateto))||resubflag) {
+			s WLNA(clinregdate)="R"
+		}
+	}
+	
+	s (added,tr)=0
+	f {
+		s tr=$o(^PAWL(wl,"NA",tr)) q:tr=""
+		s s=^(tr)
+		s nadfrom=$p(s,"^"),nadto=$p(s,"^",2),rea=$p(s,"^",3),nadate=$p(s,"^",6),deldate=$p(s,"^",14)
+
+		s reacode=$p($g(^PAC("WLREA",+rea)),"^")
+		s reaunav=$p($g(^PAC("WLREA",+rea)),"^",4)
+		s reasgrp=$p($g(^PAC("WLREA",+rea)),"^",8)
+		i reasgrp s reacode=$p($g(^PAC("WLRG",+reasgrp)),"^",1)
+		s value="R"
+		i " C S "[(" "_reacode_" "),reaunav="Y" s value="C"
+		i " P D "[(" "_reacode_" "),reaunav="Y" s value="P"
+		
+		i (((nadfrom<=dateto)&&(nadfrom>=datefrom))||((resubflag)&&(nadfrom<=dateto))) {
+			s WLNA(nadfrom)=value
+		}
+		i $g(nadto)'="" {
+			i (((nadto<=dateto)&&(nadto>=datefrom))||((resubflag)&&(nadto<=dateto))) {
+				s WLNA(nadto)="R"
+			}
+		}		
+		i deldate,(((deldate'<datefrom)&(deldate'>dateto))!((resubflag)&&(deldate<=dateto))) {
+			s dfrom=$s(nadto="":nadfrom,nadto>dateto:nadfrom,1:nadto)
+			i dateto>dfrom {
+				s WLNA(dfrom)="DELETE"
+			}
+		}
+		/*
+		i nadfrom<wldateofflist {
+			s fl=0
+			i nadfrom>=datefrom,nadfrom<=dateto s fl=1
+			;new logic, resend all data before batch start date
+			i nadfrom<=dateto s fl=1
+			i resubflag s fl=1
+			i nadfrom>datefrom,resubflag s fl=0
+
+			i fl {
+				s value="R"
+				i " C S "[(" "_reacode_" "),reaunav="Y" s value="C"
+				i " P D "[(" "_reacode_" "),reaunav="Y" s value="P"
+				s WLNA(dfrom)=value
+
+				i clinregdate,clinregdate-wldate,nadfrom=wldate,dfrom'=clinregdate {
+					s WLNA(clinregdate)=value
+				}
+			}
+			s fl=0
+			i nadto>=(datefrom-1),nadto<=(dateto-1) s fl=1
+			;new logic, resend all data before batch start date
+			i nadto<=(dateto-1) s fl=1
+			i resubflag s fl=1
+			i nadto>(dateto-1),resubflag s fl=0
+			i nadto>=wldateofflist {
+				i fl!nadto,nadto'="",nadto<dateto {
+					s WLNA(nadto)="R"
+				}
+			}
+		}
+		*/
+	}
+	zw WLNA
+	s eventdate=""
+	f {
+		s eventdate=$o(WLNA(eventdate))
+		q:eventdate=""
+		i eventdate'>$s(wldateofflist="":eventdate,1:wldateofflist) {
+			s eventtype="Readiness"
+			s value=$g(WLNA(eventdate))
+			s dfrom=..FormatDate(eventdate)
+			s wlno=$p($g(^PAWL(wl)),"^",80)
+			s str=..FormatFieldRight(wlno,9)_del_..FormatFieldLeft(eventtype,12)_del_..FormatFieldLeft(dfrom,8)_del_..FormatFieldLeft(value,8)
+			i '$d(^||TMP("ESIS1","READINESS",wl,$zstrip(str,"*PW"))) {
+				d ..AddRecord("I",str,wl)
+				s ^||TMP("ESIS1","READINESS",wl,$zstrip(str,"*PW"))=""
+				s added=$i(added)
+				w !,str
+			}
+		}
+	}
+	/*
+	k WLNA
+	s del=$c(9),added=0
+	s wldate=$p($g(^PAWL(wl)),"^",13)
+	s (clinregdate1,clinregdate)=$p($g(^PAWL(wl)),"^",105)
+	s wldate1=$p($g(^PAWL(wl)),"^",13),resubdate=$p($g(^PAWL(wl)),"^",104),wldateofflist=$p($g(^PAWL(wl)),"^",26),wlno=$p($g(^PAWL(wl)),"^",80)
+	s resubflag=0
+	i resubdate'<datefrom,resubdate'>dateto s resubflag=1
+	s tr=0
+	f {
+		s tr=$o(^PAWL(wl,"NA",tr)) q:tr=""
+		s s=^(tr)
+		s nadfrom=$p(s,"^"),nadto=$p(s,"^",2),rea=$p(s,"^",3),deldate=$p(s,"^",14)
+		i nadfrom s WLNA(nadfrom)=""
+	}
+	i ((wldate1'<datefrom)&(wldate1'>dateto))!resubflag {
+		i '$d(WLNA(wldate1)),dateto>=wldate1 {
+			s dfrom=..FormatDate(wldate1)
+			s eventtype="Readiness"
+			s value="R"
+			s str=..FormatFieldRight(wlno,9)_del_..FormatFieldLeft(eventtype,12)_del_..FormatFieldLeft(dfrom,8)_del_..FormatFieldLeft(value,8)
+			i '$d(^||TMP("ESIS1","READINESS",wl,$zstrip(str,"*PW"))) {
+				d ..AddRecord("I",str,wl)
+				s ^||TMP("ESIS1","READINESS",wl,$zstrip(str,"*PW"))=""
+				s added=$i(added)
+				w !,str
+			}
+			i clinregdate1,clinregdate1-wldate1,dateto>clinregdate1 {
+				s dfrom=..FormatDate(clinregdate1)
+				s str=..FormatFieldRight(wlno,9)_del_..FormatFieldLeft(eventtype,12)_del_..FormatFieldLeft(dfrom,8)_del_..FormatFieldLeft(value,8)
+				i '$d(^||TMP("ESIS1","READINESS",wl,$zstrip(str,"*PW"))) {
+					d ..AddRecord("I",str,wl)
+					s ^||TMP("ESIS1","READINESS",wl,$zstrip(str,"*PW"))=""
+					s added=$i(added)
+					w !,str
+				}
+			}
+		}
+	}
+	*/
+		/*
+	s tr=0
+	f {
+		s tr=$o(^PAWL(wl,"NA",tr)) q:tr=""
+		s s=^(tr)
+		s eventtype="Readiness"
+		s nadfrom=$p(s,"^"),nadto=$p(s,"^",2),rea=$p(s,"^",3),nadate=$p(s,"^",6),deldate=$p(s,"^",14)
+		i deldate,(((deldate'<datefrom)&(deldate'>dateto))!resubflag) {
+			s value="DELETE"
+			s dfrom=$s(nadto="":nadfrom,nadto>dateto:nadfrom,1:nadto)
+			i dateto>dfrom {
+				s dfrom=..FormatDate(dfrom)
+				s str=..FormatFieldRight(wlno,9)_del_..FormatFieldLeft(eventtype,12)_del_..FormatFieldLeft(dfrom,8)_del_..FormatFieldLeft(value,8)
+				i '$d(^||TMP("ESIS1","READINESS",wl,$zstrip(str,"*PW"))) {
+					d ..AddRecord("I",str,wl)
+					s ^||TMP("ESIS1","READINESS",wl,$zstrip(str,"*PW"))=""
+					s added=$i(added)
+					w !,str
+				}
+			}
+		}
+		
+		s reacode=$p($g(^PAC("WLREA",+rea)),"^")
+		s reaunav=$p($g(^PAC("WLREA",+rea)),"^",4)
+		s reasgrp=$p($g(^PAC("WLREA",+rea)),"^",8)
+		i reasgrp s reacode=$p($g(^PAC("WLRG",+reasgrp)),"^",1)
+		s value="R"
+		i " C S "[(" "_reacode_" "),reaunav="Y" s value="C"
+		i " P D "[(" "_reacode_" "),reaunav="Y" s value="P"
+		i wldateofflist,nadfrom>wldateofflist q
+		
+		s fl=0
+		i nadfrom'<datefrom,nadfrom'>dateto s fl=1
+		;new logic, resend all data before batch start date
+		i nadfrom'>dateto s fl=1
+		i resubflag s fl=1
+		i nadfrom>datefrom,resubflag s fl=0
+		i fl {
+			s value="R"
+			i " C S "[(" "_reacode_" "),reaunav="Y" s value="C"
+			i " P D "[(" "_reacode_" "),reaunav="Y" s value="P"
+			s dfrom=..FormatDate(nadfrom)
+			s str=..FormatFieldRight(wlno,9)_del_..FormatFieldLeft(eventtype,12)_del_..FormatFieldLeft(dfrom,8)_del_..FormatFieldLeft(value,8)
+			i '$d(^||TMP("ESIS1","READINESS",wl,$zstrip(str,"*PW"))) {
+				d ..AddRecord("I",str,wl)
+				s ^||TMP("ESIS1","READINESS",wl,$zstrip(str,"*PW"))=""
+				s added=$i(added)
+				w !,str
+			}
+			i clinregdate1,clinregdate1-wldate1,nadfrom=wldate1,dfrom'=clinregdate1 {
+				s dfrom=..FormatDate(clinregdate1)
+				s str=..FormatFieldRight(wlno,9)_del_..FormatFieldLeft(eventtype,12)_del_..FormatFieldLeft(dfrom,8)_del_..FormatFieldLeft(value,8)
+				i '$d(^||TMP("ESIS1","READINESS",wl,$zstrip(str,"*PW"))) {
+					d ..AddRecord("I",str,wl)
+					s ^||TMP("ESIS1","READINESS",wl,$zstrip(str,"*PW"))=""
+					s added=$i(added)
+					w !,str
+				}
+			}
+		}
+		s fl=0
+		i nadto'<(datefrom-1),nadto'>(dateto-1) s fl=1
+		;new logic, resend all data before batch start date
+		i nadto'>(dateto-1) s fl=1
+		i resubflag s fl=1
+		i nadto>(dateto-1),resubflag s fl=0
+		i wldateofflist,nadto'<wldateofflist q
+		i fl!nadto,nadto'="",nadto<dateto {
+			s value="R"
+			s dfrom=..FormatDate(nadto)
+			s str=..FormatFieldRight(wlno,9)_del_..FormatFieldLeft(eventtype,12)_del_..FormatFieldLeft(dfrom,8)_del_..FormatFieldLeft(value,8)
+			i '$d(^||TMP("ESIS1","READINESS",wl,$zstrip(str,"*PW"))) {
+				d ..AddRecord("I",str,wl)
+				s ^||TMP("ESIS1","READINESS",wl,$zstrip(str,"*PW"))=""
+				s added=$i(added)
+				w !,str
+			}
+		}
+	}
+*/
+	q
+]]></Implementation>
+</Method>
+
+<Method name="SAD">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>wl:%String,datefrom:%String,dateto:%String,hospid:%String,final:%String</FormalSpec>
+<Implementation><![CDATA[
+	k TCI
+	s del=$c(9)
+	s wldate=$p($g(^PAWL(wl)),"^",13)
+	s (clinregdate1,clinregdate)=$p($g(^PAWL(wl)),"^",105)
+	s wldate1=$p($g(^PAWL(wl)),"^",13),resubdate=$p($g(^PAWL(wl)),"^",104),wldateofflist=$p($g(^PAWL(wl)),"^",26),wlno=$p($g(^PAWL(wl)),"^",80)
+	s resubflag=0
+	i resubdate'<datefrom,resubdate'>dateto s resubflag=1
+	s tr=0
+	f {
+		s tr=$o(^PAWL(wl,"TRANS",tr)) q:tr=""
+		s s=^(tr)
+		s pass=0
+		s effdate=$p(s,"^",10),dfrom=$p(s,"^",1),admvisstat=$p(s,"^",12),admbknum1=$p(s,"^",13),wlstat=$p(s,"^",8)
+		i admbknum1="" {
+			s adm=0
+			f {
+				s adm=$o(^PAWL(wl,"ADM",adm)) q:adm=""
+				i $p($g(^PAWL(wl,"TRANS",tr)),"^")=$p($g(^PAWL(wl,"ADM",adm)),"^",11),($p($g(^PAWL(wl,"TRANS",tr)),"^",2)>=$p($g(^PAWL(wl,"ADM",adm)),"^",12)&&$p($g(^PAWL(wl,"TRANS",tr)),"^",2)<=($p($g(^PAWL(wl,"ADM",adm)),"^",12)+5)) {
+					q:admbknum1'=""
+					s admbknum1=$p($g(^PAWL(wl,"ADM",adm)),"^",10)
+				}
+			}
+		}
+		i admvisstat'="",admbknum1,$d(TCI(admvisstat_"^"_admbknum1)) s pass=1
+
+		//TRC160808 - Check to make sure there are no future cancellations and if so then don't sent Set SAD
+		//I10647 - Limit the cancelation search to only this booking
+		//TRC170839 - set the starting id of the booking transactions
+		s trX=0,found=0,startid=0
+		f {
+			s trX=$o(^PAWL(wl,"TRANS",trX)) q:trX=""
+			i admbknum1=$p($g(^PAWL(wl,"TRANS",trX)),"^",13),'found s found=1,startid=trX
+		}
+		s trX=startid
+		f {
+			s trX=$o(^PAWL(wl,"TRANS",trX)) q:trX=""
+			i $p($g(^PAWL(wl,"TRANS",trX)),"^",12)="C",$p($g(^PAWL(wl,"TRANS",trX)),"^",11)=$o(^PAC("WLREA",0,"Code","BE","")),admbknum1=$p($g(^PAWL(wl,"TRANS",trX)),"^",13) s pass=1
+		}
+		
+		i 'pass {
+			i admvisstat'="",admbknum1 s TCI(admvisstat_"^"_admbknum1)=""
+			i dfrom>dateto s pass=1
+			i dfrom<datefrom,'resubflag s pass=1
+			i wldateofflist,dfrom>wldateofflist,'resubflag s pass=1
+			s wladm=$g(WLADM(+admbknum1))
+			i $p($g(^PAC("WLREA",+$p(wladm,"^",5))),"^")="linkcancel",$p($g(^PAC("WLS",+wlstat)),"^")="I" s pass=1
+			i " E C P "'[(" "_admvisstat_" ") s pass=1
+			i 'pass {
+				s admbkdate=$p(wladm,"^",19)
+				i admbkdate'="" {
+					s admcancdate=$p(wladm,"^",3)
+					s admcancrea=$p(wladm,"^",5)
+					s admreasgrp=$p($g(^PAC("WLREA",+admcancrea)),"^",8)
+					s admreasnc=$p($g(^PAC("WLREA",+admcancrea)),"^",12)
+					i admreasgrp s admreasgrp=$p($g(^PAC("WLRG",+admreasgrp)),"^",1)
+					s dfrom=..FormatDate(dfrom)
+					s admbkdate=..FormatDate(admbkdate)
+					s admcancdate=..FormatDate(admcancdate)
+					s effdate=..FormatDate(effdate)
+					s eventtype="Set SAD"
+					i " E C "[(" "_admvisstat_" ") s eventtype="Reason SAD Changed"
+					i eventtype="Set SAD" s str=..FormatFieldRight(wlno,9)_del_eventtype_del_..FormatFieldLeft(admbkdate,8)_del_..FormatFieldLeft(effdate,8)_del_..FormatFieldLeftZeros(admbknum1,10)
+					i eventtype="Reason SAD Changed"," 9   "[(" "_..FormatFieldLeft(admreasgrp,1)_" ") s pass=1
+					i eventtype="Reason SAD Changed",'pass s str=..FormatFieldRight(wlno,9)_del_eventtype_del_..FormatFieldLeft(admcancdate,8)_del_admreasnc_del_..FormatFieldLeftZeros(admbknum1,10)
+					d ..AddRecord("I",str,wl)
+					w !,wl_":"_str
+				}
+			}
+		}
+	}
+	q
+]]></Implementation>
+</Method>
+
+<Method name="MAPT">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>wl:%String,datefrom:%String,dateto:%String,hospid:%String,final:%String</FormalSpec>
+<Implementation><![CDATA[
+	k WL
+	s del=$c(9)
+	s wldate=$p($g(^PAWL(wl)),"^",13)
+	s (clinregdate1,clinregdate)=$p($g(^PAWL(wl)),"^",105)
+	s wldate1=$p($g(^PAWL(wl)),"^",13),resubdate=$p($g(^PAWL(wl)),"^",104),wldateofflist=$p($g(^PAWL(wl)),"^",26),wlno=$p($g(^PAWL(wl)),"^",80)
+	s resubflag=0
+	i resubdate'<datefrom,resubdate'>dateto s resubflag=1
+	s tr=0
+	f {
+		s tr=$o(^PAWL(wl,"SC",tr)) q:tr=""
+		s s=^(tr)
+		s effdate=$p(s,"^",2),dfrom=$p(s,"^",4),score=$p(s,"^",1)
+		i dfrom s WL(dfrom)=tr 
+	}
+	s tr=0
+	f {
+		s tr=$o(^PAWL(wl,"SC",tr)) q:tr=""
+		s s=^(tr)
+		s effdate=$p(s,"^",2),dfrom=$p(s,"^",4),score=$p(s,"^",1)
+		i score s score=$e($j(1000+score,0,3),2,99)
+		i dfrom,WL(dfrom)-tr q
+		i clinregdate1>effdate s effdate=clinregdate1
+		i dfrom>dateto q
+		i dfrom<datefrom,'resubflag q
+		i wldateofflist,dfrom>wldateofflist,'resubflag q
+		s dfrom=..FormatDate(effdate)
+		s eventtype="MAPT"
+		s str=..FormatFieldRight(wlno,9)_del_eventtype_del_..FormatFieldLeft(dfrom,8)_del_..FormatFieldLeft(score,8)
+		d ..AddRecord("I",str,wl)
+	}
+	q
+]]></Implementation>
+</Method>
+
+<Method name="CheckMergedRecords">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>datefrom:%String,dateto:%String,hospid:%String,final:%String</FormalSpec>
+<Implementation><![CDATA[
+	;merged records
+	s del=$c(9)
+	s mr=0
+	f {
+		s mr=$o(^PAMR(mr)) q:mr=""
+		s s=^(mr)
+		s date=$p(s,"^",3)
+		q:date<datefrom
+		q:date>dateto
+		s patfrom=$p(s,"^")
+		s rego=$p($g(^PAPER(+patfrom,"PAT",1)),"^")
+		q:rego=""
+		s patto=$p(s,"^",2)
+		s regoto=$p($g(^PAPER(+patto,"PAT",1)),"^")
+		s type="Ceased_Patient_Identifier"
+		s str=..FormatFieldRight(rego,10)_del_..FormatFieldRight(regoto,10)
+		d ..AddRecord("M",str,patfrom)
+	}
+	q
+]]></Implementation>
+</Method>
+
+<Method name="CheckUnMergedRecords">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>datefrom:%String,dateto:%String,hospid:%String,final:%String</FormalSpec>
+<Implementation><![CDATA[
+	;unmerged records
+	s del=$c(9)
+	s mr=0
+	f {
+		s mr=$o(^PAUM(mr)) q:mr=""
+		s s=^(mr)
+		s date=$p(s,"^",3)
+		q:date<datefrom
+		q:date>dateto
+		s patfrom=$p(s,"^")
+		s rego=$p($g(^PAPER(+patfrom,"PAT",1)),"^")
+		s type="Retained_Patient_Identifier"
+		s str=..FormatFieldRight(rego,10)_del_"UNMERGE"
+		d ..AddRecord("M",str,patfrom)
+	}
+	q
+]]></Implementation>
+</Method>
+
+<Method name="AddRecord">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>type:%String,str:%String,par:%String</FormalSpec>
+<Implementation><![CDATA[
+	;add item to file
+	s ind=""
+	s del=$c(9)
+ 	i type="I",$g(reasremovgrp)="DELETE" q
+ 	
+	i type="I",$p(str,del,1,4)'="" {
+		  s ind=$g(^||TMP("ESIS",$j,"FILE1",type,$p(str,del,1,4)))
+		  ;ignore ind
+		  i $p(str,del,2)'["Readiness",$p(str,del,2)'["Urgency" s ind=""
+		  i ind s ^||TMP("ESIS",$j,"FILE",type,ind)=str_"^"_$g(par)
+	}
+	s ind=$o(^||TMP("ESIS",$j,"FILE",type,""),-1)+1
+	s ^||TMP("ESIS",$j,"FILE",type,ind)=str_"^"_$g(par)
+	
+	i type="I",$p(str,del,1,4)'="" s ^||TMP("ESIS",$j,"FILE1",type,$p(str,del,1,4))=ind
+	q
+]]></Implementation>
+</Method>
+
+<Method name="ProcessRemovals">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>datefrom:%String,dateto:%String,hospid:%String,final:%String</FormalSpec>
+<Implementation><![CDATA[
+	s del=$c(9)
+	s date=datefrom-1
+	f {
+		s date=$o(^PA("EXTR",0,"RemoveDate",date)) q:date=""  q:date>dateto
+		s ex=0
+		f {
+			s ex=$o(^PA("EXTR",0,"RemoveDate",date,ex)) q:ex=""
+			s chl=0
+			f {
+				s chl=$o(^PA("EXTR",0,"RemoveDate",date,ex,chl)) q:chl=""
+				s s=$g(^PA("EXTR",ex,"DET",chl))
+				s type=$p(s,"^",3)
+				s wl=$p(s,"^",1)
+				s s1=$g(^PA("EXTR",ex,"DET",chl,"DATA"))
+				s str=""
+				i type="P" s $p(str,del,1)=$p(s1,del,1),$p(str,del,4)="DELETE"
+				i type="E" s $p(str,del,1)=$p(s1,del,1),$p(str,del,9)="DELETE"
+				i type="I" s $p(str,del,1,3)=$p(s1,del,1,3),$p(str,del,4)="DELETE",$p(str,del,5)=$p(s1,del,5)
+				i str'="" d ..AddRecord(type,str,wl)
+			}
+		}
+	}
+]]></Implementation>
+</Method>
+
+<Method name="GenerateFiles">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>datefrom:%String,dateto:%String,hospid:%String,final:%String,repid:%String,ind:%String</FormalSpec>
+<Implementation><![CDATA[
+	;create file
+	s del=$c(9)
+	s campus=""
+	i $g(hospid)'="" s campus=$p($g(^CT("HOSP",hospid)),"^",7)
+	
+	s dt=$zd(dateto),(yy1,yy)=$p(dt,"/",3)
+	s dt1=$p(dt,"/",2)_$p(dt,"/")_yy
+	s numrec=$o(^||TMP("ESIS",$j,"FILE",""),-1)
+	s str=dt1_del_campus_del_..FormatFieldLeftZeros(numrec,6)
+	s:yy>100 yy=$e(yy,3,4)
+
+	s mm=$p(dt,"/")
+	i mm<7 s yy1=yy1-1
+
+	i final="Y" s countyear=..FormatFieldLeftZeros($i(^COUNT("ESISBATCH",yy1)),3)
+	e  s countyear="prerun"
+
+	s dir=##class(Custom.AUXXUtilities).GetFilePath("ESIS")
+	q:$p($g(dir),"^",3)'="" $p($g(dir),"^",3)
+	s dir=$s($p($g(dir),"^")="":$p($g(dir),"^",2),1:$p($g(dir),"^"))
+	s dir=dir_campus_"\"
+	d ##class(%File).CreateDirectoryChain(dir)
+	
+	s ^||TMP("ESIS",$j,"FILE","M")=""
+	s type=""
+	f {
+		s type=$o(^||TMP("ESIS",$j,"FILE",type)) q:type=""
+		s file=dir_campus_"_"_yy_"_"_$p(dt,"/")_"_"_$p(dt,"/",2)_"_"_countyear_"_"_type_".TXT"
+		o file:"nws":10 e  q
+		s numrec=$o(^||TMP("ESIS",$j,"FILE",type,""),-1)
+		u file
+		s str=""
+		i type="P" s str="Patient_Identifier"_del_"Date_Of_Birth"_del_"DOB_Accuracy_Code"_del_"Indigenous_Status"_del_"Sex"_del_"Medicare_Number"_del_"Medicare_Suffix"_del_"Postcode"_del_"Locality"
+		i type="E" s str="Episode_Identifier"_del_"Patient_Identifier"_del_"Date_Of_Admission"_del_"Destination"_del_"Insurance_Declaration"_del_"Planned_Length_Of_Stay"_del_"Principal_Prescribed_Procedure"_del_"PPP_Description"_del_"Reason_For_Removal"_del_"Clinical_Registration_Date"_del_"Removal_Date"_del_"Source_Of_Referral"_del_"Surgical_Specialty"_del_"Treatment_Campus"_del_"Previous_Identifier_Of_Transferred_Episode"_del_"Administrative_Registration_Date"
+		i type="I" s str="Episode_Identifier"_del_"Event_Type"_del_"Event_Date"_del_"Event_Value"_del_"SAD_Identifier"
+		i type="M" s str="Ceased_Patient_Identifier"_del_"Retained_Patient_Identifier"
+		i type="R" s str="Aggregate_Identifier"_del_"Aggregate_Description"_del_"Aggregate_Value"
+		i str'="" {
+			w str,!
+			s ind=$i(ind)
+			s ^CacheTemp(repid,ind)=$lb(str)
+		}
+		i type'="M" {
+			s ind1=0
+			f {
+				s ind1=$o(^||TMP("ESIS",$j,"FILE",type,ind1)) q:ind1=""
+				s s=$p(^(ind1),"^")
+				u file w s,!
+				s ind=$i(ind)
+				s ^CacheTemp(repid,ind)=$lb(s)
+			}
+		}
+		c file
+	}
+	q
+]]></Implementation>
+</Method>
+
+<Method name="UpdatePAExtract">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>datefrom:%String,dateto:%String,hospid:%String,final:%String</FormalSpec>
+<Implementation><![CDATA[
+	;insert PA_Extract
+	n (hospid,datefrom,dateto,countyear)
+	k PLIST
+	s PLIST(12)=datefrom
+	s PLIST(2)=hospid
+	s PLIST(13)=dateto
+	s PLIST(16)=$i(^COUNT("ESISBATCH"))
+	s PLIST(14)=+$h,PLIST(15)=$p($h,",",2)
+	s PLIST(7)=$g(countyear)
+	
+	&SQL(INSERT INTO SQLUser.PA_Extract VALUES :PLIST())
+	
+	s paextr=$p($g(%ROWID),$c(1))
+	s type=""
+	f {
+		s type=$o(^||TMP("ESIS",$j,"FILE",type)) q:type=""
+		s ind=0
+		f {
+			s ind=$o(^||TMP("ESIS",$j,"FILE",type,ind)) q:ind=""
+			s s=^(ind)
+			s str=$p(s,"^")
+			s par=$p(s,"^",2)
+			s (pat,wl,adm)=""
+			i type="M" s pat=par
+			i " R M "'[(" "_type_" ") {
+				s wl=par
+				s pat=$p($g(^PAWL(+wl)),"^",12)
+				s adm=$p($g(^PAWL(+wl)),"^",25)
+			}
+			k PLIST
+			s (initvalue,PLIST(0))=paextr
+			s PLIST(3)=wl
+			s PLIST(4)=pat
+			s PLIST(5)=type
+			s PLIST(6)=str
+			s PLIST(9)=adm
+			&SQL(INSERT INTO SQLUser.PA_ExtractDetails VALUES :PLIST())
+		}
+	}
+	q
+]]></Implementation>
+</Method>
+
+<Method name="GetCurrentWLStatus">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>wl:%String,dateto:%String</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	;get current wl status
+	s wls=$g(^PAWL(+wl))
+	s found1=$p(wls,"^",10)
+	s indx=0
+	f {
+		s indx=$o(^PAWL(+wl,"TRANS",indx)) q:indx=""
+		s s=^(indx)
+		i $p($g(^PAC("WLS",+$p(s,"^",8))),"^")'="T",$p($g(^PAC("WLS",+$p(s,"^",8))),"^")'="OT",$p(s,"^",8),$p(s,"^",10)'>dateto {
+			s found1=$p(s,"^",8)
+		}
+		i ..CheckNAStatus(wl,dateto)," R D "'[(" "_$p($g(^PAC("WLS",+found1)),"^")_" ") s found1=$o(^PAC("WLS",0,"Code","S",""))
+	}
+	q found1
+]]></Implementation>
+</Method>
+
+<Method name="GetWLStatus">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>wl:%String,dateto:%String</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	;get wl status        
+	s wls=$g(^PAWL(+wl))
+	s wlstat=$p(wls,"^",10)
+	s wlstat=..GetCurrentWLStatus(wl,dateto)
+	s wlstatcode=$p($g(^PAC("WLS",+wlstat)),"^",1)
+	s wlstatcode=##class(%Collation).AlphaUp(wlstatcode)
+	i wlstatcode="S",'..CheckNAStatus(wl,dateto) q "R"
+	i " S "[(" "_wlstatcode_" ") q "N"
+	i " I D PRE "[(" "_wlstatcode_" ") q "R"
+	i " R T "[(" "_wlstatcode_" ") d  q found
+	.i ..CheckNAStatus(wl,dateto) s found="N" q
+	.s found=..GetPreviousWLStatus(wl,dateto),trans=$p(found,"^",2)
+	.i found s found=$p($g(^PAC("WLS",+found)),"^",1)
+	.i " S "[(" "_found_" ") s found="N"
+	.i " I D PRE "[(" "_found_" ") s found="R"
+	q wlstatcode
+]]></Implementation>
+</Method>
+
+<Method name="GetPreviousWLStatus">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>wl:%String,dateto:%String</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	;get previous wl status        
+	s wls=$g(^PAWL(+wl))
+	s wlstat=$p(wls,"^",10)
+	s wlstat=..GetCurrentWLStatus(wl,dateto)
+	s found=""
+	s ind=""
+	f {
+		s ind=$o(^PAWL(+wl,"TRANS",ind),-1) q:'ind
+		q:found'=""
+		s s=^(ind)
+		i $p($g(^PAC("WLS",+$p(s,"^",8))),"^")'="T",$p(s,"^",8)'=wlstat,$p(s,"^",10)<dateto {
+			s found=$p(s,"^",8)_"^"_+wl_"||"_ind
+		}
+	}
+
+	q found
+]]></Implementation>
+</Method>
+
+<Method name="CheckNAStatus">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>wl:%String,dateto:%String</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	;check if not available
+	;0-no,1-yes
+	s found=0
+	s ind=0
+	f {
+		s ind=$o(^PAWL(+wl,"NA",ind))
+		q:ind=""
+		i 'found {
+			s s=^(ind)
+			i $g(dateto) q:s>dateto
+			i $g(dateto),$p(s,"^",2),$g(dateto)>$p(s,"^",2)
+			s found=1
+		}
+	}
+	q found
+]]></Implementation>
+</Method>
+
+<Method name="GetCurrentWLPriority">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>wl:%String,dateto:%String</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	;get current wl status        
+	s wls=$g(^PAWL(+wl))
+	s found=$p(wls,"^",2)
+	s ind=0
+	f {
+		s ind=$o(^PAWL(+wl,"TRANS",ind)) q:ind=""
+		s s=^(ind)
+		s wls1=$p(s,"^",5) q:'wls1
+		i $g(dateto) q:s>dateto
+		s found=wls1
+	}
+	q found
+]]></Implementation>
+</Method>
+
+<Method name="GetRemovalReason">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>wl:%String</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	;get reason for removal
+	s found=""
+	s ind=""
+	f {
+		s ind=$o(^PAWL(+wl,"TRANS",ind),-1) q:'ind  q:found'=""
+		s s=^(ind)
+		s wlrea=$p(s,"^",11) q:'wlrea
+		s found=wlrea
+	}
+	q found
+]]></Implementation>
+</Method>
+
+<Method name="GetHips">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>wl:%String,dateto:%String</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	;get hips
+	s hips=0        
+	s ind=0
+	f {
+		s ind=$o(^PAWL(wl,"ADM",ind)) q:ind=""
+		s wladm=^(ind)
+		s admbkdate=$p(wladm,"^",19)
+		s admbknum=$p(wladm,"^",10),admcancrea=$p(wladm,"^",5),admcancdate=$p(wladm,"^",3)
+		q:'admcancdate
+		q:admcancdate>dateto
+		s admreasgrp=$p($g(^PAC("WLREA",+admcancrea)),"^",8)
+		i admreasgrp s admreasgrp=$p($g(^PAC("WLRG",+admreasgrp)),"^",1)
+		q:" H D "'[(" "_admreasgrp_" ")
+		s hips=hips+1
+	}
+	q hips
+]]></Implementation>
+</Method>
+
+<Method name="GetPriorityIncreaseDate">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>wl:%String,dateto:%String</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	;get date when priority was increased
+	q:'wl
+	s wl=+wl
+	q:'$d(^PAWL(wl))
+	s wls=$g(^PAWL(wl))
+	s wlp=$p(wls,"^",2)
+	s wlp=..GetCurrentWLPriority(wl,dateto)
+	s prevprior=""
+	s datep="",wlp1=""
+	s tr=0
+	f {
+		s tr=$o(^PAWL(wl,"TRANS",tr)) q:tr=""
+		s s=^(tr)
+		s dfrom=$p(s,"^",10),prior=$p(s,"^",5) q:'prior  q:'dfrom  q:$p(s,"^",14)'="Y"
+		q:dfrom>dateto
+		i prior-wlp s wlp1=prior
+		s priorcode=$p($g(^PAC("WLP",+prior)),"^",6)
+		i prevprior="" s prevprior=priorcode q
+		i priorcode<prevprior s datep=dfrom
+		s prevprior=priorcode
+	}
+	q datep_"^"_wlp1
+]]></Implementation>
+</Method>
+
+<Method name="GetPriorityChangedDate">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>wl:%String,dateto:%String</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	;get date when priority was changed
+	q:'wl
+	s wl=+wl
+	q:'$d(^PAWL(wl))
+	s prevprior=""
+	s datep="",flag=0
+	s tr=0
+	f {
+		s tr=$o(^PAWL(wl,"TRANS",tr)) q:tr=""
+		s s=^(tr)
+		s dfrom=$p(s,"^",10),prior=$p(s,"^",5) q:'prior
+		q:'dfrom
+		q:$p(s,"^",14)'="Y"
+		q:dfrom>dateto
+		i 'flag s flag=1 q
+		s datep=dfrom
+	}
+	q datep
+]]></Implementation>
+</Method>
+
+<Method name="FormatFieldLeft">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>str:%String,length:%String</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	;left pad with spaces
+	q $e($e(str,1,length)_$j("",length),1,length)
+]]></Implementation>
+</Method>
+
+<Method name="FormatFieldRight">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>str:%String,length:%String</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	;right pad with spaces
+	n sp
+	s $p(sp,"0",80)=""
+	q $e(sp,1,length-$l(str))_$e(str,1,length)
+]]></Implementation>
+</Method>
+
+<Method name="FormatFieldLeftZeros">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>str:%String,length:%String</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	;left pad with 0
+	q $e(str+(10**length),2,length+1)
+]]></Implementation>
+</Method>
+
+<Method name="FormatDate">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>dt:%String</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	;convert date
+	n (dt)
+	q:'dt ""
+	s dt1=$zd(dt),mm=$p(dt1,"/"),dd=$p(dt1,"/",2),yy=$p(dt1,"/",3)
+	s:yy<100 yy=1900+yy
+	
+	q dd_mm_yy
+]]></Implementation>
+</Method>
+
+<Method name="GetNationalCode">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>table:%String,field:%String,rep:%String,from:%String</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	s table=##class(%Collation).AlphaUp(table)
+	s field=##class(%Collation).AlphaUp(field)
+	q:table="" ""
+	q:field="" ""
+	q:'rep ""
+	q:from="" ""
+	q $g(^||TMP($zn,$j,"NATC",table,field,from))
+]]></Implementation>
+</Method>
+
+<Method name="CreateNationalCodeIndex">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>table:%String,field:%String,rep:%String</FormalSpec>
+<Implementation><![CDATA[
+	;create index for  PAC_NationalCodes
+	s table=##class(%Collation).AlphaUp(table)
+	s field=##class(%Collation).AlphaUp(field)
+	q:table=""
+	q:field=""
+	q:'rep
+	s ind=0
+	f {
+		s ind=$o(^PAC("NATC",0,"Table",table,field,rep,ind)) q:ind=""
+		s s=$g(^PAC("NATC",ind)),from=$p(s,"^",8),to=$p(s,"^",9)
+		q:from=""
+		q:to=""
+		s ^||TMP($zn,$j,"NATC",table,field,from)=to
+	}
+	q
+]]></Implementation>
+</Method>
+</Class>
+</Export>

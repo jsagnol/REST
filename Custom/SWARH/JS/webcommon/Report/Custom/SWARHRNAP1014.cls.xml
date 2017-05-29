@@ -1,0 +1,133 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.SWARH.JS.webcommon.Report.Custom.SWARHRNAP1014">
+<Description><![CDATA[
+<pre>
+**************************************************************************************************************************************
+* Initial release: ???
+* Developer: ???
+* Modified: 2016-03-15 - rpgladman - YTD date handling changes are to enforce the date to & from are the first & last days of a single
+*                                    month (date1 & date2) and that the financial year (date3) is generated when the user has selected 
+*                                    to use the YTD report.
+**************************************************************************************************************************************
+</pre>
+Component JavaScript for: webcommon.Report.Custom]]></Description>
+<Modified>0</Modified>
+<Super>websys.AbstractJavaScript</Super>
+<TimeCreated>63537,10522.235949</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+This Parameter is updated by Perforce</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/SWARH/JS/webcommon/Report/Custom/SWARHRNAP1014.xml#1 $</Default>
+</Parameter>
+
+<Method name="JSContent">
+<Description>
+ </Description>
+<Language>javascript</Language>
+<ClientMethod>1</ClientMethod>
+<Implementation><![CDATA[
+	//for SWARH
+	
+	//MW SWARH 18/09/08 (Copy of webcommon.Report.Custom_SWARH.MTED.075.js) 
+	var HObj=document.getElementById('custom6');
+	var LObj=document.getElementById('ld398iHOSPDesc');
+	var LObj1=document.getElementById('ld1906icustom6');
+	if(HObj) {
+		HObj.disabled=true;
+		HObj.className="disabledField";
+	}
+	if(LObj) {
+		LObj.disabled=true;
+	}
+	//disable click lookup
+	if(LObj1) {
+		LObj1.disabled=true;
+	}
+
+
+	/*///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////*/
+	/* BEGIN: YTD date handling /////////////////////////////////////////////////////////////////////////////////////////////////////////*/
+	/*///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////*/
+	var reportingmethod	= document.getElementById('reportingmethod');
+	var fromdate		= document.getElementById('date1');
+	var todate			= document.getElementById('date2');
+	var fydate			= document.getElementById('date3');
+	var usereport		= document.getElementById('custom4');
+	addEventHandler(reportingmethod,'change',onChange_reportingmethod);
+	addEventHandler(fromdate,       'change',onChange_fromdate);
+		
+	/* Various utility functions */
+	function isValidDate(d) {
+		if ( Object.prototype.toString.call(d) !== '[object Date]' )
+			return false;
+		return !isNaN(d.getTime());
+	}
+
+	/* Determine days in a month */
+	function getDaysInMonth(m, y) {
+		return /8|3|5|10/.test(--m)?30:m==1?(!(y%4)&&y%100)||!(y%400)?29:28:31;
+	}
+
+	/* Adds an event handler to an element for modern browsers and contains work around for IE prior to V9.0 & IE stuck in compatibility mode due to domain configuration*/
+	function addEventHandler(elem,event,func) {
+		var reti;
+		if (elem.addEventListener) {
+			reti = elem.addEventListener(event,func,false);
+		} else {
+			reti = elem.attachEvent('on'+event,func);
+		}
+		if (!reti) {
+			var logtext = 'Adding event handler failed ('+reti+')';
+			SWARH.log(logtext);
+		}
+	}
+
+	/* Event handler for reportingmethod element - We actually use click instead of change because IE does not utilise this event correctly */
+	function onChange_reportingmethod() {
+		if (reportingmethod.value == 'std') {
+			todate.disabled = false;
+			todate.className= '';
+			usereport.value = 'SWARHRNAP1014';
+		} else {
+			todate.disabled = true;
+			todate.className= 'disabledField';
+			usereport.value = 'SWARHRNAP1014YTD';
+			onChange_fromdate();
+    	}
+	}
+
+	/* Validate the From Date & changes to 1st of month and sets To Date */
+	function onChange_fromdate() {
+		/* Extract using strings as JS date handling is inconsistant, this assures same results on all platforms */
+		var requesteddate = new Date(Number(fromdate.value.split('/')[2]),Number(fromdate.value.split('/')[1]),Number(fromdate.value.split('/')[0])); 
+		if (todate.isDisabled) { 
+			if (isValidDate(requesteddate)) {
+				var year		= fromdate.value.split('/')[2]; /* 4 character string */
+				var month		= fromdate.value.split('/')[1]; /* 2 character string */
+				fromdate.value	= '01/'+month+'/'+year;
+				todate.value	= getDaysInMonth(month,year)+'/'+month+'/'+year;
+
+				/* If month is Jan->June then that financial year started last year on 01/07 - so decrement the year by one */
+				if (Number(month)<=6) {
+					fydate.value='01/07/'+(Number(year)-1);
+				} else {
+					fydate.value='01/07/'+(Number(year));
+				}
+			} else {
+				/* Invalid value, Trak's JS will prompt to put a valid date in so just display the value entered plus '???' at the end unless it was empty*/
+				if (fromdate.value != '') {
+					todate.value   = fromdate.value+'???';
+					fydate.value   = fromdate.value+'???';  
+				}
+			}
+		}
+	}
+	/*///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////*/
+	/* END: YTD date handling ///////////////////////////////////////////////////////////////////////////////////////////////////////////*/
+	/*///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////*/
+]]></Implementation>
+</Method>
+</Class>
+</Export>

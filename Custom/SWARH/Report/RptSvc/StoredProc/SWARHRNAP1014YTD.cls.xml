@@ -1,0 +1,329 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.SWARH.Report.RptSvc.StoredProc.SWARHRNAP1014YTD">
+<Description><![CDATA[
+<pre>
+**************************************************************************************************************************************
+* Report Code: SWARHRNAP1014YTD
+* Report Description: Service Activity Report - Year-To-Date Version
+* Menu Caption: Service Activity Report (Sub Report)
+* Initial release: 2016-03-16 
+* Developer: rpgladman
+* Notes: This version produces correct year-to-date data as opposed to the original.  The limitation to this is that
+*        you are restricted to displaying once month of data at a time due to how the report is written.
+**************************************************************************************************************************************
+</pre>]]></Description>
+<ProcedureBlock>0</ProcedureBlock>
+<Super>Custom.SWARH.Report.ZEN.StoredProc.Abstract</Super>
+<TimeCreated>60905,54849</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/SWARH/Report/RptSvc/StoredProc/SWARHRNAP1014YTD.xml#1 $</Default>
+</Parameter>
+
+<Method name="SWARHRNAP1014YTDClose">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)
+This is the Close component of the %Library.Query.
+This is standard code and should never have to change.
+This is where all the cleanup is performed, i.e. the purging of the temporary storage global ^CacheTemp.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>QHandle:%Library.Binary</FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Clean up by purging the temporary node in ^CacheTemp global
+ New repid,ind
+ Set repid=$List(QHandle,2)
+
+ //Start Monitor (if configured to capture stats)
+ If mon Do ..MonitorEnd(mon)
+
+ Kill ^CacheTemp("TRAK",repid)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="SWARHRNAP1014YTDExecute">
+<Description>
+This is the Execute section for the %Library.Query.
+All of the logic will be performed here.
+A new node for the ^CacheTemp global will be created and each subscript of this global will contain
+a row for the report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,Hospital:%Integer,DateFrom:%Date,DateTo:%Date,PeriodFrom:%Date,Specialty:%String,Program:%String]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+
+ New repid,ind
+
+ Set repid=$I(^CacheTemp("TRAK"))
+
+ New STHospID,STCTLocID,STDepDescID,ENQRowID,ENQHospitalDR,ENQDate,CTLOCDesc,DEPDesc,ENQDuration
+ New PAPERName,PAPERName2,PAPERName3,PAPMINo,PAPERStName,CTCITDesc,CTZIPCode,PAPERTelH,ENQIndirectTime,ENQInterpretingTime,ENQTravelTime,Weekend,ENQRBEventDR,EVName,EVAttendeeFemaleNo,EVAttendeeMaleNo
+ New CTLOCCode,DEPCode,AdminContact,CONTDELMODECode,CONTDELMODEDesc,ENQRequestStatusDR,MonthsIntoFY
+ New ContactsInPeriodRange,ContactsYTD,ContactTarget,ContactTargetLow,ContactTargetHigh,ContactTargetYTD,ContactTargetLowYTD,ContactTargetHighYTD
+ New ClientsInPeriodRange,ClientsYTD,ClientTarget,ClientTargetLow,ClientTargetHigh,ClientTargetYTD,ClientTargetLowYTD,ClientTargetHighYTD
+ New DurationInPeriodRange,DurationYTD,DurationTarget,DurationTargetLow,DurationTargetHigh,DurationTargetYTD,DurationTargetLowYTD,DurationTargetHighYTD
+ New WeekendContactsYTD,DirectContactTimeYTD,IndirectContactTimeYTD,AdminTimeYTD
+ 
+ Set (STHospID,STCTLocID,STDepDescID,ENQRowID,ENQHospitalDR,ENQDate,CTLOCDesc,DEPDesc,ENQDuration,PAPERName,
+     PAPERName2,PAPERName3,PAPMINo,PAPERStName,CTCITDesc,CTZIPCode,PAPERTelH,ENQIndirectTime,ENQInterpretingTime,
+     ENQTravelTime,Weekend,ENQRBEventDR,EVName,EVAttendeeFemaleNo,EVAttendeeMaleNo,CTLOCCode,DEPCode,AdminContact,
+     CONTDELMODECode,CONTDELMODEDesc,ENQRequestStatusDR,MonthsIntoFY,ContactsInPeriodRange,ContactsYTD,ContactTarget,
+     ContactTargetLow,ContactTargetHigh,ContactTargetYTD,ContactTargetLowYTD,ContactTargetHighYTD,ClientsInPeriodRange,
+     ClientsYTD,ClientTarget,ClientTargetLow,ClientTargetHigh,ClientTargetYTD,ClientTargetLowYTD,ClientTargetHighYTD,
+     DurationInPeriodRange,DurationYTD,DurationTarget,DurationTargetLow,DurationTargetHigh,DurationTargetYTD,
+     DurationTargetLowYTD,DurationTargetHighYTD,WeekendContactsYTD,DirectContactTimeYTD,IndirectContactTimeYTD,AdminTimeYTD) = "" 
+
+ Set ind=1, END=0
+
+ //Start Monitor (if configured to capture stats)
+ Set mon=..MonitorBegin()
+
+ //Convert ODBC dates to cache format
+ Set DateFrom   = $$intdate^SSUTIL4(DateFrom)    // First day of month selected
+ Set DateTo     = $$intdate^SSUTIL4(DateTo)      // Last day of month selected
+ Set PeriodFrom = $$intdate^SSUTIL4(PeriodFrom)  // First day of financial year that the selected month lies in (YYYY-07-01)
+ 
+ Set DateDiff=DateTo-DateFrom+1
+
+ &SQL(DECLARE SWARHRNAP1014YTD CURSOR FOR
+SELECT
+  PAE.ENQ_Hospital_DR                                                AS STHospID
+ ,PAE.ENQ_Location_DR                                                AS STCTLocID
+ ,PAE.ENQ_GovernDepart_DR                                            AS STDepDescID
+ ,PAE.ENQ_RowID                                                      AS ENQRowID
+ ,PAE.ENQ_Hospital_DR                                                AS ENQHospitalDR
+ ,PAE.ENQ_Date                                                       AS ENQDate
+ ,PAE.ENQ_Location_DR->CTLOC_Desc                                    AS CTLOCDesc
+ ,PAE.ENQ_GovernDepart_DR->DEP_Desc                                  AS DEPDesc
+ ,PAE.ENQ_Duration                                                   AS ENQDuration
+ ,PAE.ENQ_PAPER_DR->PAPER_Name                                       AS PAPERName
+ ,PAE.ENQ_PAPER_DR->PAPER_Name2                                      AS PAPERName2
+ ,PAE.ENQ_PAPER_DR->PAPER_Name3                                      AS PAPERName3
+ ,PAE.ENQ_PAPER_DR->PAPER_PAPMI_DR->PAPMI_No                         AS PAPMINo
+ ,PAE.ENQ_PAPER_DR->PAPER_StName                                     AS PAPERStName
+ ,PAE.ENQ_PAPER_DR->PAPER_CityCode_DR->CTCIT_Desc                    AS CTCITDesc
+ ,PAE.ENQ_PAPER_DR->PAPER_Zip_DR->CTZIP_Code                         AS CTZIPCode
+ ,PAE.ENQ_PAPER_DR->PAPER_TelH                                       AS PAPERTelH
+ ,PAE.ENQ_IndirectTime                                               AS ENQIndirectTime
+ ,PAE.ENQ_InterpretingTime                                           AS ENQInterpretingTime
+ ,PAE.ENQ_TravelTime                                                 AS ENQTravelTimeWeekend
+ ,CASE UCASE(DATENAME(DW,PAE.ENQ_Date)) WHEN 'SATURDAY' THEN 1 WHEN 'SUNDAY' THEN 1 ELSE 0 END
+                                                                     AS Weekend
+ ,PAE.ENQ_RBEvent_DR                                                 AS ENQRBEventDR
+ ,PAE.ENQ_RBEvent_DR->EV_Name                                        AS EVName
+ ,PAE.ENQ_RBEvent_DR->EV_AttendeeFemaleNo                            AS EVAttendeeFemaleNo
+ ,PAE.ENQ_RBEvent_DR->EV_AttendeeMaleNo                              AS EVAttendeeMaleNo
+ ,PAE.ENQ_Location_DR->CTLOC_Code                                    AS CTLOCCode
+ ,PAE.ENQ_GovernDepart_DR->DEP_Code                                  AS DEPCode
+ ---------------------------------------------------------------------------------------------
+ --,'Determined in stored procedure'                                   AS AdminContact
+ -- However you *could* do it here by using (CASE WHEN LCASE(LTRIM(RTRIM(LEFT(PAE.ENQ_ItemCat_DR->ARCIC_Desc,6)))) = 'admin' THEN 1 END)
+  ---------------------------------------------------------------------------------------------
+ ,PAE.ENQ_ContDelivMode_DR->CONTDELMODE_Code                         AS CONTDELMODECode
+ ,PAE.ENQ_ContDelivMode_DR->CONTDELMODE_Desc                         AS CONTDELMODEDesc
+ ,PAE.ENQ_RequestStatus_DR                                           AS ENQRequestStatusDR
+ ---------------------------------------------------------------------------------------------
+ ,YTD.MonthsIntoFY                                                   AS MonthsIntoFY
+ ---------------------------------------------------------------------------------------------
+ ,COUNT(CASE WHEN PAE.ENQ_Duration>0 THEN 1 END)                     AS ContactsInPeriodRange
+ ,YTD.ContactsYTD                                                    AS ContactsYTD
+ ,ST.ContactTarget                                                   AS ContactTarget
+ ,(ST.ContactTarget-(ST.ContactTarget*.05))                          AS ContactTargetLow
+ ,(ST.ContactTarget+(ST.ContactTarget*.05))                          AS ContactTargetHigh
+ ,(ST.ContactTarget)*YTD.MonthsIntoFY                                AS ContactTargetYTD
+ ,(ST.ContactTarget-(ST.ContactTarget*.05))*YTD.MonthsIntoFY         AS ContactTargetLowYTD
+ ,(ST.ContactTarget+(ST.ContactTarget*.05))*YTD.MonthsIntoFY         AS ContactTargetHighYTD
+ ---------------------------------------------------------------------------------------------
+ ,COUNT(DISTINCT PAE.ENQ_PAPER_DR %FOREACH(PAE.ENQ_Location_DR,PAE.ENQ_Hospital_DR,PAE.ENQ_GovernDepart_DR))
+                                                                     AS ClientsInPeriodRange
+ ,(YTD.ClientsYTD)                                                   AS ClientsYTD
+ ,(ST.ClientTarget)                                                  AS ClientTarget
+ ,(ST.ClientTarget-(ST.ClientTarget*.05))                            AS ClientTargetLow
+ ,(ST.ClientTarget+(ST.ClientTarget*.05))                            AS ClientTargetHigh
+ ,(ST.ClientTarget)*YTD.MonthsIntoFY                                 AS ClientTargetYTD
+ ,(ST.ClientTarget-(ST.ClientTarget*.05))*YTD.MonthsIntoFY           AS ClientTargetLowYTD
+ ,(ST.ClientTarget+(ST.ClientTarget*.05))*YTD.MonthsIntoFY           AS ClientTargetHighYTD
+ ---------------------------------------------------------------------------------------------
+ ,(SUM(PAE.ENQ_Duration %FOREACH(PAE.ENQ_Location_DR,PAE.ENQ_Hospital_DR,PAE.ENQ_GovernDepart_DR))+SUM(CASE WHEN LCASE(LTRIM(RTRIM(LEFT(PAE.ENQ_ItemCat_DR->ARCIC_Desc,6)))) = 'admin' THEN 0 ELSE PAE.ENQ_IndirectTime END %FOREACH(PAE.ENQ_Location_DR,PAE.ENQ_Hospital_DR,PAE.ENQ_GovernDepart_DR)))/60
+                                                                     AS DurationInPeriodRange
+ ,YTD.DurationYTD                                                    AS DurationYTD
+ ,((ST.DurationTarget))                                              AS DurationTarget
+ ,((ST.DurationTarget-(ST.DurationTarget*.05)))                      AS DurationTargetLow
+ ,((ST.DurationTarget+(ST.DurationTarget*.05)))                      AS DurationTargetHigh
+ ,(((ST.DurationTarget)*YTD.MonthsIntoFY))                           AS DurationTargetYTD
+ ,(((ST.DurationTarget-(ST.DurationTarget*.05))*YTD.MonthsIntoFY))   AS DurationTargetLowYTD
+ ,(((ST.DurationTarget+(ST.DurationTarget*.05))*YTD.MonthsIntoFY))   AS DurationTargetHighYTD
+ ---------------------------------------------------------------------------------------------
+ ,YTD.WeekendContactsYTD                                             AS WeekendContactsYTD
+ ,YTD.DirectContactTimeYTD                                           AS DirectContactTimeYTD
+ ,YTD.IndirectContactTimeYTD                                         AS IndirectContactTimeYTD
+ ,YTD.AdminTimeYTD                                                   AS AdminTimeYTD
+ 
+ 
+FROM
+  SQLUser.PA_EnquiryContact PAE
+  LEFT JOIN Custom_SWARH.SWARH_ComServiceTargets ST ON (PAE.ENQ_Hospital_DR=ST.HospID AND PAE.ENQ_Location_DR=ST.CTLocID AND PAE.ENQ_GovernDepart_DR LIKE ST.DepDescID)
+  FULL OUTER JOIN (
+    SELECT -- This obtains information about the entire financial year period 
+      INTQ.ENQ_Hospital_DR
+     ,INTQ.ENQ_Location_DR
+     ,INTQ.ENQ_GovernDepart_DR
+--     ,(DATEDIFF(month,'2015-07-01','2015-09-30')+1)                  AS MonthsIntoFY -- TESTING
+     ,(DATEDIFF(month,:PeriodFrom,:DateTo)+1)                        AS MonthsIntoFY
+     ,COUNT(CASE WHEN (CASE WHEN (INTQ.ENQ_Duration>0) THEN 'Y' ELSE 'N' END)='Y' AND (CASE WHEN LCASE(LTRIM(RTRIM(LEFT(INTQ.ENQ_ItemCat_DR->ARCIC_Desc,6))))='admin' THEN 'N' ELSE 'Y' END)='Y' THEN INTQ.ENQ_Duration END %FOREACH(INTQ.ENQ_Location_DR,INTQ.ENQ_Hospital_DR,INTQ.ENQ_GovernDepart_DR))
+                                                                     AS ContactsYTD
+     ,COUNT(DISTINCT INTQ.ENQ_PAPER_DR %FOREACH(INTQ.ENQ_Location_DR,INTQ.ENQ_Hospital_DR,INTQ.ENQ_GovernDepart_DR))
+                                                                     AS ClientsYTD
+     ,ROUND((SUM(INTQ.ENQ_Duration %FOREACH(INTQ.ENQ_Location_DR,INTQ.ENQ_Hospital_DR,INTQ.ENQ_GovernDepart_DR))+SUM(CASE WHEN LCASE(LTRIM(RTRIM(LEFT(INTQ.ENQ_ItemCat_DR->ARCIC_Desc,6)))) = 'admin' THEN 0 ELSE INTQ.ENQ_IndirectTime END %FOREACH(INTQ.ENQ_Location_DR,INTQ.ENQ_Hospital_DR,INTQ.ENQ_GovernDepart_DR)))/60,2)
+                                                                     AS DurationYTD -- It is done this way (two sums added) because if you just do x+y %foreach the rounding produces slightly different results which a certain user complained about...
+     ,COUNT(CASE WHEN (CASE WHEN (UCASE(DATENAME(DW,INTQ.ENQ_Date)) IN ('SATURDAY','SUNDAY')) THEN 'Y' ELSE 'N' END)='Y' 
+       AND (CASE WHEN LCASE(LTRIM(RTRIM(LEFT(INTQ.ENQ_ItemCat_DR->ARCIC_Desc,6))))='admin' THEN 'N' ELSE 'Y' END)='Y'
+       THEN 'Y' END %FOREACH(INTQ.ENQ_Location_DR,INTQ.ENQ_Hospital_DR,INTQ.ENQ_GovernDepart_DR))
+                                                                     AS WeekendContactsYTD
+     ,ROUND((SUM(INTQ.ENQ_Duration %FOREACH(INTQ.ENQ_Location_DR,INTQ.ENQ_Hospital_DR,INTQ.ENQ_GovernDepart_DR)))/60,2)
+                                                                     AS DirectContactTimeYTD
+     ,ROUND((SUM(CASE WHEN LCASE(LTRIM(RTRIM(LEFT(INTQ.ENQ_ItemCat_DR->ARCIC_Desc,6)))) = 'admin' THEN 0 ELSE INTQ.ENQ_IndirectTime END %FOREACH(INTQ.ENQ_Location_DR,INTQ.ENQ_Hospital_DR,INTQ.ENQ_GovernDepart_DR)))/60,2)
+                                                                     AS IndirectContactTimeYTD
+     ,ROUND((SUM(CASE WHEN LCASE(LTRIM(RTRIM(LEFT(INTQ.ENQ_ItemCat_DR->ARCIC_Desc,6)))) = 'admin' THEN INTQ.ENQ_IndirectTime ELSE 0 END %FOREACH(INTQ.ENQ_Location_DR,INTQ.ENQ_Hospital_DR,INTQ.ENQ_GovernDepart_DR)))/60,2)
+                                                                     AS AdminTimeYTD
+    FROM
+      SQLUser.PA_EnquiryContact INTQ
+    WHERE
+--      INTQ.ENQ_Date BETWEEN '2015-07-01' AND '2015-09-30'              -- TESTING
+--      AND INTQ.ENQ_Hospital_DR = '696'                                 -- TESTING
+--      AND INTQ.ENQ_Location_DR = 213                                   -- TESTING
+--      AND INTQ.ENQ_GovernDepart_DR = '52||1'                           -- TESTING
+      INTQ.ENQ_Date Between :PeriodFrom AND :DateTo                      -- Specified Month
+      AND INTQ.ENQ_Hospital_DR = :Hospital                             -- Specific Hospital
+      AND (({fn CONCAT( ',', {fn CONCAT((:Specialty),',')})} [ {fn CONCAT( ',', {fn CONCAT((INTQ.ENQ_Location_DR),    ',')})}) OR (:Specialty IS NULL)) -- Multiple Specialties
+      AND (({fn CONCAT( ',', {fn CONCAT((:Program),  ',')})} [ {fn CONCAT( ',', {fn CONCAT((INTQ.ENQ_GovernDepart_DR),',')})}) OR (:Program   IS NULL)) -- Multiple Programs
+      AND INTQ.ENQ_RequestStatus_DR IN (2,8)                           -- 2:Complete, 8:Exclude from extract reporting [PAC_RequestStatus]
+    GROUP BY
+      INTQ.ENQ_Hospital_DR, INTQ.ENQ_Location_DR, INTQ.ENQ_GovernDepart_DR
+  ) YTD ON (YTD.ENQ_Hospital_DR=PAE.ENQ_Hospital_DR AND YTD.ENQ_Location_DR=PAE.ENQ_Location_DR AND YTD.ENQ_GovernDepart_DR=PAE.ENQ_GovernDepart_DR)
+WHERE
+--  PAE.ENQ_Date BETWEEN '2015-09-01' AND '2015-09-30'              -- TESTING
+--  AND PAE.ENQ_Hospital_DR = '696'                                 -- TESTING
+--  AND PAE.ENQ_Location_DR = 213                                   -- TESTING
+--  AND PAE.ENQ_GovernDepart_DR = '52||1'                           -- TESTING
+  PAE.ENQ_Date Between :DateFrom AND :DateTo                      -- Specified Month
+  AND PAE.ENQ_Hospital_DR = :Hospital                             -- Specific Hospital
+  AND (({fn CONCAT( ',', {fn CONCAT((:Specialty),',')})} [ {fn CONCAT( ',', {fn CONCAT((PAE.ENQ_Location_DR),    ',')})}) OR (:Specialty IS NULL)) -- Multiple Specialties
+  AND (({fn CONCAT( ',', {fn CONCAT((:Program),  ',')})} [ {fn CONCAT( ',', {fn CONCAT((PAE.ENQ_GovernDepart_DR),',')})}) OR (:Program   IS NULL)) -- Multiple Programs
+  AND PAE.ENQ_RequestStatus_DR IN (2,8)                           -- 2:Complete, 8:Exclude from extract reporting [PAC_RequestStatus]
+ORDER BY
+  PAE.ENQ_GovernDepart_DR->DEP_Desc
+ )
+
+ &SQL(OPEN SWARHRNAP1014YTD)
+
+ do FetchRow //Fetch first row
+
+ while END=0 {
+	 do FormatDates,FormatTimes,FormatAddress,SetTargetLimits
+	 set AdminContact=..IsContactAdminTime(ENQRowID)
+	 //If 'AdminContact {
+  	 	set sort = ind
+	 	set ^CacheTemp("TRAK",repid,sort)=$LISTBUILD(STHospID,STCTLocID,STDepDescID,ENQRowID,ENQHospitalDR,ENQDate,CTLOCDesc,DEPDesc,ENQDuration,PAPERName,PAPERName2,PAPERName3,PAPMINo,PAPERStName,CTCITDesc,CTZIPCode,PAPERTelH,ENQIndirectTime,ENQInterpretingTime,ENQTravelTime,Weekend,ENQRBEventDR,EVName,EVAttendeeFemaleNo,EVAttendeeMaleNo,CTLOCCode,DEPCode,AdminContact,CONTDELMODECode,CONTDELMODEDesc,ENQRequestStatusDR,MonthsIntoFY,ContactsInPeriodRange,ContactsYTD,ContactTarget,ContactTargetLow,ContactTargetHigh,ContactTargetYTD,ContactTargetLowYTD,ContactTargetHighYTD,ClientsInPeriodRange,ClientsYTD,ClientTarget,ClientTargetLow,ClientTargetHigh,ClientTargetYTD,ClientTargetLowYTD,ClientTargetHighYTD,DurationInPeriodRange,DurationYTD,DurationTarget,DurationTargetLow,DurationTargetHigh,DurationTargetYTD,DurationTargetLowYTD,DurationTargetHighYTD,WeekendContactsYTD,DirectContactTimeYTD,IndirectContactTimeYTD,AdminTimeYTD)
+	 	set ind=ind+1
+	 // }
+ 	 do FetchRow //Fetch next row
+ }
+
+ &SQL(CLOSE SWARHRNAP1014YTD)
+
+ // Build QHandle (AtEnd,ReportID,Index)
+ Set QHandle=$listbuild(0,repid,0)
+
+ Quit $$$OK
+
+FetchRow
+ &sql(FETCH SWARHRNAP1014YTD INTO :STHospID,:STCTLocID,:STDepDescID,:ENQRowID,:ENQHospitalDR,:ENQDate,:CTLOCDesc,:DEPDesc,:ENQDuration,:PAPERName,:PAPERName2,:PAPERName3,:PAPMINo,:PAPERStName,:CTCITDesc,:CTZIPCode,:PAPERTelH,:ENQIndirectTime,:ENQInterpretingTime,:ENQTravelTime,:Weekend,:ENQRBEventDR,:EVName,:EVAttendeeFemaleNo,:EVAttendeeMaleNo,:CTLOCCode,:DEPCode,:CONTDELMODECode,:CONTDELMODEDesc,:ENQRequestStatusDR,:MonthsIntoFY,:ContactsInPeriodRange,:ContactsYTD,:ContactTarget,:ContactTargetLow,:ContactTargetHigh,:ContactTargetYTD,:ContactTargetLowYTD,:ContactTargetHighYTD,:ClientsInPeriodRange,:ClientsYTD,:ClientTarget,:ClientTargetLow,:ClientTargetHigh,:ClientTargetYTD,:ClientTargetLowYTD,:ClientTargetHighYTD,:DurationInPeriodRange,:DurationYTD,:DurationTarget,:DurationTargetLow,:DurationTargetHigh,:DurationTargetYTD,:DurationTargetLowYTD,:DurationTargetHighYTD,:WeekendContactsYTD,:DirectContactTimeYTD,:IndirectContactTimeYTD,:AdminTimeYTD)
+ if SQLCODE '= 0 set END = 1
+ quit
+
+FormatDates
+ set ENQDate = ..ConvertDateToODBC(ENQDate)
+ quit
+
+FormatTimes
+ // s ENQTime=$ZT(ENQTime,2)
+ quit
+
+FormatAddress
+ set PAPERStName=$ZSTRIP(PAPERStName,"*C")
+ quit
+
+SetTargetLimits
+ // No longer used, done in SQL
+ //set STContactTargetLow=$FNUMBER(STContactTarget-(STContactTarget*.05),"",0)
+ //set STContactTargetHigh=$FNUMBER(STContactTarget+(STContactTarget*.05),"",0)
+ //set STContactDynamicTarget=$FNUMBER(STContactTarget*12*DateDiff/365,"",0)
+ //set STContactDynamicTargetLow=$FNUMBER(STContactDynamicTarget-(STContactDynamicTarget*.05),"",0)
+ //set STContactDynamicTargetHigh=$FNUMBER(STContactDynamicTarget+(STContactDynamicTarget*.05),"",0)
+
+ //set STClientTargetLow=$FNUMBER(STClientTarget-(STClientTarget*.05),"",0)
+ //set STClientTargetHigh=$FNUMBER(STClientTarget+(STClientTarget*.05),"",0)
+ //set STClientDynamicTarget=$FNUMBER(STClientTarget*12*DateDiff/365,"",0)
+ //set STClientDynamicTargetLow=$FNUMBER(STClientDynamicTarget-(STClientDynamicTarget*.05),"",0)
+ //set STClientDynamicTargetHigh=$FNUMBER(STClientDynamicTarget+(STClientDynamicTarget*.05),"",0)
+
+ //set STDurationTargetLow=$FNUMBER(STDurationTarget-(STDurationTarget*.05),"",0)
+ //set STDurationTargetHigh=$FNUMBER(STDurationTarget+(STDurationTarget*.05),"",0)
+ //set STDurationDynamicTarget=$FNUMBER(STDurationTarget*12*DateDiff/365,"",0)
+ //set STDurationDynamicTargetLow=$FNUMBER(STDurationDynamicTarget-(STDurationDynamicTarget*.05),"",0)
+ //set STDurationDynamicTargetHigh=$FNUMBER(STDurationDynamicTarget+(STDurationDynamicTarget*.05),"",0)
+
+ quit
+]]></Implementation>
+</Method>
+
+<Method name="SWARHRNAP1014YTDFetch">
+<Description>
+This is the Fetch component of the %Library.Query.
+This should never have to change. It is designed to fetch the row for each subscript of the ^CacheTemp
+global and return this row to the Crystal Report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,&Row:%Library.List,&AtEnd:%Library.Integer=0]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // This fetch method should never have to change.
+ // repid - Report ID
+ // ind   - sequence index which represents each row
+
+ New repid,ind
+
+ // Restore QHandle
+ Set AtEnd=$list(QHandle,1)
+ Set repid=$list(QHandle,2)
+ Set ind=$list(QHandle,3)
+
+ Set ind=$order(^CacheTemp("TRAK",repid,ind))
+ If ind="" {	// if there are no more rows, finish fetching  zdh
+	 Set AtEnd=1
+	 Set Row=""
+ }
+ Else      {	// fetch row
+ 	Set Row=^CacheTemp("TRAK",repid,ind)
+ }
+
+ // Save QHandle
+ set QHandle=$listbuild(AtEnd,repid,ind)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Query name="SWARHRNAP1014YTD">
+<Type>%Library.Query</Type>
+<FormalSpec>Hospital:%Integer,DateFrom:%Date,DateTo:%Date,PeriodFrom:%Date,Specialty:%String,Program:%String</FormalSpec>
+<SqlProc>1</SqlProc>
+<Parameter name="CONTAINID" value="0"/>
+<Parameter name="ROWSPEC" value="STHospID:%Integer,STCTLocID:%Integer,STDepDescID:%String,ENQRowID:%String,ENQHospitalDR:%String,ENQDate:%String,CTLOCDesc:%String,DEPDesc:%String,ENQDuration:%String,PAPERName:%String,PAPERName2:%String,PAPERName3:%String,PAPMINo:%String,PAPERStName:%String,CTCITDesc:%String,CTZIPCode:%String,PAPERTelH:%String,ENQIndirectTime:%String,ENQInterpretingTime:%String,ENQTravelTime:%String,Weekend:%String,ENQRBEventDR:%String,EVName:%String,EVAttendeeFemaleNo:%String,EVAttendeeMaleNo:%String,CTLOCCode:%String,DEPCode:%String,AdminContact:%Integer,CONTDELMODECode:%String,CONTDELMODEDesc:%String,ENQRequestStatusDR:%Integer,MonthsIntoFY:%Integer,ContactsInPeriodRange:%Integer,ContactsYTD:%Integer,ContactTarget:%Integer,ContactTargetLow:%Integer,ContactTargetHigh:%Integer,ContactTargetYTD:%Integer,ContactTargetLowYTD:%Integer,ContactTargetHighYTD:%Integer,ClientsInPeriodRange:%Integer,ClientsYTD:%Integer,ClientTarget:%Integer,ClientTargetLow:%Integer,ClientTargetHigh:%Integer,ClientTargetYTD:%Integer,ClientTargetLowYTD:%Integer,ClientTargetHighYTD:%Integer,DurationInPeriodRange:%Double,DurationYTD:%Double,DurationTarget:%Double,DurationTargetLow:%Double,DurationTargetHigh:%Double,DurationTargetYTD:%Double,DurationTargetLowYTD:%Double,DurationTargetHighYTD:%Double,WeekendContactsYTD:%Double,DirectContactTimeYTD:%Double,IndirectContactTimeYTD:%Double,AdminTimeYTD:%Double"/>
+<Parameter name="SELECTMODE" value="ODBC"/>
+</Query>
+</Class>
+</Export>

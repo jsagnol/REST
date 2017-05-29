@@ -1,0 +1,219 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.AUXX.Report.ZEN.StoredProc.UnavailBed">
+<ProcedureBlock>0</ProcedureBlock>
+<Super>Report.Abstract</Super>
+<TimeCreated>61017,51202.779393</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/AUXX/Report/ZEN/StoredProc/UnavailBed.xml#1 $</Default>
+</Parameter>
+
+<UDLText name="T">
+<Content><![CDATA[
+// Report Name: Unavailable Beds <br>
+
+]]></Content>
+</UDLText>
+
+<UDLText name="T">
+<Content><![CDATA[
+// Report Code: AUXX.ATD0020 <br>
+
+]]></Content>
+</UDLText>
+
+<UDLText name="T">
+<Content><![CDATA[
+// Logtrak Number: 72204 <br>
+
+]]></Content>
+</UDLText>
+
+<Method name="UnavailBedClose">
+<Description>
+This is the Close component of the %Library.Query.
+This is standard code and should never have to change.
+This is where all the cleanup is performed, i.e. the purging of the temporary storage global ^CacheTemp.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>QHandle:%Library.Binary</FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Clean up by purging the temporary node in ^CacheTemp global
+ New repid
+ Set repid=$li(QHandle,2)
+ 
+   //Close Monitor (if configured to capture stats)
+ 	i mon Do ..MonitorEnd(mon)
+ 
+ Kill ^CacheTemp("TRAK",repid)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="UnavailBedExecute">
+<Description>
+This is the Execute section for the %Library.Query. 
+All of the logic will be performed here.
+A new node for the ^CacheTemp global will be created and each subscript of this global will contain
+a row for the report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,DateFrom:%Date,DateTo:%Date,Hospital:%String,Ward:%String]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+	
+ // Get reportid i.e. use $INCREMENT to add another node to ^CacheTemp global. 
+ // We use ^CacheTemp global because it will always use memory before disk
+ New repid,ind
+
+ // Use $Increment to get the next node
+ Set repid=$I(^CacheTemp,"TRAK")
+
+ //Start Monitor (if configured to capture stats)
+ s mon=..MonitorBegin()
+ 
+ // Build data into ^CacheTemp(ReportID)
+ // e.g. Set ^CacheTemp(ReportID,Index)=$LB(f1,f2,f3)
+ new Number,String,Date,Time,c,n
+ new StartDate,EndDate,ThisDate,StartTime,EndTime,ThisTime,DurationHours
+ new WARDRowId,WARDCode,WARDDesc,HOSPRowId,HOSPCode,HOSPDesc,BEDRowID,BEDCode,STATDate,STATTime,STATDateTo,STATTimeTo,STATReasonNotAvailDR,RNAVCode,RNAVDesc
+ set (WARDRowId,HOSPRowId,STATReasonNotAvailDR)=0
+ set (StartDate,EndDate,ThisDate,StartTime,EndTime,ThisTime,DurationHours)=0
+ set (WARDCode,WARDDesc,HOSPCode,HOSPDesc,BEDRowID,BEDCode,STATDate,STATTime,STATDateTo,STATTimeTo,RNAVCode,RNAVDesc)=""
+
+ set ind=1
+
+ //Convert ODBC dates to cache format
+ set DateFrom=..ConvertDateToCache(DateFrom)
+ set DateTo=..ConvertDateToCache(DateTo) 
+ 
+ // Strip white space/control chars from blank variables
+ i $g(Hospital)'="" set Hospital=$ZSTRIP(Hospital,"*WC")
+ i $g(Ward)'="" set Ward=$ZSTRIP(Ward,"*WC")
+
+ &sql(declare UnavailBed cursor for
+ SELECT distinct
+WARD_RowId,
+WARD_Code,
+WARD_Desc,
+WARD_LocationDR->CTLOC_HOSPITAL_DR,
+WARD_LocationDR->CTLOC_HOSPITAL_DR->HOSP_Code,
+WARD_LocationDR->CTLOC_HOSPITAL_DR->HOSP_Desc,
+BED_RowID, 
+BED_Code, 
+STAT_Date, 
+STAT_Time, 
+STAT_DateTo, 
+STAT_TimeTo,
+STAT_ReasonNotAvail_DR,
+STAT_ReasonNotAvail_DR->RNAV_Code,
+STAT_ReasonNotAvail_DR->RNAV_Desc,
+STAT_Date, 
+STAT_Time, 
+STAT_DateTo, 
+STAT_TimeTo,
+{fn CURDATE},
+{fn CURTIME}
+ FROM SQLUser.PAC_Ward,SQLUser.PAC_Bed,SQLUser.PAC_BedStatusChange
+ WHERE  STAT_Date between :DateFrom and :DateTo
+ AND WARD_RowId = BED_Ward_ParRef 
+ AND BED_RowId = STAT_Parref 
+ AND (({fn CONCAT( ',', {fn CONCAT((:Hospital),',')})} [ {fn CONCAT( ',', {fn CONCAT((WARD_LocationDR->CTLOC_HOSPITAL_DR->hosp_rowid),',')})}) OR (:Hospital IS NULL))
+ AND (({fn CONCAT( ',', {fn CONCAT((:Ward),',')})} [ {fn CONCAT( ',', {fn CONCAT((WARD_RowId),',')})}) OR (:Ward IS NULL))
+ )
+ 
+ &sql(open UnavailBed)
+
+ //fetch first row
+ &sql(fetch UnavailBed into :WARDRowId,:WARDCode,:WARDDesc,:HOSPRowId,:HOSPCode,:HOSPDesc,:BEDRowID,:BEDCode,:STATDate,:STATTime,:STATDateTo,:STATTimeTo,:STATReasonNotAvailDR,:RNAVCode,:RNAVDesc,:StartDate,:StartTime,:EndDate,:EndTime,:ThisDate,:ThisTime)
+
+ while 'SQLCODE{
+	 
+ do FormatDates
+ do FormatTimes
+ do CalcDuration
+
+ // build the row
+ Set ^CacheTemp("TRAK",repid,HOSPDesc_" "_WARDDesc_" "_BEDCode_" "_STATDate_" "_STATTime_ind)=$LB(WARDRowId,WARDCode,WARDDesc,HOSPRowId,HOSPCode,HOSPDesc,BEDRowID,BEDCode,STATDate,STATTime,STATDateTo,STATTimeTo,STATReasonNotAvailDR,RNAVCode,RNAVDesc, DurationHours)
+ s ind=ind+1
+ //fetch rows
+ &sql(fetch UnavailBed into :WARDRowId,:WARDCode,:WARDDesc,:HOSPRowId,:HOSPCode,:HOSPDesc,:BEDRowID,:BEDCode,:STATDate,:STATTime,:STATDateTo,:STATTimeTo,:STATReasonNotAvailDR,:RNAVCode,:RNAVDesc,:StartDate,:StartTime,:EndDate,:EndTime,:ThisDate,:ThisTime)}
+
+ &sql(close UnavailBed)
+
+ // Build QHandle (AtEnd,ReportID,Index)
+ Set QHandle=$lb(0,repid,0)
+
+ Quit $$$OK
+
+FormatDates
+ // Convert the dates to ODBC date format
+ If STATDate Set STATDate=..ConvertDateToODBC(STATDate)
+ If STATDateTo Set STATDateTo=..ConvertDateToODBC(STATDateTo)
+ Quit
+
+FormatTimes
+ // Convert the dates to ODBC date format
+ If STATTime Set STATTime=..ConvertTimeToODBC(STATTime)
+ If STATTimeTo Set STATTimeTo=..ConvertTimeToODBC(STATTimeTo)
+ Quit
+
+CalcDuration
+ // Calculate Unavailability in Hours 
+ If EndDate {
+	  set ThisDate = EndDate
+ 	  set ThisTime = EndTime
+ }
+ set DurationHours = (ThisDate - StartDate) * 24
+ set DurationHours = DurationHours + ((ThisTime - StartTime) / 3600)
+ Quit
+]]></Implementation>
+</Method>
+
+<Method name="UnavailBedFetch">
+<Description>
+This is the Fetch component of the %Library.Query. 
+This should never have to change. It is designed to fetch the row for each subscript of the ^CacheTemp
+global and return this row to the Crystal Report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,&Row:%Library.List,&AtEnd:%Library.Integer=0]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // This fetch method should never have to change. 
+
+ // repid - Report ID
+ // ind   - sequence index which represents each row
+
+ New repid,ind
+
+ // Restore QHandle
+ Set AtEnd=$li(QHandle,1)
+ Set repid=$li(QHandle,2)
+ Set ind=$li(QHandle,3)
+
+ Set ind=$o(^CacheTemp("TRAK",repid,ind))
+ If ind="" {	// if there are no more rows, finish fetching
+ Set AtEnd=1
+ Set Row=""
+ }
+ Else      {	// fetch row
+ Set Row=^CacheTemp("TRAK",repid,ind)
+ }
+
+ // Save QHandle
+ s QHandle=$lb(AtEnd,repid,ind)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Query name="UnavailBed">
+<Type>%Library.Query</Type>
+<FormalSpec>DateFrom:%Date,DateTo:%Date,Hospital:%String,Ward:%String</FormalSpec>
+<SqlProc>1</SqlProc>
+<Parameter name="CONTAINID" value="0"/>
+<Parameter name="ROWSPEC" value="WARDRowId:%Integer,WARDCode:%String,WARDDesc:%String,HOSPRowId:%Integer,HOSPCode:%String,HOSPDesc:%String,BEDRowID:%String,BEDCode:%String,STATDate:%Date,STATTime:%String,STATDateTo:%Date,STATTimeTo:%String,STATReasonNotAvailDR:%Integer,RNAVCode:%String,RNAVDesc:%String,DurationHours:%Integer"/>
+</Query>
+</Class>
+</Export>

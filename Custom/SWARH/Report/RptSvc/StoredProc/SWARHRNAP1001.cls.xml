@@ -1,0 +1,226 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.SWARH.Report.RptSvc.StoredProc.SWARHRNAP1001">
+<Description><![CDATA[
+<pre>
+**************************************************************************************************************************************
+* Report Code: SWARHRNAP1001
+* Report Description: Active Episodes
+* Menu Caption: 
+* Initial release: 
+* Developer: Jayson Sagnol
+* Modified: 2015/09/17 - Ross Gladman - Added support for multiple specialties & programs
+* Modified: 2015/10/29 - Ross Gladman - Added clinician parameter
+* 
+**************************************************************************************************************************************
+</pre>]]></Description>
+<ProcedureBlock>0</ProcedureBlock>
+<Super>Custom.SWARH.Report.ZEN.StoredProc.Abstract</Super>
+<TimeCreated>60905,54849</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/SWARH/Report/RptSvc/StoredProc/SWARHRNAP1001.xml#1 $</Default>
+</Parameter>
+
+<Method name="SWARHRNAP1001Close">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)
+This is the Close component of the %Library.Query.
+This is standard code and should never have to change.
+This is where all the cleanup is performed, i.e. the purging of the temporary storage global ^CacheTemp.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>QHandle:%Library.Binary</FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Clean up by purging the temporary node in ^CacheTemp global
+ New repid,ind
+ Set repid=$li(QHandle,2)
+
+ //Start Monitor (if configured to capture stats)
+ i mon Do ..MonitorEnd(mon)
+
+ Kill ^CacheTemp("TRAK",repid)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="SWARHRNAP1001Execute">
+<Description>
+This is the Execute section for the %Library.Query. 
+All of the logic will be performed here.
+A new node for the ^CacheTemp global will be created and each subscript of this global will contain
+a row for the report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,Hospital:%Integer,DateFrom:%Date,DateTo:%Date,Specialty:%String,Program:%String,Clinician:%String]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+		   
+ New repid,ind
+
+ Set repid=$I(^CacheTemp("TRAK"))
+ 
+ New PAADMRowID,PAADMAdmNo,PAADMPAPERDR,PAADMPAADM2DR,PAADMDepCodeDR,PAADM2NFMICategDepartDR,PAADMAdmDocCodeDR,CTLOCDesc,DEPDesc,CTPCPDesc,PAPMIName,PAPMIName2,PAPMIName3,PAPERStName,CTCITDesc,PAPERTelH,PAADMRefDate,PAPMINo,PAADMAdmDate,PAADMDischgDate
+ Set (PAADMRowID,PAADMAdmNo,PAADMPAPERDR,PAADMPAADM2DR,PAADMDepCodeDR,PAADM2NFMICategDepartDR,PAADMAdmDocCodeDR,CTLOCDesc,DEPDesc,CTPCPDesc,PAPMIName,PAPMIName2,PAPMIName3,PAPERStName,CTCITDesc,PAPERTelH,PAADMRefDate,PAPMINo,PAADMAdmDate,PAADMDischgDate) = ""
+ 
+ s ind=1, END=0
+
+ //Start Monitor (if configured to capture stats)
+ s mon=..MonitorBegin()
+ 
+ //Convert ODBC dates to cache format
+ s DateFrom=$$intdate^SSUTIL4(DateFrom)
+ s DateTo=$$intdate^SSUTIL4(DateTo)
+
+ s PAADMRowID=0
+	f {
+	    s (HospID,DEPCodeDR,NFMICategDepartDR,PAADMAdmDocCodeDR)=""
+    	
+    	;loop through all outpatient/NA episodes
+	 	s PAADMRowID=$o(^PAADMi("PAADM_Type","O",PAADMRowID)) q:PAADMRowID="" 
+ 	
+	 	;Filter Hospital
+	 	s HospID=$P($G(^PAADM(PAADMRowID,2)),"^",85) 
+	 	i HospID'=Hospital {continue}
+ 	
+	 	;Filter Specialty
+	 	s DEPCodeDR=$P($G(^PAADM(PAADMRowID)),"^",4) 
+	 	; i DEPCodeDR'=Specialty {i Specialty'="" {continue}} - Single Specialty
+		If (","_Specialty_",")'[(","_DEPCodeDR_",") { ; - Multiple Specialities
+	 	  If Specialty'="" {continue}
+	 	}
+ 	
+	 	;Filter Program
+	 	s NFMICategDepartDR=$P($G(^PAADM(PAADMRowID,"ADM2")),"^",104)
+		; i NFMICategDepartDR'=Program {i Program'="" {continue}} ; - Single Program
+		If (","_Program_",")'[(","_NFMICategDepartDR_",") { ; - Multiple Programs
+			If Program'="" {Continue}
+		}
+		
+		;Filter Cancelled or Pending Episodes
+		s PAADMVisitStatus = $P($G(^PAADM(PAADMRowID)),"^",20)
+		i ((PAADMVisitStatus="C") || (PAADMVisitStatus="P")) {continue}
+
+		;Filter Clinician
+		s PAADMAdmDocCodeDR = $P($G(^PAADM(PAADMRowID)),"^",9)
+		i PAADMAdmDocCodeDR'=Clinician {
+			i Clinician'="" {continue}
+		}
+	
+		;Filter outside date parameters
+		s OPAdmDate = ..GetOPAdmDate(PAADMRowID)
+		i 'OPAdmDate {continue}
+		s PAADMDischgDate=$P($G(^PAADM(PAADMRowID)),"^",17)
+		i ((OPAdmDate<=DateTo) && ((PAADMDischgDate>=DateFrom) || (PAADMDischgDate="")))
+		{
+			d FillData
+			d BuildRow
+		}		
+	}
+	
+ Set QHandle=$lb(0,repid,0)
+
+ Quit $$$OK
+
+FillData
+ s (PAADMAdmDocCodeDR,DEPDesc,CTCITDesc)=""
+ s PAADMAdmNo = $P($G(^PAADM(PAADMRowID)),"^",81) 
+ s PAADMPAPERDR = $P($G(^PAADM(PAADMRowID)),"^",1)
+ s PAADMPAADM2DR = PAADMRowID
+ s PAADMDepCodeDR = DEPCodeDR
+ s PAADM2NFMICategDepartDR = NFMICategDepartDR
+ s PAADMAdmDocCodeDR = $P($G(^PAADM(PAADMRowID)),"^",9)
+ s CTLOCDesc = $P($G(^CTLOC(DEPCodeDR)),"^",2)
+ i NFMICategDepartDR {s DEPDesc =  $P($G(^CT("NFMI",$P(NFMICategDepartDR,"||",1),"DEP",$P(NFMICategDepartDR,"||",2))),"^",2)}
+ i PAADMAdmDocCodeDR {s CTPCPDesc = $P($G(^CTPCP(PAADMAdmDocCodeDR,1)),"^",2)}
+ s PAPMIName = $P($G(^PAPER(PAADMPAPERDR,"ALL")),"^",1)
+ s PAPMIName2 = $P($G(^PAPER(PAADMPAPERDR,"ALL")),"^",2)
+ s PAPMIName3 = $P($G(^PAPER(PAADMPAPERDR,"ALL")),"^",19)
+ s PAPERStName = $zstrip($p($g(^PAPER(PAADMPAPERDR,"PER","ADD",1)),"^",1),"*C")
+ s PAPERCityCodeDR = $P($G(^PAPER(PAADMPAPERDR,"PER",1)),"^",5)
+ i PAPERCityCodeDR {s CTCITDesc = $P($G(^CT("CIT",PAPERCityCodeDR)),"^",2)}
+ s PAPERTelH = $P($G(^PAPER(PAADMPAPERDR,"PER",1)),"^",11)
+ s PAADMRefDate = $P($G(^PAADM(PAADMRowID,2)),"^",9)
+ s PAPMINo  = $S($G(XFUNC("CLASS"))="OP":$p($g(^PAPER(PAADMPAPERDR,"PAT",1)),"^",2),1:$p($g(^PAPER(PAADMPAPERDR,"PAT",1)),"^",1))
+ s PAADMAdmDate = OPAdmDate
+ q
+
+BuildRow
+ ;Set ENQRowId=..GetLastContact(PAADMPAPERDR)
+ Set ENQRowId=..GetLastContactForEpisode(PAADMRowID)
+ i ENQRowId{
+ 	Set LastContactDate = $P($G(^PAENQ(ENQRowId)),"^",1)
+ }else{
+    Set LastContactDate = ""
+ }
+ If PAADMDischgDate = "" { S EffectiveDate = DateTo } Else { S EffectiveDate = PAADMDischgDate }
+ Set LOS = ..GetLOSForOPEpisode(PAADMRowID,EffectiveDate)
+ d FormatDates, FormatTimes, FormatAddress
+ s sort = ind
+ s ^CacheTemp("TRAK",repid,sort)=$LB(PAADMRowID,PAADMAdmNo,PAADMPAPERDR,PAADMPAADM2DR,PAADMDepCodeDR,PAADM2NFMICategDepartDR,PAADMAdmDocCodeDR,CTLOCDesc,DEPDesc,CTPCPDesc,PAPMIName,PAPMIName2,PAPMIName3,PAPERStName,CTCITDesc,PAPERTelH,PAADMRefDate,PAPMINo,PAADMAdmDate,PAADMDischgDate,LastContactDate,LOS)
+ s ind=ind+1
+ q
+  
+FormatDates
+ s PAADMRefDate=..ConvertDateToODBC(PAADMRefDate)
+ s PAADMAdmDate=..ConvertDateToODBC(PAADMAdmDate)
+ s PAADMDischgDate=..ConvertDateToODBC(PAADMDischgDate)
+ i LastContactDate '= "" {s LastContactDate=..ConvertDateToODBC(LastContactDate)}
+ q
+ 
+FormatTimes
+ // s ENQTime=$ZT(ENQTime,2)
+ q
+ 
+FormatAddress
+ s PAPERStName=$ZSTRIP(PAPERStName,"*C")
+ q
+]]></Implementation>
+</Method>
+
+<Method name="SWARHRNAP1001Fetch">
+<Description>
+This is the Fetch component of the %Library.Query. 
+This should never have to change. It is designed to fetch the row for each subscript of the ^CacheTemp
+global and return this row to the Crystal Report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,&Row:%Library.List,&AtEnd:%Library.Integer=0]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // This fetch method should never have to change. 
+ // repid - Report ID
+ // ind   - sequence index which represents each row
+
+ New repid,ind
+
+ // Restore QHandle
+ Set AtEnd=$li(QHandle,1)
+ Set repid=$li(QHandle,2)
+ Set ind=$li(QHandle,3)
+
+ Set ind=$o(^CacheTemp("TRAK",repid,ind))
+ If ind="" {	// if there are no more rows, finish fetching
+	 Set AtEnd=1
+	 Set Row=""
+ }
+ Else      {	// fetch row 
+ 	Set Row=^CacheTemp("TRAK",repid,ind)
+ }
+
+ // Save QHandle 
+ s QHandle=$lb(AtEnd,repid,ind)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Query name="SWARHRNAP1001">
+<Type>%Library.Query</Type>
+<FormalSpec>Hospital:%Integer,DateFrom:%Date,DateTo:%Date,Specialty:%String,Program:%String,Clinician:%String</FormalSpec>
+<SqlProc>1</SqlProc>
+<Parameter name="CONTAINID" value="0"/>
+<Parameter name="ROWSPEC" value="PAADMRowID:%String,PAADMAdmNo:%String,PAADMPAPERDR:%String,PAADMPAADM2DR:%String,PAADMDepCodeDR:%String,PAADM2NFMICategDepartDR:%String,PAADMAdmDocCodeDR:%String,CTLOCDesc:%String,DEPDesc:%String,CTPCPDesc:%String,PAPMIName:%String,PAPMIName2:%String,PAPMIName3:%String,PAPERStName:%String,CTCITDesc:%String,PAPERTelH:%String,PAADMRefDate:%String,PAPMINo:%String,PAADMAdmDate:%String,PAADMDischgDate:%String,LastContactDate:%String,LOS:%String"/>
+<Parameter name="SELECTMODE" value="ODBC"/>
+</Query>
+</Class>
+</Export>

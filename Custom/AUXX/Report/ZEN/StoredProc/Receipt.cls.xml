@@ -1,0 +1,839 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.AUXX.Report.ZEN.StoredProc.Receipt">
+<ProcedureBlock>0</ProcedureBlock>
+<Super>Report.Abstract</Super>
+<TimeCreated>59388,55236.125</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/AUXX/Report/ZEN/StoredProc/Receipt.xml#1 $</Default>
+</Parameter>
+
+<UDLText name="T">
+<Content><![CDATA[
+// Report Name: Trak Patient Receipts <br>
+
+]]></Content>
+</UDLText>
+
+<UDLText name="T">
+<Content><![CDATA[
+// Report Code: AUXX.FIN0007 <br>
+
+]]></Content>
+</UDLText>
+
+<UDLText name="T">
+<Content><![CDATA[
+// LOGTRAK Number: 72212 <br>
+
+]]></Content>
+</UDLText>
+
+<UDLText name="T">
+<Content><![CDATA[
+// Report Description: The receipt report will have the ability to report all monies receipted 
+
+]]></Content>
+</UDLText>
+
+<UDLText name="T">
+<Content><![CDATA[
+//						over a specified period of time.
+
+]]></Content>
+</UDLText>
+
+<Method name="GetReceiptDetailsClose">
+<Description>
+This is the Close component of the %Library.Query.
+This is standard code and should never have to change.
+This is where all the cleanup is performed, i.e. the purging of the temporary storage global ^CacheTemp.</Description>
+<Final>0</Final>
+<ClassMethod>1</ClassMethod>
+<CodeMode>code</CodeMode>
+<FormalSpec>QHandle:%Library.Binary</FormalSpec>
+<Private>0</Private>
+<ReturnType>%Library.Status</ReturnType>
+<SqlProc>0</SqlProc>
+<Implementation><![CDATA[
+ // Clean up by purging the temporary node in ^CacheTemp global
+ New repid
+ Set repid=$LIST(QHandle,2)
+ 
+ //Start Monitor (if configured to capture stats)
+ i mon Do ..MonitorEnd(mon)
+
+ Kill ^CacheTemp("TRAK",repid)
+ 
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="GetReceiptDetailsExecute">
+<Description>
+This is the Execute section for the %Library.Query. 
+All of the logic will be performed here.
+A new node for the ^CacheTemp global will be created and each subscript of this global will contain
+a row for the report.</Description>
+<Final>0</Final>
+<ClassMethod>1</ClassMethod>
+<CodeMode>code</CodeMode>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,PatientId:%String,ReceiptId:%String]]></FormalSpec>
+<Private>0</Private>
+<ReturnType>%Library.Status</ReturnType>
+<SqlProc>0</SqlProc>
+<Implementation><![CDATA[
+ 	//Start Monitor (if configured to capture stats)
+ 	s mon=..MonitorBegin()
+ 
+ 	// Get reportid i.e. use $INCREMENT to add another node to ^CacheTemp global. 
+ 	// We use ^CacheTemp global because it will always use memory before disk
+ 	New repid,ind
+
+ 	// Use $Increment to get the next node
+ 	Set repid=$I(^CacheTemp("TRAK"))
+ 	
+ 	N ARRCPNumber,HOSPRowId,HOSPCode,HOSPDesc,HOSPAddress,HOSPPhone,HOSPFax
+ 	N HOSPCTCITDesc,HOSPPROVCode,HOSPCTZIPCode,ARRCPDate,PAPMIRowId
+	N INSTRowId,INSASRowId,AUXITRowId,AUXITCode,AUXITDesc,ARPBLRowId
+	S (ARRCPNumber,HOSPCode,HOSPDesc,HOSPAddress,HOSPPhone,HOSPFax,HOSPCTCITDesc)=""
+	S (HOSPPROVCode,HOSPCTZIPCode,ARRCPDate,ARCPAddDate,AUXITCode,ARRCPAddLocation,AUXITDesc,INSTGovern,AuxitType,InsuranceType1,ARPBLAUXITRowId,ARRCPAUXITRowId,ARPBLAUXITDesc,ARRCPAUXITDesc)=""
+	S (HOSPRowId,PAPMIRowId,INSTRowId,INSASRowId,AUXITRowId)=0
+	S (INSTGovern,AuxitType,InsuranceType1,ARPBLAUXITRowId,ARRCPAUXITRowId,ARPBLAUXITDesc,ARRCPAUXITDesc,ARPBLRowId)=""
+	
+	N id,hosp,HOSPBillAddress1,HOSPBillAddress2
+	S (hosp,HOSPBillAddress1,HOSPBillAddress2)=""
+	S id=0
+	
+	N PAPMINo,PAPMIName,PAPMIName2,PAPMITTLDesc,PAPERAgeYr,PAPERDeceased
+	N PAPERStName,PAPERCTCITDesc,PAPERCTZIPCode,PAPERPROVDesc,PAPERRowId
+	S (PAPMINo,PAPMIName,PAPMIName2,PAPMITTLDesc,PAPERAgeYr,PAPERDeceased)=""
+	S (PAPERStName,PAPERCTCITDesc,PAPERCTZIPCode,PAPERPROVDesc)=""
+	S PAPERRowId=0
+	
+	N addr,ADDRStreet,ADDRStreet2,TempAddressCTCITDesc,TempAddressZIPCode,PROVCode
+	S (addr,ADDRStreet,ADDRStreet2,TempAddressCTCITDesc,TempAddressZIPCode,PROVCode)=""
+ 	
+ 	N Heading,PATCFTitleOfDeceasedPat,PATCFParentGuardianTitle,PATCFAgeCutOffMinors
+ 	S (Heading,PATCFTitleOfDeceasedPat,PATCFParentGuardianTitle,PATCFAgeCutOffMinors)=""
+ 	
+ 	N URNumber,RTMASNo
+ 	S (URNumber,RTMASNo)=""
+ 	
+ 	N PAADMAdmNo,ARRALPAPMIRowId,ARPBLBillNo,ARPBLINSTRowId,ARPBLINSASRowId
+ 	S (PAADMAdmNo,ARPBLBillNo)=""
+ 	S (ARRALPAPMIRowId,ARPBLINSTRowId,ARPBLINSASRowId)=0
+ 	
+ 	N PAYMAmt,CTPMDesc,PAYMDrawer,PAYMAddDate
+ 	S (PAYMAmt,CTPMDesc,PAYMDrawer,PAYMAddDate)=""
+ 	
+ 	N INSCardNo,INSTCode,INSTAccountClass,INSTDesc
+ 	S (INSCardNo,INSTCode,INSTAccountClass,INSTDesc)=""
+ 	
+ 	N Patient,Episode,InsuranceType
+ 	S (Patient,Episode,InsuranceType)=""
+ 	
+ 	N EpisodeList,InvoiceList
+ 	S (EpisodeList,InvoiceList)=""
+ 	
+ 	N counter,index,ENDAlloc,ENDPayMode
+ 	S (counter,index,ENDAlloc,ENDPayMode)=0
+ 	
+ 	N Printed,Reprint
+ 	S (Printed,Reprint)=""
+ 
+ 	s ind=1
+
+
+ 	&sql(select
+        ARRCP_Number,
+        ARRCP_Location_DR->CTLOC_Hospital_DR->HOSP_RowId,
+        ARRCP_Location_DR->CTLOC_Hospital_DR->HOSP_Code,
+        ARRCP_Location_DR->CTLOC_Hospital_DR->HOSP_Desc,
+        ARRCP_Location_DR->CTLOC_Hospital_DR->HOSP_Address,
+        ARRCP_Location_DR->CTLOC_Hospital_DR->HOSP_Phone,
+        ARRCP_Location_DR->CTLOC_Hospital_DR->HOSP_Fax,
+        ARRCP_Location_DR->CTLOC_Hospital_DR->HOSP_City->CTCIT_Desc,
+        ARRCP_Location_DR->CTLOC_Hospital_DR->HOSP_Province_DR->PROV_Code,
+        ARRCP_Location_DR->CTLOC_Hospital_DR->HOSP_ZipDR->CTZIP_Code,
+        ARRCP_Date,
+        ARRCP_PAPMI_DR,
+        ARRCP_InsType_DR->INST_RowId,
+        ARRCP_InsAssoc_DR,
+        ARRCP_AcctClsAuxInsType_DR->AUXIT_RowId,
+        ARRCP_AcctClsAuxInsType_DR->AUXIT_Code,
+        ARRCP_AcctClsAuxInsType_DR->AUXIT_Desc,
+        ARRCP_InsType_DR->INST_Desc
+		into :ARRCPNumber,:HOSPRowId,:HOSPCode,:HOSPDesc,:HOSPAddress,:HOSPPhone,:HOSPFax,
+		:HOSPCTCITDesc,:HOSPPROVCode,:HOSPCTZIPCode,:ARRCPDate,:PAPMIRowId,
+		:INSTRowId,:INSASRowId,:ARRCPAUXITRowId,:ARRCPAUXITCode,:ARRCPAUXITDesc,:ARRCPINSTDesc
+		from SQLUser.AR_Receipts
+        Where ARRCP_RowId=:ReceiptId)
+
+    if ARRCPDate Set ARRCPDate=..ConvertDateToODBC(ARRCPDate)
+
+  	;get hospital bill address
+ 	S id=..GetBillAddress(HOSPRowId) 
+ 	i $d(^CacheTemp("TRAK",id)) d
+ 	. S hosp=$g(^CacheTemp("TRAK",id))
+ 	. S HOSPBillAddress1=$li(hosp,1)
+ 	. S HOSPBillAddress2=$li(hosp,2)
+ 	
+ 	if PAPMIRowId'="" S Patient=PAPMIRowId
+ 	if INSTRowId'="" S InsuranceType1=INSTRowId
+ 	if INSTRowId'="" S InsuranceType=ARRCPINSTDesc
+ 	if ARRCPAUXITDesc'="" S AuxitType=ARRCPAUXITDesc
+ 	D Reprint
+ 	
+ 	D GetReceiptAlloc
+ 	if Patient'="" D GetPatient
+ 	if InsuranceType1'="" D GetInsuranceDetails
+ 	if InsuranceType1'="" {
+	 	if INSTGovern="" d GetPayorOfficeGovernNo
+ 	} 
+    if InsuranceType="" set InsuranceType="Patient"
+	D GetReceiptPayMode
+	
+ // Build QHandle (AtEnd,ReportID,Index)
+ 	Set QHandle=$lb(0,repid,0)
+ 	Quit $$$OK
+ 	
+GetReceiptAlloc
+	&sql(declare Alloc cursor for
+		Select
+		ARRAL_Admission_DR,
+        ARRAL_ARPBIL_DR->ARPBL_BillNo,
+		ARRAL_ARPBIL_DR->ARPBL_InsuranceType_DR->INST_RowId,
+		ARRAL_ARPBIL_DR->ARPBL_InsAssociation_DR->INSAS_RowId,
+		ARRAL_ARPBIL_DR->ARPBL_AuxInsType_DR->AUXIT_Desc,
+	    ARRAL_ARPBIL_DR->ARPBL_InsuranceType_DR->INST_Desc,
+	    ARRAL_ARPBIL_DR->ARPBL_RowId	    
+        from SQLUser.AR_RcptAlloc
+        where ARRAL_ARRCP_ParRef=:ReceiptId)
+
+ 	&sql(open Alloc)
+ 	S (EpisodeList,InvoiceList)=""
+ 	
+ 	D FetchReceiptAlloc
+ 	while 'ENDAlloc{
+	 	if PAADMRowId {
+		 	D GetEpisode
+	 	}
+	 	if ARPBLBillNo'=""{
+		 	if InvoiceList'=""{
+			 	S InvoiceList=InvoiceList_", "
+		 	}		 	
+		 	S InvoiceList=InvoiceList_ARPBLBillNo
+	 	}
+	 	
+	 	if (InsuranceType="") && (ARPBLINSTDesc){
+		 	S InsuranceType=ARPBLINSTDesc
+		 	S InsuranceType1=ARPBLINSTRowId
+	 	}
+	 	if (AuxitType="") && (ARPBLAUXITDesc){
+		 	S AuxitType=ARPBLAUXITDesc
+	 	}
+	 	
+	 	D FetchReceiptAlloc
+ 	}	
+	 
+  	&sql(close Alloc)
+ 	s ENDAlloc=0
+ 	
+ 	q
+ 	
+FetchReceiptAlloc 
+	&sql(fetch Alloc into :PAADMRowId,:ARPBLBillNo,:ARPBLINSTRowId,:ARPBLINSASRowId,:ARPBLAUXITDesc,:ARPBLINSTDesc,:ARPBLRowId)
+	
+	i SQLCODE {
+	 	s ENDAlloc=1
+ 	}
+	q
+	
+GetReceiptPayMode
+	&sql(declare PayMode cursor for
+		select
+        PAYM_Amt,
+        PAYM_PayMode_DR->CTPM_Desc,
+        PAYM_Drawer,
+        PAYM_AddDate
+        from SQLUser.AR_RcptPayMode
+        where PAYM_ParRef=:ReceiptId)
+
+ 	&sql(open PayMode)
+ 	
+ 	do FetchReceiptPayMode
+ 	while 'ENDPayMode{
+	 	if PAYMAddDate Set PAYMAddDate=..ConvertDateToODBC(PAYMAddDate)
+	 		 	
+	 	D AddRow	 	
+	 	do FetchReceiptPayMode
+ 	}	
+	 
+  	&sql(close PayMode)
+ 	s ENDPayMode=0
+ 	
+ 	q
+ 	
+FetchReceiptPayMode 
+	&sql(fetch PayMode into :PAYMAmt,:CTPMDesc,:PAYMDrawer,:PAYMAddDate)
+	
+	i SQLCODE {
+	 	s ENDPayMode=1
+ 	}
+	q
+	
+GetEpisode
+	&SQL(select
+        PAADM_ADMNo,
+        PAADM_PAPMI_DR
+        INTO :PAADMADMNo,:PAADMPAPMIDR
+        from SQLUser.PA_Adm
+        where PAADM_RowId=:PAADMRowId)
+        
+	if PAADMADMNo'=""{
+		if EpisodeList'=""{
+			S EpisodeList=EpisodeList_", "
+		}
+		S EpisodeList=EpisodeList_PAADMADMNo
+	}
+	
+	if Episode="" S Episode=PAADMRowId
+	if PAADMPAPMIDR S Patient=PAADMPAPMIDR
+	
+	&SQL(select
+        INS_AuxInsType_DR->AUXIT_RowId,
+        INS_AuxInsType_DR->AUXIT_Code,
+        INS_AuxInsType_DR->AUXIT_Desc
+        INTO :AUXITRowId,:AUXITCode,:AUXITDesc
+        from SQLUser.PA_AdmInsurance
+        where INS_ParRef=:PAADMRowId
+        and INS_Rank=1)
+ 
+GetPatient
+		&sql(select
+		PAPMI_No,
+        PAPMI_Name,
+        PAPMI_Name2,
+        PAPMI_Title_DR->TTL_Desc,
+        PAPMI_PAPER_DR->PAPER_AgeYr,
+        PAPMI_PAPER_DR->PAPER_Deceased,
+        PAPMI_PAPER_DR->PAPER_StName,
+        PAPMI_PAPER_DR->PAPER_CityCode_DR->CTCIT_Desc,
+        PAPMI_PAPER_DR->PAPER_Zip_DR->CTZIP_Code,
+        PAPMI_PAPER_DR->PAPER_CT_Province_DR->PROV_Desc,
+        PAPMI_PAPER_DR
+		into :PAPMINo,:PAPMIName,:PAPMIName2,:PAPMITTLDesc,:PAPERAgeYr,:PAPERDeceased,
+		:PAPERStName,:PAPERCTCITDesc,:PAPERCTZIPCode,:PAPERPROVDesc,:PAPERRowId
+		from SQLUser.PA_PatMas
+		where PAPMI_RowId=:Patient)
+		
+	;Get multiple line Address and remove control char
+ 	s counter=$g(^PAPER(PAPERRowId,"PER","ADD",0))
+ 	f index=1:1:counter {
+	 	I index=1 S PAPERStName=""
+ 	 		S PAPERStName=PAPERStName_^PAPER(PAPERRowId,"PER","ADD",index)
+ 	}
+ 	S PAPERStName=$ZSTRIP(PAPERStName,"*C")
+		
+	;get Mailing address
+ 	S id=..GetPatMailAddr(PAPMIRowId)
+ 	S addr=^CacheTemp("TRAK",id)
+ 	S ADDRStreet=$li(addr,1)
+ 	S ADDRStreet2=$li(addr,2)
+ 	s TempAddressCTCITDesc=$li(addr,3)
+ 	S TempAddressZIPCode=$li(addr,4)
+ 	S PROVCode=$li(addr,5)
+ 	
+ 	;get URN
+ 	S URNumber=..GetURNCurrentLoc(Patient,HOSPRowId)
+ 	S RTMASNo=$list(URNumber,1)
+ 	S RTMASNo=$ZSTRIP(RTMASNo,"*C")
+ 	
+ 	D GetHeading
+		
+	q
+	 	
+GetInsuranceDetails
+	
+	&sql(select
+		INS_CardNo,
+		INS_InsType_DR->INST_Code,
+		INS_InsType_DR->INST_AccountClass,
+		INS_InsType_DR->INST_Desc,
+		INS_InsAssoc_DR->INSAS_GovernmentNumber
+		into :INSCardNo,:INSTCode,:INSTAccountClass,:INSTDesc,:INSTGovern
+		from SQLUser.PA_AdmInsurance
+		where INS_ParRef=:Episode
+		and INS_InsType_DR->INST_RowId=:InsuranceType1)
+        
+	q
+	 
+GetPayorOfficeGovernNo	 	
+
+	&sql(select
+		INSAS_GovernmentNumber
+		into :INSTGovern
+		from SQLUser.ARC_InsurAssociation
+		where INSAS_InsType_DR->INST_RowId=:InsuranceType1)
+    
+    q    
+
+	 	
+GetHeading
+	&sql(select
+        PATCF_TitleOfDeceasedPat,
+        PATCF_ParentGuardianTitle,
+        PATCF_AgeCutOffMinors
+        INTO :PATCFTitleOfDeceasedPat,:PATCFParentGuardianTitle,:PATCFAgeCutOffMinors
+        from SQLUser.CF_PatConf)
+        
+    if PAPERAgeYr<PATCFAgeCutOffMinors{
+	    S Heading=PATCFParentGuardianTitle
+    }
+    
+    if PAPERDeceased="Y"{
+	    S Heading=PATCFTitleOfDeceasedPat
+    }
+	q 
+	
+Reprint
+	&SQL(select
+        print.Status
+        INTO :Printed
+        from websys.PrintHistory as print,websys.Report as report
+        where print.ReportDR=report.ID
+        and report.Code='Receipt'
+        and print.Status='P'
+        and print.P1=:ReceiptId)
+        
+        if Printed="P" S Reprint="TRUE"
+	
+	q
+	 
+AddRow
+ Set ^CacheTemp("TRAK",repid,ind)=$LB(ARRCPNumber,HOSPRowId,HOSPCode,HOSPDesc,HOSPAddress,HOSPPhone,HOSPFax,HOSPCTCITDesc,HOSPPROVCode,HOSPCTZIPCode,ARRCPDate,PAPMIRowId,PAPMIName,PAPMIName2,PAPMITTLDesc,PAPERStName,PAPERCTCITDesc,PAPERCTZIPCode,PAPERPROVDesc,ADDRStreet,ADDRStreet2,TempAddressCTCITDesc,TempAddressZIPCode,PROVCode,HOSPBillAddress1,HOSPBillAddress2,RTMASNo,INSCardNo,INSTCode,INSTAccountClass,PAYMAmt,CTPMDesc,PAYMDrawer,PAYMAddDate,EpisodeList,InvoiceList,Heading,AUXITRowId,AUXITCode,Reprint,PAPMINo,AUXITDesc,INSTDesc,INSTGovern,InsuranceType,AuxitType)
+ S ind=ind+1
+ 
+ q
+]]></Implementation>
+</Method>
+
+<Method name="GetReceiptDetailsFetch">
+<Description>
+This is the Fetch component of the %Library.Query. 
+This should never have to change. It is designed to fetch the row for each subscript of the ^CacheTemp
+global and return this row to the Crystal Report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,&Row:%Library.List,&AtEnd:%Library.Integer=0]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // This fetch method should never have to change. 
+
+ // repid - Report ID
+ // ind   - sequence index which represents each row
+
+ New repid,ind
+
+ // Restore QHandle
+ Set AtEnd=$LI(QHandle,1)
+ Set repid=$LI(QHandle,2)
+ Set ind=$LI(QHandle,3)
+
+ Set ind=$order(^CacheTemp("TRAK",repid,ind))
+ If ind="" {	// if there are no more rows, finish fetching
+ 	Set AtEnd=1
+ 	Set Row=""
+ }  Else  {	// fetch row
+ 	Set Row=^CacheTemp("TRAK",repid,ind)
+ }
+
+ // Save QHandle
+ Set QHandle=$lb(AtEnd,repid,ind)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Query name="GetReceiptDetails">
+<Type>%Library.Query</Type>
+<FormalSpec>PatientId:%String,ReceiptId:%String</FormalSpec>
+<SqlProc>1</SqlProc>
+<Parameter name="CONTAINID" value="0"/>
+<Parameter name="ROWSPEC" value="ARRCPNumber:%String(MAXLEN=255),HOSPRowId:%Integer,HOSPCode:%String(MAXLEN=255),HOSPDesc:%String(MAXLEN=255),HOSPAddress:%String(MAXLEN=255),HOSPPhone:%String(MAXLEN=255),HOSPFax:%String(MAXLEN=255),HOSPCTCITDesc:%String(MAXLEN=255),HOSPPROVCode:%String(MAXLEN=255),HOSPCTZIPCode:%String(MAXLEN=255),ARRCPDate:%Date,PAPMIRowId:%Integer,PAPMIName:%String(MAXLEN=255),PAPMIName2:%String(MAXLEN=255),PAPMITTLDesc:%String(MAXLEN=255),PAPERStName:%String(MAXLEN=255),PAPERCTCITDesc:%String(MAXLEN=255),PAPERCTZIPCode:%String(MAXLEN=255),PAPERPROVDesc:%String(MAXLEN=255),ADDRStreet:%String(MAXLEN=255),ADDRStreet2:%String(MAXLEN=255),TempAddressCTCITDesc:%String(MAXLEN=255),TempAddressZIPCode:%String(MAXLEN=255),PROVCode:%String(MAXLEN=255),HOSPBillAddress1:%String(MAXLEN=255),HOSPBillAddress2:%String(MAXLEN=255),RTMASNo:%String(MAXLEN=255),INSCardNo:%String(MAXLEN=255),INSTCode:%String(MAXLEN=255),INSTAccountClass:%String(MAXLEN=255),PAYMAmt:%Float,CTPMDesc:%String(MAXLEN=255),PAYMDrawer:%String(MAXLEN=255),PAYMAddDate:%Date,EpisodeList:%String(MAXLEN=255),InvoiceList:%String(MAXLEN=255),Heading:%String(MAXLEN=255),AUXITRowId:%Integer,AUXITCode:%String(MAXLEN=255),Reprint:%String(MAXLEN=255),PAPMINo:%String(MAXLEN=255),AUXITDesc:%String,INSTDesc:%String,INSTGovern:%String,InsuranceType:%String,AuxitType:%String"/>
+</Query>
+
+<Method name="GetBillAddress">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>HOSPRowId:%Integer</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	New repid
+	// Use $Increment to get the next node
+ 	Set repid=$I(^CacheTemp("TRAK"))
+	i HOSPRowId {
+	New BillAddress1,BillAddress2,x
+	s x=0
+	s (BillAddress1,BillAddress2)=""
+
+
+ 	//s HOSPBillAddress=$ZSTRIP(HOSPBillAddress,"*C")
+ 	s x=^CT("HOSP",HOSPRowId,"ADDR",0)
+ 	i x {
+ 	s BillAddress1=^CT("HOSP",HOSPRowId,"ADDR",1)
+ 	i x>1 s BillAddress2=^CT("HOSP",HOSPRowId,"ADDR",2)
+ 	s BillAddress1=$ZSTRIP(BillAddress1,"*C")
+ 	s BillAddress2=$ZSTRIP(BillAddress2,"*C")
+	
+ s ^CacheTemp("TRAK",repid)=$LB(BillAddress1,BillAddress2)
+ }
+ }
+ quit repid
+]]></Implementation>
+</Method>
+
+<Method name="GetPatMailAddr">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>PAPMIRowId:%Integer</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	New repid
+
+ 	// Use $Increment to get the next node
+ 	Set repid=$I(^CacheTemp("TRAK"))
+	
+	n date,code,END,LOOP
+	s date=$p(($h),",",1)
+	
+	s code=""
+	s (END,LOOP)=0
+	
+	n PAPERRowId,ADDRRowId,ADDRStreet,ADDRStreet2,ADDRDateFrom,ADDRDateTo,TempAddressCTCITDesc,TempAddressZIPCode,CTADRCode,PROVCode
+	s (PAPERRowId,ADDRRowId,ADDRStreet,ADDRStreet2,TempAddressCTCITDesc,TempAddressZIPCode,CTADRCode,PROVCode)=""
+	s (ADDRDateFrom,ADDRDateTo)=""
+	
+	n CountryX,ADDRRowIdX,ADDRStreetX,ADDRStreet2X,ADDRDateFromX,ADDRDateToX,TempAddressCTCITDescX,TempAddressZIPCodeX,PROVCodeX
+	s (CountryX,ADDRRowIdX,ADDRStreetX,ADDRStreet2X,TempAddressCTCITDescX,TempAddressZIPCodeX,PROVCodeX)=""
+	s (ADDRDateFromX,ADDRDateToX)=""
+	n Address,CheckType
+	s (Address)="N"
+	n date
+	s date=$p($h,",",1)
+	n Country
+	s Country=""
+	
+	&sql(select papmi_paper_dr into :PAPERRowId 
+	from sqluser.pa_patmas where papmi_rowid=:PAPMIRowId)
+	
+	d GetMailAddress
+	i $zstrip(Address,"*C")="N" d GetTempAddress
+	i $zstrip(Address,"*C")="N" d GetPermanentAddress
+	i $zstrip(Address,"*C")'="N" d storerec,CheckOS
+	i $zstrip(Address,"*C")="N" d GetPersonAddress,CheckPersonOS
+	
+	//build row
+	s ^CacheTemp("TRAK",repid)=$LB(ADDRStreetX,ADDRStreet2X,TempAddressCTCITDescX,TempAddressZIPCodeX,PROVCodeX,CountryX)
+	quit repid
+	
+	
+GetMailAddress
+ s CheckType="M"
+ &sql(DECLARE MailAddress CURSOR FOR
+ SELECT
+ ADDR_RowId,
+ ADDR_Street,
+ ADDR_Street2,
+ ADDR_DateFrom,
+ ADDR_DateTo,
+ ADDR_City_DR->CTCIT_Desc as TempAddressCTCITDesc,
+ ADDR_Zip_DR->CTZIP_Code as TempAddressZIPCode,
+ CTADR_Code,
+ ADDR_Province_DR->PROV_Code
+ FROM
+ SQLUser.CT_AddrType CT_AddrType,
+ SQLUser.PA_TempAddress PA_TempAddress
+ WHERE
+ PA_TempAddress.ADDR_AddressType_DR=CT_AddrType.CTADR_RowId AND
+ ADDR_ParRef=:PAPERRowId
+ AND (ADDR_DateTo>current_date or ADDR_DateTo is null)
+ ORDER BY ADDR_DateFrom DESC)
+ &sql(OPEN MailAddress)
+ d CheckIfValid
+ &sql(Close MailAddress)
+ q //End GetMailAddress
+
+
+GetTempAddress
+ s CheckType="T"
+ &sql(DECLARE TempAddress CURSOR FOR
+ SELECT
+ ADDR_RowId,
+ ADDR_Street,
+ ADDR_Street2,
+ ADDR_DateFrom,
+ ADDR_DateTo,
+ ADDR_City_DR->CTCIT_Desc as TempAddressCTCITDesc,
+ ADDR_Zip_DR->CTZIP_Code as TempAddressZIPCode,
+ CTADR_Code,
+ ADDR_Province_DR->PROV_Code
+ FROM
+ SQLUser.CT_AddrType CT_AddrType,
+ SQLUser.PA_TempAddress PA_TempAddress
+ WHERE
+ PA_TempAddress.ADDR_AddressType_DR=CT_AddrType.CTADR_RowId AND
+ ADDR_ParRef=:PAPERRowId
+ AND (ADDR_DateTo>current_date or ADDR_DateTo is null)
+ ORDER BY ADDR_DateFrom DESC)
+ &sql(OPEN TempAddress)
+ d CheckIfValid
+ &sql(Close TempAddress)
+ q //End GetTempAddress
+
+GetPermanentAddress
+ s CheckType="P"
+ &sql(DECLARE PermanentAddress CURSOR FOR
+ SELECT
+ ADDR_RowId,
+ ADDR_Street,
+ ADDR_Street2,
+ ADDR_DateFrom,
+ ADDR_DateTo,
+ ADDR_City_DR->CTCIT_Desc as TempAddressCTCITDesc,
+ ADDR_Zip_DR->CTZIP_Code as TempAddressZIPCode,
+ CTADR_Code,
+ ADDR_Province_DR->PROV_Code
+ FROM
+ SQLUser.CT_AddrType CT_AddrType,
+ SQLUser.PA_TempAddress PA_TempAddress
+ WHERE
+ PA_TempAddress.ADDR_AddressType_DR=CT_AddrType.CTADR_RowId AND
+ ADDR_ParRef=:PAPERRowId
+ AND (ADDR_DateTo>current_date or ADDR_DateTo is null)
+ ORDER BY ADDR_DateFrom DESC)
+ &sql(OPEN PermanentAddress)
+ d CheckIfValid
+ &sql(Close PermanentAddress)
+ q //End GetPermanentAddress
+
+GetPersonAddress
+ s CheckType="PersonAddress"
+ &sql(    
+ SELECT
+ PAPER_StName,
+ PAPER_ForeignAddress,
+ PAPER_CityCode_DR->CTCIT_Desc,
+ PAPER_Zip_DR->CTZIP_Code,
+ PAPER_CT_Province_DR->PROV_Code
+ INTO :ADDRStreetX,:ADDRStreet2X,:TempAddressCTCITDescX,:TempAddressZIPCodeX,:PROVCodeX
+ FROM
+ SQLUser.PA_Person
+ WHERE
+ PAPER_RowId=:PAPERRowId)
+ s ADDRStreetX=$zstrip(ADDRStreetX,"*C")
+ s ADDRStreet2X=$zstrip(ADDRStreet2X,"*C")
+ q
+
+CheckIfValid
+  s LOOP=0
+  while LOOP=0 {
+	i $zstrip(CheckType,"*CW")="M" {
+ 		&sql(FETCH MailAddress INTO :ADDRRowId,:ADDRStreet,:ADDRStreet2,:ADDRDateFrom,:ADDRDateTo,:TempAddressCTCITDesc,:TempAddressZIPCode,:CTADRCode,:PROVCode)
+	}
+	i $zstrip(CheckType,"*CW")="T" {
+		&sql(FETCH TempAddress INTO :ADDRRowId,:ADDRStreet,:ADDRStreet2,:ADDRDateFrom,:ADDRDateTo,:TempAddressCTCITDesc,:TempAddressZIPCode,:CTADRCode,:PROVCode)
+	}
+	i $zstrip(CheckType,"*CW")="P" {
+		&sql(FETCH PermanentAddress INTO :ADDRRowId,:ADDRStreet,:ADDRStreet2,:ADDRDateFrom,:ADDRDateTo,:TempAddressCTCITDesc,:TempAddressZIPCode,:CTADRCode,:PROVCode)
+	}
+ 	i SQLCODE s LOOP=1,END=100
+ 	s ADDRStreet=$zstrip(ADDRStreet,"*C")
+ 	s ADDRStreet2=$zstrip(ADDRStreet2,"*C")
+ 	s ADDRDateTo=$zstrip(ADDRDateTo,"*C")
+ 	s ADDRDateFrom=$zstrip(ADDRDateFrom,"*C")
+ 	;s ^zaddr("Date")=$zd(date,3)
+ 	;s ^zaddr("ADDRFR")=$zd(ADDRDateFrom,3)
+ 		i ADDRDateFrom<=date,$zstrip(CheckType,"*CW")=$zstrip(CTADRCode,"*CW") {
+ 		;s ^zaddr("ADDRTO")=$zd(ADDRDateTo,3)
+ 		i ADDRDateTo="" s Address=CheckType,LOOP=1
+ 		i ADDRDateTo>date s Address=CheckType,LOOP=1
+ 		}
+ } d
+ q
+
+
+CheckOS
+ i TempAddressCTCITDescX'="" {
+ 	i ($zcvt(TempAddressCTCITDescX,"U")[$zcvt("Overseas","U")) || ($zcvt(TempAddressCTCITDescX,"U")[$zcvt("New Zealand","U")) || ($zcvt(TempAddressCTCITDescX,"U")[$zcvt("New Guinea","U")) {
+	 	&sql(SELECT
+	 	ADDR_ForeignCity,
+	 	NULLIF(ADDR_Country_DR->CTCOU_Desc,""),
+	 	ADDR_ForeignZip
+	 	INTO :TempAddressCTCITDescX,:CountryX,:TempAddressZIPCodeX
+	 	FROM
+	 	SQLUser.CT_AddrType CT_AddrType,
+	 	SQLUser.PA_TempAddress PA_TempAddress
+	 	WHERE
+	 	PA_TempAddress.ADDR_AddressType_DR*=CT_AddrType.CTADR_RowId AND
+	 	ADDR_ParRef=:PAPERRowId
+	 	and ADDR_RowId=:ADDRRowId
+	 	ORDER BY ADDR_DateFrom DESC
+ 		)
+ 	}
+ }
+ q
+ s TYPE=""
+CheckPersonOS
+ i TempAddressCTCITDescX'="" {
+ 	i ($zcvt(TempAddressCTCITDescX,"U")[$zcvt("Overseas","U")) || ($zcvt(TempAddressCTCITDescX,"U")[$zcvt("New Zealand","U")) || ($zcvt(TempAddressCTCITDescX,"U")[$zcvt("New Guinea","U")) {
+	 	&sql(SELECT
+	 	ADDR_ForeignCity,
+	 	NULLIF(ADDR_Country_DR->CTCOU_Desc,""),
+	 	ADDR_ForeignZip,
+	 	CTADR_Code
+	 	INTO :TempAddressCTCITDesc,:Country,:TempAddressZIPCode,:TYPE
+	 	FROM
+	 	SQLUser.CT_AddrType CT_AddrType,
+	 	SQLUser.PA_TempAddress PA_TempAddress
+	 	WHERE
+	 	PA_TempAddress.ADDR_AddressType_DR*=CT_AddrType.CTADR_RowId
+	 	AND ADDR_ParRef=:PAPERRowId
+	 	AND CTADR_Code in ('OS')
+	 	AND (ADDR_DateTo>current_date or ADDR_DateTo is null)
+	 	ORDER BY ADDR_DateFrom DESC, ADDR_DateTo DESC
+ 		)
+ 		i TYPE="OS" {
+	 		s TempAddressCTCITDescX=TempAddressCTCITDesc,CountryX=Country,TempAddressZIPCodeX=TempAddressZIPCode
+ 		}else{
+	 	
+ 		}
+ 	}
+ }
+ q
+
+storerec
+	s ADDRRowIdX=ADDRRowId,ADDRStreetX=ADDRStreet,ADDRStreet2X=ADDRStreet2,ADDRDateFromX=ADDRDateFrom,ADDRDateToX=ADDRDateTo,TempAddressCTCITDescX=TempAddressCTCITDesc,TempAddressZIPCodeX=TempAddressZIPCode,PROVCodeX=PROVCode
+	s ADDRStreetX=$zstrip(ADDRStreetX,"*C")
+	s ADDRStreet2X=$zstrip(ADDRStreet2X,"*C")
+	q
+]]></Implementation>
+</Method>
+
+<Method name="GetURNCurrentLoc">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>PAPMIRowID:%String,HOSPRowID:%String</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	n rs,URN,RTMASMRTypeDR,CTLOCRowId,CTLOCHospitalDR,RTMAVCTLOCCode,RTMAVDateCreated,RTMAVTimeCreated,URNDetails
+	n RTMAVSSUSRGivenName,RTMAVSSUSRSurname,RTMACSSUSRCTLOCCode,RTMAVSSUSRName
+	n RTMAVActiveFlag,RTMAVDateArrived,RTMAVCurrentLocCTLOCRowId,RTMAVCurrentLocCTLOCCode,RTMAVCurrentLocCTLOCDesc,RTMAVVolDesc,RTMVTDate,RTMVTTime
+	s (rs,URN,RTMASMRTypeDR,CTLOCRowId,CTLOCHospitalDR,RTMAVCTLOCCode,RTMAVDateCreated,RTMAVTimeCreated,URNDetails)=""
+	s (RTMAVSSUSRGivenName,RTMAVSSUSRSurname,RTMACSSUSRCTLOCCode,RTMAVSSUSRName)=""
+	s (RTMAVActiveFlag,RTMAVDateArrived,RTMAVCurrentLocCTLOCRowId,RTMAVCurrentLocCTLOCCode,RTMAVCurrentLocCTLOCDesc,RTMAVVolDesc,RTMVTDate,RTMVTTime)=""
+	// check for an Alias linked to another episode
+	n row,ALIASParRef
+	s ALIASParRef=""
+	s row=PAPMIRowID
+	
+	n FLAG,END
+	s (FLAG,END)=0
+
+	s HOSPRowID=$g(HOSPRowID)
+	
+	// Used to get a URN.
+	&sql(
+	DECLARE URN CURSOR FOR
+	SELECT
+	RTMAS_MRNo,
+	RTMAS_MRType_DR
+	FROM SQLUser.RT_Master
+	WHERE
+	RTMAS_PatNo_DR=:row 
+	and RTMAS_Active='Y')
+	
+	// Used to find an Alias a URN doesn't exist for a patient.
+	&sql(
+	DECLARE ALIAS CURSOR FOR
+	select 
+	ALIAS_ParRef
+	FROM SQLUser.PA_PersonAlias
+	WHERE ALIAS_PatientFrom_ID=:row)
+	
+	//Do a check for a URN
+	d CheckForURN
+	
+	i FLAG=0 {
+		&sql(OPEN ALIAS)
+		&sql(FETCH ALIAS INTO :ALIASParRef )
+		&sql(CLOSE ALIAS)
+		i ALIASParRef'="" {
+			//reset the sql checks
+			s (FLAG,END)=0
+			s row=ALIASParRef
+			//Do a check for a URN using the Alias
+			d CheckForURN
+			i FLAG=0 {
+				s URN=""
+			} else {
+				//A URN exists so now get the details relating to the URN
+				d GetURNDetails
+			}
+		}
+	} else {
+		//A URN exists so now get the details relating to the URN
+		d GetURNDetails
+	}
+	//Create a list of URN details and then rturn to the calling stored procedure
+	s rs=$lb($g(URN),$g(RTMAVCTLOCCode),$g(RTMAVDateCreated),$g(RTMAVTimeCreated),$g(RTMAVSSUSRGivenName),$g(RTMAVSSUSRSurname),$g(RTMACSSUSRCTLOCCode),$g(RTMAVSSUSRName),$g(RTMAVActiveFlag),$g(RTMAVDateArrived),$g(RTMAVCurrentLocCTLOCRowId),$g(RTMAVCurrentLocCTLOCCode),$g(RTMAVCurrentLocCTLOCDesc),$g(RTMAVVolDesc),$g(RTMVTDate),$g(RTMVTTime))
+	q rs
+
+CheckForURN
+	&sql(OPEN URN)
+	WHILE 'END {
+		&sql(FETCH URN INTO :URN,:RTMASMRTypeDR )
+		i 'SQLCODE,RTMASMRTypeDR'="" {
+			
+			s CTLOCRowId=$p($g(^RTC("TYPE",RTMASMRTypeDR)),"^",8)
+			i CTLOCRowId s CTLOCHospitalDR=$p($g(^CTLOC(CTLOCRowId) ),"^",22)
+			i CTLOCHospitalDR=HOSPRowID s FLAG=1,END=1
+		} else {
+			s END=1
+		}
+	}
+	&sql(CLOSE URN)
+	q
+
+GetURNDetails
+	&sql(SELECT
+	RTMAV_HomeLoc_DR->CTLOC_Code,
+	RTMAV_DateCreated,
+	RTMAV_TimeCreated,
+	RTMAV_CreatedByUser_DR->SSUSR_GivenName,
+	RTMAV_CreatedByUser_DR->SSUSR_Surname,
+	RTMAV_CreatedByUser_DR->SSUSR_DefaultDept_DR->CTLOC_Code,
+	RTMAV_CreatedByUser_DR->SSUSR_Name,
+	RTMAV_ActiveFlag,
+	RTMAV_DateArrived,
+	RTMAV_CurrentLoc_DR->CTLOC_RowId,
+	RTMAV_CurrentLoc_DR->CTLOC_Code,
+    RTMAV_CurrentLoc_DR->CTLOC_Desc,
+    RTMAV_VolDesc,
+    RTMVT_Date,
+	RTMVT_Time
+	INTO :RTMAVCTLOCCode,:RTMAVDateCreated,:RTMAVTimeCreated,:RTMAVSSUSRGivenName,:RTMAVSSUSRSurname,:RTMACSSUSRCTLOCCode,:RTMAVSSUSRName,:RTMAVActiveFlag,:RTMAVDateArrived,:RTMAVCurrentLocCTLOCRowId,:RTMAVCurrentLocCTLOCCode,:RTMAVCurrentLocCTLOCDesc,:RTMAVVolDesc,:RTMVTDate,:RTMVTTime
+	FROM SQLUser.RT_MasVol, SQLUser.CF_RTHospMRType,SQLUser.RT_MVTrans
+	WHERE
+	RTMVT_RTMAV_ParRef*=RTMAV_RowId AND
+	RTMAV_HomeLoc_DR->CTLOC_Hospital_DR=:HOSPRowID AND
+	RTMAV_RTMAS_ParRef->RTMAS_MRType_DR = MRTYPE_MRTYPE_DR AND
+	RTMAV_RTMAS_ParRef->RTMAS_PatNo_DR=:row AND
+	RTMAV_RTMAS_ParRef->RTMAS_Active='Y'
+	GROUP BY RTMAV_RTMAS_ParRef->RTMAS_MRNo
+	HAVING MAX(RTMAV_ChildSub) = RTMAV_ChildSub
+	order by RTMVT_Date Desc, RTMVT_Time Desc)
+	q
+]]></Implementation>
+</Method>
+</Class>
+</Export>

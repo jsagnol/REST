@@ -1,0 +1,222 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.SWARH.Report.RptSvc.StoredProc.SWARHRTHR1018">
+<Description><![CDATA[
+<pre>
+***************************************************************************************************************************************
+* Report Code: SWARHRTHR1018
+* Report Description: Wait List Full Report used for Theatre
+* Menu Caption: Waiting List > Full Report > Wait List - Full Report
+* Initial release: N/A Developer: Zac Newman
+* Returns: URNo, Surname, First Name, Age, W/L Date, RFS Days, Total Days, ESIS Procedures, Procedure Free Text, Category, RFS, Operation Date, Doctor Code 
+* Modified: 17/06/2015 - MW - Added NRFS reason code and description.
+* 14/02/2017 - MW - Rewote query renaming fields to match column headings (required when exporting to CSV)
+*					Added Quotes to Free txt data for export to CSV.
+* 					Updated query to use ..#CACHETEMPSUBSCRIPT.
+*					This query is now used by SWARHRTHR1018 and SWARHTHR1018excel Reporting Services reports
+***************************************************************************************************************************************
+</pre>]]></Description>
+<ProcedureBlock>0</ProcedureBlock>
+<Super>Custom.SWARH.Report.RptSvc.StoredProc.Abstract</Super>
+<TimeCreated>60905,54849</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/SWARH/Report/RptSvc/StoredProc/SWARHRTHR1018.xml#1 $</Default>
+</Parameter>
+
+<Method name="SWARHRTHR1018QueryExecute">
+<Description>
+This is the Execute section for the %Library.Query. 
+All of the logic will be performed here.
+A new node for the ^CacheTemp global will be created and each subscript of this global will contain
+a row for the report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,Hospital:%Library.String,Specility:%Library.String,Surgeon:%Library.String,Urgency:%Library.Integer]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Get reportid i.e. use $INCREMENT to add another node to ^CacheTemp global. 
+ // We use ^CacheTemp global because it will always use memory before disk
+ New repid,ind
+
+  // Use $Increment to get the next node
+ Set repid=$I(^CacheTemp(..#CACHETEMPSUBSCRIPT))
+ 
+ New UR,Surname,Givenname,Sex,Age,WaitListDate,RFSDays,TotalDays,ESIS,ProcedureFreeText,Cat,RFS,Comments,OpDate,
+ 	Doctor,Suburb,Zip,Specility,LengthOfStay,NRFS,NRFSReasonDesc
+ 
+ Set (UR,Surname,Givenname,Sex,Age,WaitListDate,RFSDays,TotalDays,ESIS,ProcedureFreeText,Cat,RFS,Comments,OpDate,
+ 	Doctor,Suburb,Zip,Specility,LengthOfStay,NRFS,NRFSReasonDesc) = ""
+
+
+ s ind=1, END=0
+
+ //Start Monitor (if configured to capture stats)
+ s mon=..MonitorBegin()
+ 
+ s Hospital=$zstrip(Hospital,"*CW")
+ s Specility=$zstrip(Specility,"*CW")
+ s Surgeon=$zstrip(Surgeon,"*CW")
+ s Urgency=$zstrip(Urgency,"*CW")
+ 
+ &SQL(DECLARE SWARHRTHR1018Cursor CURSOR FOR 
+	SELECT
+        WL.WL_PAPMI_DR->PAPMI_No AS UR,
+        WL.WL_PAPMI_DR->PAPMI_Name AS Surname,
+        WL.WL_PAPMI_DR->PAPMI_Name2 AS Givenname,
+        WL.WL_PAPMI_DR->PAPMI_Sex_DR->CTSEX_Code AS Sex,
+        DATEDIFF(yy,WL.WL_PAPMI_DR->PAPMI_DOB,CURRENT_DATE) AS Age,
+        WL.WL_Date AS WaitListDate,
+        WL.WL_DaysOnList AS RFSDays,
+        DATEDIFF('DD',WL.WL_Date,CURRENT_DATE)+1 AS TotalDays,
+        WL.WL_StateProc_DR->SPPP_NPPP_DR->NPPP_Code AS ESIS,
+        WL.WL_ProcedureFreeText AS ProcedureFreeText,
+        WL.WL_WaitListPrior_DR->WLP_Code AS Cat,
+        CASE WHEN NRFS.NA_RowID IS NULl THEN 'Y' ELSE 'N' END AS RFS,
+        WL.WL_Remarks AS Comments,
+        CASE WHEN WL.WL_RBOP_DR IS NOT NULL THEN RB.RBOP_DateOper ELSE NULL END AS OpDate,
+        WL.WL_Doctor_DR->CTPCP_Desc AS Doctor,
+        WL.WL_PAPMI_DR->PAPMI_PAPER_DR->PAPER_Zip_DR->CTZIP_Desc AS Suburb,
+        WL.WL_PAPMI_DR->PAPMI_PAPER_DR->PAPER_Zip_DR->CTZIP_Code AS Zip,
+        WL.WL_CTLOC_DR->CTLOC_Desc AS Specility,
+        WL.WL_AdmissionCategory_DR->ADMCAT_Desc AS LengthOfStay,
+        NRFS.NA_Reason_DR->Rea_Code AS NRFS,
+        NRFS.NA_Reason_DR->Rea_Desc AS NRFSReasonDesc
+	FROM
+        SQLUSer.PA_WaitingList WL
+                LEFT JOIN SQLUser.PA_WaitingListNotAvailable NRFS ON (WL.WL_RowId = NRFS.NA_ParRef AND NRFS.NA_DateFrom <= CURRENT_DATE AND (NRFS.NA_DateTo IS NULL OR NRFS.NA_DateTo >= CURRENT_DATE))
+                LEFT JOIN SQLUser.RB_OperatingRoom RB ON (WL.WL_RBOP_DR = RB.RBOP_RowId AND RB.RBOP_Status <> 'X')
+	WHERE
+        WL.WL_WaitListType_DR = 1
+	AND
+        WL.WL_Hospital_DR = :Hospital
+	AND
+	    (WL.WL_Doctor_DR = :Surgeon or :Surgeon IS NULL)
+	AND
+        (WL.WL_WaitListPrior_DR->WLP_Code = :Urgency OR :Urgency IS NULL)
+	AND
+        (WL.WL_CTLOC_DR = :Specility OR :Specility IS NULL)
+	AND
+        WL.WL_WaitListStatus_DR->WLS_Code NOT IN ('R','D')
+	ORDER BY
+        WL.WL_WaitListPrior_DR->WLP_Code ASC, WL.WL_DaysOnList DESC)
+        
+ &SQL(OPEN SWARHRTHR1018Cursor)
+ 
+ //FETCH FIRST ROW
+ d FetchRow
+  
+ while END=0 {
+  
+	 d FormatDates
+  	 //d FormatTimes
+  	 d FormatStrings
+  	 
+	 s sort = ind		// don't sort - uncomment this line if you've sorted in the query
+ 
+	 s ^CacheTemp(..#CACHETEMPSUBSCRIPT,repid,sort)=$LB(UR,Surname,Givenname,Sex,Age,WaitListDate,RFSDays,TotalDays,ESIS,ProcedureFreeText,Cat,RFS,Comments,OpDate,
+	 	Doctor,Suburb,Zip,Specility,LengthOfStay,NRFS,NRFSReasonDesc)
+	 s ind=ind+1
+ 
+	 //fetch rows
+	 d FetchRow
+ }
+
+ &SQL(CLOSE SWARHRTHR1018Cursor)
+ 
+ // Build QHandle (AtEnd,ReportID,Index)
+ Set QHandle=$lb(0,repid,0)
+
+ Quit $$$OK
+
+FetchRow
+ &sql(FETCH SWARHRTHR1018Cursor INTO :UR,:Surname,:Givenname,:Sex,:Age,:WaitListDate,:RFSDays,:TotalDays,:ESIS,:ProcedureFreeText,:Cat,:RFS,:Comments,:OpDate,
+ 	:Doctor,:Suburb,:Zip,:Specility,:LengthOfStay,:NRFS,:NRFSReasonDesc)
+ if SQLCODE '= 0 set END = 1
+ q
+ 
+FormatDates
+ s WaitListDate=..ConvertDateToODBC(WaitListDate)
+ s OpDate=..ConvertDateToODBC(OpDate) 
+ q
+ 
+FormatTimes
+ q
+ 
+FormatStrings
+ s ProcedureFreeText = """"_$LISTTOSTRING(ProcedureFreeText, $CHAR(13)_$CHAR(10))_"""" //Added Quotes for export to CSV
+ //s ProcedureFreeText = $LISTTOSTRING(ProcedureFreeText, $CHAR(13)_$CHAR(10))
+ s Comments = $LISTTOSTRING(Comments, $CHAR(13)_$CHAR(10))
+ 
+ q
+]]></Implementation>
+</Method>
+
+<Method name="SWARHRTHR1018QueryFetch">
+<Description>
+This is the Fetch component of the %Library.Query. 
+This should never have to change. It is designed to fetch the row for each subscript of the ^CacheTemp
+global and return this row to the Crystal Report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,&Row:%Library.List,&AtEnd:%Library.Integer=0]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // This fetch method should never have to change. 
+
+ // repid - Report ID
+ // ind   - sequence index which represents each row
+
+ New repid,ind
+
+ // Restore QHandle
+ Set AtEnd=$li(QHandle,1)
+ Set repid=$li(QHandle,2)
+ Set ind=$li(QHandle,3)
+
+ Set ind=$o(^CacheTemp(..#CACHETEMPSUBSCRIPT,repid,ind))
+ If ind="" {	// if there are no more rows, finish fetching
+	 Set AtEnd=1
+	 Set Row=""
+ }
+ Else      {	// fetch row
+ 	Set Row=^CacheTemp(..#CACHETEMPSUBSCRIPT,repid,ind)
+ }
+
+ // Save QHandle
+ s QHandle=$lb(AtEnd,repid,ind)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="SWARHRTHR1018QueryClose">
+<Description>
+This is the Close component of the %Library.Query.
+This is standard code and should never have to change.
+This is where all the cleanup is performed, i.e. the purging of the temporary storage global ^CacheTemp.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>QHandle:%Library.Binary</FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Clean up by purging the temporary node in ^CacheTemp global
+ New repid,ind
+ Set repid=$li(QHandle,2)
+
+ //Start Monitor (if configured to capture stats)
+ i mon Do ..MonitorEnd(mon)
+
+ Kill ^CacheTemp(..#CACHETEMPSUBSCRIPT,repid)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Query name="SWARHRTHR1018Query">
+<Type>%Library.Query</Type>
+<FormalSpec>Hospital:%Library.String,Specility:%Library.String,Surgeon:%Library.String,Urgency:%Library.Integer</FormalSpec>
+<SqlProc>1</SqlProc>
+<Parameter name="CONTAINID" value="0"/>
+<Parameter name="ROWSPEC" value="UR:%String,Surname:%String,Givenname:%String,Sex:%String,Age:%Integer,WaitListDate:%Date,RFSDays:%Integer,TotalDays:%Integer,ESIS:%String,ProcedureFreeText:%String,Cat:%String,RFS:%String,Comments:%String,OpDate:%Date,Doctor:%String,Suburb:%String,Zip:%String,Specility:%String,LengthOfStay:%String,NRFS:%String,NRFSReasonDesc:%String"/>
+<Parameter name="SELECTMODE" value="ODBC"/>
+</Query>
+</Class>
+</Export>

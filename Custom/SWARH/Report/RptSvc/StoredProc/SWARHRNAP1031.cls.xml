@@ -1,0 +1,301 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.SWARH.Report.RptSvc.StoredProc.SWARHRNAP1031">
+<Description><![CDATA[
+<pre>
+***************************************************************************************************************************************
+* Report Code:SWARHRNAP1031
+* Report Description:Information required for CHSP reporting
+* Menu Caption:Reports/Non Admitted/CHSP Eligible Clients
+* Initial Release:2016-06-20	Developer:rpgladman
+* Modified:2016-06-30 (rpgladman) - Field PA_PatMas.PAPMI_EstimatedDeathDate is actually freetext so removed call to convert it to ODBC
+***************************************************************************************************************************************
+</pre>]]></Description>
+<ProcedureBlock>0</ProcedureBlock>
+<Super>Custom.SWARH.Report.RptSvc.StoredProc.Abstract</Super>
+<TimeCreated>60905,54849</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/SWARH/Report/RptSvc/StoredProc/SWARHRNAP1031.xml#1 $</Default>
+</Parameter>
+
+<Method name="SWARHRNAP1031Execute">
+<Description>
+This is the Execute section for the %Library.Query. 
+All of the logic will be performed here.
+A new node for the ^CacheTemp global will be created and each subscript of this global will contain
+a row for the report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,Hospital:%Integer,Specialty:%Library.String,Program:%Library.String]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Get reportid i.e. use $INCREMENT to add another node to ^CacheTemp global. 
+ // We use ^CacheTemp global because it will always use memory before disk
+ New repid,ind
+
+ // Use $Increment to get the next node
+ Set repid=$INCREMENT(^CacheTemp(..#CACHETEMPSUBSCRIPT))
+ 
+ New URNumber,Title,Surname,GivenName,OtherGivenName,Sex,DateOfBirth,EstimatedDOB,Age,
+     IndigenousStatus,ATSIOfficerNotification,Religion,MaritalStatus,CountryOfBirth,
+     Nationality,PreferredLanguage,TranslatorRequired,PreferredGenderOfTranslator,
+     ExternalDoctorContactDetails,
+     ResidentialAddressLine1,ResidentialAddressLine2,Suburb,State,PostCode,Locality,
+     HomePhone,BusinessPhone,MobilePhone,FaxNumber,EmailAddress,ContactNotes,
+     PreferredContactMethod,CanLeaveMessagesOn,
+     LocalDoctor,GPGivenName,GPClinic,
+     HealthFundStatus,HealthFundPlan,HealthFundNo,PensionType,PensionNumber,
+     PensionCardExpiryDate,MedicareNumber,MedicareCode,MedicareNumberNotAvailableReason,
+     MedicareExpiryDate,DVACardColour,DVANumber,DVAExpiryDate,ConcessionCardNumber,
+     ConcessionCardExpiryDate,ConcesionCardType,IHINumber,Deceased,DeceasedDate,
+     EstimatedDateOfDeath,LocationOfDeath,DeathNotifiedBy,
+     EmploymentStatus,DependentChildren,LivingArrangements,AccomodationResidentialSetting,
+     CarerAvailability,CommunicationStatus,HomelessStatus,ChronicComplex,ClientIsRefugee,
+     SpecialtyDesc,ProgramDesc,EpisodeNo,LastContactDate,CHSPEligible
+
+ Set (URNumber,Title,Surname,GivenName,OtherGivenName,Sex,DateOfBirth,EstimatedDOB,Age,
+     IndigenousStatus,ATSIOfficerNotification,Religion,MaritalStatus,CountryOfBirth,
+     Nationality,PreferredLanguage,TranslatorRequired,PreferredGenderOfTranslator,
+     ExternalDoctorContactDetails,
+     ResidentialAddressLine1,ResidentialAddressLine2,Suburb,State,PostCode,Locality,
+     HomePhone,BusinessPhone,MobilePhone,FaxNumber,EmailAddress,ContactNotes,
+     PreferredContactMethod,CanLeaveMessagesOn,
+     LocalDoctor,GPGivenName,GPClinic,
+     HealthFundStatus,HealthFundPlan,HealthFundNo,PensionType,PensionNumber,
+     PensionCardExpiryDate,MedicareNumber,MedicareCode,MedicareNumberNotAvailableReason,
+     MedicareExpiryDate,DVACardColour,DVANumber,DVAExpiryDate,ConcessionCardNumber,
+     ConcessionCardExpiryDate,ConcesionCardType,IHINumber,Deceased,DeceasedDate,
+     EstimatedDateOfDeath,LocationOfDeath,DeathNotifiedBy,
+     EmploymentStatus,DependentChildren,LivingArrangements,AccomodationResidentialSetting,
+     CarerAvailability,CommunicationStatus,HomelessStatus,ChronicComplex,ClientIsRefugee,
+     SpecialtyDesc,ProgramDesc,EpisodeNo,LastContactDate,CHSPEligible)=""
+ Set (PAADMRowId)=0
+ 
+ Set ind=1, END=0
+
+ //Start Monitor (if configured to capture stats)
+ Set mon=..MonitorBegin()
+
+ //Convert ODBC dates to cache format
+ //Set DateFrom=..ConvertDateToCache(DateFrom)
+ //Set DateTo=..ConvertDateToCache(DateTo)
+ 
+ &SQL(DECLARE SWARHRNAP1031 CURSOR FOR
+  SELECT
+    -- DETAILS --
+    PAP.PAPMI_No                                                   AS URNumber
+   ,PAP.PAPMI_PAPER_DR->PAPER_Title_DR->TTL_Desc                   AS Title
+   ,PAP.PAPMI_Name                                                 AS Surname
+   ,PAP.PAPMI_Name2                                                AS GivenName
+   ,PAP.PAPMI_Name3                                                AS OtherGivenName
+   ,PAP.PAPMI_PAPER_DR->PAPER_Sex_DR->CTSEX_Desc                   AS Sex
+   ,PAP.PAPMI_PAPER_DR->PAPER_Dob                                  AS DateOfBirth
+   ,PAP.PAPMI_PAPER_DR->PAPER_EstDOB                               AS EstimatedDOB
+   ,PAP.PAPMI_PAPER_DR->PAPER_AgeYr                                AS Age
+   ,PAP.PAPMI_PAPER_DR->PAPER_IndigStat_DR->INDST_Desc             AS IndigenousStatus
+   ,PAP.PAPMI_PAPER_DR->PAPER_AusSouthSeaIslander_DR->ASSIS_Desc   AS ATSIOfficerNotification
+   ,PAP.PAPMI_PAPER_DR->PAPER_Religion_DR->CTRLG_Desc              AS Religion
+   ,PAP.PAPMI_PAPER_DR->PAPER_Marital_DR->CTMAR_Desc               AS MaritalStatus
+   ,PAP.PAPMI_PAPER_DR->PAPER_Country_Birth_DR->CTCOU_Desc         AS CountryOfBirth
+   ,PAP.PAPMI_PAPER_DR->PAPER_Nation_DR->CTNAT_Desc                AS Nationality
+   ,PAP.PAPMI_PAPER_DR->PAPER_PrefLanguage_DR->PREFL_Desc          AS PreferredLanguage
+   ,PAP.PAPMI_PAPER_DR->PAPER_InterpreterRequired                  AS TranslatorRequired
+   ,PAP.PAPMI_PAPER_DR->PAPER_PrefGenderInterpreter_DR->CTSEX_Desc AS PreferredGenderOfTranslator
+   ,PAP.PAPMI_PAPER_DR->PAPER_Remark                               AS ExternalDoctorContactDetails
+
+   -- ADDRESS DETAILS --
+   ,PAP.PAPMI_PAPER_DR->PAPER_StName                               AS ResidentialAddressLine1
+   ,PAP.PAPMI_PAPER_DR->PAPER_ForeignAddress                       AS ResidentialAddressLine2
+   ,PAP.PAPMI_PAPER_DR->PAPER_CityCode_DR->CTCIT_Desc              AS Suburb
+   ,PAP.PAPMI_PAPER_DR->PAPER_CT_Province_DR->PROV_Desc            AS State
+   ,PAP.PAPMI_PAPER_DR->PAPER_Zip_DR->CTZIP_Code                   AS PostCode
+   ,PAP.PAPMI_PAPER_DR->PAPER_CT_Region_DR->CTRG_Desc              AS Locality
+   ,PAP.PAPMI_PAPER_DR->PAPER_TelH                                 AS HomePhone
+   ,PAP.PAPMI_PAPER_DR->PAPER_TelO                                 AS BusinessPhone
+   ,PAP.PAPMI_PAPER_DR->PAPER_MobPhone                             AS MobilePhone
+   ,PAP.PAPMI_PAPER_DR->PAPER_Fax                                  AS FaxNumber
+   ,PAP.PAPMI_PAPER_DR->PAPER_Email                                AS EmailAddress
+   ,PAP.PAPMI_PAPER_DR->PAPER_ContactNotes                         AS ContactNotes
+   ,PAP.PAPMI_PAPER_DR->PAPER_PreferredContactMethod               AS PreferredContactMethod
+   ,PAP.PAPMI_PAPER_DR->PAPER_CanLeaveMessagesOn                   AS CanLeaveMessagesOn
+
+   -- GP Details --
+   ,PAP.PAPMI_PAPER_DR->PAPER_FamilyDoctor_DR->REFD_Desc           AS LocalDoctor
+   ,PAP.PAPMI_PAPER_DR->PAPER_FamilyDoctor_DR->REFD_Forename       AS GPGivenName
+   ,''                                                             AS GPClinic -- Not currently required, can add this later as it retrieves it from the clinic tables
+
+   -- Other Details --
+   ,PAP.PAPMI_PAPER_DR->PAPER_InsType_DR->INST_Desc                AS HealthFundStatus
+   ,PAP.PAPMI_PAPER_DR->PAPER_AuxInsType_DR->AUXIT_Desc            AS HealthFundPlan
+   ,PAP.PAPMI_HealthFundNo                                         AS HealthFundNo
+   ,PAP.PAPMI_PensionType_DR->PENSTYPE_Desc                        AS PensionType
+   ,PAP.PAPMI_PAPER_DR->PAPER_GovernCardNo                         AS PensionNumber
+   ,PAP.PAPMI_PAPER_DR->PAPER_PensionCardExpiryDate                AS PensionCardExpiryDate
+   ,PAP.PAPMI_Medicare                                             AS MedicareNumber
+   ,PAP.PAPMI_MedicareCode                                         AS MedicareCode
+   ,PAP.PAPMI_MedicareSuffix_DR->MEDSUF_Desc                       AS MedicareNumberNotAvailableReason
+   ,PAP.PAPMI_MedicareExpDate                                      AS MedicareExpiryDate
+   ,PAP.PAPMI_CardType_DR                                          AS DVACardColour
+   ,PAP.PAPMI_DVAnumber                                            AS DVANumber
+   ,PAP.PAPMI_PAPER_DR->PAPER_DVAExpiryDate                        AS DVAExpiryDate
+   ,PAP.PAPMI_ConcessionCardNo                                     AS ConcessionCardNumber
+   ,PAP.PAPMI_ConcessionCardExpDate                                AS ConcessionCardExpiryDate
+   ,PAP.PAPMI_PAPER_DR->PAPER_ConcessCardType_DR->CONCCARD_Desc    AS ConcesionCardType
+   ,PAP.PAPMI_PAPER_DR->PAPER_ID                                   AS IHINumber
+   ,PAP.PAPMI_PAPER_DR->PAPER_Deceased                             AS Deceased
+   ,PAP.PAPMI_PAPER_DR->PAPER_Deceased_Date                        AS DeceasedDate
+   ,PAP.PAPMI_EstimatedDeathDate                                   AS EstimatedDateOfDeath
+   ,PAP.PAPMI_PAPER_DR->PAPER_LocationOfDeath                      AS LocationOfDeath
+   ,PAP.PAPMI_PAPER_DR->PAPER_WhoNotified                          AS DeathNotifiedBy
+
+   -- Additional Details --
+   ,PAP.PAPMI_PAPER_DR->PAPER_EmploymentStat_DR->EMPLST_Desc       AS EmploymentStatus
+   ,PAP.PAPMI_PAPER_DR->PAPER_DependChildren_DR->DEPCHL_Desc       AS DependentChildren
+   ,PAP.PAPMI_PAPER_DR->PAPER_LivingArrangement_DR->LIVARR_Desc    AS LivingArrangements
+   ,PAP.PAPMI_PAPER_DR->PAPER_AccomSetting_DR->ACCOMS_Desc         AS AccomodationResidentialSetting
+   ,PAP.PAPMI_PAPER_DR->PAPER_CarerAvailability_DR->CARAVL_Desc    AS CarerAvailability
+   ,PAP.PAPMI_PAPER_DR->PAPER_CommunicationNeeds_DR                AS CommunicationStatus
+   ,PAP.PAPMI_PAPER_DR->PAPER_ResidenceStatus_DR->RESID_Desc       AS HomelessStatus
+   ,PAP.PAPMI_PAPER_DR->PAPER_StayingPermanently                   AS ChronicComplex
+   ,PAP.PAPMI_PAPER_DR->PAPER_PAPMI_DR->PAPMI_CHCPatient           AS ClientIsRefugee
+
+   -- More Addition Details Needed For CHSP --
+   ,ADM.PAADM_DEPCODE_DR->CTLOC_Desc                               AS SpecialtyDesc
+   ,ADM.PAADM_PAADM2_DR->PAADM2_NFMICategDepart_DR->DEP_Desc       AS ProgramDesc
+   ,ADM.PAADM_ADMNo                                                AS EpisodeNo
+   ,''                                                             AS LastContactDate -- 'MAX(ENQ.ENQ_Date)' - Including this is extremely slow (8s vs 1m18s on LIVE)
+   ,''                                                             AS CHSPEligible -- Future
+
+
+  FROM
+    SQLUser.PA_Adm AS ADM
+    LEFT JOIN SQLUser.PA_PatMas         AS PAP ON (ADM.PAADM_PAPMI_DR = PAP.PAPMI_RowId)
+    -- LEFT JOIN SQLUser.PA_EnquiryContact AS ENQ ON (PAP.PAPMI_PAPER_DR = ENQ.ENQ_PAPER_DR) -- Used only for LastContactDate which is disabled at the moment
+  WHERE ADM.PAADM_Hospital_DR = :Hospital
+    AND ADM.PAADM_VisitStatus = 'A'
+    AND ADM.PAADM_Type = 'O'
+    AND (({fn CONCAT( ',', {fn CONCAT((:Specialty),',')})} [ {fn CONCAT( ',', {fn CONCAT((PAADM_DEPCODE_DR),',')})}) OR (:Specialty IS NULL))  -- Multiple Specialties
+    AND (({fn CONCAT( ',', {fn CONCAT((:Program),',')})} [ {fn CONCAT( ',', {fn CONCAT((PAADM_PAADM2_DR->PAADM2_NFMICategDepart_DR),',')})}) OR (:Program IS NULL)) -- Multiple Programs
+  GROUP BY
+    ADM.PAADM_ADMNo
+  ORDER BY
+    PAP.PAPMI_Name ASC, PAP.PAPMI_Name2 ASC
+	)
+	 	
+ &SQL(OPEN SWARHRNAP1031)
+ 
+ //FETCH FIRST ROW
+ Do FetchRow
+  
+ While END=0 {
+  
+	 Do FormatDates
+  	 Do FormatTimes
+  	 Do FormatStrings
+  	 
+	 Set sort = ind	
+ 
+	 Set ^CacheTemp(..#CACHETEMPSUBSCRIPT,repid,sort)=$LISTBUILD(URNumber,Title,Surname,GivenName,OtherGivenName,Sex,DateOfBirth,EstimatedDOB,Age,IndigenousStatus,ATSIOfficerNotification,Religion,MaritalStatus,CountryOfBirth,Nationality,PreferredLanguage,TranslatorRequired,PreferredGenderOfTranslator,ExternalDoctorContactDetails,ResidentialAddressLine1,ResidentialAddressLine2,Suburb,State,PostCode,Locality,HomePhone,BusinessPhone,MobilePhone,FaxNumber,EmailAddress,ContactNotes,PreferredContactMethod,CanLeaveMessagesOn,LocalDoctor,GPGivenName,GPClinic,HealthFundStatus,HealthFundPlan,HealthFundNo,PensionType,PensionNumber,PensionCardExpiryDate,MedicareNumber,MedicareCode,MedicareNumberNotAvailableReason,MedicareExpiryDate,DVACardColour,DVANumber,DVAExpiryDate,ConcessionCardNumber,ConcessionCardExpiryDate,ConcesionCardType,IHINumber,Deceased,DeceasedDate,EstimatedDateOfDeath,LocationOfDeath,DeathNotifiedBy,EmploymentStatus,DependentChildren,LivingArrangements,AccomodationResidentialSetting,CarerAvailability,CommunicationStatus,HomelessStatus,ChronicComplex,ClientIsRefugee,SpecialtyDesc,ProgramDesc,EpisodeNo,LastContactDate,CHSPEligible)
+	 Set ind=ind+1
+ 
+	 //fetch rows
+	 Do FetchRow
+ }
+
+ &SQL(CLOSE SWARHRNAP1031)
+ 
+ // Build QHandle (AtEnd,ReportID,Index)
+ Set QHandle=$listbuild(0,repid,0)
+
+ Quit $$$OK
+
+FetchRow
+ &sql(FETCH SWARHRNAP1031 INTO :URNumber,:Title,:Surname,:GivenName,:OtherGivenName,:Sex,:DateOfBirth,:EstimatedDOB,:Age,:IndigenousStatus,:ATSIOfficerNotification,:Religion,:MaritalStatus,:CountryOfBirth,:Nationality,:PreferredLanguage,:TranslatorRequired,:PreferredGenderOfTranslator,:ExternalDoctorContactDetails,:ResidentialAddressLine1,:ResidentialAddressLine2,:Suburb,:State,:PostCode,:Locality,:HomePhone,:BusinessPhone,:MobilePhone,:FaxNumber,:EmailAddress,:ContactNotes,:PreferredContactMethod,:CanLeaveMessagesOn,:LocalDoctor,:GPGivenName,:GPClinic,:HealthFundStatus,:HealthFundPlan,:HealthFundNo,:PensionType,:PensionNumber,:PensionCardExpiryDate,:MedicareNumber,:MedicareCode,:MedicareNumberNotAvailableReason,:MedicareExpiryDate,:DVACardColour,:DVANumber,:DVAExpiryDate,:ConcessionCardNumber,:ConcessionCardExpiryDate,:ConcesionCardType,:IHINumber,:Deceased,:DeceasedDate,:EstimatedDateOfDeath,:LocationOfDeath,:DeathNotifiedBy,:EmploymentStatus,:DependentChildren,:LivingArrangements,:AccomodationResidentialSetting,:CarerAvailability,:CommunicationStatus,:HomelessStatus,:ChronicComplex,:ClientIsRefugee,:SpecialtyDesc,:ProgramDesc,:EpisodeNo,:LastContactDate,:CHSPEligible)
+ If SQLCODE '= 0 Set END = 1
+ Quit
+ 
+FormatDates
+ Set DateOfBirth=..ConvertDateToODBC(DateOfBirth)
+ //Set LastContactDate=..ConvertDateToODBC(LastContactDate)
+ Quit
+ 
+FormatTimes //Be sure to set fields in Query output as '%String' then format Reporting Services field as Time.
+ //Set AdmTime=..ConvertTimeToHHMM(AdmTime) 
+ Quit
+ 
+FormatStrings
+ Set ResidentialAddressLine1=$ZSTRIP(ResidentialAddressLine1,"*C") //Removes control characters (0-31,127-159)
+ Set ResidentialAddressLine1=$ZSTRIP(ResidentialAddressLine1,"*",$CHAR(34,35,39,44,46)) //Removes 34-Quotes,35-Hash,39-Single quote,44-Comma,46-Period
+ Set ResidentialAddressLine1=$ZCONVERT(ResidentialAddressLine1,"U") //Converts to Uppercase
+ Set ResidentialAddressLine2=$ZSTRIP(ResidentialAddressLine2,"*C")
+ Set ResidentialAddressLine2=$ZSTRIP(ResidentialAddressLine2,"*",$CHAR(34,35,39,44,46))
+ Set ResidentialAddressLine2=$ZCONVERT(ResidentialAddressLine2,"U")
+ Quit
+]]></Implementation>
+</Method>
+
+<Method name="SWARHRNAP1031Fetch">
+<Description>
+This is the Fetch component of the %Library.Query. 
+This should never have to change. It is designed to fetch the row for each subscript of the ^CacheTemp
+global and return this row to the Crystal Report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,&Row:%Library.List,&AtEnd:%Library.Integer=0]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // This fetch method should never have to change. 
+ // repid - Report ID
+ // ind   - sequence index which represents each row
+
+ New repid,ind
+
+ // Restore QHandle
+ Set AtEnd=$LIST(QHandle,1)
+ Set repid=$LIST(QHandle,2)
+ Set ind=$LIST(QHandle,3)
+
+ Set ind=$ORDER(^CacheTemp(..#CACHETEMPSUBSCRIPT,repid,ind))
+ If ind="" {	// if there are no more rows, finish fetching
+	 Set AtEnd=1
+	 Set Row=""
+ }
+ Else      {	// fetch row
+ 	Set Row=^CacheTemp(..#CACHETEMPSUBSCRIPT,repid,ind)
+ }
+
+ // Save QHandle
+ Set QHandle=$LISTBUILD(AtEnd,repid,ind)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="SWARHRNAP1031Close">
+<Description>
+This is the Close component of the %Library.Query.
+This is standard code and should never have to change.
+This is where all the cleanup is performed, i.e. the purging of the temporary storage global ^CacheTemp.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>QHandle:%Library.Binary</FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Clean up by purging the temporary node in ^CacheTemp global
+ New repid,ind
+ Set repid=$LIST(QHandle,2)
+
+ Kill ^CacheTemp(..#CACHETEMPSUBSCRIPT,repid)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Query name="SWARHRNAP1031">
+<Type>%Library.Query</Type>
+<FormalSpec>Hospital:%Integer,Specialty:%String,Program:%String</FormalSpec>
+<SqlProc>1</SqlProc>
+<Parameter name="CONTAINID" value="0"/>
+<Parameter name="ROWSPEC" value="URNumber:%String,Title:%String,Surname:%String,GivenName:%String,OtherGivenName:%String,Sex:%String,DateOfBirth:%String,EstimatedDOB:%String,Age:%String,IndigenousStatus:%String,ATSIOfficerNotification:%String,Religion:%String,MaritalStatus:%String,CountryOfBirth:%String,Nationality:%String,PreferredLanguage:%String,TranslatorRequired:%String,PreferredGenderOfTranslator:%String,ExternalDoctorContactDetails:%String,ResidentialAddressLine1:%String,ResidentialAddressLine2:%String,Suburb:%String,State:%String,PostCode:%String,Locality:%String,HomePhone:%String,BusinessPhone:%String,MobilePhone:%String,FaxNumber:%String,EmailAddress:%String,ContactNotes:%String,PreferredContactMethod:%String,CanLeaveMessagesOn:%String,LocalDoctor:%String,GPGivenName:%String,GPClinic:%String,HealthFundStatus:%String,HealthFundPlan:%String,HealthFundNo:%String,PensionType:%String,PensionNumber:%String,PensionCardExpiryDate:%String,MedicareNumber:%String,MedicareCode:%String,MedicareNumberNotAvailableReason:%String,MedicareExpiryDate:%String,DVACardColour:%String,DVANumber:%String,DVAExpiryDate:%String,ConcessionCardNumber:%String,ConcessionCardExpiryDate:%String,ConcesionCardType:%String,IHINumber:%String,Deceased:%String,DeceasedDate:%String,EstimatedDateOfDeath:%String,LocationOfDeath:%String,DeathNotifiedBy:%String,EmploymentStatus:%String,DependentChildren:%String,LivingArrangements:%String,AccomodationResidentialSetting:%String,CarerAvailability:%String,CommunicationStatus:%String,HomelessStatus:%String,ChronicComplex:%String,ClientIsRefugee:%String,SpecialtyDesc:%String,ProgramDesc:%String,EpisodeNo:%String,LastContactDate:%String,CHSPEligible:%String"/>
+<Parameter name="SELECTMODE" value="ODBC"/>
+</Query>
+</Class>
+</Export>

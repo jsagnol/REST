@@ -1,0 +1,167 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.AUXX.Report.ZEN.StoredProc.UnmergedPatientsList">
+<ProcedureBlock>0</ProcedureBlock>
+<Super>Report.Abstract</Super>
+<TimeCreated>61180,56044.343701</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/AUXX/Report/ZEN/StoredProc/UnmergedPatientsList.xml#1 $</Default>
+</Parameter>
+
+<Method name="UnmergedPatientsListClose">
+<Description><![CDATA[
+Report Name: Unmerged Patients List <br>
+Report Code: Trak.UnmergedPatientsList <br>
+LOGTRAK Number: 72436 <br>
+Report Description: Report lists patients who have been unmerged.
+This is the Close component of the %Library.Query.
+This is standard code and should never have to change.
+This is where all the cleanup is performed, i.e. the purging of the temporary storage global ^CacheTemp.]]></Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>QHandle:%Library.Binary</FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Clean up by purging the temporary node in ^CacheTemp global
+ New repid
+ Set repid=$LIST(QHandle,2)
+ 
+ //Start Monitor (if configured to capture stats)
+ i mon Do ..MonitorEnd(mon)
+
+ Kill ^CacheTemp("TRAK",repid)
+ 
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="UnmergedPatientsListExecute">
+<Description>
+This is the Execute section for the %Library.Query. 
+All of the logic will be performed here.
+A new node for the ^CacheTemp global will be created and each subscript of this global will contain
+a row for the report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,DateFrom:%Date,DateTo:%Date,Hospital:%String]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ //Start Monitor (if configured to capture stats)
+  s mon=..MonitorBegin()
+  
+ // Get reportid i.e. use $INCREMENT to add another node to ^CacheTemp global. 
+ // We use ^CacheTemp global because it will always use memory before disk
+ n repid,ind,END1
+
+ s (ind,END1)=0
+
+ s DateFrom=..ConvertDateToCache(DateFrom)
+ s DateTo=..ConvertDateToCache(DateTo)
+
+  // Strip white space/control chars from blank variables
+ i $g(Hospital)'="" s Hospital=$ZSTRIP(Hospital,"*WC")
+
+ // Use $Increment to get the next node
+ Set repid=$I(^CacheTemp("TRAK"))
+ 
+ &SQL(DECLARE UNMERGE CURSOR FOR
+ SELECT
+ UNMRG_RowId,
+ UNMRG_Date,
+ UNMRG_Time,
+ UNMRG_User_DR->SSUSR_Initials,
+ UNMRG_PAPMI_From_DR->PAPMI_VIPFlag,
+ UNMRG_PAPMI_From_DR->PAPMI_No,
+ UNMRG_PAPMI_From_DR->PAPMI_Name,
+ UNMRG_PAPMI_From_DR->PAPMI_Name2,
+ UNMRG_PAPMI_From_DR->PAPMI_Name3,
+ UNMRG_PAPMI_To_DR->PAPMI_No,
+ UNMRG_PAPMI_To_DR->PAPMI_Name,
+ UNMRG_PAPMI_To_DR->PAPMI_Name2,
+ UNMRG_PAPMI_To_DR->PAPMI_Name3,
+ UNMRG_Hospital_DR->HOSP_RowId,
+ UNMRG_Hospital_DR->HOSP_Code,
+ UNMRG_Hospital_DR->HOSP_Desc 
+ FROM SQLUser.PA_UnmergePatient
+ WHERE UNMRG_Date BETWEEN :DateFrom AND :DateTo
+ AND (({fn CONCAT( ',', {fn CONCAT((:Hospital),',')})} [ {fn CONCAT( ',', {fn CONCAT((UNMRG_Hospital_DR->HOSP_RowId),',')})}) OR (:Hospital IS NULL))
+ ORDER BY  UNMRG_Hospital_DR->HOSP_Desc, UNMRG_Date, UNMRG_Time)
+ 
+ &SQL(OPEN UNMERGE)
+ while END1'=1 {
+	 &SQL(Fetch UNMERGE INTO :UNMRGRowId,:UNMRGDate,:UNMRGTime,:SSUSRInitials,:FromVIP,:FromPAPMINo,:FromPAPMIName,:FromPAPMIName2,:FromPAPMIName3,:ToPAPMINo,:ToPAPMIName,:ToPAPMIName2,:ToPAPMIName3,:HOSPRowId,:HOSPCode,:HOSPDesc)
+	 i SQLCODE s END1=1
+	 i END1'=1 {
+		 d FormatDates
+		 d FormatTimes
+		 d BuildRow
+	 }
+ }
+ &SQL(CLOSE UNMERGE)
+  
+ // Build QHandle (AtEnd,ReportID,Index)
+ Set QHandle=$lb(0,repid,0)
+ Quit $$$OK
+
+BuildRow
+ s ind=ind+1
+ s ^CacheTemp("TRAK",repid,ind)=$LB(UNMRGRowId,UNMRGDate,UNMRGTime,SSUSRInitials,FromVIP,FromPAPMINo,FromPAPMIName,FromPAPMIName2,FromPAPMIName3,ToPAPMINo,ToPAPMIName,ToPAPMIName2,ToPAPMIName3,HOSPRowId,HOSPCode,HOSPDesc)
+ q
+
+FormatDates
+ // Convert the dates to ODBC date format
+ i UNMRGDate s UNMRGDate=..ConvertDateToODBC(UNMRGDate)
+ q
+
+FormatTimes
+ // Convert the dates to ODBC date format
+ i UNMRGTime s UNMRGTime=..ConvertTimeToODBC(UNMRGTime)
+ q
+]]></Implementation>
+</Method>
+
+<Method name="UnmergedPatientsListFetch">
+<Description>
+This is the Fetch component of the %Library.Query. 
+This should never have to change. It is designed to fetch the row for each subscript of the ^CacheTemp
+global and return this row to the Crystal Report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,&Row:%Library.List,&AtEnd:%Library.Integer=0]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // This fetch method should never have to change. 
+
+ // repid - Report ID
+ // ind   - sequence index which represents each row
+
+ New repid,ind
+
+ // Restore QHandle
+ Set AtEnd=$LI(QHandle,1)
+ Set repid=$LI(QHandle,2)
+ Set ind=$LI(QHandle,3)
+
+ Set ind=$order(^CacheTemp("TRAK",repid,ind))
+ If ind="" {	// if there are no more rows, finish fetching
+ 	Set AtEnd=1
+ 	Set Row=""
+ }  Else  {	// fetch row
+ 	Set Row=^CacheTemp("TRAK",repid,ind)
+ }
+
+ // Save QHandle
+ Set QHandle=$lb(AtEnd,repid,ind)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Query name="UnmergedPatientsList">
+<Type>%Library.Query</Type>
+<FormalSpec>DateFrom:%Date,DateTo:%Date,Hospital:%String</FormalSpec>
+<SqlProc>1</SqlProc>
+<Parameter name="CONTAINID" value="0"/>
+<Parameter name="ROWSPEC" value="UNMRGRowId:%String(MAXLEN=255),UNMRGDate:%Date,UNMRGTime:%String(MAXLEN=255),SSUSRInitials:%String(MAXLEN=255),FromVIP:%String(MAXLEN=255),FromPAPMINo:%String(MAXLEN=255),FromPAPMIName:%String(MAXLEN=255),FromPAPMIName2:%String(MAXLEN=255),FromPAPMIName3:%String(MAXLEN=255),ToPAPMINo:%String(MAXLEN=255),ToPAPMIName:%String(MAXLEN=255),ToPAPMIName2:%String(MAXLEN=255),ToPAPMIName3:%String(MAXLEN=255),HOSPRowId:%String(MAXLEN=255),HOSPCode:%String(MAXLEN=255),HOSPDesc:%String(MAXLEN=255)"/>
+</Query>
+</Class>
+</Export>

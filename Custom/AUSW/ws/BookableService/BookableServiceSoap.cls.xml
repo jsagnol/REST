@@ -1,0 +1,171 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.AUSW.ws.BookableService.BookableServiceSoap">
+<ProcedureBlock>1</ProcedureBlock>
+<Super>%SOAP.WebClient</Super>
+<TimeCreated>63357,46125.801647</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/AUSW/ws/BookableService/BookableServiceSoap.xml#1 $</Default>
+</Parameter>
+
+<Parameter name="LOCATION">
+<Description>
+This is the URL used to access the web service.</Description>
+<Default>http://snap-wip/WebServices/BookableService.asmx</Default>
+</Parameter>
+
+<Parameter name="NAMESPACE">
+<Description>
+This is the namespace used by the Service</Description>
+<Default>http://tempuri.org/</Default>
+</Parameter>
+
+<Parameter name="OUTPUTTYPEATTRIBUTE">
+<Description>
+Use xsi:type attribute for literal types.</Description>
+<Default>1</Default>
+</Parameter>
+
+<Parameter name="SECURITYIN">
+<Description>
+Determines handling of Security header.</Description>
+<Default>ALLOW</Default>
+</Parameter>
+
+<Parameter name="SERVICENAME">
+<Description>
+This is the name of the Service</Description>
+<Default>BookableService</Default>
+</Parameter>
+
+<Parameter name="SOAPVERSION">
+<Description>
+This service supports both SOAP 1.1 and SOAP 1.2.</Description>
+</Parameter>
+
+<Method name="GetLocation">
+<Implementation><![CDATA[
+	s location=""
+	&SQL(SELECT FILE_RowId INTO :file FROM SQLUser.CF_SystemFileDefinition WHERE FILE_Desc='SNAP')
+	
+	i file {
+		s CFobj=##class(User.CFSystemFileDefinition).%OpenId(file)
+		i CFobj {
+			set baseuri=CFobj.FILEVirtualDirectory
+			set:($e(baseuri,*,*)'="/") baseuri = baseuri_"/"
+			
+			set relativeuri=$p(..#LOCATION, "/", 4, $l(..#LOCATION,"/"))
+			set location = baseuri_relativeuri
+			k CFobj
+		}
+	}
+	q location
+]]></Implementation>
+</Method>
+
+<Method name="%OnNew">
+<Description><![CDATA[
+This callback method is invoked by the <METHOD>%New</METHOD> method to 
+provide notification that a new instance of an object is being created.
+
+<p>If this method returns an error then the object will not be created.
+<p>It is passed the arguments provided in the %New call.
+When customizing this method, override the arguments with whatever variables and types you expect to receive from %New().
+For example, if you're going to call %New, passing 2 arguments, %OnNew's signature could be:
+<p>Method %OnNew(dob as %Date = "", name as %Name = "") as %Status
+If instead of returning a %Status code this returns an oref and this oref is a subclass of the current
+class then this oref will be the one returned to the caller of %New method.]]></Description>
+<Private>1</Private>
+<ReturnType>%Status</ReturnType>
+<ServerOnly>1</ServerOnly>
+<Implementation><![CDATA[
+	s location=..GetLocation()
+	i location'="" s ..Location=location
+	// default to SOAP 1.2 if supported, which returns meaningful errors in SOAP faults
+	i (..#SOAPVERSION = "") && (..SoapVersion = "")
+		s ..SoapVersion = "1.2"
+	Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="BookableBookForTrakAppt">
+<Final>1</Final>
+<FormalSpec>TrakApptId:%String,BookableCode:%String</FormalSpec>
+<ProcedureBlock>1</ProcedureBlock>
+<ReturnType>%Boolean</ReturnType>
+<WebMethod>1</WebMethod>
+<SoapBindingStyle>document</SoapBindingStyle>
+<SoapBodyUse>literal</SoapBodyUse>
+<Implementation><![CDATA[ Quit ..WebMethod("BookableBookForTrakAppt").Invoke($this,"http://tempuri.org/BookableBookForTrakAppt",.TrakApptId,.BookableCode)
+]]></Implementation>
+</Method>
+
+<Method name="BookableBookForTrakEventTime">
+<Final>1</Final>
+<FormalSpec>TrakEventTimeId:%String,BookableCode:%String</FormalSpec>
+<ProcedureBlock>1</ProcedureBlock>
+<ReturnType>%Boolean</ReturnType>
+<WebMethod>1</WebMethod>
+<SoapBindingStyle>document</SoapBindingStyle>
+<SoapBodyUse>literal</SoapBodyUse>
+<ReturnTypeParams>XMLNAME="BookableBookForTrakEventTimeResult"</ReturnTypeParams>
+<Implementation><![CDATA[ Quit ..WebMethod("BookableBookForTrakEventTime").Invoke($this,"http://tempuri.org/BookableBookForTrakEventTime",.TrakEventTimeId,.BookableCode)
+]]></Implementation>
+</Method>
+
+<Method name="BookablesListAvailable">
+<Final>1</Final>
+<FormalSpec>StartDateTime:%TimeStamp,EndDateTime:%TimeStamp,HOSPRowId:%Integer,CTLOCRowId:%Integer,RESRowId:%Integer,SESSRowId:%String,SERRowId:%Integer</FormalSpec>
+<ProcedureBlock>1</ProcedureBlock>
+<ReturnType>%ListOfObjects</ReturnType>
+<WebMethod>1</WebMethod>
+<SoapBindingStyle>document</SoapBindingStyle>
+<SoapBodyUse>literal</SoapBodyUse>
+<ReturnTypeParams>ELEMENTTYPE="Custom.AUSW.ws.BookableService.BookableAvailability",XMLITEMNAME="BookableAvailability",XMLNAME="BookablesListAvailableResult"</ReturnTypeParams>
+<Implementation><![CDATA[ Quit ..WebMethod("BookablesListAvailable").Invoke($this,"http://tempuri.org/BookablesListAvailable",.StartDateTime,.EndDateTime,.HOSPRowId,.CTLOCRowId,.RESRowId,.SESSRowId,.SERRowId)
+]]></Implementation>
+</Method>
+
+<Method name="BookablesListAvailableForTrakAppt">
+<Final>1</Final>
+<FormalSpec>TrakApptId:%String</FormalSpec>
+<ProcedureBlock>1</ProcedureBlock>
+<ReturnType>%ListOfObjects</ReturnType>
+<WebMethod>1</WebMethod>
+<SoapBindingStyle>document</SoapBindingStyle>
+<SoapBodyUse>literal</SoapBodyUse>
+<ReturnTypeParams>ELEMENTTYPE="Custom.AUSW.ws.BookableService.BookableAvailability",XMLITEMNAME="BookableAvailability",XMLNAME="BookablesListAvailableForTrakApptResult"</ReturnTypeParams>
+<Implementation><![CDATA[ Quit ..WebMethod("BookablesListAvailableForTrakAppt").Invoke($this,"http://tempuri.org/BookablesListAvailableForTrakAppt",.TrakApptId)
+]]></Implementation>
+</Method>
+
+<Method name="BookablesListAvailableForTrakEventSession">
+<Final>1</Final>
+<FormalSpec>eventId:%Integer,StartDateTime:%TimeStamp</FormalSpec>
+<ProcedureBlock>1</ProcedureBlock>
+<ReturnType>%ListOfObjects</ReturnType>
+<WebMethod>1</WebMethod>
+<SoapBindingStyle>document</SoapBindingStyle>
+<SoapBodyUse>literal</SoapBodyUse>
+<ReturnTypeParams>ELEMENTTYPE="Custom.AUSW.ws.BookableService.BookableAvailability",XMLITEMNAME="BookableAvailability",XMLNAME="BookablesListAvailableForTrakEventSessionResult"</ReturnTypeParams>
+<Implementation><![CDATA[ Quit ..WebMethod("BookablesListAvailableForTrakEventSession").Invoke($this,"http://tempuri.org/BookablesListAvailableForTrakEventSession",.eventId,.StartDateTime)
+]]></Implementation>
+</Method>
+
+<Method name="BookablesListAvailableForTrakEventTime">
+<Final>1</Final>
+<FormalSpec>TrakEventTimeId:%String</FormalSpec>
+<ProcedureBlock>1</ProcedureBlock>
+<ReturnType>%ListOfObjects</ReturnType>
+<WebMethod>1</WebMethod>
+<SoapBindingStyle>document</SoapBindingStyle>
+<SoapBodyUse>literal</SoapBodyUse>
+<ReturnTypeParams>ELEMENTTYPE="Custom.AUSW.ws.BookableService.BookableAvailability",XMLITEMNAME="BookableAvailability",XMLNAME="BookablesListAvailableForTrakEventTimeResult"</ReturnTypeParams>
+<Implementation><![CDATA[ Quit ..WebMethod("BookablesListAvailableForTrakEventTime").Invoke($this,"http://tempuri.org/BookablesListAvailableForTrakEventTime",.TrakEventTimeId)
+]]></Implementation>
+</Method>
+</Class>
+</Export>

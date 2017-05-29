@@ -1,0 +1,85 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.SWARH.JS.OEOrdItem.TabularTextResultsEMR">
+<Description>
+Component JavaScript for: OEOrdItem.TabularTextResultsEMR</Description>
+<Modified>0</Modified>
+<Super>websys.AbstractJavaScript</Super>
+<TimeCreated>63537,10516.652074</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+This Parameter is updated by Perforce</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/SWARH/JS/OEOrdItem/TabularTextResultsEMR.xml#1 $</Default>
+</Parameter>
+
+<Method name="JSContent">
+<Description>
+ </Description>
+<Language>javascript</Language>
+<ClientMethod>1</ClientMethod>
+<Implementation><![CDATA[
+/* 
+ * Copyright (C) 2009  South West Alliance of Rural Health
+ * 2009-08-04  Timshel Knoll-Miller - Find results which are in HTML format and create and populate the document text into an iframe
+ */
+function ShowAsHTML(objField) {
+   //var objIframe = document.createElement('<iframe src="about:blank" name="ResultFrame" id="ResultFrame">'); // 2016-10-05 (RG) - Changed to be standards compliant
+   var objIframe = document.createElement('iframe');
+   var objContainer = objField.parentNode;
+
+   objIframe.setAttribute('src','about:blank');
+   objIframe.setAttribute('name','ResultFrame');
+   objIframe.setAttribute('id','ResultFrame');
+   
+   //objRTFEditor.parentNode.insertBefore(objRTFEditor, objIframe);
+   objIframe.style.width = objField.style.width;
+   objIframe.style.height = objField.style.height;
+   objIframe.width = objField.style.width;
+   objIframe.height = objField.style.height;
+
+   //objContainer.appendChild(objIframe);
+   objContainer.replaceChild(objIframe, objField);
+
+   objIframe.doc = null;
+   if(objIframe.contentDocument)
+      // Firefox, Opera
+      objIframe.doc = objIframe.contentDocument;
+   else if(objIframe.contentWindow)
+      // Internet Explorer
+      objIframe.doc = objIframe.contentWindow.document;
+   else if(objIframe.document)
+      // Others?
+      objIframe.doc = objIframe.document;
+
+   if (objIframe.doc == null)
+      throw "Document not initialised";
+
+   var doc = objIframe.doc;
+
+   var ifRoot = doc.createElement("html");
+   var html = objField.value;
+   if (! html.indexOf('<html') > 0)
+   	html = '<html><head><title>Document</title></head><body>' & escape(html) & '</body></html>';
+   else if (html.indexOf("=\\\"") > 0) {
+        html = html.replace(/\\(["'])/g, '$1');
+   }
+
+   doc.write(html);
+}
+
+function CustomBodyLoadHandler() {
+   BodyLoadHandler();
+
+   //var objRTFEditor = document.getElementById('ctlRTFEditor');
+   var objResult = document.getElementById('Result');
+   if (objResult && objResult.value.indexOf('<html') > 0)
+   	ShowAsHTML(objResult);
+}
+//document.body.onload = CustomBodyLoadHander;
+websys_removeListener("load","onload",BodyLoadHandler); 
+websys_addListener("load","onload",CustomBodyLoadHandler);
+]]></Implementation>
+</Method>
+</Class>
+</Export>

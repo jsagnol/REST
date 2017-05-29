@@ -1,0 +1,371 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.SWARH.Report.RptSvc.StoredProc.SWARHRTHR1023">
+<ProcedureBlock>0</ProcedureBlock>
+<Super>Custom.SWARH.Report.RptSvc.StoredProc.Abstract</Super>
+<TimeCreated>62770,51850.644046</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/SWARH/Report/RptSvc/StoredProc/SWARHRTHR1023.xml#1 $</Default>
+</Parameter>
+
+<UDLText name="T">
+<Content><![CDATA[
+/*
+ * Report Name: Theatre Export Exception Report
+ * Report Code: SWARH.R.THR1023
+ * SWARH Developer: Zac Newman
+ ****** UPDATES ******
+ * 2013/07/05 – Theatre Data Dump Exception Report (This is a new report, used by WDHS and SWHC for finding incomplete records)
+ * PH 2015/10/01 - Add exceptions related to anaesthetic records and PACU records marked as done but missing data SWARHRTHR1023a
+ */
+]]></Content>
+</UDLText>
+
+<Method name="SWARHRTHR1023QueryClose">
+<Description>
+This is the Close component of the %Library.Query.
+This is standard code and should never have to change.
+This is where all the cleanup is performed, i.e. the purging of the temporary storage global ^CacheTemp.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>QHandle:%Library.Binary</FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ New repid,ind
+ Set repid=$li(QHandle,2)
+
+ i mon Do ..MonitorEnd(mon)
+
+ Kill ^CacheTemp(..#CACHETEMPSUBSCRIPT,repid)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="SWARHRTHR1023QueryExecute">
+<Description>
+This is the Execute section for the %Library.Query. 
+All of the logic will be performed here.
+A new node for the ^CacheTemp global will be created and each subscript of this global will contain
+a row for the report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,Hospital:%Library.String,DateFrom:%Date,DateTo:%Date]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ New repid,ind
+
+ Set repid=$I(^CacheTemp(..#CACHETEMPSUBSCRIPT))
+ 
+	NEW PAADMRowId,PAPMINo,PAPMIName,PAPMIName2,ANAOPNo,ANANo,Anaesthetist,ANADate,Surgeon,CTLOCDesc,ANAOPProcedure,PAADMAdmDate
+	SET (PAADMRowId,PAPMINo,PAPMIName,PAPMIName2,ANAOPNo,ANANo,Anaesthetist,ANADate,Surgeon,CTLOCDesc,ANAOPProcedure,PAADMAdmDate) =""
+
+ s ind=1, END=0
+ s mon=..MonitorBegin()
+ s Hospital=$zstrip(Hospital,"*CW")
+ s DateFrom=..ConvertDateToCache(DateFrom)
+ s DateTo=..ConvertDateToCache(DateTo)
+
+
+ &SQL(DECLARE SWARHRTHR1023Cursor CURSOR FOR 
+SELECT
+		PA.PAADM_RowId,
+		PA.PAADM_PAPMI_DR->PAPMI_No,
+		PA.PAADM_PAPMI_DR->PAPMI_Name,
+		PA.PAADM_PAPMI_DR->PAPMI_Name2,
+		ANO.ANAOP_No,
+		AN.ANA_No,
+		(AN.ANA_Anaesthetist_DR->CTPCP_FirstName||' '||AN.ANA_Anaesthetist_DR->CTPCP_Surname)As Anaesthetist,
+		AN.ANA_Date,
+		(RB.RBOP_Surgeon_DR->CTPCP_FirstName||' '||RB.RBOP_Surgeon_DR->CTPCP_Surname)As Surgeon,
+		RB.RBOP_OperDepartment_DR->CTLOC_Desc,
+		ANO.ANAOP_Procedure,
+		PA.PAADM_AdmDate
+
+FROM 
+		SQLUser.OR_Anaesthesia AN INNER JOIN 
+		SQLUser.RB_OperatingRoom RB on RB.RBOP_RowId = AN.ANA_RBOperatingRoom_DR INNER JOIN
+		SQLUser.OR_Anaest_Operation ANO ON ANO.ANAOP_Par_Ref = AN.ANA_RowId INNER JOIN
+		SQLUser.PA_Adm PA on PA.PAADM_RowID = AN.ANA_PAADM_ParRef
+
+WHERE ANO.ANAOP_Status IS NULL
+		AND PA.PAADM_AdmDate BETWEEN :DateFrom AND :DateTo
+		AND PAADM_Hospital_DR = :Hospital
+)
+ &SQL(OPEN SWARHRTHR1023Cursor)
+ 
+ //FETCH FIRST ROW
+ d FetchRow
+  
+ while END=0 {
+	 d FormatDates
+
+	 s sort = ind
+	 s ^CacheTemp(..#CACHETEMPSUBSCRIPT,repid,sort)=$LB(PAADMRowId,PAPMINo,PAPMIName,PAPMIName2,ANAOPNo,ANANo,Anaesthetist,ANADate,Surgeon,CTLOCDesc,ANAOPProcedure,PAADMAdmDate)
+	 s ind=ind+1
+ 
+	 d FetchRow
+ }
+
+ &SQL(CLOSE SWARHRTHR1023Cursor)
+ 
+ Set QHandle=$lb(0,repid,0)
+
+ Quit $$$OK
+
+FetchRow
+ &sql(FETCH SWARHRTHR1023Cursor INTO :PAADMRowId,:PAPMINo,:PAPMIName,:PAPMIName2,:ANAOPNo,:ANANo,:Anaesthetist,:ANADate,:Surgeon,:CTLOCDesc,:ANAOPProcedure,:PAADMAdmDate)
+ if SQLCODE '= 0 set END = 1
+ q
+ 
+FormatDates
+	s ANADate=..ConvertDateToODBC(ANADate)
+	s PAADMAdmDate=..ConvertDateToODBC(PAADMAdmDate)
+ q
+]]></Implementation>
+</Method>
+
+<Method name="SWARHRTHR1023QueryFetch">
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,&Row:%Library.List,&AtEnd:%Library.Integer=0]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+
+ New repid,ind
+
+ Set AtEnd=$li(QHandle,1)
+ Set repid=$li(QHandle,2)
+ Set ind=$li(QHandle,3)
+
+ Set ind=$o(^CacheTemp(..#CACHETEMPSUBSCRIPT,repid,ind))
+ If ind="" {
+	 Set AtEnd=1
+	 Set Row=""
+ }
+ Else      {
+ 	Set Row=^CacheTemp(..#CACHETEMPSUBSCRIPT,repid,ind)
+ }
+
+ s QHandle=$lb(AtEnd,repid,ind)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Query name="SWARHRTHR1023Query">
+<Type>%Library.Query</Type>
+<FormalSpec>Hospital:%Library.String,DateFrom:%Date,DateTo:%Date</FormalSpec>
+<SqlProc>1</SqlProc>
+<Parameter name="CONTAINID" value="0"/>
+<Parameter name="ROWSPEC" value="PAADMRowId:%Library.Integer,PAPMINo:%Library.String,PAPMIName:%Library.String,PAPMIName2:%Library.String,ANAOPNo:%Library.String,ANANo:%Library.String,Anaesthetist:%Library.String,ANADate:%Library.Date,Surgeon:%Library.String,CTLOCDesc:%Library.String,ANAOPProcedure:%Library.String,PAADMAdmDate:%Library.Date"/>
+<Parameter name="SELECTMODE" value="ODBC"/>
+</Query>
+
+<Method name="SWARHRTHR1023aQueryClose">
+<Description>
+This is the Close component of the %Library.Query.
+This is standard code and should never have to change.
+This is where all the cleanup is performed, i.e. the purging of the temporary storage global ^CacheTemp.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>QHandle:%Library.Binary</FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ New repid,ind
+ Set repid=$li(QHandle,2)
+
+ i mon Do ..MonitorEnd(mon)
+
+ Kill ^CacheTemp(..#CACHETEMPSUBSCRIPT,repid)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="SWARHRTHR1023aQueryExecute">
+<Description>
+This is the Execute section for the %Library.Query. 
+All of the logic will be performed here.
+A new node for the ^CacheTemp global will be created and each subscript of this global will contain
+a row for the report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,Hospital:%Library.String,DateFrom:%Date,DateTo:%Date]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ New repid,ind
+
+ Set repid=$I(^CacheTemp(..#CACHETEMPSUBSCRIPT))
+ 
+	NEW PAADMRowId,PAADMAdmNo,PAADMAdmDate,ANANo,ANAOPNo,PAPMINo,PAPMIName,PAPMIName2,RecordTypeCode,
+	ANAAreaInDate,ANAAreaInTime,ANADate,ANAAnaStartTime,
+	ANATheatreInDate,ANATheatreInTime,
+	ANAFinishDate,ANAAnaFinishTime,ANATheatreOutDate,ANATheatreOutTime,
+	ANAPACUStartDate,ANAPACUStartTime,ANAPACUFinishDate,ANAPACUFinishTime,ANAPACUReadyLeaveDate,ANAPACUReadyLeaveTime,
+	ANAAreaOutDate,ANAAreaOutTime
+	SET (PAADMRowId,PAADMAdmNo,ANANo,ANAOPNo,PAPMINo,PAPMIName,PAPMIName2,RecordTypeCode,
+	ANAAreaInDate,ANAAreaInTime,ANADate,ANAAnaStartTime,
+	ANATheatreInDate,ANATheatreInTime,
+	ANAFinishDate,ANAAnaFinishTime,ANATheatreOutDate,ANATheatreOutTime,
+	ANAPACUStartDate,ANAPACUStartTime,ANAPACUFinishDate,ANAPACUFinishTime,ANAPACUReadyLeaveDate,ANAPACUReadyLeaveTime,
+	ANAAreaOutDate,ANAAreaOutTime)=""
+
+ s ind=1, END=0
+ s mon=..MonitorBegin()
+ s Hospital=$zstrip(Hospital,"*CW")
+ s DateFrom=..ConvertDateToCache(DateFrom)
+ s DateTo=..ConvertDateToCache(DateTo)
+
+
+ &SQL(DECLARE SWARHRTHR1023aCursor CURSOR FOR 
+SELECT
+ANA_PAADM_ParRef,
+ANA_PAADM_ParRef->PAADM_AdmNo,
+ANA_PAADM_ParRef->PAADM_AdmDate,
+ANA_No,
+ANAOP_No,
+ANA_PAADM_ParRef->PAADM_PAPMI_DR->PAPMI_No,
+ANA_PAADM_ParRef->PAADM_PAPMI_DR->PAPMI_Name,
+ANA_PAADM_ParRef->PAADM_PAPMI_DR->PAPMI_Name2,
+CASE WHEN (ANA_AreaInDate IS NULL
+OR ANA_AreaInTime IS NULL
+OR ANA_Date IS NULL
+OR ANA_AnaStartTime IS NULL
+OR ANA_TheatreInDate IS NULL
+OR ANA_TheatreInTime IS NULL
+OR ANA_FinishDate IS NULL
+OR ANA_AnaFinishTime IS NULL
+OR ANA_TheatreOutDate IS NULL
+OR ANA_TheatreOutTime IS NULL) THEN 'ANA'
+ELSE 'PACU' END As RecordTypeCode,
+ANA_AreaInDate,
+ANA_AreaInTime,
+ANA_Date,
+ANA_AnaStartTime,
+ANA_TheatreInDate,
+ANA_TheatreInTime,
+ANA_FinishDate,
+ANA_AnaFinishTime,
+ANA_TheatreOutDate,
+ANA_TheatreOutTime,
+ANA_PACU_StartDate,
+ANA_PACU_StartTime,
+ANA_PACU_FinishDate,
+ANA_PACU_FinishTime,
+ANA_PACU_ReadyLeaveDate,
+ANA_PACU_ReadyLeaveTime,
+ANA_AreaOutDate,
+ANA_AreaOutTime
+FROM
+SQLUser.OR_Anaesthesia
+LEFT JOIN SQLUser.OR_Anaest_Operation ON ANAOP_Par_Ref = ANA_RowId
+WHERE
+ANA_PAADM_ParRef->PAADM_Hospital_DR=:Hospital
+AND ANA_PAADM_ParRef->PAADM_AdmDate BETWEEN :DateFrom AND :DateTo
+AND ANA_Status='D'
+AND
+(ANA_AreaInDate IS NULL
+OR ANA_AreaInTime IS NULL
+OR ANA_Date IS NULL
+OR ANA_AnaStartTime IS NULL
+OR ANA_TheatreInDate IS NULL
+OR ANA_TheatreInTime IS NULL
+OR ANA_FinishDate IS NULL
+OR ANA_AnaFinishTime IS NULL
+OR ANA_TheatreOutDate IS NULL
+OR ANA_TheatreOutTime IS NULL
+OR ANA_PACU_StartDate IS NULL
+OR ANA_PACU_StartTime IS NULL
+OR ANA_PACU_FinishDate IS NULL
+OR ANA_PACU_FinishTime IS NULL
+OR ANA_PACU_ReadyLeaveDate IS NULL
+OR ANA_PACU_ReadyLeaveTime IS NULL
+OR ANA_AreaOutDate IS NULL
+OR ANA_AreaOutTime IS NULL)
+)
+ &SQL(OPEN SWARHRTHR1023aCursor)
+ 
+ //FETCH FIRST ROW
+ d FetchRowa
+  
+ while END=0 {
+	 d FormatDatesa
+
+	 s sort = ind
+	 s ^CacheTemp(..#CACHETEMPSUBSCRIPT,repid,sort)=$LB(PAADMRowId,PAADMAdmNo,PAADMAdmDate,ANANo,ANAOPNo,PAPMINo,PAPMIName,PAPMIName2,RecordTypeCode,
+	ANAAreaInDate,ANAAreaInTime,ANADate,ANAAnaStartTime,
+	ANATheatreInDate,ANATheatreInTime,
+	ANAFinishDate,ANAAnaFinishTime,ANATheatreOutDate,ANATheatreOutTime,
+	ANAPACUStartDate,ANAPACUStartTime,ANAPACUFinishDate,ANAPACUFinishTime,ANAPACUReadyLeaveDate,ANAPACUReadyLeaveTime,
+	ANAAreaOutDate,ANAAreaOutTime)
+	 s ind=ind+1
+ 
+	 d FetchRowa
+ }
+
+ &SQL(CLOSE SWARHRTHR1023aCursor)
+ 
+ Set QHandle=$lb(0,repid,0)
+
+ Quit $$$OK
+
+FetchRowa
+ &sql(FETCH SWARHRTHR1023aCursor INTO :PAADMRowId,:PAADMAdmNo,:PAADMAdmDate,:ANANo,:ANAOPNo,:PAPMINo,:PAPMIName,:PAPMIName2,:RecordTypeCode,
+	:ANADate,:ANAAnaStartTime,
+	:ANAAreaOutDate,:ANAAreaOutTime,:ANATheatreInDate,:ANATheatreInTime,
+	:ANAFinishDate,:ANAAnaFinishTime,:ANATheatreOutDate,:ANATheatreOutTime,
+	:ANAPACUStartDate,:ANAPACUStartTime,:ANAPACUFinishDate,:ANAPACUFinishTime,:ANAPACUReadyLeaveDate,:ANAPACUReadyLeaveTime,
+	:ANAAreaOutDate,:ANAAreaOutTime)
+ if SQLCODE '= 0 set END = 1
+ q
+ 
+FormatDatesa
+	i PAADMAdmDate'="" s PAADMAdmDate=..ConvertDateToODBC(PAADMAdmDate)
+	i ANAAreaInDate'="" s ANAAreaInDate=..ConvertDateToODBC(ANAAreaInDate)
+	i ANADate'="" s ANADate=..ConvertDateToODBC(ANADate)
+	i ANAAreaOutDate'="" s ANAAreaOutDate=..ConvertDateToODBC(ANAAreaOutDate)
+	i ANATheatreInDate'="" s ANATheatreInDate=..ConvertDateToODBC(ANATheatreInDate)
+	i ANAFinishDate'="" s ANAFinishDate=..ConvertDateToODBC(ANAFinishDate)
+	i ANATheatreOutDate'="" s ANATheatreOutDate=..ConvertDateToODBC(ANATheatreOutDate)
+	i ANAAreaInTime'="" s ANAAreaInTime=..ConvertTimeToODBC(ANAAreaInTime)
+	i ANAAnaStartTime'="" s ANAAnaStartTime=..ConvertTimeToODBC(ANAAnaStartTime)
+	i ANAAreaOutTime'="" s ANAAreaOutTime=..ConvertTimeToODBC(ANAAreaOutTime)
+	i ANATheatreInTime'="" s ANATheatreInTime=..ConvertTimeToODBC(ANATheatreInTime)
+	i ANAAnaFinishTime'="" s ANAAnaFinishTime=..ConvertTimeToODBC(ANAAnaFinishTime)
+	i ANATheatreOutTime'="" s ANATheatreOutTime=..ConvertTimeToODBC(ANATheatreOutTime)
+ q
+]]></Implementation>
+</Method>
+
+<Method name="SWARHRTHR1023aQueryFetch">
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,&Row:%Library.List,&AtEnd:%Library.Integer=0]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+
+ New repid,ind
+
+ Set AtEnd=$li(QHandle,1)
+ Set repid=$li(QHandle,2)
+ Set ind=$li(QHandle,3)
+
+ Set ind=$o(^CacheTemp(..#CACHETEMPSUBSCRIPT,repid,ind))
+ If ind="" {
+	 Set AtEnd=1
+	 Set Row=""
+ }
+ Else      {
+ 	Set Row=^CacheTemp(..#CACHETEMPSUBSCRIPT,repid,ind)
+ }
+
+ s QHandle=$lb(AtEnd,repid,ind)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Query name="SWARHRTHR1023aQuery">
+<Type>%Library.Query</Type>
+<FormalSpec>Hospital:%Library.String,DateFrom:%Date,DateTo:%Date</FormalSpec>
+<SqlProc>1</SqlProc>
+<Parameter name="CONTAINID" value="0"/>
+<Parameter name="ROWSPEC" value="PAADMRowId:%Integer,PAADMAdmNo:%String,PAADMAdmDate:%Date,ANANo:%String,ANAOPNo:%String,PAPMINo:%String,PAPMIName:%String,PAPMIName2:%String,RecordTypeCode:%String,ANAAreaInDate:%Date,ANAAreaInTime:%Time,ANADate:%Date,ANAAnaStartTime:%Time,ANATheatreInDate:%Date,ANATheatreInTime:%Time,ANAFinishDate:%Date,ANAAnaFinishTime:%Time,ANATheatreOutDate:%Date,ANATheatreOutTime:%Time,ANAPACUStartDate:%Date,ANAPACUStartTime:%Time,ANAPACUFinishDate:%Date,ANAPACUFinishTime:%Time,ANAPACUReadyLeaveDate:%Date,ANAPACUReadyLeaveTime:%Time,ANAAreaOutDate:%Date,ANAAreaOutTime:%Time"/>
+<Parameter name="SELECTMODE" value="ODBC"/>
+</Query>
+</Class>
+</Export>

@@ -1,0 +1,236 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.AUXX.Report.ZEN.StoredProc.ClinicalActivity">
+<Description><![CDATA[
+Report Name: Clinical Activity <br>
+Report Code: Trak.ClinicalActivity <br>
+Logauxx Number: 64289 <br>
+Report Description: This report would show the number of scheduled appointments, the number of overbookings and the number of booked appointments for selected clinic.]]></Description>
+<ProcedureBlock>0</ProcedureBlock>
+<Super>Report.Abstract</Super>
+<TimeCreated>59388,55236.125</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/AUXX/Report/ZEN/StoredProc/ClinicalActivity.xml#1 $</Default>
+</Parameter>
+
+<Method name="ClinicalActivityClose">
+<Description>
+This is the Close component of the %Library.Query.
+This is standard code and should never have to change.
+This is where all the cleanup is performed, i.e. the purging of the temporary storage global ^CacheTemp.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>QHandle:%Library.Binary</FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Clean up by purging the temporary node in ^CacheTemp global
+ New repid
+ Set repid=$LIST(QHandle,2)
+ 
+ //Start Monitor (if configured to capture stats)
+ i mon Do ..MonitorEnd(mon)
+
+ Kill ^CacheTemp("TRAK",repid)
+ 
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="ClinicalActivityExecute">
+<Description>
+This is the Execute section for the %Library.Query. 
+All of the logic will be performed here.
+A new node for the ^CacheTemp global will be created and each subscript of this global will contain
+a row for the report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,DateFrom:%Date,DateTo:%Date,Hospital:%String,Location:%String,CareProvider:%String]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ New repid,ind
+ 
+ new APPTRowId,CTPCPRowId,CTPCPCode,CTPCPDesc,CTLOCRowId,CTLOCCode,CTLOCDesc,HOSPRowId,HOSPCode,HOSPDesc,ASDate,ROBRowId,ROBCode,ROBDesc
+ set (APPTRowId,CTPCPRowId,CTPCPCode,CTPCPDesc,CTLOCRowId,CTLOCCode,CTLOCDesc,HOSPRowId,HOSPCode,HOSPDesc,ASDate,ROBRowId,ROBCode,ROBDesc)=""
+ new TotalAttend,TotalCancel,TotalNonAtt,TotalBooked,TotalTrfr,TotalOnHold,TotalOther,TotalOverBk
+ set (TotalAttend,TotalCancel,TotalNonAtt,TotalBooked,TotalTrfr,TotalOnHold,TotalOther,TotalOverBk)=0
+ new LastHospital,LastLocation,LastCareProv,LastDate
+ set (LastHospital,LastLocation,LastCareProv,LastDate)=""
+ new NextHospital,NextLocation,NextCareProv,NextDate,ClinProv
+ set (NextHospital,NextLocation,NextCareProv,NextDate,ClinProv)=""
+ new FirstTime
+ set FirstTime="Y"
+ 
+ // Use $Increment to get the next node
+ Set repid=$Increment(^CacheTemp("TRAK"))
+
+ //Start Monitor (if configured to capture stats)
+ set mon=..MonitorBegin()
+ 
+ if Hospital'="" s Hospital=$ZSTRIP(Hospital,"*WC")
+ if Location'="" s Location=$ZSTRIP(Location,"*WC")
+ if CareProvider'="" s CareProvider=$ZSTRIP(CareProvider,"*WC")
+ 
+ //Convert ODBC dates to cache format
+ s DateFrom=..ConvertDateToCache(DateFrom)
+ s DateTo=..ConvertDateToCache(DateTo)
+ s Date=DateFrom
+ 
+ do GetData
+ // Build QHandle (AtEnd,ReportID,Index)
+ Set QHandle=$lb(0,repid,0)
+ Quit $$$OK
+
+GetData
+ &SQL(DECLARE APPT CURSOR FOR
+ SELECT
+	 APPT_RowId,
+	 APPT_AS_ParRef->AS_RES_ParRef->RES_CTPCP_DR,
+	 APPT_AS_ParRef->AS_RES_ParRef->RES_CTPCP_DR->CTPCP_Desc,
+	 APPT_AS_ParRef->AS_RES_ParRef->RES_CTPCP_DR->CTPCP_Desc,
+	 APPT_AS_ParRef->AS_RES_ParRef->RES_CTLOC_DR,
+	 APPT_AS_ParRef->AS_RES_ParRef->RES_CTLOC_DR->CTLOC_Code,
+	 APPT_AS_ParRef->AS_RES_ParRef->RES_CTLOC_DR->CTLOC_Desc,
+	 APPT_AS_ParRef->AS_RES_ParRef->RES_CTLOC_DR->CTLOC_Hospital_DR,
+	 APPT_AS_ParRef->AS_RES_ParRef->RES_CTLOC_DR->CTLOC_Hospital_DR->HOSP_Code,
+	 APPT_AS_ParRef->AS_RES_ParRef->RES_CTLOC_DR->CTLOC_Hospital_DR->HOSP_Desc,
+	 APPT_AS_ParRef->AS_Date,
+	 APPT_Status,
+	 APPT_ReasonOverBook_DR,
+	 APPT_ReasonOverBook_DR->ROB_Code,
+	 APPT_ReasonOverBook_DR->ROB_Desc
+ INTO :APPTRowId,:CTPCPRowId,:CTPCPCode,:NextCareProv,:CTLOCRowId,:CTLOCCode,:NextLocation,:HOSPRowId,:HOSPCode,:NextHospital,:NextDate,:APPTStatus,:ROBRowId,:ROBCode,:ROBDesc
+ FROM SQLUser.RB_Appointment
+ WHERE APPT_AS_ParRef->AS_Date BETWEEN  :DateFrom AND :DateTo
+ AND (({fn CONCAT( ',', {fn CONCAT((:Hospital),',')})} [ {fn CONCAT( ',', {fn CONCAT((APPT_AS_ParRef->AS_RES_ParRef->RES_CTLOC_DR->CTLOC_Hospital_DR->HOSP_RowId),',')})}) OR (:Hospital IS NULL))
+ AND (({fn CONCAT( ',', {fn CONCAT((:Location),',')})} [ {fn CONCAT( ',', {fn CONCAT((APPT_AS_ParRef->AS_RES_ParRef->RES_CTLOC_DR->CTLOC_RowId),',')})}) OR (:Location IS NULL))
+ AND (({fn CONCAT( ',', {fn CONCAT((:CareProvider),',')})} [ {fn CONCAT( ',', {fn CONCAT((APPT_AS_ParRef->AS_RES_ParRef->RES_CTPCP_DR->CTPCP_RowId),',')})}) OR (:CareProvider IS NULL))
+ ORDER BY  APPT_AS_ParRef->AS_RES_ParRef->RES_CTLOC_DR->CTLOC_Hospital_DR->HOSP_Desc,
+ 			 APPT_AS_ParRef->AS_RES_ParRef->RES_CTLOC_DR->CTLOC_Desc,
+ 			 APPT_AS_ParRef->AS_RES_ParRef->RES_CTPCP_DR->CTPCP_Desc,
+ 			 APPT_AS_ParRef->AS_Date)
+
+ &SQL(OPEN APPT)
+ 
+ for  &SQL(FETCH APPT) q:SQLCODE'=0  do ProcessData
+
+ if FirstTime = "N" {
+ 	do FormatDates
+ 	do BuildRow
+ }
+
+ &SQL(CLOSE APPT)
+ q
+ 
+ProcessData 
+ if FirstTime = "Y" {
+	do SetLast
+ }
+ if (LastHospital = NextHospital) && (LastLocation = NextLocation)
+ 		&& (LastCareProv = NextCareProv) && (LastDate = NextDate) {
+	do AccumTots
+ }
+ else {
+	do FormatDates
+ 	do BuildRow
+	do SetLast
+	do AccumTots
+ }
+ q
+ 
+SetLast
+ set FirstTime = "N"
+ set LastHospital = NextHospital
+ set LastLocation = NextLocation
+ set LastCareProv = NextCareProv
+ set LastDate = NextDate
+ set (TotalAttend,TotalCancel,TotalNonAtt,TotalBooked,TotalTrfr,TotalOnHold,TotalOther,TotalOverBk)=0
+ q
+ 
+AccumTots
+ if APPTStatus = "A" {set TotalAttend = TotalAttend + 1}
+ elseif APPTStatus = "C" {set TotalAttend = TotalAttend + 1}
+ elseif APPTStatus = "S" {set TotalAttend = TotalAttend + 1}
+ elseif APPTStatus = "D" {set TotalAttend = TotalAttend + 1}
+ elseif APPTStatus = "X" {set TotalCancel = TotalCancel + 1}
+ elseif APPTStatus = "N" {set TotalNonAtt = TotalNonAtt + 1}
+ elseif APPTStatus = "P" {set TotalBooked = TotalBooked + 1}
+ elseif APPTStatus = "T" {set TotalTrfr = TotalTrfr + 1}
+ elseif APPTStatus = "H" {set TotalOnHold = TotalOnHold + 1}
+ else {set TotalOther = TotalOther + 1} 
+ if ROBRowId '= "" {set TotalOverBk = TotalOverBk + 1}
+ q
+
+FormatDates
+ // Convert the dates to ODBC date format
+ set HOSPDesc = LastHospital
+ set CTLOCDesc = LastLocation
+ set CTPCPDesc = LastCareProv
+ if LastCareProv = "" {
+	 set ClinProv = LastLocation
+ }
+ else {
+	 set ClinProv = LastLocation_" / "_LastCareProv
+ }
+ set ASDate = LastDate
+ set ASDate = ..ConvertDateToODBC(ASDate)
+ q
+  
+BuildRow
+ s ind=$i(ind)
+ s ^CacheTemp("TRAK",repid,ind)=$LB(CTPCPRowId,CTLOCRowId,CTPCPCode,HOSPDesc,CTLOCDesc,CTPCPDesc,ASDate,ClinProv,TotalAttend,TotalCancel,TotalNonAtt,TotalBooked,TotalTrfr,TotalOnHold,TotalOther,TotalOverBk)
+ q
+]]></Implementation>
+</Method>
+
+<Method name="ClinicalActivityFetch">
+<Description>
+This is the Fetch component of the %Library.Query. 
+This should never have to change. It is designed to fetch the row for each subscript of the ^CacheTemp
+global and return this row to the Crystal Report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,&Row:%Library.List,&AtEnd:%Library.Integer=0]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // This fetch method should never have to change. 
+
+ // repid - Report ID
+ // ind   - sequence index which represents each row
+
+ New repid,ind
+
+ // Restore QHandle
+ Set AtEnd=$LI(QHandle,1)
+ Set repid=$LI(QHandle,2)
+ Set ind=$LI(QHandle,3)
+
+ Set ind=$order(^CacheTemp("TRAK",repid,ind))
+ If ind="" {	// if there are no more rows, finish fetching
+ 	Set AtEnd=1
+ 	Set Row=""
+ }  Else  {	// fetch row
+ 	Set Row=^CacheTemp("TRAK",repid,ind)
+ }
+
+ // Save QHandle
+ Set QHandle=$lb(AtEnd,repid,ind)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Query name="ClinicalActivity">
+<Description>
+This is the Stored Procedure Template. For Sample use only.
+It expects one parameter of type integer and will return 4 fields:
+Field1 - Integer
+Field2 - String
+Field3 - Date
+Field4 - Time</Description>
+<Type>%Library.Query</Type>
+<FormalSpec>DateFrom:%Date,DateTo:%Date,Hospital:%String,Location:%String,CareProvider:%String</FormalSpec>
+<SqlProc>1</SqlProc>
+<Parameter name="CONTAINID" value="0"/>
+<Parameter name="ROWSPEC" value="CTPCPRowId:%String,CTLOCRowId:%String,CTPCPCode:%String,HOSPDesc:%String,CTLOCDesc:%String,CTPCPDesc:%String,ASDate:%Date,ClinProv:%String,TotalAttend:%Integer,TotalCancel:%Integer,TotalNonAtt:%Integer,TotalBooked:%Integer,TotalTrfr:%Integer,TotalOnHold:%Integer,TotalOther:%Integer,TotalOverBk:%Integer"/>
+</Query>
+</Class>
+</Export>

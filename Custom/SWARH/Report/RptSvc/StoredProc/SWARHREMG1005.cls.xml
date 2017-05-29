@@ -1,0 +1,220 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.SWARH.Report.RptSvc.StoredProc.SWARHREMG1005">
+<Description><![CDATA[
+<pre>
+***************************************************************************************************************************************
+* Report Code: SWARHREMG1005
+* Report Description: ED Length of Stay report, used by both ED LOS (SWARHREMG1005s) & ED LOS Detail(SWARHREMG1005d)
+* Menu Caption: ED Length of Stay Reports
+* Initial Release: 01/02/2017	Developer:Michael Welsh
+* Modified:(Include date, developer and description)
+***************************************************************************************************************************************
+</pre>]]></Description>
+<ProcedureBlock>0</ProcedureBlock>
+<Super>Custom.SWARH.Report.RptSvc.StoredProc.Abstract</Super>
+<TimeCreated>61221,1746.551389</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)</Description>
+<Default>$Id$</Default>
+</Parameter>
+
+<Method name="SWARHREMG1005Execute">
+<Description>
+This is the Execute section for the %Library.Query. 
+All of the logic will be performed here.
+A new node for the ^CacheTemp global will be created and each subscript of this global will contain
+a row for the report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,Hospital:%Integer,DateFrom:%Date,DateTo:%Date,SumDet:%String]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+	
+ // Get reportid i.e. use $INCREMENT to add another node to ^CacheTemp global. 
+ // We use ^CacheTemp global because it will always use memory before disk
+ New repid,ind
+
+ // Use $Increment to get the next node
+ Set repid=$INCREMENT(^CacheTemp(..#CACHETEMPSUBSCRIPT))
+
+ New AdmDate,AdmTime,TriageDate,TriageTime,SeenDate,SeenTime,DischgDate,DischgTime,EpisodeNo,URNo,Surname,GivenName,OtherGivenName
+ 	,Complaint,PriorityCode,PriorityDesc,DischgClassCode,DischgClassDesc,DischgDelayReason,LOS,LOSgrp,DepartStatus
+ Set (AdmDate,AdmTime,TriageDate,TriageTime,SeenDate,SeenTime,DischgDate,DischgTime,EpisodeNo,URNo,Surname,GivenName,OtherGivenName
+ 	,Complaint,PriorityCode,PriorityDesc,DischgClassCode,DischgClassDesc,DischgDelayReason,LOS,LOSgrp,DepartStatus)=""
+
+ Set ind=1, END=0
+
+ //Start Monitor (if configured to capture stats)
+ Set mon=..MonitorBegin()
+
+ //Convert ODBC dates to cache format
+ Set DateFrom=..ConvertDateToCache(DateFrom)
+ Set DateTo=..ConvertDateToCache(DateTo)
+ 
+ &SQL(DECLARE SWARHREMG1005 CURSOR FOR
+ 	SELECT 
+ 		adm.PAADM_AdmDate AS AdmDate
+ 		,adm.PAADM_AdmTime AS AdmTime
+ 		,adm.PAADM_TriageDate AS TriageDate
+ 		,adm.PAADM_TriageTime AS TriageTime
+ 		,adm.PAADM_SeenDate AS SeenDate
+ 		,adm.PAADM_SeenTime AS SeenTime
+ 		,adm.PAADM_DischgDate AS DischgDate
+ 		,adm.PAADM_DischgTime AS DischgTime
+ 		,adm.PAADM_ADMNo AS EpisodeNo
+ 		,adm.PAADM_PAPMI_DR->PAPMI_No AS URNo
+ 		,adm.PAADM_PAPMI_DR->PAPMI_Name AS Surname
+ 		,adm.PAADM_PAPMI_DR->PAPMI_Name2 AS GivenName
+ 		,adm.PAADM_PAPMI_DR->PAPMI_Name3 AS OtherGivenName
+ 		,adm.PAADM_MainMRADM_DR->MRADM_PresentComplaint AS Complaint
+ 		,adm.PAADM_Priority_DR->CTACU_Code AS PriorityCode
+ 		,adm.PAADM_Priority_DR->CTACU_Desc AS PriorityDesc
+ 		,adm.PAADM_MainMRADM_DR->MRADM_DischClassif_DR->DSCL_Code AS DischgClassCode
+ 		,adm.PAADM_MainMRADM_DR->MRADM_DischClassif_DR->DSCL_Desc AS DischgClassDesc
+ 		,adm.PAADM_ReasonDelDisch_DR->READEL_Desc AS DischgDelayReason
+ 		,DATEDIFF(n,DATEADD(s,CAST(adm.PAADM_AdmTime AS Integer),adm.PAADM_AdmDate),
+			DATEADD(s,CAST(adm.PAADM_DischgTime AS Integer),adm.PAADM_DischgDate))/60 AS LOS
+ 	FROM
+ 		SQLUser.PA_Adm adm
+ 	WHERE
+ 		adm.PAADM_CurrentWard_DR->WARD_LocationDR->CTLOC_HOspital_DR->HOSP_RowId = :Hospital
+ 	AND  
+ 		adm.PAADM_DischgDate BETWEEN :DateFrom AND :DateTo
+ 	AND
+ 		adm.PAADM_Type='E'
+ 	AND
+ 		adm.PAADM_VisitStatus<>'C'
+ 	ORDER BY 
+ 		adm.PAADM_AdmDate,adm.PAADM_AdmTime)
+ 		
+ &SQL(OPEN SWARHREMG1005)
+ 
+  //FETCH FIRST ROW
+ Do FetchRow
+ 
+ While END=0 {	 
+  
+	 Do FormatDates
+  	 Do FormatTimes
+  	 Do LengthOfStay
+  	 Do AdmitToWard
+  	  	 
+	 Set sort=ind	
+
+ 	 Set ^CacheTemp(..#CACHETEMPSUBSCRIPT,repid,sort)=$LISTBUILD(AdmDate,AdmTime,TriageDate,TriageTime,SeenDate,SeenTime,DischgDate
+ 	 	,DischgTime,EpisodeNo,URNo,Surname,GivenName,OtherGivenName,Complaint,PriorityCode,PriorityDesc,DischgClassCode,DischgClassDesc
+ 	 	,DischgDelayReason,LOS,LOSgrp,DepartStatus)
+ 	 Set ind=ind+1
+ 
+ 	//fetch rows
+	Do FetchRow
+}
+ &SQL(CLOSE SWARHREMG1005)
+
+ //Build QHandle (AtEnd,ReportID,Index)
+ Set QHandle=$LISTBUILD(0,repid,0)
+
+ Quit $$$OK
+
+FetchRow
+ &SQL(FETCH SWARHREMG1005 INTO :AdmDate,:AdmTime,:TriageDate,:TriageTime,:SeenDate,:SeenTime,:DischgDate,:DischgTime,:EpisodeNo,:URNo
+ 	,:Surname,:GivenName,:OtherGivenName,:Complaint,:PriorityCode,:PriorityDesc,:DischgClassCode,:DischgClassDesc,:DischgDelayReason
+ 	,:LOS)
+ If SQLCODE '= 0 Set END = 1
+ Quit
+ 
+FormatDates
+ // Convert the dates to ODBC date format
+ If AdmDate Set AdmDate=..ConvertDateToODBC(AdmDate)
+ If TriageDate Set TriageDate=..ConvertDateToODBC(TriageDate)
+ If SeenDate Set SeenDate=..ConvertDateToODBC(SeenDate)
+ If DischgDate Set DischgDate=..ConvertDateToODBC(DischgDate)
+ Quit
+
+FormatTimes
+ // Convert the times to ODBC time format
+ If AdmTime Set AdmTime=..ConvertTimeToHHMM(AdmTime)
+ If TriageTime Set TriageTime=..ConvertTimeToHHMM(TriageTime)
+ If SeenTime Set SeenTime=..ConvertTimeToHHMM(SeenTime)
+ If DischgTime Set DischgTime=..ConvertTimeToHHMM(DischgTime)
+ Quit
+ 
+LengthOfStay
+ Set (LOSgrp)=""
+ If (LOS <= 4) {Set LOSgrp = "a"} Elseif (LOS > 4) && (LOS <= 8) {Set LOSgrp = "b"} Elseif (LOS > 8) && (LOS <= 12) {Set LOSgrp = "c"}
+ 	Elseif (LOS > 12) && (LOS <= 18) {Set LOSgrp = "d"} Elseif (LOS > 18) && (LOS <= 24) {Set LOSgrp = "e"} Else {Set LOSgrp = "f"}
+ Quit
+ 
+AdmitToWard
+ Set DepartStatus = ""
+ If (DischgClassCode = 2) || (DischgClassCode = 3) || (DischgClassCode = 15) || (DischgClassCode = 16) || (DischgClassCode = 18) || (DischgClassCode = 22) 
+ 	{Set DepartStatus = "atw"} Else {Set DepartStatus = "other"}
+ Quit
+]]></Implementation>
+</Method>
+
+<Method name="SWARHREMG1005Fetch">
+<Description>
+This is the Fetch component of the %Library.Query. 
+This should never have to change. It is designed to fetch the row for each subscript of the ^CacheTemp
+global and return this row to the Crystal Report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,&Row:%Library.List,&AtEnd:%Library.Integer=0]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // This fetch method should never have to change. 
+ // repid - Report ID
+ // ind   - sequence index which represents each row
+
+ New repid,ind
+
+ // Restore QHandle
+ Set AtEnd=$LIST(QHandle,1)
+ Set repid=$LIST(QHandle,2)
+ Set ind=$LIST(QHandle,3)
+
+ Set ind=$ORDER(^CacheTemp(..#CACHETEMPSUBSCRIPT,repid,ind))
+ If ind="" {	// if there are no more rows, finish fetching
+	 Set AtEnd=1
+	 Set Row=""
+ }
+ Else      {	// fetch row
+ 	Set Row=^CacheTemp(..#CACHETEMPSUBSCRIPT,repid,ind)
+ }
+
+ // Save QHandle
+ Set QHandle=$LISTBUILD(AtEnd,repid,ind)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="SWARHREMG1005Close">
+<Description>
+This is the Close component of the %Library.Query.
+This is standard code and should never have to change.
+This is where all the cleanup is performed, i.e. the purging of the temporary storage global ^CacheTemp.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>QHandle:%Library.Binary</FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Clean up by purging the temporary node in ^CacheTemp global
+ New repid,ind
+ Set repid=$LIST(QHandle,2)
+
+ Kill ^CacheTemp(..#CACHETEMPSUBSCRIPT,repid)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Query name="SWARHREMG1005">
+<Type>%Library.Query</Type>
+<FormalSpec>Hospital:%Integer,DateFrom:%Date,DateTo:%Date,SumDet:%String</FormalSpec>
+<SqlProc>1</SqlProc>
+<Parameter name="CONTAINID" value="0"/>
+<Parameter name="ROWSPEC" value="AdmDate:%Date,AdmTime:%String,TriageDate:%Date,TriageTime:%String,SeenDate:%Date,SeenTime:%String,DischgDate:%Date,DischgTime:%String,EpisodeNo:%String,URNo:%String,Surname:%String,GivenName:%String,OtherGivenName:%String,Complaint:%String,PriorityCode:%String,PriorityDesc:%String,DischgClassCode:%String,DischgClassDesc:%String,DischgDelayReason:%String,LOS:%Integer,LOSgrp:%String,DepartStatus:%String"/>
+<Parameter name="SELECTMODE" value="ODBC"/>
+</Query>
+</Class>
+</Export>

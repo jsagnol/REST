@@ -1,0 +1,206 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.AUXX.Report.ZEN.StoredProc.MRCulling">
+<ProcedureBlock>0</ProcedureBlock>
+<Super>Report.Abstract</Super>
+<TimeCreated>61017,51204.964063</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/AUXX/Report/ZEN/StoredProc/MRCulling.xml#1 $</Default>
+</Parameter>
+
+<UDLText name="T">
+<Content><![CDATA[
+// Report Name: Medical Records Culling <br>
+
+]]></Content>
+</UDLText>
+
+<UDLText name="T">
+<Content><![CDATA[
+// Report Code: AUXX.MED0006 <br>
+
+]]></Content>
+</UDLText>
+
+<Method name="MRCullingClose">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>QHandle:%Library.Binary</FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Clean up by purging the temporary node in ^CacheTemp global
+ New repid
+ Set repid=$li(QHandle,2)
+ 
+ //Close Monitor (if configured to capture stats)
+ i mon Do ..MonitorEnd(mon)
+
+ 
+ Kill ^CacheTemp("TRAK",repid)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="MRCullingExecute">
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,DateFrom:%Date,DateTo:%Date,Hospital:%String,Location:%String,WithoutEpisodes:%String]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+	
+ // Get reportid i.e. use $INCREMENT to add another node to ^CacheTemp global. 
+ // We use ^CacheTemp global because it will always use memory before disk
+ New repid,ind
+
+ // Use $Increment to get the next node
+ Set repid=$I(^CacheTemp("TRAK"))
+
+ //Start Monitor (if configured to capture stats)
+ s mon=..MonitorBegin()
+ 
+ // Build data into ^CacheTemp(ReportID)
+ // e.g. Set ^CacheTemp(ReportID,Index)=$LB(f1,f2,f3)
+ new Number,String,Date,Time,c,n
+ new PAPMIRowId,PAPMINo,TerminalDigit,PAPMIName,PAPMIName2,PAPMIName3,RTMAVVolDesc,RTMAVDateArrived,CTLOCRowId,CTLOCCode,CTLOCDesc,HOSPRowId,HOSPCode,HOSPDesc,Inactive,RTMASMRNO,TYPDesc,TYPRowId,TYPCode,PAADMAdmNo,PAADMAdmDate,RTMAVRowId
+ set (PAPMIRowId,CTLOCRowId,HOSPRowId,TYPRowId)=0
+ set (PAPMINo,TerminalDigit,PAPMIName,PAPMIName2,PAPMIName3,RTMAVVolDesc,RTMAVDateArrived,CTLOCCode,CTLOCDesc,HOSPCode,HOSPDesc,Inactive,RTMASMRNO,TYPDesc,TYPCode,PAADMAdmNo,PAADMAdmDate,RTMAVRowId)=""
+ set ind=1
+ 
+ // Strip white space/control chars from blank variables
+ if $g(Hospital)'="" s Hospital=$ZSTRIP(Hospital,"*WC")
+ if $g(Location)'="" s Location=$ZSTRIP(Location,"*WC")
+ if $g(WithoutEpisodes)'="" s WithoutEpisodes=$ZSTRIP(WithoutEpisodes,"*WC")
+
+ //Convert ODBC dates to cache format
+ set DateFrom=..ConvertDateToCache(DateFrom)
+ set DateTo=..ConvertDateToCache(DateTo)
+
+ &sql(declare MRCulling cursor for
+ SELECT
+	PAPMI_RowId,
+	PAPMI_No,
+	{fn RIGHT(PAPMI_No,2)},
+	PAPMI_Name,
+	PAPMI_Name2,
+	PAPMI_Name3,
+	RTMAV_VolDesc,
+	RTMAV_DateArrived, 
+	RTMAV_CurrentLoc_DR, 
+	RTMAV_CurrentLoc_DR->CTLOC_Code,
+	RTMAV_CurrentLoc_DR->CTLOC_Desc,
+	RTMAV_CurrentLoc_DR->CTLOC_Hospital_DR, 
+	RTMAV_CurrentLoc_DR->CTLOC_Hospital_DR->HOSP_Code,
+	RTMAV_CurrentLoc_DR->CTLOC_Hospital_DR->HOSP_Desc,
+	RTMAV_ActiveFlag,
+	RTMAS_MRNo,
+	RTMAS_MRType_DR->TYP_Desc,
+	RTMAS_MRType_DR->TYP_RowId,
+	RTMAS_MRType_DR->TYP_Code,
+	RTMAV_RowId
+ FROM  SQLUser.RT_Master,SQLUser.RT_MasVol,SQLUser.PA_Patmas
+ WHERE RTMAV_DateArrived between :DateFrom and :DateTo 
+ AND RTMAS_PatNo_DR=PAPMI_RowId 
+ AND RTMAS_RowId=RTMAV_RTMAS_ParRef
+ AND (({fn CONCAT( ',', {fn CONCAT((:Hospital),',')})} [ {fn CONCAT( ',', {fn CONCAT((RTMAV_CurrentLoc_DR->CTLOC_Hospital_DR->HOSP_RowId),',')})}) OR (:Hospital IS NULL))
+ AND (({fn CONCAT( ',', {fn CONCAT((:Location),',')})} [ {fn CONCAT( ',', {fn CONCAT((RTMAV_CurrentLoc_DR->CTLOC_RowId),',')})}) OR (:Location IS NULL)))
+ 
+ &sql(open MRCulling)
+
+ //fetch first row
+ &sql(fetch MRCulling into :PAPMIRowId,:PAPMINo,:TerminalDigit,:PAPMIName,:PAPMIName2,:PAPMIName3,:RTMAVVolDesc,:RTMAVDateArrived,:CTLOCRowId,:CTLOCCode,:CTLOCDesc,:HOSPRowId,:HOSPCode,:HOSPDesc,:Inactive,:RTMASMRNO,:TYPDesc,:TYPRowId,:TYPCode,:RTMAVRowId)
+
+ while 'SQLCODE{
+  	do SetInactive
+ 	do GetLastEpisode
+ 	do FormatDates
+ 	if WithoutEpisodes = "Y" {
+	 	if PAADMAdmDate="" {do BuildRow}
+ 		}
+ 	else {do BuildRow}
+ 	//fetch rows
+ 	&sql(fetch MRCulling into :PAPMIRowId,:PAPMINo,:TerminalDigit,:PAPMIName,:PAPMIName2,:PAPMIName3,:RTMAVVolDesc,:RTMAVDateArrived,:CTLOCRowId,:CTLOCCode,:CTLOCDesc,:HOSPRowId,:HOSPCode,:HOSPDesc,:Inactive,:RTMASMRNO,:TYPDesc,:TYPRowId,:TYPCode,:RTMAVRowId)
+ }
+ &sql(close MRCulling)
+
+ // Build QHandle (AtEnd,ReportID,Index)
+ Set QHandle=$lb(0,repid,0)
+
+ Quit $$$OK
+  
+SetInactive	
+ if Inactive = "N" {set Inactive = "Y"}
+ else {set Inactive = ""}
+ quit	
+
+GetLastEpisode	
+ set (PAADMAdmNo,PAADMAdmDate)=""
+
+ &sql(SELECT
+	MAX(PAADM_AdmDate)
+	INTO :PAADMAdmDate
+	FROM SQLUser.PA_Adm
+	WHERE PAADM_PAPMI_DR = :PAPMIRowId)	
+	
+ if PAADMAdmDate'="" {
+	&sql(SELECT
+	MAX(PAADM_AdmNo)
+	INTO :PAADMAdmNo
+	FROM SQLUser.PA_Adm
+	WHERE PAADM_PAPMI_DR = :PAPMIRowId
+	AND PAADM_AdmDate = :PAADMAdmDate)
+ }
+ quit
+
+FormatDates
+ // Convert the dates to ODBC date format
+ if RTMAVDateArrived Set RTMAVDateArrived=..ConvertDateToODBC(RTMAVDateArrived)
+ if PAADMAdmDate Set PAADMAdmDate=..ConvertDateToODBC(PAADMAdmDate)
+ quit
+
+BuildRow
+ // build the row
+ set ^CacheTemp("TRAK",repid,$ZCVT(HOSPDesc,"U")_" "_$ZCVT(CTLOCDesc,"U")_" "_TerminalDigit_" "_PAPMINo_" "_$ZCVT(RTMAVVolDesc,"U")_" "_ind)=$LB(PAPMIRowId,PAPMINo,TerminalDigit,PAPMIName,PAPMIName2,PAPMIName3,RTMAVVolDesc,RTMAVDateArrived,CTLOCRowId,CTLOCCode,CTLOCDesc,HOSPRowId,HOSPCode,HOSPDesc,Inactive,RTMASMRNO,TYPDesc,TYPRowId,TYPCode,PAADMAdmNo,PAADMAdmDate,RTMAVRowId)
+ set ind=ind+1
+ quit
+]]></Implementation>
+</Method>
+
+<Method name="MRCullingFetch">
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,&Row:%Library.List,&AtEnd:%Library.Integer=0]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // This fetch method should never have to change. 
+
+ New repid,ind
+
+ // Restore QHandle
+ Set AtEnd=$li(QHandle,1)
+ Set repid=$li(QHandle,2)
+ Set ind=$li(QHandle,3)
+
+ Set ind=$o(^CacheTemp("TRAK",repid,ind))
+ If ind="" {	// if there are no more rows, finish fetching
+ Set AtEnd=1
+ Set Row=""
+ }
+ Else      {	// fetch row
+ Set Row=^CacheTemp("TRAK",repid,ind)
+ }
+
+ // Save QHandle
+ s QHandle=$lb(AtEnd,repid,ind)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Query name="MRCulling">
+<Type>%Library.Query</Type>
+<FormalSpec>DateFrom:%Date,DateTo:%Date,Hospital:%String,Location:%String,WithoutEpisodes:%String</FormalSpec>
+<SqlProc>1</SqlProc>
+<Parameter name="CONTAINID" value="0"/>
+<Parameter name="ROWSPEC" value="PAPMIRowId:%Integer,PAPMINo:%String,TerminalDigit:%String,PAPMIName:%String,PAPMIName2:%String,PAPMIName3:%String,RTMAVVolDesc:%String,RTMAVDateArrived:%Date,CTLOCRowId:%Integer,CTLOCCode:%String,CTLOCDesc:%String,HOSPRowId:%Integer,HOSPCode:%String,HOSPDesc:%String,Inactive:%String,RTMASMRNO:%String,TYPDesc:%String,TYPRowId:%Integer,TYPCode:%String,PAADMAdmNo:%String,PAADMAdmDate:%Date,RTMAVRowId:%String"/>
+</Query>
+</Class>
+</Export>

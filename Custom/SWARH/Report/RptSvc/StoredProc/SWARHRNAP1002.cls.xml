@@ -1,0 +1,320 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.SWARH.Report.RptSvc.StoredProc.SWARHRNAP1002">
+<Description><![CDATA[
+<pre>
+**************************************************************************************************************************************
+* Report Code: SWARHRNAP1002
+* Report Description: Custom KPI
+* Menu Caption: Custom KPI
+* Initial release: 
+* Developer: Jayson Sagnol
+* Modified: 2015/09/17 - Ross Gladman - Added support for multiple specialties & programs
+* 
+**************************************************************************************************************************************
+</pre>]]></Description>
+<ProcedureBlock>0</ProcedureBlock>
+<Super>Custom.SWARH.Report.ZEN.StoredProc.Abstract</Super>
+<TimeCreated>60905,54849</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/SWARH/Report/RptSvc/StoredProc/SWARHRNAP1002.xml#1 $</Default>
+</Parameter>
+
+<Method name="SWARHRNAP1002Close">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)
+This is the Close component of the %Library.Query.
+This is standard code and should never have to change.
+This is where all the cleanup is performed, i.e. the purging of the temporary storage global ^CacheTemp.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>QHandle:%Library.Binary</FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Clean up by purging the temporary node in ^CacheTemp global
+ New repid,ind
+ Set repid=$li(QHandle,2)
+
+ //Start Monitor (if configured to capture stats)
+ i mon Do ..MonitorEnd(mon)
+
+ Kill ^CacheTemp("TRAK",repid)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="SWARHRNAP1002Execute">
+<Description>
+This is the Execute section for the %Library.Query. 
+All of the logic will be performed here.
+A new node for the ^CacheTemp global will be created and each subscript of this global will contain
+a row for the report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,Hospital:%Integer,DateFrom:%Date,DateTo:%Date,Specialty:%String,Program:%String,CustomKPIFrom:%String,CustomKPITo:%String,KPITarget:%Integer]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+		   
+ New repid,ind
+
+ Set repid=$I(^CacheTemp("TRAK"))
+ 
+ New PAADMRowID,PAADMAdmNo,PAADMPAPERDR,PAADMPAADM2DR,PAADMDepCodeDR,PAADM2NFMICategDepartDR,PAADMAdmDocCodeDR,CTLOCDesc,DEPDesc,CTPCPDesc,PAPMIName,PAPMIName2,PAPMIName3,PAPERStName,CTCITDesc,PAPERTelH,PAADMRefDate,PAPMINo,PAADMAdmDate,PAADMDischgDate,TargetAchieved,CTLOCCode,DEPCode,WLPDesc,WLPCode,WLPRowID,WhereClause,TargetAchievedDesc
+ Set (PAADMRowID,PAADMAdmNo,PAADMPAPERDR,PAADMPAADM2DR,PAADMDepCodeDR,PAADM2NFMICategDepartDR,PAADMAdmDocCodeDR,CTLOCDesc,DEPDesc,CTPCPDesc,PAPMIName,PAPMIName2,PAPMIName3,PAPERStName,CTCITDesc,PAPERTelH,PAADMRefDate,PAPMINo,PAADMAdmDate,PAADMDischgDate,TargetAchieved,CTLOCCode,DEPCode,WLPDesc,WLPCode,WLPRowID,WhereClause,TargetAchievedDesc) = ""
+ 
+ s ind=1, END=0
+
+ //Start Monitor (if configured to capture stats)
+ s mon=..MonitorBegin()
+
+ s DateFrom=$zdh(DateFrom,3)
+ s DateTo=$zdh(DateTo,3)
+
+	s PAADMRowID=0
+	f {
+	    s (HospID,DEPCodeDR,NFMICategDepartDR)=""
+    	
+    	;loop through all outpatient/NA episodes
+	 	s PAADMRowID=$o(^PAADMi("PAADM_Type","O",PAADMRowID)) q:PAADMRowID="" 
+ 	
+	 	;Filter Hospital
+	 	s hospid=$P($G(^PAADM(PAADMRowID,2)),"^",85) 
+	 	i hospid'=Hospital {continue}
+
+	 	;Filter Specialty
+	 	s DEPCodeDR=$P($G(^PAADM(PAADMRowID)),"^",4) 
+	 	; i DEPCodeDR'=Specialty {i Specialty'="" {continue}} - Single Specialty
+		If (","_Specialty_",")'[(","_DEPCodeDR_",") { ; - Multiple Specialities
+	 	  If Specialty'="" {continue}
+	 	}
+ 	
+	 	;Filter Program
+	 	s NFMICategDepartDR=$P($G(^PAADM(PAADMRowID,"ADM2")),"^",104)
+		; i NFMICategDepartDR'=Program {i Program'="" {continue}} ; - Single Program
+		If (","_Program_",")'[(","_NFMICategDepartDR_",") { ; - Multiple Programs
+			If Program'="" {Continue}
+		}
+ 	
+		d GetCustomKPIFromDate
+		
+		i ((CustomKPIFromDate>=DateFrom) && (CustomKPIFromDate<=DateTo))
+		{
+			d GetCustomKPIToDate
+			d FillData
+			d GetKPITargets
+			d BuildRow
+		}		
+	}
+ 	 	
+ // Build QHandle (AtEnd,ReportID,Index)
+ Set QHandle=$lb(0,repid,0)
+
+ Quit $$$OK
+
+FillData
+ s (PAPMIPAPERDR,PAADMPAADM2DR,PAADMDepCodeDR,PAADM2NFMICategDepartDR,PAADMAdmDocCodeDR,CTLOCDesc)=""
+ s (DEPDesc,CTPCPDesc,PAPMIName,PAPMIName2,PAPMIName3,PAPERStName,PAPERCityCodeDR,CTCITDesc,PAPERTelH,PAADMRefDate,PAPMINo ,CTLOCCode,DEPCode,PAADMWaitListDR,WLPRowID,WLPDesc,WLPCode)=""
+ s PAADMAdmNo = $P($G(^PAADM(PAADMRowID)),"^",81)
+ s PAPMIPAPERDR = $P($G(^PAADM(PAADMRowID)),"^",1) 
+ s PAADMPAADM2DR = PAADMRowID
+ s PAADMDepCodeDR = DEPCodeDR
+ s PAADM2NFMICategDepartDR = NFMICategDepartDR
+ s PAADMAdmDocCodeDR = $P($G(^PAADM(PAADMRowID)),"^",9)
+ s CTLOCDesc = $P($G(^CTLOC(DEPCodeDR)),"^",2)
+ i NFMICategDepartDR {s DEPDesc =  $P($G(^CT("NFMI",$P(NFMICategDepartDR,"||",1),"DEP",$P(NFMICategDepartDR,"||",2))),"^",2)}
+ i PAADMAdmDocCodeDR {s CTPCPDesc = $P($G(^CTPCP(PAADMAdmDocCodeDR,1)),"^",2)}
+ s PAPMIName = $P($G(^PAPER(PAPMIPAPERDR,"ALL")),"^",1)
+ s PAPMIName2 = $P($G(^PAPER(PAPMIPAPERDR,"ALL")),"^",2)
+ s PAPMIName3 = $P($G(^PAPER(PAPMIPAPERDR,"ALL")),"^",19)
+ s PAPERStName = $zstrip($p($g(^PAPER(PAPMIPAPERDR,"PER","ADD",1)),"^",1),"*C")
+ s PAPERCityCodeDR = $P($G(^PAPER(PAPMIPAPERDR,"PER",1)),"^",5)
+ i PAPERCityCodeDR {s CTCITDesc = $P($G(^CT("CIT",PAPERCityCodeDR)),"^",2)}
+ s PAPERTelH = $P($G(^PAPER(PAPMIPAPERDR,"PER",1)),"^",11)
+ s PAADMRefDate = $P($G(^PAADM(PAADMRowID)),"^",46)
+ s PAPMINo  = $S($G(XFUNC("CLASS"))="OP":$p($g(^PAPER(PAPMIPAPERDR,"PAT",1)),"^",2),1:$p($g(^PAPER(PAPMIPAPERDR,"PAT",1)),"^",1))
+ s CTLOCCode = $P($G(^CTLOC(DEPCodeDR)),"^",1)
+ i NFMICategDepartDR {s DEPCode = $P($G(^CT("NFMI",$P(NFMICategDepartDR,"||",1),"DEP",$P(NFMICategDepartDR,"||",2))),"^",1)}
+ s PAADMWaitListDR = $P($G(^PAADM(PAADMRowID,1)),"^",18)
+ i PAADMWaitListDR {
+	s WLPRowID = $P($G(^PAWL(PAADMWaitListDR)),"^",2)
+ 	s WLPDesc = $P($G(^PAC("WLP",WLPRowID)),"^",2)
+ 	s WLPCode = $P($G(^PAC("WLP",WLPRowID)),"^",1)
+ }
+ q
+
+BuildRow
+ d FormatDates,FormatAddress
+ s sort = ind
+ s ^CacheTemp("TRAK",repid,ind)=$LB(PAADMRowID,PAADMAdmNo,PAPMIPAPERDR,PAADMPAADM2DR,PAADMDepCodeDR,PAADM2NFMICategDepartDR,PAADMAdmDocCodeDR,CTLOCDesc,DEPDesc,CTPCPDesc,PAPMIName,PAPMIName2,PAPMIName3,PAPERStName,CTCITDesc,PAPERTelH,PAADMRefDate,PAPMINo,CustomKPIFromDate,CustomKPIToDate,CustomKPIDays,TargetAchieved,CTLOCCode,DEPCode,WLPDesc,WLPCode,WLPRowID,TargetAchievedDesc,KPITargetForContact)
+ s ind=ind+1
+ q
+
+FormatDates
+ s CustomKPIFromDate=..ConvertDateToODBC(CustomKPIFromDate)
+ //if CustomKPIFromDate=0 s CustomKPIFromDate=""
+ s CustomKPIToDate=..ConvertDateToODBC(CustomKPIToDate)
+ //if CustomKPIToDate=0 s CustomKPIToDate=""
+ q
+ 
+GetCustomKPIFromDate
+  s CustomKPIFromDate = $CASE(CustomKPIFrom,
+	 "AddedToWLDate":..GetAddedToWLDate(PAADMRowID),
+	 "AdmDate":..GetOPAdmDate(PAADMRowID),
+	 "AdvancedCarePlanDocumentedDate":..GetAdvancedCarePlanDocumentedDate(PAADMRowID),
+	 "CarePlanDocumentedDate":..GetCarePlanDocumentedDate(PAADMRowID),
+	 "ClientNotifiedDate":..GetClientNotifiedDate(PAADMRowID),
+	 "DischgDate":..GetDischgDate(PAADMRowID),
+	 "FirstAppointmentBookedDate":..GetFirstAppointmentBookedDate(PAADMRowID),
+	 "FirstContactDate":..GetFirstContactDate(PAADMRowID),
+	 "HospitalDischargeDate":..GetHospitalDischargeDate(PAADMRowID),
+	 "INIDate":..GetINIDate(PAADMRowID),
+	 "ImpairmentOnsetDate":..GetImpairmentOnsetDate(PAADMRowID),
+	 "ReferralAcknowledgeDate":..GetReferralAcknowledgeDate(PAADMRowID),
+	 "ReferralReceivedDate":..GetReferralRecievedDate(PAADMRowID),
+	 :0)
+ 
+GetCustomKPIToDate	 
+ s CustomKPIToDate = $CASE(CustomKPITo,
+	 "AddedToWLDate":..GetAddedToWLDate(PAADMRowID),
+	 "AdmDate":..GetOPAdmDate(PAADMRowID),
+	 "AdvancedCarePlanDocumentedDate":..GetAdvancedCarePlanDocumentedDate(PAADMRowID),
+	 "CarePlanDocumentedDate":..GetCarePlanDocumentedDate(PAADMRowID),
+	 "ClientNotifiedDate":..GetClientNotifiedDate(PAADMRowID),
+	 "DischgDate":..GetDischgDate(PAADMRowID),
+	 "FirstAppointmentBookedDate":..GetFirstAppointmentBookedDate(PAADMRowID),
+	 "FirstContactDate":..GetFirstContactDate(PAADMRowID),
+	 "HospitalDischargeDate":..GetHospitalDischargeDate(PAADMRowID),
+	 "INIDate":..GetINIDate(PAADMRowID),
+	 "ImpairmentOnsetDate":..GetImpairmentOnsetDate(PAADMRowID),
+	 "ReferralAcknowledgeDate":..GetReferralAcknowledgeDate(PAADMRowID),
+	 "ReferralReceivedDate":..GetReferralRecievedDate(PAADMRowID),
+	 :0) 
+ q
+ 
+GetKPITargets
+ if CustomKPIFromDate=""
+ {
+	s CustomKPIEffectiveFromDate=DateFrom
+ }
+ else
+ {
+	s CustomKPIEffectiveFromDate=CustomKPIFromDate
+ }
+ if CustomKPIToDate=""
+ {
+	s CustomKPIEffectiveToDate=DateTo	 
+ }
+ else
+ {
+	s CustomKPIEffectiveToDate=CustomKPIToDate
+ }
+ ;s CustomKPIDays = CustomKPIEffectiveToDate-CustomKPIEffectiveFromDate
+ s CustomKPIDays = ..GetWorkingDays(CustomKPIEffectiveFromDate,CustomKPIEffectiveToDate)
+ if CustomKPIDays=0 {s CustomKPIDays=1}
+ 
+ 
+ s KPITargetForContact = $CASE(WLPCode,
+ 					"01":$P(KPITarget,"|",1),
+ 					"02":$P(KPITarget,"|",2),
+ 					"03":$P(KPITarget,"|",3),
+ 					:0)
+ 
+ if (KPITargetForContact>0){
+	 s KPITargetLow=KPITargetForContact-(KPITargetForContact*.05)
+	 s KPITargetHigh=KPITargetForContact+(KPITargetForContact*.05)
+	 
+	 
+	 if (CustomKPIDays >= KPITargetLow)&&(CustomKPIDays <= KPITargetHigh) {
+		 s TargetAchieved = 1
+		 s TargetAchievedDesc = "Yes"
+	 } else {
+		 if CustomKPIDays < KPITargetLow {
+			 s TargetAchieved = 1
+			 s TargetAchievedDesc = "Under"
+		 } else {
+		 	s TargetAchieved = 0
+		 	s TargetAchievedDesc = "Over"
+		 }
+	 }
+ }
+ else
+ {
+	s TargetAchieved = -1
+	s TargetAchievedDesc = "N/A"
+ }
+ q
+ 
+FormatTimes
+ // s ENQTime=$ZT(ENQTime,2)
+ q
+ 
+FormatAddress
+ ;s PAPERStName=$ZSTRIP(PAPERStName,"*C")
+ q
+]]></Implementation>
+</Method>
+
+<Method name="SWARHRNAP1002Fetch">
+<Description>
+This is the Fetch component of the %Library.Query. 
+This should never have to change. It is designed to fetch the row for each subscript of the ^CacheTemp
+global and return this row to the Crystal Report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,&Row:%Library.List,&AtEnd:%Library.Integer=0]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // This fetch method should never have to change. 
+ // repid - Report ID
+ // ind   - sequence index which represents each row
+
+ New repid,ind
+
+ // Restore QHandle
+ Set AtEnd=$li(QHandle,1)
+ Set repid=$li(QHandle,2)
+ Set ind=$li(QHandle,3)
+
+ Set ind=$o(^CacheTemp("TRAK",repid,ind))
+ If ind="" {	// if there are no more rows, finish fetching
+	 Set AtEnd=1
+	 Set Row=""
+ }
+ Else      {	// fetch row 
+ 	Set Row=^CacheTemp("TRAK",repid,ind)
+ }
+
+ // Save QHandle 
+ s QHandle=$lb(AtEnd,repid,ind)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Query name="SWARHRNAP1002">
+<Type>%Library.Query</Type>
+<FormalSpec>Hospital:%Integer,DateFrom:%Date,DateTo:%Date,Specialty:%String,Program:%String,CustomKPIFrom:%String,CustomKPITo:%String,KPITarget:%Integer</FormalSpec>
+<SqlProc>1</SqlProc>
+<Parameter name="CONTAINID" value="0"/>
+<Parameter name="ROWSPEC" value="PAADMRowID:%String,PAADMAdmNo:%String,PAADMPAPERDR:%String,PAADMPAADM2DR:%String,PAADMDepCodeDR:%String,PAADM2NFMICategDepartDR:%String,PAADMAdmDocCodeDR:%String,CTLOCDesc:%String,DEPDesc:%String,CTPCPDesc:%String,PAPMIName:%String,PAPMIName2:%String,PAPMIName3:%String,PAPERStName:%String,CTCITDesc:%String,PAPERTelH:%String,PAADMRefDate:%String,PAPMINo:%String,CustomFromDate:%String,CustomToDate:%String,CustomKPIDays:%Integer,TargetAchieved:%Integer,CTLOCCode:%String,DEPCode:%String,WLPDesc:%String,WLPCode:%String,WLPRowID:%Integer,TargetAchievedDesc:%String,KPITargetForContact:%Integer"/>
+<Parameter name="SELECTMODE" value="ODBC"/>
+</Query>
+
+<Method name="GetWorkingDays">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>DateFrom:%Date,DateTo:%Date</FormalSpec>
+<ReturnType>%Integer</ReturnType>
+<Implementation><![CDATA[
+	s EffDate=0
+	s WorkingDays=0
+	f EffDate=DateFrom:1:DateTo
+	{
+		if ($zd(EffDate,10)>0) && ($zd(EffDate,10)<6)
+		{
+			s WorkingDays=WorkingDays+1	
+		}
+	}
+	quit WorkingDays
+]]></Implementation>
+</Method>
+</Class>
+</Export>

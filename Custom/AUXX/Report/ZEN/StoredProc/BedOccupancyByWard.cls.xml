@@ -1,0 +1,354 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.AUXX.Report.ZEN.StoredProc.BedOccupancyByWard">
+<ProcedureBlock>0</ProcedureBlock>
+<Super>Report.Abstract</Super>
+<TimeCreated>60877,42529.796582</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/AUXX/Report/ZEN/StoredProc/BedOccupancyByWard.xml#1 $</Default>
+</Parameter>
+
+<UDLText name="T">
+<Content><![CDATA[
+// Report Name: AUXX Current Ward Occupancy <br>
+
+]]></Content>
+</UDLText>
+
+<UDLText name="T">
+<Content><![CDATA[
+// Report Code: AUXX.ATD0022 <br>
+
+]]></Content>
+</UDLText>
+
+<Method name="BedOccupancyByWardClose">
+<Description>
+This is the Close component of the %Library.Query.
+This is standard code and should never have to change.
+This is where all the cleanup is performed, i.e. the purging of the temporary storage global ^CacheTemp.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>QHandle:%Library.Binary</FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Clean up by purging the temporary node in ^CacheTemp global
+ New repid
+ Set repid=$li(QHandle,2)
+ 
+  //Start Monitor (if configured to capture stats)
+ i mon Do ..MonitorEnd(mon)
+ 
+ Kill ^CacheTemp("TRAK",repid)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="BedOccupancyByWardExecute">
+<Description>
+This is the Execute section for the %Library.Query. 
+All of the logic will be performed here.
+A new node for the ^CacheTemp global will be created and each subscript of this global will contain
+a row for the report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,Hospital:%Library.String]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Get reportid i.e. use $INCREMENT to add another node to ^CacheTemp global. 
+ // We use ^CacheTemp global because it will always use memory before disk
+ New repid,index
+
+ // Use $Increment to get the next node
+ Set repid=$I(^CacheTemp("TRAK"))
+
+ new PAADMRowId,HOSPRowId,HOSPDesc,WARDRowId,WARDCode,WARDDesc,CTLOCRowId,CTLOCCode,CTLOCDesc,DateToday
+ new TotalBeds,ActiveBeds,OccupiedBeds,EmptyBeds,ClosedBeds,LeavePats,BookedBeds,ExpDisch,Outliers,ENDEpisode,Unavail
+ set (PAADMRowId,HOSPRowId,HOSPDesc,WARDRowId,WARDCode,WARDDesc,CTLOCRowId,CTLOCCode,CTLOCDesc,DateToday)=""
+ set (TotalBeds,ActiveBeds,OccupiedBeds,EmptyBeds,ClosedBeds,LeavePats,BookedBeds,ExpDisch,Outliers,ENDEpisode,Unavail)=0
+ 
+  //Start Monitor (if configured to capture stats)
+ s mon=..MonitorBegin()
+   
+ i $g(Hospital)'="" s Hospital=$zstrip(Hospital,"*CW")
+ set DateToday=$h
+
+ &SQL(DECLARE WARDLIST CURSOR FOR
+ SELECT distinct
+ 	%EXACT(WARD_LocationDR->CTLOC_Hospital_DR), 
+ 	WARD_LocationDR->CTLOC_Hospital_DR->HOSP_Desc, 
+ 	WARD_RowId, 
+ 	WARD_Code, 
+ 	WARD_Desc, 
+ 	WARD_LocationDR->CTLOC_RowId,
+ 	WARD_LocationDR->CTLOC_Code,
+ 	WARD_LocationDR->CTLOC_Desc
+ INTO :HOSPRowId,:HOSPDesc,:WARDRowId,:WARDCode,:WARDDesc,:CTLOCRowId,:CTLOCCode,:CTLOCDesc
+ FROM  SQLUser.PAC_WARD
+ WHERE WARD_LocationDR->CTLOC_Type = 'W'
+ AND (({fn CONCAT( ',', {fn CONCAT((:Hospital),',')})} [ {fn CONCAT( ',', {fn CONCAT((WARD_LocationDR->CTLOC_Hospital_DR->HOSP_RowId),',')})}) OR (:Hospital IS NULL))
+ AND WARD_Active='Y'
+ AND (CURRENT_DATE BETWEEN WARD_LocationDR->CTLOC_DateActiveFrom AND IFNULL(WARD_LocationDR->CTLOC_DateActiveTo,CURRENT_DATE,WARD_LocationDR->CTLOC_DateActiveTo))
+ )
+
+ &SQL(OPEN WARDLIST)
+ f  &SQL(FETCH WARDLIST) q:SQLCODE'=0  d
+ . do ProcessData
+ &SQL(CLOSE WARDLIST)
+
+ // Build QHandle (AtEnd,ReportID,Index)
+ Set QHandle=$lb(0,repid,0)
+ Quit $$$OK
+ 
+ProcessData
+ do GetTotalBeds
+ do GetClosedBeds
+ do GetActiveBeds
+ do GetOccupiedBeds
+ do GetEmptyBeds
+ ;do GetLeavePats
+ do GetBookedBeds
+ ;do GetExpDisch
+ ;do GetOutliers
+ do BuildRow 
+ set (TotalBeds,ActiveBeds,OccupiedBeds,EmptyBeds,ClosedBeds,LeavePats,BookedBeds,ExpDisch,Outliers)=0
+
+ q
+ 
+GetTotalBeds
+ s TotalBeds=0
+ s bed=0 f  s bed=$o(^PAWARD(WARDRowId,"BED",bed)) q:bed=""  d
+ . s df=$p($g(^PAWARD(WARDRowId,"BED",bed)),"^",21)
+ . s dt=$p($g(^PAWARD(WARDRowId,"BED",bed)),"^",22)
+ . i +$h>=$s(df="":+$h,1:df),+$h<=$s(dt="":+$h,1:dt) s TotalBeds=$i(TotalBeds)
+ /*
+ &SQL(SELECT count(*) INTO :TotalBeds
+ FROM SQLUser.PAC_BED
+ WHERE BED_WARD_ParRef = :WARDRowId
+ AND ((BED_DateFrom IS NULL) OR (BED_DateFrom IS NOT NULL AND BED_DateFrom <= current_date))
+ AND ((BED_DateTo IS NULL) OR (BED_DateTo IS NOT NULL AND BED_DateTo >= current_date)))
+ */
+ q
+  
+GetClosedBeds
+ /*
+ &SQL(SELECT count(*) INTO :ClosedBeds
+ FROM SQLUser.PAC_BED
+ WHERE BED_WARD_ParRef = :WARDRowId
+ AND BED_RcFlag = 'N'
+ AND ((BED_DateFrom IS NULL) OR (BED_DateFrom IS NOT NULL AND BED_DateFrom <= current_date))
+ AND ((BED_DateTo IS NULL) OR (BED_DateTo IS NOT NULL AND BED_DateTo >= current_date)))
+ */
+ 
+ s (ClosedBeds,Unavail)=0
+ s bed=0 f  s bed=$o(^PAWARD(WARDRowId,"BED",bed)) q:bed=""  d
+ . s df=$p($g(^PAWARD(WARDRowId,"BED",bed)),"^",21)
+ . s dt=$p($g(^PAWARD(WARDRowId,"BED",bed)),"^",22)
+ . ;
+ . i +$h>=$s(df="":+$h,1:df),+$h<=$s(dt="":+$h,1:dt),$p($g(^PAWARD(WARDRowId,"BED",bed)),"^",4)="N" s ClosedBeds=$i(ClosedBeds)
+ . ;
+ . i +$h>=$s(df="":+$h,1:df),+$h<=$s(dt="":+$h,1:dt),$p($g(^PAWARD(WARDRowId,"BED",bed)),"^",4)'="N" d
+ . . s unavailable=0
+ . . s stat=0 f  s stat=$o(^PAWARDA(WARDRowId,"BED",bed,"STAT",stat)) q:stat=""  d
+ . . . i $o(^PAC("BSTAT",0,"Code","U",""))=$p($g(^PAWARDA(WARDRowId,"BED",bed,"STAT",stat)),"^",3) d
+ . . . . s bdf=$p($g(^PAWARD(WARDRowId,"BED",bed,"STAT",stat)),"^",1)
+ . . . . s bdt=$p($g(^PAWARD(WARDRowId,"BED",bed,"STAT",stat)),"^",5)
+ . . . . i +$h>=$s(bdf="":+$h,1:bdf),+$h<=$s(bdt="":+$h,1:bdt) d
+ . . . . . s unavailable=1
+ . . i unavailable=0 s Unavail=$i(Unavail)
+
+
+ /*
+ &SQL(SELECT count(*) INTO :Unavail
+ FROM SQLUser.PAC_BED
+ WHERE BED_WARD_ParRef = :WARDRowId
+ AND BED_RcFlag != 'N'
+ AND ((BED_DateFrom IS NULL) OR (BED_DateFrom IS NOT NULL AND BED_DateFrom <= current_date))
+ AND ((BED_DateTo IS NULL) OR (BED_DateTo IS NOT NULL AND BED_DateTo >= current_date))
+ AND 0 NOT IN (
+ 		SELECT count(*) from SQLUser.PAC_BedStatusChange
+ 		WHERE STAT_ParRef = BED_RowId 
+ 		AND STAT_Status_DR->BSTAT_Code = 'U'
+ 		AND ((STAT_Date IS NULL) OR (STAT_Date IS NOT NULL AND STAT_Date <= current_date))
+ 		AND ((STAT_DateTo IS NULL) OR (STAT_DateTo IS NOT NULL AND STAT_DateTo >= current_date)))
+ )
+ */
+ set ClosedBeds = ClosedBeds + Unavail
+ q
+      
+GetActiveBeds 
+ Set ActiveBeds = TotalBeds - ClosedBeds
+ q
+ 
+GetOccupiedBeds
+ s (OccupiedBeds,LeavePats,Outliers,ExpDisch)=0
+ s adm=0 f  s adm=$o(^PAADMi("PAADM_VisitStatus","A",adm)) q:adm=""  d
+ . i $p($g(^PAADM(adm)),"^",2)="I",$p($g(^PAADM(adm)),"^",70)=WARDRowId d
+ . . s pass=0
+ . . s lea=0 f  s lea=$o(^PAADM(adm,"LEA",lea)) q:lea=""  d
+ . . . i $p($g(^PAADM(adm,"LEA",lea)),"^",2)'="",$p($g(^PAADM(adm,"LEA",lea)),"^",9)="" s pass=1
+ . . i pass=0 s OccupiedBeds=$i(OccupiedBeds)
+ . . i pass=1 s LeavePats=$i(LeavePats)
+ . . i $p($g(^PAADM(adm)),"^",59)=+$h s ExpDisch=$i(ExpDisch)
+ . . i ##class(web.PAAdm).IsOutlier(adm,WARDRowId) s Outliers=$i(Outliers)
+ /*
+ &SQL(SELECT count(*) INTO :OccupiedBeds
+ FROM SQLUser.PA_Adm
+ WHERE PAADM_Type='I'
+ AND PAADM_VisitStatus='A' 
+ AND PAADM_CurrentWard_DR = :WARDRowId
+ AND PAADM_RowId not in (
+ 	SELECT ADML_ParRef FROM SQLUser.PA_AdmLeave
+ 	WHERE ADML_GoingOutDate IS NOT NULL
+ 	AND ADML_ActualDateReturn IS NULL))
+ 	*/
+ q
+ 
+GetEmptyBeds
+ set EmptyBeds = 0 
+ if ActiveBeds > OccupiedBeds {set EmptyBeds = ActiveBeds - OccupiedBeds}
+ q
+
+GetLeavePats
+ s LeavePats=0
+ s adm=0 f  s adm=$o(^PAADMi("PAADM_VisitStatus","A",adm)) q:adm=""  d
+ . i $p($g(^PAADM(adm)),"^",2)="I",$p($g(^PAADM(adm)),"^",70)=WARDRowId d
+ . . s pass=0
+ . . s lea=0 f  s lea=$o(^PAADM(adm,"LEA",lea)) q:lea=""  d
+ . . . i $p($g(^PAADM(adm,"LEA",lea)),"^",2)'="",$p($g(^PAADM(adm,"LEA",lea)),"^",9)="" s pass=1
+ . . i pass=1 s LeavePats=$i(LeavePats)
+ /*
+ &SQL(SELECT count(*) INTO :LeavePats
+ FROM SQLUser.PA_Adm
+ WHERE PAADM_Type='I'
+ AND PAADM_VisitStatus='A' 
+ AND PAADM_CurrentWard_DR = :WARDRowId
+ AND PAADM_RowId in (
+ 	SELECT ADML_ParRef FROM SQLUser.PA_AdmLeave
+ 	WHERE ADML_GoingOutDate IS NOT NULL
+ 	AND ADML_ActualDateReturn IS NULL))
+ 	*/
+ q
+
+GetBookedBeds
+ s BookedBeds=0
+ s adm=0 f  s adm=$o(^PAADMi("TransWard",WARDRowId,adm)) q:adm=""  d
+ . i $p($g(^PAADM(adm)),"^",2)="I" d
+ . . s tran=0 f  s tran=$o(^PAADMi("TransWard",WARDRowId,adm,tran)) q:tran=""  d
+ . . . i $o(^PAC("REQST",0,"Code","R",""))=$p($g(^PAADM(adm,"TRANS",tran)),"^",12),$o(^PAC("TRANSTYP",0,"Code","B",""))=$p($g(^PAADM(adm,"TRANS",tran)),"^",21) s BookedBeds=$i(BookedBeds)
+ 
+ /*
+ &SQL(SELECT COUNT(TRANS_ParRef) INTO :BookedBeds
+ FROM SQLUser.PA_AdmTransaction
+ WHERE TRANS_Ward_DR=:WARDRowId
+ AND TRANS_Status_DR->REQST_Code='R'
+ AND TRANS_TransType_DR->TRANSTYP_Code='B'
+ AND TRANS_ParRef->PAADM_Type='I')
+ */
+ q
+  
+GetExpDisch
+ s ExpDisch=0
+ s adm=0 f  s adm=$o(^PAADMi("PAADM_VisitStatus","A",adm)) q:adm=""  d
+ . i $p($g(^PAADM(adm)),"^",2)="I",$p($g(^PAADM(adm)),"^",70)=WARDRowId d
+ . . i $p($g(^PAADM(adm)),"^",59)=+$h s ExpDisch=$i(ExpDisch)
+ /*
+ &SQL(SELECT count(*) INTO :ExpDisch
+ FROM SQLUser.PA_Adm
+ WHERE PAADM_Type='I'
+ AND PAADM_VisitStatus='A' 
+ AND PAADM_CurrentWard_DR = :WARDRowId
+ AND PAADM_EstimDischargeDate = current_date) 
+ */
+ q
+   
+GetOutliers
+ s Outliers=0
+ s adm=0 f  s adm=$o(^PAADMi("PAADM_VisitStatus","A",adm)) q:adm=""  d
+ . i $p($g(^PAADM(adm)),"^",2)="I",$p($g(^PAADM(adm)),"^",70)=WARDRowId d
+ . . i ##class(web.PAAdm).IsOutlier(adm,WARDRowId) s Outliers=$i(Outliers)
+ /*
+ &sql(DECLARE Outliers CURSOR FOR
+ SELECT PAADM_RowId
+ FROM SQLUser.PA_Adm 
+ WHERE PAADM_Type='I'
+ AND PAADM_VisitStatus='A' 
+ AND PAADM_CurrentWard_DR IS NOT NULL
+ AND PAADM_CurrentWard_DR = :WARDRowId)
+ 
+ &sql(open Outliers)
+
+ //fetch first row
+ d FetchEpisode
+ while 'ENDEpisode { 
+ 	if ##class(web.PAAdm).IsOutlier(PAADMRowId,WARDRowId) Set Outliers = Outliers + 1
+	d FetchEpisode
+ }
+
+ &sql(close Outliers)
+ set ENDEpisode=0
+ q
+ 
+FetchEpisode
+ set ENDEpisode=0
+ &sql(fetch Outliers into :PAADMRowId)
+ if SQLCODE {
+ 	set ENDEpisode=1
+ }
+ */
+ q
+
+BuildRow
+ s index=$i(index)
+ s ^CacheTemp("TRAK",repid,$ZCVT(HOSPDesc,"U")_" "_$ZCVT(WARDCode,"U")_" "_index)=$LB(HOSPRowId,HOSPDesc,WARDRowId,WARDCode,WARDDesc,CTLOCRowId,CTLOCCode,CTLOCDesc,TotalBeds,ActiveBeds,OccupiedBeds,EmptyBeds,ClosedBeds,LeavePats,BookedBeds,ExpDisch,Outliers)
+ q
+]]></Implementation>
+</Method>
+
+<Method name="BedOccupancyByWardFetch">
+<Description>
+This is the Fetch component of the %Library.Query. 
+This should never have to change. It is designed to fetch the row for each subscript of the ^CacheTemp
+global and return this row to the Crystal Report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,&Row:%Library.List,&AtEnd:%Library.Integer=0]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // This fetch method should never have to change. 
+
+ // repid - Report ID
+ // ind   - sequence index which represents each row
+
+ New repid,ind
+
+ // Restore QHandle
+ Set AtEnd=$li(QHandle,1)
+ Set repid=$li(QHandle,2)
+ Set ind=$li(QHandle,3)
+
+ Set ind=$o(^CacheTemp("TRAK",repid,ind))
+ If ind="" {	// if there are no more rows, finish fetching
+ Set AtEnd=1
+ Set Row=""
+ }
+ Else      {	// fetch row
+ Set Row=^CacheTemp("TRAK",repid,ind)
+ }
+
+ // Save QHandle
+ s QHandle=$lb(AtEnd,repid,ind)
+ 
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Query name="BedOccupancyByWard">
+<Type>%Library.Query</Type>
+<FormalSpec>Hospital:%Library.String</FormalSpec>
+<SqlProc>1</SqlProc>
+<Parameter name="CONTAINID" value="0"/>
+<Parameter name="ROWSPEC" value="HOSPRowId:%String,HOSPDesc:%String(MAXLEN=225),WARDRowId:%String,WARDCode:%String,WARDDesc:%String,CTLOCRowId:%String,CTLOCCode:%String,CTLOCDesc:%String,TotalBeds:%Integer,ActiveBeds:%Integer,OccupiedBeds:%Integer,EmptyBeds:%Integer,ClosedBeds:%Integer,LeavePats:%Integer,BookedBeds:%Integer,ExpDisch:%Integer,Outliers:%Integer"/>
+</Query>
+</Class>
+</Export>

@@ -1,0 +1,308 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.SWARHCUS33aPostOpOrdOpReport">
+<Description>
+Modified 04/12/2015 - PH: add PAPMIName3</Description>
+<ClassType/>
+<ProcedureBlock>0</ProcedureBlock>
+<Super>%Library.RegisteredObject,%XML.Adaptor</Super>
+<TimeCreated>62160,57394.776323</TimeCreated>
+<Inheritance>right</Inheritance>
+
+<Parameter name="SrcVer">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/SWARHCUS33aPostOpOrdOpReport.xml#1 $</Default>
+</Parameter>
+
+<Method name="PostOpOrdOpReportClose">
+<Description>
+This is the Close component of the %Library.Query.
+This is standard code and should never have to change.
+This is where all the cleanup is performed, i.e. the purging of the temporary storage global ^CacheTemp.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>QHandle:%Library.Binary</FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Clean up by purging the temporary node in ^CacheTemp global
+ New repid
+ Set repid=$li(QHandle,2)
+ Kill ^CacheTemp(repid)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="PostOpOrdOpReportExecute">
+<Description>
+This is the Execute section for the %Library.Query. 
+All of the logic will be performed here.
+A new node for the ^CacheTemp global will be created and each subscript of this global will contain
+a row for the report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,QID:%Integer,EpisodeID:%Integer]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+	
+ k ^zbernard	
+ // Get reportid i.e. use $INCREMENT to add another node to ^CacheTemp global. 
+ // We use ^CacheTemp global because it will always use memory before disk
+ New repid,ind
+
+ // Use $Increment to get the next node
+ Set repid=$I(^CacheTemp)
+ s ^zBernard("1")=(1)
+
+ // Build data into ^CacheTemp(ReportID)
+ // e.g. Set ^CacheTemp(ReportID,Index)=$LB(f1,f2,f3)
+ New Number,String,Date,Time,c,n
+ n QHOSP,QUESPAPatMasDR,PAPMINo,PAPMIName,PAPMIName2,PAPMIName3,PAPMIDOB,CTSEXDesc,cQPatientComor,cQSigOpEvents,QSigOpEvDet,QOpDate,QSurgeonDesc,QAssistDesc,
+ QSurg2ndAsst,QAnaesDesc,QAnaesAsst,QOperation,QOpDiagnosis,QOpDetails,cQPathology,
+ cQQ1,QQ1R,cQQ4,QQ7,cQQ7,QQ7a,QQ8,QQ8a,QQ9,QQ9a,QQ10,QQ10a,QQ11,QQ12,QQ12a,QQ13,QQ13a,QBL,
+ cQspecobv,QRefSpecForm,QQ15,cQQ15,QQ16,QQ17,cQQ17,QQ18,QWOUND,cQWOUND,QWDSP,QDRAINS,cQDRAINS,QSDRAINDET,QNGT,cQNGT,QNGTDET,
+ QQ20,cQQ20,QQ20a,QQ21,cQQ21,QQ21a,cQQ44,cQQ23,QQ24,cQQ24,QQ24a,QQ19,cQQ19,QQ19a,QQ25,cQQ25,cQQ26,cQQ27,cQQ28,cQCertificateReq,cQCertificateCompl,
+ cQDCHospPrescReq,cQDCWrittenInstructReq,QREFDOCSTRING,SSUSRName,QUESDate,QUESTime
+ s (QUESPAPatMasDR,HOSPRowId,QHOSP)=0
+ s (PAPMINo,PAPMIName,PAPMIName2,PAPMIName3,PAPMIDOB,CTSEXDesc,cQPatientComor,cQSigOpEvents,QSigOpEvDet,QOpDate,QSurgeonDesc,QAssistDesc,
+ QSurg2ndAsst,QAnaesDesc,QAnaesAsst,QOperation,QOpDiagnosis,QOpDetails,cQPathology,
+ cQQ1,QQ1R,cQQ4,QQ7,cQQ7,QQ7a,QQ8,QQ8a,QQ9,QQ9a,QQ10,QQ10a,QQ11,QQ12,QQ12a,QQ13,QQ13a,QBL,
+ cQspecobv,QRefSpecForm,QQ15,cQQ15,QQ16,QQ17,cQQ17,QQ18,QWOUND,cQWOUND,QWDSP,QDRAINS,cQDRAINS,QSDRAINDET,QNGT,cQNGT,QNGTDET,
+ QQ20,cQQ20,QQ20a,QQ21,cQQ21,QQ21a,cQQ44,cQQ23,QQ24,cQQ24,QQ24a,QQ19,cQQ19,QQ19a,QQ25,cQQ25,cQQ26,cQQ27,cQQ28,cQCertificateReq,cQCertificateCompl,
+ cQDCHospPrescReq,cQDCWrittenInstructReq,QREFDOCSTRING,SSUSRName,QUESDate,QUESTime)=""
+  
+ s ind=1
+
+ //s ^bernard("2")=(2)
+ 
+ &sql(declare PostOpOrdOpReport cursor for
+ 
+ select
+ QHOSP,
+ QUESPAPatMasDR,
+QUESPAPatMasDR->PAPMI_No,
+QUESPAPatMasDR->PAPMI_Name,
+QUESPAPatMasDR->PAPMI_Name2,
+QUESPAPatMasDR->PAPMI_Name3,
+QUESPAPatMasDR->PAPMI_DOB,
+QUESPAPatMasDR->PAPMI_Sex_DR->CTSEX_Desc,
+cQPatientComor,
+cQSigOpEvents,
+QSigOpEvDet,
+QOpDate,
+CTCareProv.CTPCP_Desc,
+CTCareProv1.CTPCP_Desc,
+QSurg2ndAsst,
+CTCareProv2.CTPCP_Desc,
+QAnaesAsst,
+QOperation,
+QOpDiagnosis,
+QOpDetails,
+cQPathology,
+cQQ1,QQ1R,cQQ4,cQQ7,QQ7a,QQ8,QQ8a,QQ9,QQ9a,QQ10,QQ10a,QQ11,QQ12,QQ12a,QQ13,QQ13a,QBL,
+cQspecobv,QRefSpecForm,QQ15,cQQ15,QQ16,QQ17,cQQ17,QQ18,QWOUND,cQWOUND,QWDSP,QDRAINS,cQDRAINS,QSDRAINDET,QNGT,cQNGT,QNGTDET,
+QQ20,cQQ20,QQ20a,QQ21,cQQ21,QQ21a,cQQ44,cQQ23,QQ24,cQQ24,QQ24a,QQ19,cQQ19,QQ19a,QQ25,cQQ25,cQQ26,cQQ27,cQQ28,cQCertificateReq,cQCertificateCompl,
+cQDCHospPrescReq,cQDCWrittenInstructReq,QREFDOCSTRING,QUESUserDR->SSUSR_Name,QUESDate,QUESTime
+from questionnaire.QWDHSPOSTOP,SQLUser.CT_CareProv as CTCareProv,SQLUser.CT_CareProv as CTCareProv1,SQLUser.CT_CareProv as CTCareProv2
+where QSurgeon=*CTCareProv.CTPCP_RowId
+and QAssistant=*CTCareProv1.CTPCP_RowId
+and QAnaesthetist=*CTCareProv2.CTPCP_RowId
+and questionnaire.QWDHSPOSTOP.ID=:QID and QUESPAAdmDR=:EpisodeID
+)
+	
+	
+ &sql(open PostOpOrdOpReport)
+
+  //fetch first row 
+  
+ &sql(fetch PostOpOrdOpReport into :QHOSP,:QUESPAPatMasDR,:PAPMINo,:PAPMIName,:PAPMIName2,:PAPMIName3,:PAPMIDOB,:CTSEXDesc,:cQPatientComor,:cQSigOpEvents,:QSigOpEvDet,
+ :QOpDate,:QSurgeonDesc,:QAssistDesc,:QSurg2ndAsst,:QAnaesDesc,:QAnaesAsst,:QOperation,:QOpDiagnosis,:QOpDetails,:cQPathology,
+ :cQQ1,:QQ1R,:cQQ4,:cQQ7,:QQ7a,:QQ8,:QQ8a,:QQ9,:QQ9a,:QQ10,:QQ10a,:QQ11,:QQ12,:QQ12a,:QQ13,:QQ13a,:QBL,
+ :cQspecobv,:QRefSpecForm,:QQ15,:cQQ15,:QQ16,:QQ17,:cQQ17,:QQ18,:QWOUND,:cQWOUND,:QWDSP,:QDRAINS,:cQDRAINS,:QSDRAINDET,:QNGT,:cQNGT,:QNGTDET,
+ :QQ20,:cQQ20,:QQ20a,:QQ21,:cQQ21,:QQ21a,:cQQ44,:cQQ23,:QQ24,:cQQ24,:QQ24a,:QQ19,:cQQ19,:QQ19a,:QQ25,:cQQ25,:cQQ26,:cQQ27,:cQQ28,:cQCertificateReq,:cQCertificateCompl,
+ :cQDCHospPrescReq,:cQDCWrittenInstructReq,:QREFDOCSTRING,:SSUSRName,:QUESDate,:QUESTime
+ )
+
+ while 'SQLCODE{
+ 
+ d FormatDates
+ s QQ1R = $LISTTOSTRING(QQ1R, $CHAR(13)_$CHAR(10)) // Join list entries with newline character
+ s QOpDetails = $LISTTOSTRING(QOpDetails, $CHAR(13)_$CHAR(10)) // Join list entries with newline character
+ /*s QQ1R=$zstrip(QQ1R,"<C")
+ if $extract(QQ1R,2)=$char(1) {
+	 s QQ1R=$zstrip($extract(QQ1R,2,$length(QQ1R)),"<C")
+ }
+ s QOpDetails=$zstrip(QOpDetails,"<C")
+ if $extract(QOpDetails,2)=$char(1) {
+	 s QOpDetails=$zstrip($extract(QOpDetails,2,$length(QOpDetails)),"<C")
+ }*/
+ s QREFDOCSTRING=$zstrip(QREFDOCSTRING,"<C")
+ if $extract(QREFDOCSTRING,2)=$char(1) {
+	 s QREFDOCSTRING=$zstrip($extract(QREFDOCSTRING,2,$length(QREFDOCSTRING)),"<C")
+ }
+ // build the row
+ Set ^CacheTemp(repid,ind)=$LB(QHOSP,QUESPAPatMasDR,PAPMINo,PAPMIName,PAPMIName2,PAPMIName3,PAPMIDOB,CTSEXDesc,cQPatientComor,cQSigOpEvents,QSigOpEvDet,QOpDate,QSurgeonDesc,QAssistDesc,
+ QSurg2ndAsst,QAnaesDesc,QAnaesAsst,QOperation,QOpDiagnosis,QOpDetails,cQPathology,cQQ1,QQ1R,cQQ4,cQQ7,QQ7a,QQ8,QQ8a,QQ9,QQ9a,QQ10,QQ10a,QQ11,QQ12,QQ12a,QQ13,QQ13a,QBL,
+ cQspecobv,QRefSpecForm,QQ15,cQQ15,QQ16,QQ17,cQQ17,QQ18,QWOUND,cQWOUND,QWDSP,QDRAINS,cQDRAINS,QSDRAINDET,QNGT,cQNGT,QNGTDET,
+ QQ20,cQQ20,QQ20a,QQ21,cQQ21,QQ21a,cQQ44,cQQ23,QQ24,cQQ24,QQ24a,QQ19,cQQ19,QQ19a,QQ25,cQQ25,cQQ26,cQQ27,cQQ28,cQCertificateReq,cQCertificateCompl,
+ cQDCHospPrescReq,cQDCWrittenInstructReq,QREFDOCSTRING,SSUSRName,QUESDate,QUESTime)
+ s ind=ind+1
+ //fetch rows
+ &sql(fetch PostOpOrdOpReport into :QHOSP,:QUESPAPatMasDR,:PAPMINo,:PAPMIName,:PAPMIName2,:PAPMIName3,:PAPMIDOB,:CTSEXDesc,:cQPatientComor,:cQSigOpEvents,:QSigOpEvDet,
+ :QOpDate,:QSurgeonDesc,:QAssistDesc,:QSurg2ndAsst,:QAnaesDesc,:QAnaesAsst,:QOperation,:QOpDiagnosis,:QOpDetails,:cQPathology,
+ :cQQ1,:QQ1R,:cQQ4,:cQQ7,:QQ7a,:QQ8,:QQ8a,:QQ9,:QQ9a,:QQ10,:QQ10a,:QQ11,:QQ12,:QQ12a,:QQ13,:QQ13a,:QBL,
+ :cQspecobv,:QRefSpecForm,:QQ15,:cQQ15,:QQ16,:QQ17,:cQQ17,:QQ18,:QWOUND,:cQWOUND,:QWDSP,:QDRAINS,:cQDRAINS,:QSDRAINDET,:QNGT,:cQNGT,:QNGTDET,
+ :QQ20,:cQQ20,:QQ20a,:QQ21,:cQQ21,:QQ21a,:cQQ44,:cQQ23,:QQ24,:cQQ24,:QQ24a,:QQ19,:cQQ19,:QQ19a,:QQ25,:cQQ25,:cQQ26,:cQQ27,:cQQ28,:cQCertificateReq,:cQCertificateCompl,
+ :cQDCHospPrescReq,:cQDCWrittenInstructReq,:QREFDOCSTRING,:SSUSRName,:QUESDate,:QUESTime
+ )
+ }
+
+ //s ^zBernard("3")=(3)
+ &sql(close PostOpOrdOpReport)
+
+ // Build QHandle (AtEnd,ReportID,Index)
+ Set QHandle=$lb(0,repid,0)
+
+ //s ^zBernard("4")=(4)
+
+ Quit $$$OK
+
+
+FormatDates
+ // Convert the dates to ODBC date format
+ If PAPMIDOB Set PAPMIDOB=$ZD(PAPMIDOB,4,,4)
+ If QOpDate Set QOpDate=$ZD(QOpDate,4,,4)
+ If QUESDate Set QUESDate=$ZD(QUESDate,4,,4)
+ If QUESTime Set QUESTime=$ZTIME(QUESTime,3)
+ Quit
+]]></Implementation>
+</Method>
+
+<Method name="PostOpOrdOpReportFetch">
+<Description>
+This is the Fetch component of the %Library.Query. 
+This should never have to change. It is designed to fetch the row for each subscript of the ^CacheTemp
+global and return this row to the Crystal Report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,&Row:%Library.List,&AtEnd:%Library.Integer=0]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // This fetch method should never have to change. 
+
+ // repid - Report ID
+ // ind   - sequence index which represents each row
+
+ New repid,ind
+
+ // Restore QHandle
+ Set AtEnd=$li(QHandle,1)
+ Set repid=$li(QHandle,2)
+ Set ind=$li(QHandle,3)
+
+ Set ind=$o(^CacheTemp(repid,ind))
+ If ind="" {	// if there are no more rows, finish fetching
+ Set AtEnd=1
+ Set Row=""
+ }
+ Else      {	// fetch row
+ Set Row=^CacheTemp(repid,ind)
+ }
+
+ // Save QHandle
+ s QHandle=$lb(AtEnd,repid,ind)
+
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Query name="PostOpOrdOpReport">
+<Description>
+GHA List reports Stored Procedure
+It expects 2 parameter of type date and will return a list of records:
+Field1 - Integer
+Field2 - String(MAXLEN=255)
+Field3 - Date
+Field4 - Time</Description>
+<Type>%Library.Query</Type>
+<FormalSpec>QID:%Integer,EpisodeID:%Integer</FormalSpec>
+<SqlProc>1</SqlProc>
+<Parameter name="CONTAINID" value="0"/>
+<Parameter name="ROWSPEC" value="QHOSP:%Integer,QUESPAPatMasDR:%Integer,PAPMINo:%String(MAXLEN=255),PAPMIName:%String(MAXLEN=255),PAPMIName2:%String(MAXLEN=255),PAPMIName3:%String(MAXLEN=255),PAPMIDOB:%String(MAXLEN=255),CTSEXDesc:%String(MAXLEN=255),cQPatientComor:%String(MAXLEN=255),cQSigOpEvents:%String(MAXLEN=32000),QSigOpEvDet:%String(MAXLEN=255),QOpDate:%String(MAXLEN=255),QSurgeonDesc:%String(MAXLEN=255),QAssistDesc:%String(MAXLEN=255),QSurg2ndAsst:%String(MAXLEN=255),QAnaesDesc:%String(MAXLEN=255),QAnaesAsst:%String(MAXLEN=255),QOperation:%String(MAXLEN=255),QOpDiagnosis:%String(MAXLEN=255),QOpDetails:%String(MAXLEN=32000),cQPathology:%String(MAXLEN=255),cQQ1:%String(MAXLEN=255),QQ1R:%String(MAXLEN=255),cQQ4:%String(MAXLEN=255),cQQ7:%String(MAXLEN=255),QQ7a:%String(MAXLEN=255),QQ8:%String(MAXLEN=255),QQ8a:%String(MAXLEN=255),QQ9:%String(MAXLEN=255),QQ9a:%String(MAXLEN=255),QQ10:%String(MAXLEN=255),QQ10a:%String(MAXLEN=255),QQ11:%String(MAXLEN=255),QQ12:%String(MAXLEN=255),QQ12a:%String(MAXLEN=255),QQ13:%String(MAXLEN=255),QQ13a:%String(MAXLEN=255),QBL:%String(MAXLEN=255),cQspecobv:%String(MAXLEN=255),QRefSpecForm:%String(MAXLEN=255),QQ15:%String(MAXLEN=255),cQQ15:%String(MAXLEN=255),QQ16:%String(MAXLEN=255),QQ17:%String(MAXLEN=255),cQQ17:%String(MAXLEN=255),QQ18:%String(MAXLEN=255),QWOUND:%String(MAXLEN=255),cQWOUND:%String(MAXLEN=255),QWDSP:%String(MAXLEN=255),QDRAINS:%String(MAXLEN=255),cQDRAINS:%String(MAXLEN=255),QSDRAINDET:%String(MAXLEN=255),QNGT:%String(MAXLEN=255),cQNGT:%String(MAXLEN=255),QNGTDET:%String(MAXLEN=255),QQ20:%String(MAXLEN=255),cQQ20:%String(MAXLEN=255),QQ20a:%String(MAXLEN=255),QQ21:%String(MAXLEN=255),cQQ21:%String(MAXLEN=255),QQ21a:%String(MAXLEN=255),cQQ44:%String(MAXLEN=255),cQQ23:%String(MAXLEN=255),QQ24:%String(MAXLEN=255),cQQ24:%String(MAXLEN=255),QQ24a:%String(MAXLEN=255),QQ19:%String(MAXLEN=255),cQQ19:%String(MAXLEN=255),QQ19a:%String(MAXLEN=255),QQ25:%String(MAXLEN=255),cQQ25:%String(MAXLEN=255),cQQ26:%String(MAXLEN=255),cQQ27:%String(MAXLEN=255),cQQ28:%String(MAXLEN=255),cQCertificateReq:%String(MAXLEN=255),cQCertificateCompl:%String(MAXLEN=255),cQDCHospPrescReq:%String(MAXLEN=255),cQDCWrittenInstructReq:%String(MAXLEN=255),QREFDOCSTRING:%String(MAXLEN=255),SSUSRName:%String(MAXLEN=255),QUESDate:%String(MAXLEN=255),QUESTime:%String(MAXLEN=255)"/>
+<Parameter name="SELECTMODE" value="ODBC"/>
+</Query>
+
+<Query name="LookUpHospital">
+<Description>
+Lookup on Hospital returning all active services</Description>
+<Type>%Library.SQLQuery</Type>
+<FormalSpec>Hospital:%String</FormalSpec>
+<SqlQuery><![CDATA[SELECT HOSP_Desc, HOSP_RowId, HOSP_Code
+FROM SQLUser.CT_Hospital
+WHERE ((%ALPHAUP HOSP_Desc %STARTSWITH %ALPHAUP :Hospital) OR (%ALPHAUP HOSP_Code %STARTSWITH %ALPHAUP :Hospital))
+AND (HOSP_DateFrom <= CURRENT_DATE)
+AND ((HOSP_DateTo IS NULL) OR (HOSP_DateTo >= CURRENT_DATE))
+ORDER BY HOSP_Desc]]></SqlQuery>
+<Parameter name="CONTAINID" value="2"/>
+<Parameter name="ROWSPEC" value="Description:%String,HIDDEN:%String,Code:%String"/>
+</Query>
+
+<Method name="LookUpBrokerHospital">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>itmjs:%Library.String="",itmjsex:%Library.String="",Hospital:%Library.String=""</FormalSpec>
+<Implementation><![CDATA[
+ n id,code,desc,activedate
+
+ s (id,code,desc)=""
+
+ ; Try and find a matching code
+ &sql(SELECT	HOSP_Desc, HOSP_RowId, HOSP_Code
+ INTO	:desc, :id, :code
+ FROM	SQLUser.CT_Hospital
+ WHERE	((%ALPHAUP HOSP_Desc = %ALPHAUP :Hospital) OR (%ALPHAUP HOSP_Code = %ALPHAUP :Hospital))
+ AND (HOSP_DateFrom <= CURRENT_DATE)
+ AND ((HOSP_DateTo IS NULL) OR (HOSP_DateTo >= CURRENT_DATE))
+ )
+ ;
+ i SQLCODE s desc=Hospital q 0
+ s retval=itmjs_"('"_$ZCVT(desc,"O","JS")_"');"
+ i itmjsex'="""" s retval=retval_itmjsex_"('"_$ZCVT(desc,"O","JS")_"^"_id_"^"_$ZCVT(code,"O","JS")_"');"
+ &javascript<#(retval)#>
+ q 1
+]]></Implementation>
+</Method>
+
+<Query name="LookUpAlert">
+<Description>
+Lookup on Alerts </Description>
+<Type>%Library.SQLQuery</Type>
+<FormalSpec>Alert:%String</FormalSpec>
+<SqlQuery>SELECT Alert_Desc, Alert_RowId, Alert_Code 
+FROM SQLUser.PAC_PatientAlert
+WHERE ((%ALPHAUP Alert_Desc %STARTSWITH %ALPHAUP :Alert) OR (%ALPHAUP Alert_Code %STARTSWITH %ALPHAUP :Alert))
+ORDER BY Alert_Desc</SqlQuery>
+<Parameter name="CONTAINID" value="2"/>
+<Parameter name="ROWSPEC" value="Description:%String,HIDDEN:%String,Code:%String"/>
+</Query>
+
+<Method name="LookUpBrokerAlert">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>itmjs:%Library.String="",itmjsex:%Library.String="",Alert:%Library.String=""</FormalSpec>
+<Implementation><![CDATA[
+ n id,code,desc
+
+ s (id,code,desc)=""
+
+ ; Try and find a matching code
+ &sql(SELECT	 Alert_Desc, Alert_Code, Alert_RowId
+ INTO	:desc, :code, :id
+ FROM	SQLUser.PAC_PatientAlert
+ WHERE	((%ALPHAUP Alert_Desc = %ALPHAUP :Alert) OR (%ALPHAUP Alert_Code = %ALPHAUP :Alert))
+ )
+ ;
+ i SQLCODE s desc=Alert q 0
+ s retval=itmjs_"('"_$ZCVT(desc,"O","JS")_"');"
+ i itmjsex'="""" s retval=retval_itmjsex_"('"_$ZCVT(desc,"O","JS")_"^"_id_"^"_$ZCVT(code,"O","JS")_"');"
+ &javascript<#(retval)#>
+ q 1
+]]></Implementation>
+</Method>
+</Class>
+</Export>

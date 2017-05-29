@@ -1,0 +1,227 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.SWARH.Report.RptSvc.StoredProc.SWARHRNAP1021">
+<Description><![CDATA[
+<pre>
+**************************************************************************************************************************************
+* Report Code: SWARHRNAP1021
+* Report Description: Trak Community Suspensions
+* Menu Caption:
+* Initial release: 1
+* Developer: Tim Beilby
+* Modified: 4/12/2013
+* 
+**************************************************************************************************************************************
+</pre>]]></Description>
+<ProcedureBlock>0</ProcedureBlock>
+<Super>Custom.SWARH.Report.RptSvc.StoredProc.Abstract</Super>
+<TimeCreated>60905,54849</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/SWARH/Report/RptSvc/StoredProc/SWARHRNAP1021.xml#1 $</Default>
+</Parameter>
+
+<Method name="SWARHRNAP1021Close">
+<Description>
+This is the Close component of the %Library.Query.
+This is standard code and should never have to change.
+This is where all the cleanup is performed, i.e. the purging of the temporary storage global ^CacheTemp.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>QHandle:%Library.Binary</FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Clean up by purging the temporary node in ^CacheTemp global
+ New repid,ind
+ Set repid=$li(QHandle,2)
+
+ //Start Monitor (if configured to capture stats)
+ i mon Do ..MonitorEnd(mon)
+
+ Kill ^CacheTemp("TRAK",repid)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="SWARHRNAP1021Execute">
+<Description>
+This is the Execute section for the %Library.Query. 
+All of the logic will be performed here.
+A new node for the ^CacheTemp global will be created and each subscript of this global will contain
+a row for the report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,Hospital:%Library.String,DateFrom:%Date,DateTo:%Date,Specialty:%Library.String]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Get reportid i.e. use $INCREMENT to add another node to ^CacheTemp global. 
+ // We use ^CacheTemp global because it will always use memory before disk
+ New repid,ind
+
+  // Use $Increment to get the next node
+ Set repid=$I(^CacheTemp("TRAK"))
+ 
+ New PAADMHospitalDR,PAPMINo,PAPMIName3,PAPMIName,PAPMIName2,PAPERStName,PAPERForeignAddress,CTCITDesc,TPSuspendDateFrom,TPSuspendDateTo
+ New VRDesc,CTPCPCode,CTLOCDesc,CTLOCCode, SuperDays, over28
+ Set (PAADMHospitalDR)=0
+ Set (PAPMINo,PAPMIName3,PAPMIName,PAPMIName2,PAPERStName,PAPERForeignAddress,CTCITDesc,TPSuspendDateFrom,TPSuspendDateTo)=""
+ Set (VRDesc,CTPCPCode,CTLOCDesc,CTLOCCode, SuperDays, over28)=""
+
+ s ind=1, END=0
+
+ //Start Monitor (if configured to capture stats)
+ s mon=..MonitorBegin()
+ 
+ s Hospital=$zstrip(Hospital,"*CW")
+ s Specialty=$zstrip(Specialty,"*CW")
+
+ //Convert ODBC dates to cache format
+ s DateFrom=..ConvertDateToCache(DateFrom)
+ s DateTo=..ConvertDateToCache(DateTo)
+ 
+ 
+ &SQL(DECLARE DNS1001Cursor CURSOR FOR 
+	 SELECT
+	     TP_PAADM_DR->PAADM_Hospital_DR,
+	     TP_PAADM_DR->PAADM_PAPMI_DR->PAPMI_No As URNumber,
+	     TP_PAADM_DR->PAADM_PAPMI_DR->PAPMI_Name3 As SecondName,
+	     TP_PAADM_DR->PAADM_PAPMI_DR->PAPMI_Name As Surname,
+	     TP_PAADM_DR->PAADM_PAPMI_DR->PAPMI_Name2 As FirstName,
+	     TP_PAADM_DR->PAADM_PAPMI_DR->PAPMI_PAPER_DR->PAPER_StName As Address,
+	     TP_PAADM_DR->PAADM_PAPMI_DR->PAPMI_PAPER_DR->PAPER_ForeignAddress As Address2,
+	     TP_PAADM_DR->PAADM_PAPMI_DR->PAPMI_PAPER_DR->PAPER_CityCode_DR->CTCIT_Desc As Suburb,
+	     TP_SuspendDateFrom,
+	     TP_SuspendDateTo,
+	     TP_SuspendReason_DR->VR_Desc As Reason,
+	     --TP_Resource_DR->Res_CTPCP_DR->CTPCP_Code As AreaWorker,
+	     TP_Resource_DR->RES_Desc As AreaWorker,
+	     TP_Resource_DR->RES_CTLOC_DR->CTLOC_Desc As CTLOCDescSpecialty,
+	     TP_Resource_DR->RES_CTLOC_DR->CTLOC_Code As SpecialtyCode,
+		 --ORIGINAL
+	 	 --IFNULL(TP_SuspendDateTo,(DateDiff(d,TP_SuspendDateFrom, :DateTo)),(DateDiff(d,TP_SuspendDateFrom, TP_SuspendDateTo))) As SuperDays
+		 
+		 --2014-12-09 BS
+		 -- Simpler way of calculating the days
+		 DateDiff(d,TP_SuspendDateFrom, ISNULL(TP_SuspendDateTo, :DateTo)) As SuperDays
+
+	 FROM
+	     SqlUser.NR_TreatmentPlan
+	 WHERE
+	     TP_PAADM_DR->PAADM_Hospital_DR = :Hospital
+	     AND (TP_Resource_DR->RES_CTLOC_DR->CTLOC_RowId = :Specialty OR (:Specialty IS NULL))
+	     
+	 --ORIGINAL
+	 	--AND TP_SuspendDateFrom BETWEEN :DateFrom AND :DateTo
+	 
+	 --2014-12-09 BS
+	 -- Don't show discharged episodes on the report (or cancelled or DNA's)
+	 	AND TP_PAADM_DR->PAADM_VisitStatus NOT IN ('D', 'C', 'N') 
+	 
+	 --2014-12-09 BS
+	 -- Modify to make sure the selected date range overlaps with the suspended period
+	 -- NOTE: This will include any where the suspended date = DateFrom
+	 	AND TP_SuspendDateFrom <= :DateTo
+	 	AND ((TP_SuspendDateTo >= :DateFrom) OR (TP_SuspendDateTo IS NULL))
+
+)
+ &SQL(OPEN DNS1001Cursor)
+ 
+ //FETCH FIRST ROW
+ d FetchRow
+  
+ while END=0 {
+  
+	 d FormatDates
+	 d FormatStrings
+	 d SetOver28
+  	 //d FormatTimes
+  	 
+	 s sort = ind		// don't sort - uncomment this line if you've sorted in the query
+ 
+	 s ^CacheTemp("TRAK",repid,sort)=$LB(PAADMHospitalDR,PAPMINo,PAPMIName3,PAPMIName,PAPMIName2,PAPERStName,PAPERForeignAddress,CTCITDesc,TPSuspendDateFrom,TPSuspendDateTo,VRDesc,CTPCPCode,CTLOCDesc,CTLOCCode, SuperDays, over28)
+	 s ind=ind+1
+ 
+	 //fetch rows
+	 d FetchRow
+	 
+ }
+
+ &SQL(CLOSE DNS1001Cursor)
+ 
+ // Build QHandle (AtEnd,ReportID,Index)
+ Set QHandle=$lb(0,repid,0)
+
+ Quit $$$OK
+
+FetchRow
+ &sql(FETCH DNS1001Cursor INTO :PAADMHospitalDR,:PAPMINo,:PAPMIName3,:PAPMIName,:PAPMIName2,:PAPERStName,:PAPERForeignAddress,:CTCITDesc,:TPSuspendDateFrom,:TPSuspendDateTo,:VRDesc,:CTPCPCode,:CTLOCDesc,:CTLOCCode,:SuperDays)
+ if SQLCODE '= 0 set END = 1
+ q
+
+FormatStrings
+ s PAPERStName = $zstrip(PAPERStName,"*C")
+ q
+ 
+FormatDates
+ s TPSuspendDateFrom=..ConvertDateToODBC(TPSuspendDateFrom)
+ s TPSuspendDateTo=..ConvertDateToODBC(TPSuspendDateTo)
+ q
+ 
+ 
+SetOver28
+ i (SuperDays > 28)
+ 		{s over28 = 1 }
+ else 	{s over28 = 0}
+ q
+ 
+FormatTimes
+ q
+]]></Implementation>
+</Method>
+
+<Method name="SWARHRNAP1021Fetch">
+<Description>
+This is the Fetch component of the %Library.Query. 
+This should never have to change. It is designed to fetch the row for each subscript of the ^CacheTemp
+global and return this row to the Crystal Report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,&Row:%Library.List,&AtEnd:%Library.Integer=0]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // This fetch method should never have to change. 
+
+ // repid - Report ID
+ // ind   - sequence index which represents each row
+
+ New repid,ind
+
+ // Restore QHandle
+ Set AtEnd=$li(QHandle,1)
+ Set repid=$li(QHandle,2)
+ Set ind=$li(QHandle,3)
+
+ Set ind=$o(^CacheTemp("TRAK",repid,ind))
+ If ind="" {	// if there are no more rows, finish fetching
+	 Set AtEnd=1
+	 Set Row=""
+ }
+ Else      {	// fetch row
+ 	Set Row=^CacheTemp("TRAK",repid,ind)
+ }
+
+ // Save QHandle
+ s QHandle=$lb(AtEnd,repid,ind)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Query name="SWARHRNAP1021">
+<Type>%Library.Query</Type>
+<FormalSpec>Hospital:%Library.String,DateFrom:%Date,DateTo:%Date,Specialty:%Library.String</FormalSpec>
+<SqlProc>1</SqlProc>
+<Parameter name="CONTAINID" value="0"/>
+<Parameter name="ROWSPEC" value="PAADMHospitalDR:%Library.Integer,PAPMINo:%Library.String,PAPMIName3:%Library.String,PAPMIName:%Library.String,PAPMIName2:%Library.String,PAPERStName:%Library.String,PAPERForeignAddress:%Library.String,CTCITDesc:%Library.String,TPSuspendDateFrom:%Library.Date,TPSuspendDateTo:%Library.Date,VRDesc:%Library.String,CTPCPCode:%Library.String,CTLOCDesc:%Library.String,CTLOCCode:%Library.String,SuperDays:%Library.Integer,over28:%Library.Integer"/>
+<Parameter name="SELECTMODE" value="ODBC"/>
+</Query>
+</Class>
+</Export>

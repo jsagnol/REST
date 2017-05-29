@@ -1,0 +1,321 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.AUXX.Report.ZEN.StoredProc.OperatingTheatreList">
+<ProcedureBlock>0</ProcedureBlock>
+<Super>Report.Abstract</Super>
+<TimeCreated>59388,55236.125</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/AUXX/Report/ZEN/StoredProc/OperatingTheatreList.xml#1 $</Default>
+</Parameter>
+
+<UDLText name="T">
+<Content><![CDATA[
+// Report Name: Operating Theatre List <br>
+
+]]></Content>
+</UDLText>
+
+<UDLText name="T">
+<Content><![CDATA[
+// Report Code: AUXX.OPT0001 <br>
+
+]]></Content>
+</UDLText>
+
+<UDLText name="T">
+<Content><![CDATA[
+// Report Description: This report will list theatre bookings for a selected Date / Theatre Department; Date / Surgeon; or Date / Anaesthetist.
+
+]]></Content>
+</UDLText>
+
+<Method name="GetBookingsClose">
+<Description>
+This is the Close component of the %Library.Query.
+This is standard code and should never have to change.
+This is where all the cleanup is performed, i.e. the purging of the temporary storage global ^CacheTemp.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>QHandle:%Library.Binary</FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Clean up by purging the temporary node in ^CacheTemp global
+ New repid
+ Set repid=$LIST(QHandle,2)
+ 
+ //Start Monitor (if configured to capture stats)
+ i mon Do ..MonitorEnd(mon)
+ 
+ Kill ^CacheTemp("TRAK",repid)
+ 
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="GetBookingsExecute">
+<Description>
+This is the Execute section for the %Library.Query. 
+All of the logic will be performed here.
+A new node for the ^CacheTemp global will be created and each subscript of this global will contain
+a row for the report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,TheatreDate:%Library.Date,TheatreTime:%Library.String,Hospital:%Library.String,TheatreDept:%Library.String,Theatre:%Library.String,Surgeon:%Library.String,Anaesthetist:%Library.String]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Get reportid i.e. use $INCREMENT to add another node to ^CacheTemp global. 
+ // We use ^CacheTemp global because it will always use memory before disk
+ New repid,ind, END
+
+ // Use $Increment to get the next node
+ Set repid=$Increment(^CacheTemp("TRAK"))
+  Kill ^CacheTemp("TRAK",repid)
+  
+ //Start Monitor (if configured to capture stats)
+ s mon=..MonitorBegin()
+ 
+ i $g(TheatreDate)'="" s TheatreDate=..ConvertDateToCache(TheatreDate)
+ i $g(TheatreTime)'="" s TheatreTime=..ConvertTimeToCache(TheatreTime)
+ i $g(Hospital)'="" s Hospital=$zstrip(Hospital,"*C")
+ i $g(TheatreDept)'="" s TheatreDept=$zstrip(TheatreDept,"*C")
+ i $g(Theatre)'="" s Theatre=$zstrip(Theatre,"*C")
+ i $g(Surgeon)'="" s Surgeon=$zstrip(Surgeon,"*C")
+ i $g(Anaesthetist)'="" s Anaesthetist=$zstrip(Anaesthetist,"*C")
+ 
+ ;i $zstrip($g(TheatreTime),"*C")'="" d
+ . ;s RBOPRowId=0 f  s RBOPRowId=$o(^RBOP(0,"DateTime",TheatreDate,TheatreTime,RBOPRowId)) q:RBOPRowId=""  d
+ . . ;i (",B,A,D,")[(","_$p($g(^RBOP(RBOPRowId)),"^",9)_",") d
+ . . . ;s ind=$i(ind)
+ . . . ;d ..GetDetails(repid,ind,RBOPRowId,Hospital,TheatreDept,Theatre,Surgeon,Anaesthetist)
+ ;i $zstrip($g(TheatreTime),"*C")="" d
+ . ;s TheatreTime=0 f  s TheatreTime=$o(^RBOP(0,"DateTime",TheatreDate,TheatreTime)) q:TheatreTime=""  d
+ . . ;s RBOPRowId=0 f  s RBOPRowId=$o(^RBOP(0,"DateTime",TheatreDate,TheatreTime,RBOPRowId)) q:RBOPRowId=""  d
+ . . . ;i (",B,A,D,")[(","_$p($g(^RBOP(RBOPRowId)),"^",9)_",") d
+ . . . . ;s ind=$i(ind)
+ . . . . ;d ..GetDetails(repid,ind,RBOPRowId,Hospital,TheatreDept,Theatre,Surgeon,Anaesthetist)
+ 
+    n RowId,HOSPDesc,CTLOCDesc,RESDesc,SESSTimeStart,ActualSessionTime,SurgTTLCode,SurgCTPCPDesc,SurgCTPCPFirstName,SurgCTPCPOtherName,SurgCTPCPSurname,AnaesTTLCode,AnaesCTPCPDesc,AnaesCTPCPFirstName,AnaesCTPCPOtherName,AnaesCTPCPSurname,PAPMIRowId,PAADMRowId,RBOPProcsOpers,RBOPProcedure,SPPP,RBOPReasonReturnDR,TTLCode,PAPMIName,PAPMIName2,PAPMIName3,PAPERDob,PAADMAdmTime,PAADM2ExpAdmTime,SUBTDesc,WARDCode,BEDCode,ROOMDesc,FullSurgeonName,FullAnaesName,PAPMINo,PatientName,WardRmBed,FullComments,RBOPSecOpers
+	s (RowId,HOSPDesc,CTLOCDesc,RESDesc,SESSTimeStart,ActualSessionTime,SurgTTLCode,SurgCTPCPDesc,SurgCTPCPFirstName,SurgCTPCPOtherName,SurgCTPCPSurname,AnaesTTLCode,AnaesCTPCPDesc,AnaesCTPCPFirstName,AnaesCTPCPOtherName,AnaesCTPCPSurname,PAPMIRowId,PAADMRowId,RBOPProcsOpers,RBOPProcedure,SPPP,RBOPReasonReturnDR,TTLCode,PAPMIName,PAPMIName2,PAPMIName3,PAPERDob,PAADMAdmTime,PAADM2ExpAdmTime,SUBTDesc,WARDCode,BEDCode,ROOMDesc,FullSurgeonName,FullAnaesName,PAPMINo,PatientName,WardRmBed,FullComments,RBOPSecOpers)=""
+	
+    s ind=1, END=0
+    
+    do GetOperatingTheatreList
+    	
+      // Build QHandle (AtEnd,ReportID,Index)
+   Set QHandle=$lb(0,repid,0)
+   Quit $$$OK 
+
+GetOperatingTheatreList	
+	 &SQL(declare GetOperatingTheatreList cursor for 
+	SELECT
+	RBOP_RowId,
+	RBOP_RESOURCE_DR->RES_CTLOC_DR->CTLOC_Hospital_DR->HOSP_Desc,
+	RBOP_RESOURCE_DR->RES_CTLOC_DR->CTLOC_Desc,
+	RBOP_RESOURCE_DR->RES_Desc,
+	RBOP_TimeOper,
+	RBOP_APPOINT_DR->APPT_AS_PARREF->AS_ActualStartTime,
+	RBOP_Surgeon_DR->CTPCP_Title_DR->TTL_Code,
+	RBOP_Surgeon_DR->CTPCP_Desc,
+	RBOP_Surgeon_DR->CTPCP_FirstName,
+	RBOP_Surgeon_DR->CTPCP_OtherName,
+	RBOP_Surgeon_DR->CTPCP_Surname,
+	RBOP_Anaesthetist_DR->CTPCP_Title_DR->TTL_Desc,
+	RBOP_Anaesthetist_DR->CTPCP_Desc,
+	RBOP_Anaesthetist_DR->CTPCP_FirstName,
+	RBOP_Anaesthetist_DR->CTPCP_OtherName,
+	RBOP_Anaesthetist_DR->CTPCP_Surname,
+	RBOP_Person_DR,
+	RBOP_PAADM_DR,
+	RBOP_ProcsOpers,
+	RBOP_Procedure,
+	RBOP_StatePPP_DR->SPPP_Desc,
+	RBOP_ReasonReturn_DR,
+	RBOP_StatePPP_DR->SPPP_Code
+	
+	FROM  SQLUser.RB_OperatingRoom
+	WHERE 
+	(RBOP_Status in ('A','D','B')
+	AND
+	(({fn CONCAT(',',{fn CONCAT((:Hospital),',')})} [ {fn CONCAT(',',{fn CONCAT((RBOP_RESOURCE_DR->RES_CTLOC_DR->CTLOC_Hospital_DR->HOSP_RowId),',')})}) OR (:Hospital IS NULL))
+	AND ((RBOP_TimeOper >= :TheatreTime) OR (:TheatreTime IS NULL))	
+	AND (({fn CONCAT(',',{fn CONCAT((:TheatreDept),',')})} [ {fn CONCAT(',',{fn CONCAT((RBOP_RESOURCE_DR->RES_CTLOC_DR->CTLOC_RowId),',')})}) OR (:TheatreDept IS NULL))
+	AND (({fn CONCAT(',',{fn CONCAT((:Theatre),',')})} [ {fn CONCAT(',',{fn CONCAT((RBOP_RESOURCE_DR->RES_RowId),',')})}) OR (:Theatre IS NULL))
+	AND ((RBOP_Surgeon_DR->CTPCP_RowId = :Surgeon) OR (:Surgeon IS NULL))
+	AND ((RBOP_Anaesthetist_DR->CTPCP_RowId = :Anaesthetist) OR (:Anaesthetist IS NULL))
+	AND ((RBOP_DateOper = :TheatreDate) OR (:TheatreDate IS NULL))
+	))
+	
+	&sql(open GetOperatingTheatreList)
+	
+	do FetchOperatingTheatreList
+	
+	while END=0	
+	{
+	i SESSTimeStart s SESSTimeStart=$zt(SESSTimeStart,2)
+	i ActualSessionTime s ActualSessionTime=$zt(ActualSessionTime,2)
+	;i ActualSessionTime {
+		;s TimeStart=ActualSessionTime }
+		;else 
+		s TimeStart=SESSTimeStart
+	
+	;s RBOPProcedure=##class(websys.Conversions).ListLogicalToHtml(RBOPProcedure)
+	s RBOPProcsOpers=##class(websys.Conversions).ListLogicalToHtml(RBOPProcsOpers)
+	
+	s RBOPSecOpers= ..GetSecOper(ORRowId)	
+	
+	s FullComments=SPPP_$c(10)_RBOPSecOpers_$c(10)_RBOPProcedure_$c(10)_RBOPProcsOpers
+	
+	s FullSurgeonName=$s(SurgTTLCode'="":SurgTTLCode_" ",1:"")_$s(SurgCTPCPFirstName'="":$zcvt($e(SurgCTPCPFirstName,1),"U")_" ",1:"")_$s(SurgCTPCPOtherName'="":$zcvt($e(SurgCTPCPOtherName,1),"U")_" ",1:"")_$s(SurgCTPCPSurname'="":SurgCTPCPSurname,1:"")
+	i FullSurgeonName="" s FullSurgeonName=SurgCTPCPDesc
+	
+	s FullAnaesName=$s(AnaesTTLCode'="":AnaesTTLCode_" ",1:"")_$s(AnaesCTPCPFirstName'="":$zcvt($e(AnaesCTPCPFirstName,1),"U")_" ",1:"")_$s(AnaesCTPCPOtherName'="":$zcvt($e(AnaesCTPCPOtherName,1),"U")_" ",1:"")_$s(AnaesCTPCPSurname'="":AnaesCTPCPSurname,1:"")
+	i FullAnaesName="" s FullAnaesName=AnaesCTPCPDesc
+	
+	; Get Patient Details
+ 	i PAADMRowId'="" s PAPMIRowId=$p($g(^PAADM(PAADMRowId)),"^",1)
+	i PAPMIRowId'="" d
+	. s TTLCode=$p($g(^PAPER(PAPMIRowId,"PER",4)),"^",20)
+	. i TTLCode'="" s TTLCode=$p($g(^CT("TTL",TTLCode)),"^",1)		;Patient Title
+	. s PAPMIName=$p($g(^PAPER(PAPMIRowId,"ALL")),"^",1)				;Patient Surname
+	. s PAPMIName2=$p($g(^PAPER(PAPMIRowId,"ALL")),"^",2)				;Patient Given Name
+	. s PAPMIName3=$p($g(^PAPER(PAPMIRowId,"ALL")),"^",19)			;Patient Other Name
+	. s PAPMINo=$S($G(XFUNC("CLASS"))="OP":$p($g(^PAPER(PAPMIRowId,"PAT",1)),"^",2),1:$p($g(^PAPER(PAPMIRowId,"PAT",1)),"^",1))
+	. s PAPERDob=$p($g(^PAPER(PAPMIRowId,"ALL")),"^",6)				;Patient Date of Birth
+	. i PAPERDob s PAPERDob=$zd(PAPERDob,3)
+	. s PatientName=$s(TTLCode'="":TTLCode_" ",1:"")_$s(PAPMIName'="":$zcvt(PAPMIName,"U")_", ",1:"")_$s(PAPMIName2'="":$zcvt($e(PAPMIName2,1),"U")_" ",1:"")_$s(PAPMIName3'="":$zcvt($e(PAPMIName2,1),"U"),1:"")
+	
+	; Get Current Admission Ward/ ROOM / Bed
+	if PAADMRowId'="" {
+	s PAADMAdmTime=$p($g(^PAADM(PAADMRowId)),"^",7)					;Actual Admission Time
+	i PAADMAdmTime s PAADMAdmTime=$zt(PAADMAdmTime,2)
+	s PAADM2ExpAdmTime=$p($g(^PAADM(PAADMRowId,"ADM2")),"^",32)		;Expected Admission Time
+	i PAADM2ExpAdmTime s PAADM2ExpAdmTime=$zt(PAADM2ExpAdmTime,2)
+	s SUBTDesc=$p($g(^PAADM(PAADMRowId,1)),"^",6)
+	i SUBTDesc'="" s SUBTDesc=$p($g(^PAC("SUBT",SUBTDesc)),"^",2)		;Episode Sub Type
+	s WARDCode=$p($g(^PAADM(PAADMRowId)),"^",70)
+	i WARDCode'="" s WARDCode=$p($g(^PAWARD(WARDCode)),"^",1)			;Ward Code
+	s ROOMDesc=$p($g(^PAADM(PAADMRowId)),"^",69)
+	i ROOMDesc'="" s ROOMDesc=$p($g(^PAROOM(ROOMDesc)),"^",2)			;Room Description
+	s BEDCode=$p($g(^PAADM(PAADMRowId)),"^",73)
+	i BEDCode'="" s BEDCode=$p($g(^PAWARD(+BEDCode,"BED",$p(BEDCode,"||",2))),"^",1)		;Bed Number
+			
+	if WARDCode '="" {
+		s WardRmBed=WARDCode		
+	    if ROOMDesc '="" s WardRmBed=WardRmBed_" / "_ROOMDesc	   
+	if (WardRmBed '="" & WARDCode=""){
+		if ROOMDesc '="" s WardRmBed=ROOMDesc		
+	}
+	    if BEDCode '="" s WardRmBed=WardRmBed_" / "_BEDCode}  
+		
+	if RBOPReasonReturnDR'="" 
+		{set RBOPReasonReturnDR="Y" }
+	else 
+		{set RBOPReasonReturnDR="N"}
+	
+	s ^CacheTemp("TRAK",repid,$ZCVT(HOSPDesc,"U")_" "_$ZCVT(CTLOCDesc,"U")_" "_$ZCVT(FullSurgeonName,"U")_" "_TimeStart_" "_ind)=$lb(ORRowId,HOSPDesc,CTLOCDesc,RESDesc,TimeStart,ActualSessionTime,FullSurgeonName,FullAnaesName,PAPMIRowId,PAADMRowId,RBOPProcsOpers,RBOPProcedure,SPPP,RBOPReasonReturnDR,TTLCode,PAPMIName,PAPMIName2,PAPMIName3,PAPERDob,PAADMAdmTime,PAADM2ExpAdmTime,SUBTDesc,WARDCode,BEDCode,ROOMDesc,PAPMINo,PatientName,WardRmBed,FullComments)
+	set ind=ind+1
+	
+	s (RBOPSecOpers,WardRmBed,WARDCode,ROOMDesc,BEDCode,SUBTDesc,PAADMAdmTime,FullComments,FullSurgeonName,FullAnaesName,PAPMIName,PAPMIName2,PAPMIName3,PatientName,RBOPProcsOpers)=""
+	do FetchOperatingTheatreList
+	}}
+	
+	&sql(close GetOperatingTheatreList)
+	 
+	 quit
+	 
+	 
+	 
+
+FetchOperatingTheatreList
+ &sql(fetch GetOperatingTheatreList INTO
+    :ORRowId,:HOSPDesc,:CTLOCDesc,:RESDesc,:SESSTimeStart,:ActualSessionTime,:SurgTTLCode,:SurgCTPCPDesc,:SurgCTPCPFirstName,:SurgCTPCPOtherName,:SurgCTPCPSurname,:AnaesTTLCode,:AnaesCTPCPDesc,:AnaesCTPCPFirstName,:AnaesCTPCPOtherName,:AnaesCTPCPSurname,:PAPMIRowId,:PAADMRowId,:RBOPProcsOpers,:RBOPProcedure,:SPPP,:RBOPReasonReturnDR,:SPPPCode
+	)
+	
+ if SQLCODE'=0 set END=1
+ Quit
+]]></Implementation>
+</Method>
+
+<UDLText name="T">
+<Content><![CDATA[
+//sys/ global and return this row to the Crystal Report.
+
+]]></Content>
+</UDLText>
+
+<Method name="GetBookingsFetch">
+<Description>
+This is the Fetch component of the %Library.Query. 
+This should never have to change. It is designed to fetch the row for each subscript of the ^CacheTemp</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,&Row:%Library.List,&AtEnd:%Library.Integer=0]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // This fetch method should never have to change. 
+
+ // repid - Report ID
+ 
+ // ind   - sequence index which represents each row
+
+ New repid,ind
+
+ // Restore QHandle
+ Set AtEnd=$LI(QHandle,1)
+ Set repid=$LI(QHandle,2)
+ Set ind=$LI(QHandle,3)
+
+ Set ind=$o(^CacheTemp("TRAK",repid,ind))
+ If ind="" {	// if there are no more rows, finish fetching
+ 	Set AtEnd=1
+ 	Set Row=""
+ }  Else  {	// fetch row
+ 	Set Row=^CacheTemp("TRAK",repid,ind)
+ }
+
+ // Save QHandle
+ Set QHandle=$lb(AtEnd,repid,ind)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Query name="GetBookings">
+<Type>%Library.Query</Type>
+<FormalSpec>TheatreDate:%Library.Date,TheatreTime:%Library.String,Hospital:%Library.String,TheatreDept:%Library.String,Theatre:%Library.String,Surgeon:%Library.String,Anaesthetist:%Library.String</FormalSpec>
+<SqlProc>1</SqlProc>
+<Parameter name="CONTAINID" value="0"/>
+<Parameter name="ROWSPEC" value="ORRowID:%Library.String,HOSPDesc:%String(MAXLEN=255),CTLOCDesc:%String(MAXLEN=255),RESDesc:%String(MAXLEN=255),TimeStart:%String,ActualSessionTime:%String,FullSurgeonName:%String(MAXLEN=255),FullAnaesName:%String(MAXLEN=255),PAPMIRowId:%String,PAADMRowId:%String,RBOPProcsOpers:%String(MAXLEN=255),RBOPProcedure:%String(MAXLEN=255),SPPP:%String(MAXLEN=255),RBOPReasonReturnDR:%String,TTLCode:%String,PAPMIName:%String,PAPMIName2:%String,PAPMIName3:%String,PAPERDob:%String,PAADMAdmTime:%String,PAADM2ExpAdmTime:%String,SUBTDesc:%String,WARDCode:%String,BEDCode:%String,ROOMDesc:%String,PAPMINo:%String,PatientName:%String,WardRmBed:%String,FullComments:%String(MAXLEN=4096)"/>
+</Query>
+
+<Method name="GetSecOper">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>ORRowId:%Integer</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+   s (Count,RBOPSPRChildsub,OPERRowId)=0
+   s (OPERCode,OPERDesc,OPERDesc1)=""  
+      
+   If ORRowId="" q ""
+   
+   s RBOPSPRChildsub=$o(^RBOP(ORRowId,"SPR",RBOPSPRChildsub))
+   
+   WHILE(RBOPSPRChildsub)'="" {
+	s Count=Count+1
+	s OPERRowId=$p($g(^RBOP(ORRowId,"SPR",RBOPSPRChildsub)),"^",1)
+	
+	i OPERRowId '="" { 
+      s OPERCode=$p($g(^PAC("SPPP",OPERRowId)),"^",1)
+      s OPERDesc=$p($g(^PAC("SPPP",OPERRowId)),"^",2)
+       
+      if Count=1 {
+	      if OPERDesc '="" {set OPERDesc1 = " - "_OPERDesc}          
+      }	
+      else {set OPERDesc1 =  OPERDesc1_$c(10)_" - "_OPERDesc}
+    }
+    s RBOPSPRChildsub=$o(^RBOP(ORRowId,"SPR",RBOPSPRChildsub),1)
+ }
+ q OPERDesc1
+]]></Implementation>
+</Method>
+</Class>
+</Export>

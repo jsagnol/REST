@@ -1,0 +1,1166 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.AUSW.Report.ZEN.StoredProcedure.MedicationChart">
+<Super>Region.AUXX.Reports.ZEN.StoredProc.Abstract</Super>
+<TimeCreated>62371,64314.686856</TimeCreated>
+
+<Parameter name="SrcVer">
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/AUSW/Report/ZEN/StoredProcedure/MedicationChart.xml#1 $</Default>
+</Parameter>
+
+<Parameter name="ALLERGYCATEGORIES">
+<Expression>$LB("Generic Drug","Pharmacy Item","Allergy Group")</Expression>
+</Parameter>
+
+<Query name="Medication">
+<Type>%Query</Type>
+<FormalSpec>EpisodeId:%String="",Hospital:%String="",DateFrom:%String="",DateTo:%String=""</FormalSpec>
+<SqlProc>1</SqlProc>
+<Parameter name="CONTAINID" value="0"/>
+<Parameter name="ROWSPEC" value="BreakOn:%String,PAPMIRowId:%String,PAPMINo:%String,PAADMAdmNo:%String,PAPMIName:%String,PAPMIName2:%String,PAPMIName3:%String,CTSEXCode:%String,PAPMIDOB:%String,PAPERAgeYr:%String,Height:%Integer,Weight:%String,PAADMAdmDate:%String,PAADMAdmTime:%String,PAADMDischgDate:%String,PAADMDischgTime:%String,ROOMDesc:%String,BEDCode:%String,WARDDesc:%String,HOSPDesc:%String,code:%String,oe:%String,oei:%String,arcim:%String,ARCIMCode:%String,ARCIMDesc:%String(MAXLEN=1024),PHCGEName:%String(MAXLEN=512),Volume:%String,Rate:%String,Route:%String,Priority:%String,PHCSDesc:%String,UOM:%String,Freq:%String,Duration:%String,OEORISttDat:%Date,OEORISttTime:%Time,OEORIEndDate:%Date,OEORIEndTime:%Time,OEORIDoseQty:%String,OEORIPRNTotNumberDosesAll:%String,status:%String,OEORIDoctorDR:%String,doctor:%String,OEORIRowId:%String,itmcat:%String,phorder:%String,datepoau:%String,timepoau:%String,dateaureq:%String,timeaureq:%String,vardose:%String,CTCPTDesc:%String,Notes:%String,OEORIPrescNo:%String,PRN:%String,OEORIPRNIndication:%String,LastAdminDoseTime:%Time,LastAdminDoseDate:%Date,LastExecDate:%Date,LastExecTime:%Time,NextAdminDoseDate:%Date,NextAdminDoseTime:%Time,TodaysDoses:%List,Allergies:%String,OEORIIVTypeLogical:%String,OEORIIVTypeDisplay:%String,CTPCPPrescriberNumber:%String,ITM2CalcIVDose:%String,ITM2Duration:%String,OEOREOrderStatus:%String"/>
+</Query>
+
+<Method name="MedicationExecute">
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&qHandle:%Binary,EpisodeId:%String="",Hospital:%String="",DateFrom:%String="",DateTo:%String=""]]></FormalSpec>
+<ReturnType>%Status</ReturnType>
+<Implementation><![CDATA[
+	#dim LastDose as %Time
+	#dim mon as websys.Monitor
+	#dim horolog as %String = $H
+	#dim cnt,ind as %Integer = 0
+	#dim status, sc1 as %Status = $$$OK
+	#dim patient,RowData, TodaysDoses as %List
+	#dim orderType, token, SORTKEY, allergies, sort, group, grouplevel, PRNIndication, breakon,NextAdminDoseDate, NextAdminDoseTimes, line, LastAdminExecDateTime, StdDescription, DurationStdDescription, ITM2Duration as %String = ""
+	
+	Set mon = ..MonitorBegin() 
+	Kill ^||Region.AUXX.Reports.ZEN("MEDCHART")
+		 
+	
+	&SQL(DECLARE OEORICUR CURSOR FOR 
+			SELECT OEORI_RowId, 
+				OEORI_ItmMast_DR->ARCIM_RowId,
+				OEORI_ItmMast_DR->ARCIM_Desc,
+				OEORI_ItmMast_DR->ARCIM_Abbrev,
+				OEORI_PhoneOrder,				
+				OEORI_DatePOAuthorised,			
+				OEORI_TimePOAuthorised,			
+				OEORI_DateAuthReq,			
+				OEORI_TimeAuthReq,
+				OEORI_PrescNo,
+				OEORI_SttDat,
+				OEORI_SttTim,
+				OEORI_EndDate,
+				OEORI_EndTime,
+				OEORI_OEORD_ParRef->OEORD_Date,
+				OEORI_OEORD_ParRef->OEORD_Adm_DR->PAADM_AdmDocCodeDR->CTPCP_Desc,
+--				OEORI_OEOrdItem2_DR->ITM2_PRNFlag,
+				OEORI_PHFreq_DR->PHCFR_Desc1,
+				OEORI_Remarks,
+				OEORI_ItemStat_DR->OSTAT_Desc,
+				OEORI_ItemStat_DR->OSTAT_Code,
+				OEORI_Doctor_DR->CTPCP_Desc,
+				OEORI_Doctor_DR->CTPCP_CarPrvTp_DR->CTCPT_Desc,
+				OEORI_Doctor_DR->CTPCP_PrescriberNumber,
+				OEORI_ItmMast_DR->ARCIM_PHCDF_DR,
+				OEORI_Unit_DR->CTUOM_Desc,
+				OEORI_RMDurat_DR->PHCDU_Desc1,
+				OEORI_Priority_DR->OECPR_Desc,
+				OEORI_Route_DR->ROUTE_Desc,
+				OEORI_PRNIndication,
+				ISNULL(OEORI_ItmMast_DR->ARCIM_DMDStrength_DR->PHCS_Desc,
+						OEORI_ItmMast_DR->ARCIM_PHCDF_DR->PHCDF_PHCS_DR->PHCS_Desc) AS PHCS_Desc,
+				OEORI_AdminRoute_DR->ADMR_Desc,
+				OEORI_AdminRoute_DR->ADMR_Code,
+				OEORI_AdminRoute_DR->ADMR_IVType,
+				OEORI_Volume_DR->VOL_Desc,
+				OEORI_SpeedFlowRate,
+				OEORI_FlowRateUnit_DR->SFR_Desc,
+				OEORI_DoseQty,
+				OEORI_PRNTotNumberDosesAll,
+				OEORI_VariableDose,
+				OEORI_OEOrdItem2_DR->ITM2_FreeTextFreqValue, 
+				OEORI_OEOrdItem2_DR->ITM2_FreeTextFreqUnit,
+				OEORI_Categ_DR->ORCAT_Desc,
+				OEORI_ItmMast_DR->ARCIM_PHCDF_DR->PHCDF_PHCD_ParRef->PHCD_Name,
+				ISNULL(OEORI_ItmMast_DR->ARCIM_DMDGeneric_DR->PHCGE_Name,
+						OEORI_ItmMast_DR->ARCIM_PHCDF_DR->PHCDF_PHCD_ParRef->PHCD_Generic_DR->PHCGE_Name) AS PHCGE_Name,
+				OEORI_IVType,
+				OEORI_OEOrdItem2_DR->ITM2_CalcIVDose,
+				OEORI_OEOrdItem2_DR->ITM2_DeliveryRate,
+				OEORI_OEOrdItem2_DR->ITM2_IVCalcMethod,
+				OEORI_OEOrdItem2_DR->ITM2_DeliveryUOM_DR->CTUOM_Desc,
+				OEORI_OEOrdItem2_DR->ITM2_DurationValue,
+				OEORI_OEOrdItem2_DR->ITM2_DurationUnit
+
+			FROM SQLUser.OE_OrdItem
+			WHERE (OEORI_OEORD_ParRef->OEORD_Adm_DR->PAADM_ADMNo = :EpisodeId)
+			ORDER BY OEORI_SttDat ASC)
+	
+	&SQL(OPEN OEORICUR)
+	
+	set patient = ..GetPatientData(EpisodeId,.allergies)
+	
+	While 'SQLCODE
+	{
+		&SQL(FETCH OEORICUR INTO :OEORIRowId, 
+						:OEORIItmMastDR,
+						:ARCIMDesc, 			
+						:ARCIMAbbrev,
+						:OEORIPhoneOrder,		
+						:OEORIDatePOAuthorised,	
+						:OEORITimePOAuthorised,	
+						:OEORIDateAuthReq,		
+						:OEORITimeAuthReq,
+						:OEORIPrescNo,
+						:OEORISttDat,
+						:OEORISttTim,
+						:OEORIEndDate,
+						:OEORIEndTime,
+						:OEORDDate,
+						:CTPCPDesc,
+--						:ITM2PRNFlag,
+						:PHCFRDesc1,
+						:OEORIRemarks,
+						:OSTATDesc,
+						:OSTATCode,
+						:OEORIDoctorDR,
+						:CTCPTDesc,
+						:CTPCPPrescriberNumber,
+						:ARCIMPHCDFDR,
+						:CTUOMDesc,
+						:PHCDUDesc1,
+						:OECPRDesc,
+						:ROUTEDesc,
+						:OEORIPRNIndication,
+						:PHCSDesc,
+						:ADMRDesc,
+						:ADMRCode,
+						:ADMRIVType,
+						:VOLDesc,
+						:OEORISpeedFlowRate,
+						:SFRDesc,
+						:OEORIDoseQty,
+						:OEORIPRNTotNumberDosesAll,
+						:OEORIVariableDose,
+						:ITM2FreeTextFreqValue, 
+						:ITM2FreeTextFreqUnit,
+						:ORCATDesc,
+						:PHCDName,
+						:PHCGEName,
+						:OEORIIVType,
+						:ITM2CalcIVDose,
+						:ITM2DeliveryRate,
+						:ITM2IVCalcMethod,
+						:ITM2DeliveryUOM,
+						:ITM2DurationValue,
+						:ITM2DurationUnit
+						) 
+		if SQLCODE quit
+		
+		#; Skip discontinued and completed orders
+		if (OSTATCode = "D")||(OSTATCode="CM")||(OSTATCode="E") continue
+	
+		#;if (((OEORIEndDate*86400)+(OEORIEndTime))<=((+horolog*86400)+($P(horolog,",",2)))) continue	
+		
+		set orderType = $$ordertype^COEOrdItem(OEORIItmMastDR,OEORIRowId)
+		if '((orderType="R")||(orderType="I")) continue // Only fetch pharmacy orders
+	
+		#; Alternative method of resolving frequency.
+		if PHCFRDesc1 = ""
+		{
+			Set StdDescription = ""
+			If ITM2FreeTextFreqUnit'=""
+			{
+				Set StdDescription = ##class(websys.StandardTypeItem).GetDescription("DurationUnits",ITM2FreeTextFreqUnit)
+			}
+			Set PHCFRDesc1 = ITM2FreeTextFreqValue_$case(StdDescription,"":"",:" "_StdDescription)
+		}
+		if ITM2DurationUnit '=""
+		{
+			Set DurationStdDescription = ##class(websys.StandardTypeItem).GetDescription("DurationUnits",ITM2DurationUnit)
+			Set ITM2Duration = ITM2DurationValue_" "_DurationStdDescription
+		}
+		Set RowData = patient_$LB($P(OEORIRowId,"||"),	// First component of order item row id
+				$P(OEORIRowId,"||",2), 					// Second component of order item row id
+				OEORIItmMastDR,							// Item Master DR
+				ARCIMPHCDFDR,
+				ARCIMAbbrev, 							// Name		
+				PHCGEName,								// Generic/ drug name
+				VOLDesc,								// Total Volume
+				PHCSDesc,								// Rate
+				ADMRDesc,								// Route
+				OECPRDesc,								// Priority
+				OEORIDoseQty, 							// Dose Amount
+				CTUOMDesc,								// UOM
+				PHCFRDesc1,								// Frequency
+				PHCDUDesc1,								// Duration
+				OEORISttDat,							// Start Date
+				OEORISttTim,							// Start Time
+				OEORIEndDate,							// End Date			
+				OEORIEndTime,							// End Time								
+				OEORIDoseQty_" "_CTUOMDesc,				// Maximum dose.
+				OEORIPRNTotNumberDosesAll,				// Maximum number of PRN doses allowed.							
+				OSTATDesc,								// Order status
+				OEORIDoctorDR,							// Ordering doctor
+				CTPCPDesc,								// Consultant Doctor
+				OEORIPhoneOrder,						// Phone order
+				OEORIDatePOAuthorised,					// Date PO Authorised
+				OEORITimePOAuthorised,					// Time PO authorised
+				OEORIDateAuthReq,						// Date authorisation requested
+				OEORITimeAuthReq,						// Time authorisation requested
+				,						
+				,
+				OEORIVariableDose,						// Variable dose.						
+				CTCPTDesc,								// Care Provider Type Description
+				OEORIRemarks,							// Order notes
+				OEORIPrescNo,							// prescription number
+				ITM2PRNFlag, 							// PRN Indicator
+				$ZSTRIP(OEORIPRNIndication,"*C")
+				)
+		
+		#; Check both new method of PRN indication and the PRN priority
+		set PRNIndication = $select(OECPRDesc="PRN":"PRN",1:"NOPRN")
+		
+		set ind = $I(^||Region.AUXX.Reports.ZEN("MEDCHART"))
+		If PRNIndication = "PRN" 
+		{
+			if '($I(group(PRNIndication))#3)
+			{
+				set group(PRNIndication,"grouplevel") = +$G(group(PRNIndication,"grouplevel"))+1
+			}
+			Set grouplevel = +$G(group(PRNIndication,"grouplevel"))
+			set breakon="PRN"_grouplevel
+            Set sort="PRN,"_grouplevel_OEORDDate_ind
+        }
+		Else 
+		{ 
+			if '($I(group(PRNIndication))#8)
+			{
+				set group(PRNIndication,"grouplevel") = +$G(group(PRNIndication,"grouplevel"))+1
+			}
+			Set grouplevel = +$G(group(PRNIndication,"grouplevel"))
+
+			set breakon="NOPRN"_grouplevel
+			Set sort="NOPRN,"_grouplevel_OEORDDate_ind
+        }
+        
+        kill LastDose,TodaysDoses,NextAdminDoseDate,NextAdminDoseTimes,LastAdminExecDateTime
+		set sc1 = ..GetExecutions(OEORIRowId,,.LastDose,.TodaysDoses,.NextAdminDoseTimes,.LastAdminExecDateTime,.OEOREOrderStatus)		
+		#;Set ^zTRAK("JES",$classname(),"Fetch",$I(^zTRAK("JES",$classname(),"Fetch"))) = $LB(OEORIRowId, LastDose)
+		Set ^||Region.AUXX.Reports.ZEN("MEDCHART",sort) = $LB(breakon)_RowData_$LB($P(LastDose,",",2),
+				$P(LastDose,",",1),
+				$P(LastAdminExecDateTime,","),
+				$P(LastAdminExecDateTime,",",2),
+				$G(NextAdminDoseDate),
+				$LTS($G(NextAdminDoseTimes),", "),
+				$LTS(TodaysDoses,", "),
+				allergies,
+				OEORIIVType,							// IV Type
+				##class(User.OEOrdItem).OEORIIVTypeLogicalToDisplay(OEORIIVType),	// IV Type (display)
+				CTPCPPrescriberNumber,
+				ITM2CalcIVDose,
+				ITM2Duration,
+				OEOREOrderStatus)
+		
+	}
+	
+	&SQL(CLOSE OEORICUR)
+	
+	#; create blank rows so that we always get PRN and Non-PRN medication type pages.
+	if $D(^||Region.AUXX.Reports.ZEN("MEDCHART"))
+	{
+		for PRNIndication="PRN","NOPRN"
+		{
+			if '$D(group(PRNIndication))
+			{
+				#; Create a largely blank line containing only "BreakOn", patient demographics, doctor, and allergies.
+				#; 
+				set ind = $I(^||Region.AUXX.Reports.ZEN("MEDCHART")),
+					sort = PRNIndication_",199999"_ind,
+					breakon = PRNIndication_"1",
+					line=$LTS($LB(breakon)_patient,",",1),   						// Convert $List format to string and pad out to the proper number
+					$P(line,",",59)=""												// of elements. Then convert back to a $List. This seems to be the 
+				Set ^||Region.AUXX.Reports.ZEN("MEDCHART",sort) = $LFS(line,",")	// best way to achieve this.
+				Set $LI(^||Region.AUXX.Reports.ZEN("MEDCHART",sort),44)=CTPCPDesc
+				Set $LI(^||Region.AUXX.Reports.ZEN("MEDCHART",sort),65)=allergies
+				
+				
+			}
+		}
+	}
+	Set qHandle = $LB(mon,"") 
+	Quit status
+]]></Implementation>
+</Method>
+
+<Method name="MedicationClose">
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&qHandle:%Binary]]></FormalSpec>
+<PlaceAfter>MedicationExecute</PlaceAfter>
+<ReturnType>%Status</ReturnType>
+<Implementation><![CDATA[
+	#dim token as %String
+	#dim mon as websys.Monitor
+	Set mon = $LI(qHandle,1)
+	kill ^||Region.AUXX.Reports.ZEN("MEDCHART")
+
+	if $IsObject(mon) do ..MonitorEnd(.mon)
+	Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="MedicationFetch">
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&qHandle:%Binary,&Row:%List,&AtEnd:%Integer=0]]></FormalSpec>
+<PlaceAfter>MedicationExecute</PlaceAfter>
+<ReturnType>%Status</ReturnType>
+<Implementation><![CDATA[
+	#dim cnt as %Integer
+	#dim sort as %String 
+	
+	Set sort = $LI(qHandle,2)
+	set sort = $O(^||Region.AUXX.Reports.ZEN("MEDCHART",sort),1,Row) 
+	if sort = "" Set Row = "",AtEnd = 1 Quit $$$OK
+	Kill ^||Region.AUXX.Reports.ZEN("MEDCHART",sort)
+	Set $LI(qHandle,2) = sort
+	
+	Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="GetPatientData">
+<Description>
+Given an admission, return demographic details required for the "Medication Chart" query.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>EpisodeID:%String,*Allergies:%String</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	
+	#SQLCompile SELECT=ODBC
+	#dim trans as %Integer = 0
+	#dim Address,BSL,WARDDesc,HOSPDesc,BEDCode,data, Height,Weight as %String  = ""
+	if EpisodeID'=""
+	{
+		&SQL(SELECT PAADM_PAPMI_DR,
+				PAADM_MainMRADM_DR, 
+				PAADM_AdmNo,
+				PAADM_AdmDate,
+				PAADM_AdmTime,
+				PAADM_DischgDate,
+				PAADM_DischgTime,
+				PAADM_CurrentWard_DR->WARD_Desc,                                    
+				PAADM_CurrentWard_DR->WARD_LocationDR->CTLOC_Hospital_DR->HOSP_Desc,
+				PAADM_CurrentRoom_DR->ROOM_Desc,
+				PAADM_CurrentBed_DR->BED_Code
+				INTO 
+				:PAADMPAPMIDR,
+				:mradm,
+				:PAADMAdmNo,
+				:PAADMAdmDate,
+				:PAADMAdmTime,
+				:PAADMDischgDate,
+				:PAADMDischgTime,
+				:WARDDesc,
+				:HOSPDesc,
+				:ROOMDesc,
+				:BEDCode
+				FROM SQLUser.PA_Adm 
+				WHERE PAADM_ADMNo = :EpisodeID)
+				
+			if 'SQLCODE&&(PAADMPAPMIDR'="")
+			{
+				&SQL(SELECT PAPMI_No, 
+						PAPMI_Name, 
+						PAPMI_Name2,
+						PAPMI_Name3, 
+						PAPMI_Dob, 
+						PAPMI_Sex_DR->CTSEX_HL7Code,
+						PAPMI_RowId->PAPER_AgeYr
+						INTO
+						:PAPMINo,
+						:PAPMIName,
+						:PAPMIName2,
+						:PAPMIName3,
+						:PAPMIDOB,
+						:CTSEXCode,
+						:PAPERAgeYr
+						FROM 
+						SQLUser.PA_PatMas WHERE PAPMI_RowId->PAPER_RowId = :PAADMPAPMIDR)
+
+						Set Weight = ##class(Region.AUXX.Utility.Utilities).GetObservationValue(mradm,"WEIGHT")
+						Set Height = ##class(Region.AUXX.Utility.Utilities).GetObservationValue(mradm,"HEIGHT")
+						
+						#; If we have a "0" or empty string returned, then replace with a space. This prevents the presentation layer from rendering incorrectly.
+						Set Height = $Case(+$g(Height),0:" ",:$G(Height))
+						Set Weight = $Case(+$G(Weight),0:" ",:$G(Weight))
+						Set Allergies = $LTS(..GetAllergies(PAADMPAPMIDR),", ")
+			}
+
+	}
+
+	quit $lb(PAADMPAPMIDR,PAPMINo,PAADMAdmNo,PAPMIName,PAPMIName2,PAPMIName3,CTSEXCode,PAPMIDOB,PAPERAgeYr,Height,Weight,PAADMAdmDate,PAADMAdmTime,PAADMDischgDate,PAADMDischgTime,ROOMDesc,BEDCode,WARDDesc,HOSPDesc,)
+]]></Implementation>
+</Method>
+
+<Method name="GetExecutions">
+<Description>
+Fetch when order should be executed.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>OrderId:%String,Date:%Date=+$H,*LastDose:%Time="",*TodaysDoses:%List="",*NextDoseTimes:%String="",*LastAdminExecDateTime:%String="",*LastExecStatus:%String=""</FormalSpec>
+<ReturnType>%Status</ReturnType>
+<Implementation><![CDATA[
+	#dim times, logicalTime,time, id,arrTimes as %String = ""
+	#dim FoundExpectedIVStart, FoundIVStart as %String = ""
+	#dim ex,exTime as %Exception.General
+	#dim status as %Status = $$$OK
+	#dim h as %Date = $H
+	#dim ht as %Time = $P(h,",",2)
+	
+	try
+	{
+
+		if ..GetIVType(OrderId)'=""
+		{
+			do ..GetIVStartTimes(OrderId,.LastDose,.TodaysDoses,.LastExecStatus)
+			return $$$OK
+		}
+
+		Set rs = ##class(%ResultSet).%New("web.OEOrdExec:FindAllTimesForDate")
+		Set rs.RuntimeMode = 0
+		set status = rs.Execute(OrderId,Date)
+		while rs.Next()
+		{ 
+			set time = rs.Data("OEOREExStTime")
+			if time'=""
+			{
+				set logicalTime = $ZTIME(time,2)
+				Set arrTimes(logicalTime) = ""
+			}
+			else
+			{
+				set logicalTime = ""
+			}
+			if time>ht
+			{
+				set NextDoseTimes = NextDoseTimes_$LB(logicalTime)
+			}				
+			set status = ..GetAdministration(rs.Data("ID"),Date,.LastDose,.LastAdminExecDateTime)
+			if $$$ISERR(status) return status
+		}
+	}
+
+	catch ex
+	{
+		if +$G(%debug) break
+		if ex.%IsA("%Exception.SystemException")
+		{
+			do ex.Log()
+		}
+		throw ex
+	}
+	do rs.Close()
+	Set rs = ""
+	if (FoundExpectedIVStart="")&&(FoundIVStart="")
+	{
+		Set logicalTime = $O(arrTimes(""))
+		do
+		{
+			Set TodaysDoses = TodaysDoses_$LB(logicalTime)
+			Set logicalTime = $O(arrTimes(logicalTime))
+		}
+		while logicalTime'=""
+	}
+	If FoundExpectedIVStart'=""
+	{
+		Set TodaysDoses = $LB(FoundExpectedIVStart)	
+	}
+	quit status
+]]></Implementation>
+</Method>
+
+<Method name="GetAdministration">
+<Description>
+Fetch when drug has been administered</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>OrderExecuteId:%String,Date:%Date,*LastDose:%Time,*LastAdminExecDateTime</FormalSpec>
+<ReturnType>%Status</ReturnType>
+<Implementation><![CDATA[
+	#Import User
+	#dim ex as %Exception.General
+	#dim status as %Status = $$$OK
+	#dim OrderId, ExecuteId,data as %String
+	#dim LastDoseTime, LastDoseDate as %String
+	
+	Set OrderId = $P(OrderExecuteId,"||",1,2),ExecuteId = $P(OrderExecuteId,"||",3)
+	Kill ^||Region.AUXX.Reports.ZEN("MEDADMIN",OrderId,ExecuteId)
+	
+	&SQL(DECLARE STCHCUR CURSOR FOR
+		SELECT STCH_RowId, 
+			STCH_ParRef->OEORE_Order_Status_DR->STAT_Code,
+			STCH_ParRef->OEORE_Order_Status_DR->STAT_Desc,
+			STCH_Date,
+			STCH_Time,
+			STCH_ParRef->OEORE_ExStDate,
+			STCH_ParRef->OEORE_ExStTime,
+			STCH_ParRef->OEORE_TimeExecuted,
+			STCH_ParRef->OEORE_DateExecuted
+			FROM OE_OrdExecStatus
+			WHERE STCH_ParRef->OEORE_OEORI_ParRef = :OrderId
+			AND (STCH_ParRef->OEORE_Order_Status_DR->STAT_Code = 'ADM')
+			ORDER BY STCH_Date, STCH_Time ASC)
+	
+	&SQL(OPEN STCHCUR)
+	try
+	{
+		While 'SQLCODE
+		{
+			&SQL(FETCH STCHCUR INTO
+				:STCHRowId,
+				:STATCode,
+				:STATDesc,
+				:STCHDate,
+				:STCHTime,
+				:OEOREExStDate,
+				:OEOREExStTime,
+				:OEORETimeExecuted,
+				:OEOREDateExecuted) Q:SQLCODE
+				
+			Set ^||Region.AUXX.Reports.ZEN("MEDADMIN",OrderId,0,ExecuteId,OEOREDateExecuted,OEORETimeExecuted) = $LB(STCHRowId,STCHDate,STCHRowId,STATCode,STATDesc,OEOREExStDate,OEOREExStTime)
+		}
+		Set LastDoseDate = $O(^||Region.AUXX.Reports.ZEN("MEDADMIN",OrderId,0,ExecuteId,""),-1) 
+		if LastDoseDate'=""
+		{
+			Set LastDoseTime = $O(^||Region.AUXX.Reports.ZEN("MEDADMIN",OrderId,0,ExecuteId,LastDoseDate,""),-1,data)
+			Set LastDose = LastDoseDate_","_LastDoseTime,LastAdminExecDateTime = $LG(data,6)_","_$LG(data,7)
+		}
+		else 
+		{
+			set LastDose = ""
+		}
+		
+	}
+	catch ex
+	{
+		if ex.%IsA("%Exception.SystemException")
+		{
+			do ex.Log()
+		}
+		throw ex
+	}
+	&SQL(CLOSE STCHCUR)
+	quit status
+]]></Implementation>
+</Method>
+
+<Method name="GetAllergies">
+<Description>
+Return allergies in a $LIST form. Only include "Generic Drug", "Pharmacy Item", "Allergy Group" type allergies</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>PatientID:%String</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	#dim allergies as %String = ""
+	#dim status as %Status = $$$OK
+	if '$D(%request) set %request = ##class(%CSP.Request).%New()
+	Set rs = ##class(%ResultSet).%New("web.PAAllergy:Allergies")
+	Set status = rs.Execute(PatientID) 
+	while rs.Next()
+	{
+		if $g(rs.Data("InActive"))="Y" continue
+		if '$LF(..#ALLERGYCATEGORIES,$g(rs.Data("tag"))) continue
+		Set allergies = allergies_$LB(rs.Data("Allergen"))
+	}
+	do rs.Close()
+	Set rs = ""
+	quit allergies
+]]></Implementation>
+</Method>
+
+<Method name="SetFilename">
+<Description>
+Called from report manager definition to determine the filename</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>PAADMADMNo:%String,Ward:%String,type:%String</FormalSpec>
+<PublicList>XFUNC</PublicList>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	Set ^zTRAK("JES",$classname(),"SetFileName",$I(^zTRAK("JES",$classname(),"SetFileName"))) = $LB(admid,Ward,type)
+	
+	#dim WardCode,HospCode,PAPMINo,PAADMAdmNo,HospID, PAPMIName2, PAPMIName, patid, trans as %String =""
+	&SQL(SELECT PAADM_RowId INTO :admid FROM PA_Adm WHERE PAADM_ADMNo = :PAADMADMNo)
+	
+	If $G(Ward)'="" 
+	{
+		Set WardCode=$P($G(^PAWARD(Ward)),"^",1)
+		Set HospID=$P($G(^PAWARD(Ward)),"^",5)
+		If HospID'="" 
+		{
+			Set HospID=$P($G(^CTLOC(HospID)),"^",22)
+			If HospID'="" S HospCode=$P($G(^CT("HOSP",HospID)),"^",1)
+		}
+	}
+	If $G(Ward)="" 
+	{
+		Set Ward=$P($G(^PAADM(admid)),"^",70)
+		Set trans=0 For 
+		{
+			Set trans=$O(^PAADM(admid,"TRANS",trans)) Quit:trans=""
+			If ($P($G(^PAADM(admid,"TRANS",trans)),"^",3)="")&&($P($G(^PAADM(admid,"TRANS",trans)),"^",9)'="")
+			{
+				Set Ward=$P($G(^PAADM(admid,"TRANS",trans)),"^",9)
+			}
+		}
+		If $G(Ward)'="" 
+		{
+			Set WardCode=$P($G(^PAWARD(Ward)),"^",1)
+			Set HospID=$P($G(^PAWARD(Ward)),"^",5)
+			If HospID'="" 
+			{
+				Set HospID=$P($G(^CTLOC(HospID)),"^",22)
+				If HospID'="" Set HospCode=$P($G(^CT("HOSP",HospID)),"^",1)
+			}
+		}
+	}
+	If $G(HospID)="" Set HospID=$P($G(^PAADM(admid,2)),"^",85)
+	Set patid=$P($G(^PAADM(admid)),"^",1)
+	If patid'="" 
+	{
+		Set PAPMINo=$S($G(XFUNC("CLASS"))="OP":$P($G(^PAPER(patid,"PAT",1)),"^",2),1:$P($G(^PAPER(patid,"PAT",1)),"^",1))
+		Set PAPMIName=$P($G(^PAPER(patid,"ALL")),"^",1)
+		Set PAPMIName2=$P($G(^PAPER(patid,"ALL")),"^",2)
+	}
+	#;Set PAADMAdmNo=$P($G(^PAADM(admid)),"^",81)
+	Quit type_"_"_HospID_"_"_Ward_"_"_PAPMIName_"_"_PAPMIName2_"_"_PAPMINo_"_"_PAADMADMNo_".pdf"
+]]></Implementation>
+</Method>
+
+<Method name="GetField">
+<Internal>1</Internal>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>Data:%List,FieldName:%String,*Pos:%Integer</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	#dim len, i as %Integer
+	#dim output, rowspec as %String
+	Set query = ##class(%Dictionary.QueryDefinition).%OpenId($classname()_"||Medication",0)
+	Set rowspec = $LFS(query.Parameters.GetAt("ROWSPEC"),",")
+	Set len = $LL(rowspec)
+	for Pos=1:1:len
+	{
+		if $P($LI(rowspec,Pos),":")=FieldName quit
+	}
+	Set output = $LG(Data,Pos)
+	quit output
+]]></Implementation>
+</Method>
+
+<Method name="LookUpURNClose">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>QHandle:%Library.Binary</FormalSpec>
+<PlaceAfter>LookUpURNFetch</PlaceAfter>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+
+ #;n repid
+
+ s repid=$li(QHandle,2)
+
+ k ^CacheTemp("TRAK",repid)
+
+ q $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="LookUpURNExecute">
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,var:%Library.String=""]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+
+	#;n repid,ind
+
+	s repid=$i(^CacheTemp("TRAK"))
+
+	k ^CacheTemp("TRAK",repid)
+
+	s var=$zcvt(var,"U")
+	
+
+	; Get Surnames
+
+	s surname=0 f  s surname=$o(^PAPERi("PAPER_PatName",surname)) q:surname=""  d
+
+	. ; If match save id
+
+	. i surname[var d
+
+	. . s id=0 f  s id=$o(^PAPERi("PAPER_PatName",surname,id)) q:id=""  d
+
+	. . . s ind=$i(ind)
+
+	. . . s ^CacheTemp("TRAK",repid,ind)=$lb($p($g(^PAPER(id,"PAT",1)),"^",1),id,$p($g(^PAPER(id,"ALL")),"^",1)_", "_$p($g(^PAPER(id,"ALL")),"^",2))
+
+	
+
+	; Get URN
+
+	s urn=0 f  s urn=$o(^PAPERi("PAPMI_PatNo",urn)) q:urn=""  d
+
+	. ; If match save id
+
+	. i urn[var d
+
+	. . s id=0 f  s id=$o(^PAPERi("PAPMI_PatNo",urn,id)) q:id=""  d
+
+	. . . s ind=$i(ind)
+
+	. . . s ^CacheTemp("TRAK",repid,ind)=$lb($p($g(^PAPER(id,"PAT",1)),"^",1),id,$p($g(^PAPER(id,"ALL")),"^",1)_", "_$p($g(^PAPER(id,"ALL")),"^",2))
+
+	
+
+	
+
+	Set QHandle=$LISTBUILD(0,repid,0)
+
+	Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="LookUpURNFetch">
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,&Row:%Library.List,&AtEnd:%Library.Integer=0]]></FormalSpec>
+<PlaceAfter>LookUpURNExecute</PlaceAfter>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+
+ #;New repid,ind
+
+
+
+ // Restore QHandle
+
+ Set AtEnd=$LI(QHandle,1)
+
+ Set repid=$LI(QHandle,2)
+
+ Set ind=$LI(QHandle,3)
+
+
+
+ Set ind=$order(^CacheTemp("TRAK",repid,ind))
+
+ If ind="" {	// if there are no more rows, finish fetching
+
+ 	Set AtEnd=1
+
+ 	Set Row=""
+
+ }  Else  {	// fetch row
+
+ 	Set Row=^CacheTemp("TRAK",repid,ind)
+
+ }
+
+
+
+ // Save QHandle
+
+ Set QHandle=$lb(AtEnd,repid,ind)
+
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Query name="LookUpURN">
+<Type>%Library.Query</Type>
+<FormalSpec>var:%Library.String</FormalSpec>
+<Parameter name="CONTAINID" value="2"/>
+<Parameter name="ROWSPEC" value="URN:%String,HIDDEN:%String,Name:%String"/>
+</Query>
+
+<Method name="LookUpBrokerURN">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>itmjs:%Library.String="",itmjsex:%Library.String="",URN:%Library.String=""</FormalSpec>
+<Implementation><![CDATA[
+
+ #;n id,code,desc,activedate
+
+
+
+ s (id,code,desc)=""
+
+ 
+
+ s id=$o(^PAPERi("PAPMI_PatNo",$zcvt(URN,"U"),0))
+
+ i id="" s desc=URN q 0
+
+ i id'="" d
+
+ . s desc=$p($g(^PAPER(id,"PAT",1)),"^",1)
+
+ . s code=$p($g(^PAPER(id,"ALL")),"^",1)_", "_$p($g(^PAPER(id,"ALL")),"^",2)
+
+ . s retval=itmjs_"('"_$ZCVT(desc,"O","JS")_"');"
+
+ . i itmjsex'="""" s retval=retval_itmjsex_"('"_$ZCVT(desc,"O","JS")_"^"_id_"^"_$ZCVT(code,"O","JS")_"');"
+
+ . &javascript<#(retval)#>
+
+ 
+
+ q 1
+]]></Implementation>
+</Method>
+
+<Method name="LookUpEpisodeByURNClose">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>QHandle:%Library.Binary</FormalSpec>
+<PlaceAfter>LookUpEpisodeByURNFetch</PlaceAfter>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+
+#; n repid
+
+ s repid=$li(QHandle,2)
+
+ k ^CacheTemp("TRAK",repid)
+
+ q $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="LookUpEpisodeByURNExecute">
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,var:%Library.String="",URN:%Library.String,Hosp:%String]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+
+#;	n repid,ind
+
+	s repid=$i(^CacheTemp("TRAK"))
+
+	k ^CacheTemp("TRAK",repid)
+
+		
+
+	; Get using patient id
+
+	i URN'="",$l(URN)>3 d
+
+	. s type=0 f  s type=$o(^PAPERdr(URN,"ADM",type)) q:type=""  d
+
+	. . s id=0 f  s id=$o(^PAPERdr(URN,"ADM",type,id)) q:id=""  d
+
+	. . . q:$p($g(^PAADM(id,2)),"^",85)'=Hosp
+
+	. . . s ind=$i(ind)
+
+	. . . s ^CacheTemp("TRAK",repid,ind)=$lb($p($g(^PAADM(id)),"^",81),id,$zd($p($g(^PAADM(id)),"^",6),4),$p($g(^PAPER(URN,"PAT",1)),"^",1),$p($g(^PAPER(URN,"ALL")),"^",1)_", "_$p($g(^PAPER(URN,"ALL")),"^",2))
+
+	
+
+	i $g(URN)="",$l(var)>3 d
+
+	. s no=0 f  s no=$o(^PAADMi("No",no)) q:no=""  d
+
+	. . i no[var d
+
+	. . . s id=0 f  s id=$o(^PAADMi("No",no,id)) q:id=""  d
+
+	. . . . q:$p($g(^PAADM(id,2)),"^",85)'=Hosp
+
+	. . . . s ind=$i(ind)
+
+	. . . . s ^CacheTemp("TRAK",repid,ind)=$lb($p($g(^PAADM(id)),"^",81),id,$zd($p($g(^PAADM(id)),"^",6),4),$p($g(^PAPER($p($g(^PAADM(id)),"^",1),"PAT",1)),"^",1),$p($g(^PAPER($p($g(^PAADM(id)),"^",1),"ALL")),"^",1)_", "_$p($g(^PAPER($p($g(^PAADM(id)),"^",1),"ALL")),"^",2))
+
+	
+
+	
+
+	Set QHandle=$LISTBUILD(0,repid,0)
+
+	Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="LookUpEpisodeByURNFetch">
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,&Row:%Library.List,&AtEnd:%Library.Integer=0]]></FormalSpec>
+<PlaceAfter>LookUpEpisodeByURNExecute</PlaceAfter>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+
+#; New repid,ind
+
+
+
+ // Restore QHandle
+
+ Set AtEnd=$LI(QHandle,1)
+
+ Set repid=$LI(QHandle,2)
+
+ Set ind=$LI(QHandle,3)
+
+
+
+ Set ind=$order(^CacheTemp("TRAK",repid,ind))
+
+ If ind="" {	// if there are no more rows, finish fetching
+
+ 	Set AtEnd=1
+
+ 	Set Row=""
+
+ }  Else  {	// fetch row
+
+ 	Set Row=^CacheTemp("TRAK",repid,ind)
+
+ }
+
+
+
+ // Save QHandle
+
+ Set QHandle=$lb(AtEnd,repid,ind)
+
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Query name="LookUpEpisodeByURN">
+<Type>%Library.SQLQuery</Type>
+<FormalSpec>var:%String,URN:%String,Hosp:%String</FormalSpec>
+<Parameter name="CONTAINID" value="2"/>
+<Parameter name="ROWSPEC" value="Episode:%String,HIDDEN:%String,Adm Date:%Library.Date,URN:%String,Name:%String"/>
+</Query>
+
+<Method name="LookUpBrokerEpisodeByURN">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>itmjs:%Library.String="",itmjsex:%Library.String="",EpisodeID:%String="",URN:%String="",Hosp:%String</FormalSpec>
+<Implementation><![CDATA[
+
+ #;n id,code,desc
+
+ ;
+
+ s (id,code,desc)=""
+
+
+
+ s id=$o(^PAADMi("No",$zcvt(EpisodeID,"U"),0))
+
+ i id="" s desc=EpisodeID q 0
+
+ i id'="",$p($g(^PAADM(id,2)),"^",85)'=Hosp q 0
+
+ i id'="" d
+
+ . s desc=$p($g(^PAADM(id)),"^",81)
+
+ . s code=$p($g(^PAPER($p($g(^PAADM(id)),"^",1),"ALL")),"^",1)_", "_$p($g(^PAPER($p($g(^PAADM(id)),"^",1),"ALL")),"^",2)
+
+ . s retval=itmjs_"('"_$ZCVT(desc,"O","JS")_"');"
+
+ . i itmjsex'="""" s retval=retval_itmjsex_"('"_$ZCVT(desc,"O","JS")_"^"_id_"^"_$ZCVT(code,"O","JS")_"');"
+
+ . &javascript<#(retval)#>
+
+ 
+
+ q 1
+]]></Implementation>
+</Method>
+
+<Method name="LookUpEpisodeClose">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>QHandle:%Library.Binary</FormalSpec>
+<PlaceAfter>LookUpEpisodeByURNFetch</PlaceAfter>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+
+ #;n repid
+
+ s repid=$li(QHandle,2)
+
+ k ^CacheTemp("TRAK",repid)
+
+ q $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="LookUpEpisodeExecute">
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,var:%Library.String="",Hosp:%String]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+
+	#;n repid,ind
+
+	s repid=$i(^CacheTemp("TRAK"))
+	k ^CacheTemp("TRAK",repid)
+	//i $g(Hosp)="" s Hosp=$g(%session.Data("LOGON.HOSPID"))
+	i $l(var)>3 d
+	. s no=0 f  s no=$o(^PAADMi("No",no)) q:no=""  d
+	. . i no[var d
+	. . . s id=0 f  s id=$o(^PAADMi("No",no,id)) q:id=""  d
+	. . . . //q:$p($g(^PAADM(id,2)),"^",85)'=Hosp
+	. . . . s ind=$i(ind)
+	. . . . s ^CacheTemp("TRAK",repid,ind)=$lb($p($g(^PAADM(id)),"^",81),$p($g(^PAADM(id)),"^",81),$zd($p($g(^PAADM(id)),"^",6),4),$p($g(^PAPER($p($g(^PAADM(id)),"^",1),"PAT",1)),"^",1),$p($g(^PAPER($p($g(^PAADM(id)),"^",1),"ALL")),"^",1)_", "_$p($g(^PAPER($p($g(^PAADM(id)),"^",1),"ALL")),"^",2))
+	#;Merge ^zTRAK("JES","CacheTemp",$I(^zTRAK("JES","CacheTemp"))) = ^CacheTemp("TRAK",repid)
+	Set QHandle=$LISTBUILD(0,repid,0)
+
+	Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="LookUpEpisodeFetch">
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,&Row:%Library.List,&AtEnd:%Library.Integer=0]]></FormalSpec>
+<PlaceAfter>LookUpEpisodeByURNExecute</PlaceAfter>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+
+ #;New repid,ind
+
+
+
+ // Restore QHandle
+ Set AtEnd=$LI(QHandle,1)
+ Set repid=$LI(QHandle,2)
+ Set ind=$LI(QHandle,3)
+ 
+ Set ind=$order(^CacheTemp("TRAK",repid,ind),1,Row)
+
+ If ind="" {	// if there are no more rows, finish fetching
+ 	Set AtEnd=1
+ 	Set Row=""
+ } 
+
+
+ // Save QHandle
+
+ Set QHandle=$lb(AtEnd,repid,ind)
+
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Query name="LookUpEpisode">
+<Type>%Library.SQLQuery</Type>
+<FormalSpec>var:%String,Hosp:%String</FormalSpec>
+<Parameter name="CONTAINID" value="1"/>
+<Parameter name="ROWSPEC" value="Episode:%String,HIDDEN:%String,Adm Date:%Library.Date,URN:%String,Name:%String"/>
+</Query>
+
+<Method name="LookUpBrokerEpisode">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>itmjs:%Library.String="",itmjsex:%Library.String="",EpisodeID:%String="",Hosp:%String</FormalSpec>
+<Implementation><![CDATA[
+
+ #;n id,code,desc
+ s (id,code,desc)=""
+ s id=$o(^PAADMi("No",$zcvt(EpisodeID,"U"),0))
+ i id="" s desc=EpisodeID q 0
+ #;i id'="",$p($g(^PAADM(id,2)),"^",85)'=Hosp q 0
+ i id'="" d
+ . s desc=$p($g(^PAADM(id)),"^",81)
+ . s code=$p($g(^PAPER($p($g(^PAADM(id)),"^",1),"ALL")),"^",1)_", "_$p($g(^PAPER($p($g(^PAADM(id)),"^",1),"ALL")),"^",2)
+ . s retval=itmjs_"('"_$ZCVT(desc,"O","JS")_"');"
+ . i itmjsex'="""" s retval=retval_itmjsex_"('"_$ZCVT(desc,"O","JS")_"^"_id_"^"_$ZCVT(code,"O","JS")_"');"
+ . &javascript<#(retval)#>
+ q 1
+]]></Implementation>
+</Method>
+
+<Method name="Print">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>date1:%String,date2:%String,episode:%String,type:%String,loc:%String,addr:%String</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+
+	; Create a request to hold the variables
+	#import User
+	i '$g(%request) s %request=##class(%CSP.Request).%New()
+	&SQL(SELECT PAADM_ADMNo INTO :PAADMADMNo FROM PA_Adm WHERE PAADM_RowId = :episode)
+	s %request.Data("date1",1)=date1
+	s %request.Data("date2",1)=date2
+	s %request.Data("custom4",1)=PAADMADMNo
+	s %request.Data("lookup1",1)=type
+
+	i loc="" s loc=155
+
+	i addr="" s addr="127.0.0.1"
+
+	
+
+	; Send print job to printhistory
+
+	d ##Class(websys.Report).Print("AUSWMedChartZENPDF",loc,addr,"")
+
+	q 1
+]]></Implementation>
+</Method>
+
+<Method name="GetIVType">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>OEORIRowId:%String</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	&SQL(SELECT OEORI_IVType INTO :OERIIVType FROM
+			SQLUser.OE_OrdItem 
+			WHERE OEORI_RowId = :OEORIRowId)
+	Quit $G(OERIIVType)
+]]></Implementation>
+</Method>
+
+<Method name="GetIVStartTimes">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>OEORIRowId:%String,*LastStartDateTime:%String,*ExpectedStartDateTime:%String,*LastExecStatus:%String</FormalSpec>
+<ReturnType>%Status</ReturnType>
+<Implementation><![CDATA[
+	#import User
+	&SQL(DECLARE OEORECUR CURSOR FOR 
+				SELECT OEORE_DateExecuted, 
+				OEORE_TimeExecuted,
+				OEORE_ExStDate,
+				OEORE_ExStTime,
+				OEORE_Order_Status_DR->STAT_Code FROM
+				OE_OrdExec WHERE 
+				OEORE_OEORI_ParRef->OEORI_RowId = :OEORIRowId
+				ORDER BY OEORE_DateExecuted DESC,
+						OEORE_TimeExecuted DESC)
+	
+	&SQL(OPEN OEORECUR)
+	While 'SQLCODE
+	{
+		&SQL(FETCH OEORECUR INTO
+				:OEOREDateExecuted,
+				:OEORETimeExecuted,
+				:OEOREExStDate,
+				:OEOREExStTime,
+				:STATCode)
+		
+		If SQLCODE Quit
+		
+		#; Exit when both values have been found
+		If ($G(ExpectedStartDateTime))'=""&&($G(LastStartDateTime)'="") quit
+		
+		If (OEORETimeExecuted="")&&($G(ExpectedStartDateTime)="")
+		{
+			Set ExpectedStartDateTime = $LB($ZT(OEOREExStTime,2))
+		}
+		elseif (OEORETimeExecuted'="")&&($G(LastStartDateTime)="")
+		{
+			Set LastStartDateTime = OEOREDateExecuted_","_OEORETimeExecuted, LastExecStatus = STATCode
+		}
+	}
+	
+	&SQL(CLOSE OEORECUR)
+	quit $$$OK
+]]></Implementation>
+</Method>
+</Class>
+</Export>

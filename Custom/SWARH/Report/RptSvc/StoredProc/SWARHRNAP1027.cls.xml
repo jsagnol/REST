@@ -1,0 +1,295 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.SWARH.Report.RptSvc.StoredProc.SWARHRNAP1027">
+<Description><![CDATA[
+<pre>
+***************************************************************************************************************************************
+* Report Code: SWARHRNAP1027
+* Report Description: NDIS Service Activity Report
+* Menu Caption: NDIS Service Activity Report
+* Initial Release: 21/10/15	- Developer: Ross Gladman
+* Modified: 28/10/15 - Ross Gladman - Now ignores patients where their NDIS MRN has been marked as inactive
+***************************************************************************************************************************************
+</pre>]]></Description>
+<ProcedureBlock>0</ProcedureBlock>
+<Super>Custom.SWARH.Report.RptSvc.StoredProc.Abstract</Super>
+<TimeCreated>60905,54849</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/SWARH/Report/RptSvc/StoredProc/SWARHRNAP1027.xml#1 $</Default>
+</Parameter>
+
+<Method name="SWARHRNAP1027Execute">
+<Description>
+This is the Execute section for the %Library.Query. 
+All of the logic will be performed here.
+A new node for the ^CacheTemp global will be created and each subscript of this global will contain
+a row for the report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,Hospital:%Integer,DateFrom:%Date,DateTo:%Date,Specialty:%String,Program:%String,Payor:%String]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Get reportid i.e. use $INCREMENT to add another node to ^CacheTemp global. 
+ // We use ^CacheTemp global because it will always use memory before disk
+ New repid,ind
+
+ // Use $Increment to get the next node
+ Set repid=$INCREMENT(^CacheTemp(..#CACHETEMPSUBSCRIPT))
+ Set ind=1, END=0
+ 
+  //Define returned fields
+ New PatName,PatName2,PatName3,PatUR,PatStreet,PatCity,PatState,PatPostcode,PatPhoneNumber,PatDateOfBirth,PatNDISNumber
+ New ConSpecialtyCode,ConSpecialtyDesc,ConProgramCode,ConProgramDesc,ConPayorCode,ConPayorDesc,ConPlanCode
+ New ConPlanDesc,ConRowId,ConHospitalDR,ConHospitalDesc,ConDate,ConLocationCode,ConLocationDesc,ConResourceCode
+ New ConResourceDesc,ConServiceCode,ConServiceDesc,ConSessionCode,ConSessionDesc,ConGovernmentDept
+ New ConOrderItemCode,ConOrderItemDesc,ConDurationStandardTime,ConDurationIndirectTime,ConDurationInterpretingTime
+ New ConDurationTravelTime,CSTHospitalID,CSTLocationID,CSTDeptDescID,CSTContactTarget,CSTClientTarget,CSTDurationTarget
+ New OthRBEventDR,OthEvent,OthAttendeeFemaleNo,OthAttendeeMaleNo,OthContDeliveryModeCode,OthContDeliveryModeDesc
+ New OthRequestStatusDR,OthENQRowID
+ 
+ // Define derived variables
+ New OthAdminContact
+
+ // Set Types - Strings
+ Set (PatName,PatName2,PatName3,PatUR,PatStreet,PatCity,PatState,PatPostcode,PatPhoneNumber,PatDateOfBirth,PatNDISNumber)=""
+ Set (ConSpecialtyCode,ConSpecialtyDesc,ConProgramCode,ConProgramDesc,ConPayorCode,ConPayorDesc,ConPlanCode)=""
+ Set (ConPlanDesc,ConRowId,ConHospitalDR,ConHospitalDesc,ConDate,ConLocationCode,ConLocationDesc,ConResourceCode)=""
+ Set (ConResourceDesc,ConServiceCode,ConServiceDesc,ConSessionCode,ConSessionDesc,ConGovernmentDept)=""
+ Set (ConOrderItemCode,ConOrderItemDesc)=""
+ Set (CSTHospitalID,CSTLocationID,CSTDeptDescID,CSTContactTarget,CSTClientTarget,CSTDurationTarget)=""
+ Set (OthRBEventDR,OthEvent,OthAttendeeFemaleNo,OthAttendeeMaleNo,OthContDeliveryModeCode,OthContDeliveryModeDesc)=""
+ Set (OthRequestStatusDR)=""
+ 
+ // Set Types - Integers
+ Set (ConDurationStandardTime,ConDurationIndirectTime,ConDurationInterpretingTime,ConDurationTravelTime,OthENQRowID)=0
+ Set (OthAdminContact)=0
+
+ //Start Monitor (if configured to capture stats)
+ Set mon=..MonitorBegin()
+
+ //Convert ODBC dates to cache format
+ Set DateFrom=..ConvertDateToCache(DateFrom)
+ Set DateTo=..ConvertDateToCache(DateTo)
+ Set DateDiff=DateTo-DateFrom+1
+ 
+ &SQL(DECLARE SWARHRNAP1027 CURSOR FOR
+  SELECT
+    ENQ_PAPER_DR->PAPER_Name                      As PatName
+  , ENQ_PAPER_DR->PAPER_Name2                     As PatName2
+  , ENQ_PAPER_DR->PAPER_Name3                     As PatName3
+  , ENQ_PAPER_DR->PAPER_PAPMI_DR->PAPMI_No        As PatUR
+  , ENQ_PAPER_DR->PAPER_StName                    As PatStreet
+  , ENQ_PAPER_DR->PAPER_CityCode_DR->CTCIT_Desc   As PatCity
+  , ENQ_PAPER_DR->PAPER_CT_Province_DR->PROV_Desc As PatState
+  , ENQ_PAPER_DR->PAPER_Zip_DR->CTZIP_Code        As PatPostcode
+  , ENQ_PAPER_DR->PAPER_TelH                      As PatPhoneNumber
+  , ENQ_PAPER_DR->PAPER_Dob                       As PatDateOfBirth
+  , RTM.MRNo                                      As PatNDISNumber
+  , ENQ_Location_DR->CTLOC_Code                   As ConSpecialtyCode
+  , ENQ_Location_DR->CTLOC_Desc                   As ConSpecialtyDesc
+  , ENQ_GovernDepart_DR->DEP_Code                 As ConProgramCode
+  , ENQ_GovernDepart_DR->DEP_Desc                 As ConProgramDesc
+  , ENQ_InsType_DR->INST_Code                     As ConPayorCode
+  , ENQ_InsType_DR->INST_Desc                     As ConPayorDesc
+  , ENQ_AuxInsType_DR->AUXIT_Code                 As ConPlanCode
+  , ENQ_AuxInsType_DR->AUXIT_Desc                 As ConPlanDesc
+  , ENQ_RowId                                     As ConRowId
+  , ENQ_Hospital_DR                               As ConHospitalDR
+  , ENQ_Hospital_DR->HOSP_Desc                    As ConHospitalDesc
+  , ENQ_Date                                      As ConDate
+  , ENQ_Location_DR->CTLOC_Code                   As ConLocationCode
+  , ENQ_Location_DR->CTLOC_Desc                   As ConLocationDesc
+  , ENQ_Resource_DR->RES_Code                     As ConResourceCode
+  , ENQ_Resource_DR->RES_Desc                     As ConResourceDesc
+  , ENQ_ContServiceRec2_DR->CONTSERREC2_Code      As ConServiceCode
+  , ENQ_ContServiceRec2_DR->CONTSERREC2_Desc      As ConServiceDesc
+  , ENQ_ContSessionType_DR->CONTSESSTYPE_Code     As ConSessionCode
+  , ENQ_ContSessionType_DR->CONTSESSTYPE_Desc     As ConSessionDesc
+  , ENQ_GovernDepart_DR->DEP_Desc                 As ConGovernmentDept
+  ,ENQ_OEOrdItem_DR->OEORI_ItmMast_DR->ARCIM_Code As ConOrderItemCode
+  , TRIM(ENQ_OEOrdItem_DR->OEORI_ItmMast_DR->ARCIM_Desc)
+                                                  As ConOrderItemDesc
+  , ENQ_Duration                                  As ConDurationStandardTime
+  , ENQ_IndirectTime                              As ConDurationIndirectTime
+  , ENQ_InterpretingTime                          As ConDurationInterpretingTime
+  , ENQ_TravelTime                                As ConDurationTravelTime
+  , ST.HospID                                     As CSTHospitalID
+  , ST.CTLocID                                    As CSTLocationID
+  , ST.DepDescID                                  As CSTDeptDescID
+  , ST.ContactTarget                              As CSTContactTarget
+  , ST.ClientTarget                               As CSTClientTarget
+  , ST.DurationTarget                             As CSTDurationTarget
+  , ENQ_RBEvent_DR                                As OthRBEventDR
+  , ENQ_RBEvent_DR->EV_Name                       As OthEvent
+  , ENQ_RBEvent_DR->EV_AttendeeFemaleNo           As OthAttendeeFemaleNo
+  , ENQ_RBEvent_DR->EV_AttendeeMaleNo             As OthAttendeeMaleNo
+  , ENQ_ContDelivMode_DR->CONTDELMODE_Code        As OthContDeliveryModeCode
+  , ENQ_ContDelivMode_DR->CONTDELMODE_Desc        As OthContDeliveryModeDesc
+  , ENQ_RequestStatus_DR                          As OthRequestStatusDR
+  , ENQ_RowID                                     As OthENQRowID
+  FROM
+    SQLUser.PA_EnquiryContact
+      LEFT JOIN Custom_SWARH.SWARH_ComServiceTargets ST ON (ENQ_Hospital_DR=ST.HospID AND ENQ_Location_DR=ST.CTLocID AND ENQ_GovernDepart_DR LIKE ST.DepDescID)
+      RIGHT JOIN (SELECT RTMAS_MRNo As MRNo,RTMAS_PatNo_DR->PAPMI_PAPER_DR As PAPER_DR FROM SQLUser.RT_Master WHERE RTMAS_MRType_DR->TYP_Pref='NDIS-' AND RTMAS_Active='Y') RTM ON RTM.PAPER_DR=ENQ_PAPER_DR 
+        -- Alteratively you can use "WHERE RTMAS_MRType_DR->TYP_Code IN ('NDIS Otw','NDIS Col')" on the above line
+  WHERE
+      ENQ_Date BETWEEN :DateFrom AND :DateTo      -- Between specified date periods
+--      ENQ_Date BETWEEN '2015-01-01' AND '2015-09-01' -- TESTING
+    AND
+      ENQ_RequestStatus_DR IN (2,8)               -- Only Complete [2:CO] and Exclude From Extract [8:EFE].  Faster this way than checking the code each time
+    AND
+      ENQ_Hospital_DR = :Hospital
+--      ENQ_Hospital_DR = 705 -- TESTING 705=Otway, 703=Colac
+    AND
+--      (ENQ_Location_DR = :Specialty OR (:Specialty IS NULL)) -- Single Specialty Only
+      (({fn CONCAT( ',', {fn CONCAT((:Specialty),',')})} [ {fn CONCAT( ',', {fn CONCAT((ENQ_Location_DR),',')})}) OR (:Specialty IS NULL))  -- Multiple Specialties      
+    AND
+--      (ENQ_GovernDepart_DR = :Program OR (:Program IS NULL)) - Single Program Only
+      (({fn CONCAT( ',', {fn CONCAT((:Program),',')})} [ {fn CONCAT( ',', {fn CONCAT((ENQ_GovernDepart_DR),',')})}) OR (:Program IS NULL)) -- Multiple Programs
+    AND
+--      (ENQ_InsType_DR->INST_Code = :Payor OR (:Payor IS NULL)) -- Single Payor Only
+      (({fn CONCAT( ',', {fn CONCAT((:Payor),',')})} [ {fn CONCAT( ',', {fn CONCAT((ENQ_InsType_DR),',')})}) OR (:Payor IS NULL)) -- Multiple Payors
+--      ENQ_InsType_DR=1015 -- TESTING 'NDIS'
+  GROUP BY
+    ENQ_RowID
+  )
+                
+ &SQL(OPEN SWARHRNAP1027)
+ 
+ //FETCH FIRST ROW
+ Do FetchRow
+  
+ While END=0 {
+	 
+	Do FormatDates
+	Do FormatTimes
+	Do FormatAddresses
+	
+	Set OthAdminContact=..IsContactAdminTime(OthENQRowID)
+	//If 'admincontact {
+	Set sort = ind
+	Set ^CacheTemp(..#CACHETEMPSUBSCRIPT,repid,sort)=$ListBuild(
+	  PatName,PatName2,PatName3,PatUR,PatStreet,PatCity,PatState,PatPostcode,PatPhoneNumber,PatDateOfBirth,PatNDISNumber,
+	  ConSpecialtyCode,ConSpecialtyDesc,ConProgramCode,ConProgramDesc,ConPayorCode,ConPayorDesc,ConPlanCode,
+	  ConPlanDesc,ConRowId,ConHospitalDR,ConHospitalDesc,ConDate,ConLocationCode,ConLocationDesc,ConResourceCode,
+	  ConResourceDesc,ConServiceCode,ConServiceDesc,ConSessionCode,ConSessionDesc,ConGovernmentDept,
+	  ConOrderItemCode,ConOrderItemDesc,ConDurationStandardTime,ConDurationIndirectTime,ConDurationInterpretingTime,
+	  ConDurationTravelTime,CSTHospitalID,CSTLocationID,CSTDeptDescID,CSTContactTarget,CSTClientTarget,CSTDurationTarget,
+	  OthRBEventDR,OthEvent,OthAttendeeFemaleNo,OthAttendeeMaleNo,OthContDeliveryModeCode,OthContDeliveryModeDesc,
+	  OthRequestStatusDR,OthAdminContact)
+	Set ind=ind+1
+	// }
+	Do FetchRow //Fetch next row
+ }
+
+ &SQL(CLOSE SWARHRNAP1027)
+ 
+ // Build QHandle (AtEnd,ReportID,Index)
+ Set QHandle=$ListBuild(0,repid,0)
+
+ Quit $$$OK
+
+FetchRow
+ &sql(FETCH SWARHRNAP1027 INTO 
+   :PatName,:PatName2,:PatName3,:PatUR,:PatStreet,:PatCity,:PatState,:PatPostcode,:PatPhoneNumber,:PatDateOfBirth,:PatNDISNumber,
+   :ConSpecialtyCode,:ConSpecialtyDesc,:ConProgramCode,:ConProgramDesc,:ConPayorCode,:ConPayorDesc,:ConPlanCode,
+   :ConPlanDesc,:ConRowId,:ConHospitalDR,:ConHospitalDesc,:ConDate,:ConLocationCode,:ConLocationDesc,:ConResourceCode,
+   :ConResourceDesc,:ConServiceCode,:ConServiceDesc,:ConSessionCode,:ConSessionDesc,:ConGovernmentDept,
+   :ConOrderItemCode,:ConOrderItemDesc,:ConDurationStandardTime,:ConDurationIndirectTime,:ConDurationInterpretingTime,
+   :ConDurationTravelTime,:CSTHospitalID,:CSTLocationID,:CSTDeptDescID,:CSTContactTarget,:CSTClientTarget,:CSTDurationTarget,
+   :OthRBEventDR,:OthEvent,:OthAttendeeFemaleNo,:OthAttendeeMaleNo,:OthContDeliveryModeCode,:OthContDeliveryModeDesc,
+   :OthRequestStatusDR,:OthENQRowID)
+
+ If SQLCODE '= 0 Set END = 1
+ Quit
+ 
+FormatDates
+ //Set ENQDate = ..ConvertDateToODBC(ENQDate) 
+ Set PatDateOfBirth = ..ConvertDateToODBC(PatDateOfBirth)
+ Set ConDate        = ..ConvertDateToODBC(ConDate)
+ Quit
+ 
+FormatTimes //Be sure to set fields in Query output as '%String' then format Reporting Services field as Time.
+ //Set AdmTime=..ConvertTimeToHHMM(AdmTime) 
+ //Set DischgTime=..ConvertTimeToHHMM(DischgTime)
+ Quit
+ 
+FormatAddresses
+ //Set Address=$ZSTRIP(Address,"*C") //Removes control characters (0-31,127-159)
+ //Set Address=$ZSTRIP(Address,"*",$CHAR(34,35,39,44,46)) //Removes 34-Quotes,35-Hash,39-Single quote,44-Comma,46-Period
+ //Set Address=$ZCONVERT(Address,"U") //Converts to Uppercase
+ //Set Address2=$ZSTRIP(Address2,"*C")
+ //Set Address2=$ZSTRIP(Address2,"*",$CHAR(34,35,39,44,46))
+ //Set Address2=$ZCONVERT(Address2,"U")
+ //Set PAPERStName=$ZSTRIP(PAPERStName,"*C")
+ Set PatStreet=$ZSTRIP(PatStreet,"*C")
+
+ Quit
+]]></Implementation>
+</Method>
+
+<Method name="SWARHRNAP1027Fetch">
+<Description>
+This is the Fetch component of the %Library.Query. 
+This should never have to change. It is designed to fetch the row for each subscript of the ^CacheTemp
+global and return this row to the Crystal Report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,&Row:%Library.List,&AtEnd:%Library.Integer=0]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // This fetch method should never have to change. 
+ // repid - Report ID
+ // ind   - sequence index which represents each row
+
+ New repid,ind
+
+ // Restore QHandle
+ Set AtEnd=$LIST(QHandle,1)
+ Set repid=$LIST(QHandle,2)
+ Set ind=$LIST(QHandle,3)
+
+ Set ind=$ORDER(^CacheTemp(..#CACHETEMPSUBSCRIPT,repid,ind))
+ If ind="" {	// if there are no more rows, finish fetching
+	 Set AtEnd=1
+	 Set Row=""
+ }
+ Else      {	// fetch row
+ 	Set Row=^CacheTemp(..#CACHETEMPSUBSCRIPT,repid,ind)
+ }
+
+ // Save QHandle
+ Set QHandle=$LISTBUILD(AtEnd,repid,ind)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="SWARHRNAP1027Close">
+<Description>
+This is the Close component of the %Library.Query.
+This is standard code and should never have to change.
+This is where all the cleanup is performed, i.e. the purging of the temporary storage global ^CacheTemp.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>QHandle:%Library.Binary</FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Clean up by purging the temporary node in ^CacheTemp global
+ New repid,ind
+ Set repid=$LIST(QHandle,2)
+
+ Kill ^CacheTemp(..#CACHETEMPSUBSCRIPT,repid)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Query name="SWARHRNAP1027">
+<Type>%Library.Query</Type>
+<FormalSpec>Hospital:%Integer,DateFrom:%Date,DateTo:%Date,Specialty:%String,Program:%String,Payor:%String</FormalSpec>
+<SqlProc>1</SqlProc>
+<Parameter name="CONTAINID" value="0"/>
+<Parameter name="ROWSPEC" value="PatName:%String,PatName2:%String,PatName3:%String,PatUR:%String,PatStreet:%String,PatCity:%String,PatState:%String,PatPostcode:%String,PatPhoneNumber:%String,PatDateOfBirth:%String,PatNDISNumber:%String,ConSpecialtyCode:%String,ConSpecialtyDesc:%String,ConProgramCode:%String,ConProgramDesc:%String,ConPayorCode:%String,ConPayorDesc:%String,ConPlanCode:%String,ConPlanDesc:%String,ConRowId:%String,ConHospitalDR:%String,ConHospitalDesc:%String,ConDate:%String,ConLocationCode:%String,ConLocationDesc:%String,ConResourceCode:%String,ConResourceDesc:%String,ConServiceCode:%String,ConServiceDesc:%String,ConSessionCode:%String,ConSessionDesc:%String,ConGovernmentDept:%String,ConOrderItemCode:%String,ConOrderItemDesc:%String,ConDurationStandardTime:%Integer,ConDurationIndirectTime:%Integer,ConDurationInterpretingTime:%Integer,ConDurationTravelTime:%Integer,CSTHospitalID:%String,CSTLocationID:%String,CSTDeptDescID:%String,CSTContactTarget:%String,CSTClientTarget:%String,CSTDurationTarget:%String,OthRBEventDR:%String,OthEvent:%String,OthAttendeeFemaleNo:%String,OthAttendeeMaleNo:%String,OthContDeliveryModeCode:%String,OthContDeliveryModeDesc:%String,OthRequestStatusDR:%String,OthAdminContact:%String"/>
+<Parameter name="SELECTMODE" value="ODBC"/>
+</Query>
+</Class>
+</Export>

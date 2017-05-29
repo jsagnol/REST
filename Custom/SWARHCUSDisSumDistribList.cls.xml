@@ -1,0 +1,188 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.SWARHCUSDisSumDistribList">
+<Description>
+Presentations by age group and gender per visit type</Description>
+<ClassType/>
+<ProcedureBlock>0</ProcedureBlock>
+<Super>%Library.RegisteredObject</Super>
+<TimeCreated>62315,48300.824513</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/SWARHCUSDisSumDistribList.xml#1 $</Default>
+</Parameter>
+
+<Method name="DisSumDistribListClose">
+<Description>
+This is the Close component of the %Library.Query.
+This is standard code and should never have to change.
+This is where all the cleanup is performed, i.e. the purging of the temporary storage global ^CacheTemp.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>QHandle:%Library.Binary</FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Clean up by purging the temporary node in ^CacheTemp global
+ New repid
+ Set repid=$li(QHandle,2)
+ Kill ^CacheTemp(repid)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="DisSumDistribListExecute">
+<Description>
+This is the Execute section for the %Library.Query. 
+All of the logic will be performed here.
+A new node for the ^CacheTemp global will be created and each subscript of this global will contain
+a row for the report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,DischID:%Integer]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+            
+ // Get reportid i.e. use $INCREMENT to add another node to ^CacheTemp global. 
+ // We use ^CacheTemp global because it will always use memory before disk
+ New repid,ind
+
+ // Use $Increment to get the next node
+ Set repid=$I(^CacheTemp)
+
+ // Build data into ^CacheTemp(ReportID)
+ // e.g. Set ^CacheTemp(ReportID,Index)=$LB(f1,f2,f3)
+ New Number,String,Date,Time,c,n
+ n REFDRowId,REFDCode,REFDForename,REFDDesc,REFDPreferredContact,REFDEmail,CLNRowId,CLNCode,CLNDesc,CLNPreferredContact,CLNEmail,
+ NGORowId,NGOCode,NGODesc,NGOContactMethod,NGOEmail
+ s (REFDRowId,CLNRowId,NGORowId)=0
+ s (REFDCode,REFDForename,REFDDesc,REFDPreferredContact,REFDEmail,CLNCode,CLNDesc,CLNPreferredContact,CLNEmail,
+ NGOCode,NGODesc,NGOEmail,NGOContactMethod)=""
+
+ s ind=1
+	
+ &sql(declare DisSumDistribList cursor for
+ SELECT
+ 	dsrd.REF_RefDoc_DR,
+ 	dsrd.REF_RefDoc_DR->REFD_Code,
+ 	dsrd.REF_RefDoc_DR->REFD_Forename,
+ 	dsrd.REF_RefDoc_DR->REFD_Desc,
+ 	rd.REFD_PreferredContact,
+ 	rd.REFD_Email,
+ 	dsrd.REF_RefDocClinic_DR->CLN_Clinic_DR,
+ 	dsrd.REF_RefDocClinic_DR->CLN_Clinic_DR->CLN_Code,
+ 	dsrd.REF_RefDocClinic_DR->CLN_Clinic_DR->CLN_Desc,
+ 	dsrd.REF_RefDocClinic_DR->CLN_PreferredContact,
+ 	dsrd.REF_RefDocClinic_DR->CLN_Email,
+ 	NULL,
+ 	'000',
+ 	NULL,
+ 	NULL,
+ 	NULL
+ FROM SQLUser.PA_DischargeSummaryRefDoc dsrd LEFT JOIN
+ SQLUser.PAC_RefDoctor rd ON dsrd.REF_RefDoc_DR=rd.REFD_RowId WHERE dsrd.REF_ParRef=:DischID
+ UNION
+ SELECT
+ 	NULL,
+ 	'000',
+ 	NULL,
+ 	NULL,
+ 	NULL,
+ 	NULL,
+ 	NULL,
+ 	'000',
+ 	NULL,
+ 	NULL,
+ 	NULL,
+	NG_NonGovOrg_DR,
+	NG_NonGovOrg_DR->NGO_Code,
+	NG_NonGovOrg_DR->NGO_Desc,
+	NG_NonGovOrg_DR->NGO_ContactMethod,
+	NG_NonGovOrg_DR->NGO_Email
+ FROM SQLUser.PA_DischargeSummaryNonGov WHERE NG_ParRef=:DischID)
+
+ &sql(open DisSumDistribList) 
+
+ //fetch first row
+ d FetchRow
+
+ while 'SQLCODE{
+ 
+ // build the row
+ Set ^CacheTemp(repid,ind)=$LB(REFDRowId,REFDCode,REFDForename,REFDDesc,REFDPreferredContact,REFDEmail,
+ CLNRowId,CLNCode,CLNDesc,CLNPreferredContact,CLNEmail,
+ NGORowId,NGOCode,NGODesc,NGOContactMethod,NGOEmail)
+ s ind=ind+1
+ //fetch rows
+ d FetchRow
+ }
+
+ &sql(close DisSumDistribList)
+	
+ // Build QHandle (AtEnd,ReportID,Index)
+ Set QHandle=$lb(0,repid,0)
+
+ Quit $$$OK
+ 
+FetchRow
+ &sql(FETCH DisSumDistribList INTO :REFDRowId,:REFDCode,:REFDForename,:REFDDesc,:REFDPreferredContact,:REFDEmail,
+ :CLNRowId,:CLNCode,:CLNDesc,:CLNPreferredContact,:CLNEmail,
+ :NGORowId,:NGOCode,:NGODesc,:NGOContactMethod,:NGOEmail)
+ if SQLCODE '= 0 set END = 1
+ q
+ 
+ Quit
+]]></Implementation>
+</Method>
+
+<Method name="DisSumDistribListFetch">
+<Description>
+This is the Fetch component of the %Library.Query. 
+This should never have to change. It is designed to fetch the row for each subscript of the ^CacheTemp
+global and return this row to the Crystal Report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,&Row:%Library.List,&AtEnd:%Library.Integer=0]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // This fetch method should never have to change. 
+
+ // repid - Report ID
+ // ind - sequence index which represents each row
+
+ New repid,ind
+
+ // Restore QHandle
+ Set AtEnd=$li(QHandle,1)
+ Set repid=$li(QHandle,2)
+ Set ind=$li(QHandle,3)
+
+ Set ind=$o(^CacheTemp(repid,ind))
+ If ind="" {        // if there are no more rows, finish fetching
+ Set AtEnd=1
+ Set Row=""
+ }
+ Else      {         // fetch row
+ Set Row=^CacheTemp(repid,ind)
+ }
+
+ // Save QHandle
+ s QHandle=$lb(AtEnd,repid,ind)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Query name="DisSumDistribList">
+<Description>
+GHA List reports Stored Procedure
+It expects 2 parameter of type date and will return a list of records:
+Field1 - Integer
+Field2 - String(MAXLEN=255)
+Field3 - Date
+Field4 - Time</Description>
+<Type>%Library.Query</Type>
+<FormalSpec>DischID:%Integer</FormalSpec>
+<SqlProc>1</SqlProc>
+<Parameter name="CONTAINID" value="0"/>
+<Parameter name="ROWSPEC" value="REFDRowId:%Integer,REFDCode:%String,REFDForename:%String,REFDDesc:%String,REFDPreferredContact:%String,REFDEmail:%String,CLNRowId:%Integer,CLNCode:%String,CLNDesc:%String,CLNPreferredContact:%String,CLNEmail:%String,NGORowId:%Integer,NGOCode:%String,NGODesc:%String,NGOContactMethod:%String,NGOEmail:%String"/>
+</Query>
+</Class>
+</Export>

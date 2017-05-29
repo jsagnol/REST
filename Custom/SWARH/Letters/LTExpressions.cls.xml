@@ -1,0 +1,330 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.SWARH.Letters.LTExpressions">
+<Description><![CDATA[
+<pre>
+**************************************************************************************************************************************
+* Modified:  20/01/16 (rpgladman) - Added SWARHWLPatAdd
+*            26/04/16 (rpgladman) - Modified SWARHWLPatAdd to only return residential address until decision is made on what to
+*                                   do with all the bad patient postal addresses in the system (T363455)
+* 
+**************************************************************************************************************************************
+</pre>]]></Description>
+<ProcedureBlock>0</ProcedureBlock>
+<Super>%RegisteredObject</Super>
+<TimeCreated>63329,43524.570691</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/SWARH/Letters/LTExpressions.xml#1 $</Default>
+</Parameter>
+
+<Method name="SWARHREFDOCADD">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>EpisodeID</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	new LineOne, LineThree, FormattedText, RefDrTitle, RefDrFirstName, RefDrSurname, RefDrAdd, RefDrSuburb, RefDrPCode
+	
+	set (FormattedText, RefDrTitle, RefDrFirstName, RefDrSurname, RefDrAdd, RefDrSuburb, RefDrPCode) =  ""
+	
+	&sql(
+	select
+	    PAADM_RefDocList_DR->REFD_Title_DR->TTL_Desc,
+	    PAADM_RefDocList_DR->REFD_Forename,
+	    PAADM_RefDocList_DR->REFD_Desc,
+	    PAADM_RefDocClinic_DR->CLN_Address1,
+	    PAADM_RefDocClinic_DR->CLN_City_DR->CTCIT_Desc,
+	    PAADM_RefDocClinic_DR->CLN_Zip_DR->CTZIP_Code
+	INTO :RefDrTitle, :RefDrFirstName, :RefDrSurname, :RefDrAdd, :RefDrSuburb, :RefDrPCode
+	FROM
+	    SQLUser.PA_ADM
+	WHERE
+	    PAADM_RowID = :EpisodeID
+	)
+	
+	if ($EXTRACT(RefDrAdd, *) = $CHAR(13)_$CHAR(10)) {
+		set RefDrAdd = $EXTRACT(RefDrAdd,1,*-1)
+	}
+		
+	//s RefDrAdd=$zstrip(RefDrAdd,"*C")
+	
+	set LineOne = RefDrTitle_" "_$ZCONVERT(RefDrFirstName, "W")_" "_$ZCONVERT(RefDrSurname, "W")
+	set LineThree = $ZCONVERT(RefDrSuburb, "W")_" "_RefDrPCode
+	set FormattedText = LineOne_$CHAR(13)_$CHAR(10)_RefDrAdd_$CHAR(13)_$CHAR(10)_LineThree
+	q FormattedText
+]]></Implementation>
+</Method>
+
+<Method name="SWARHFamilyDocotor">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>EpisodeID</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	new LineOne, LineThree, FormattedText, RefDrTitle, RefDrFirstName, RefDrSurname, ClnDesc, RefDrAdd, RefDrSuburb, RefDrPCode
+	
+	set (FormattedText, RefDrTitle, RefDrFirstName, RefDrSurname, ClnDesc, RefDrAdd, RefDrSuburb, RefDrPCode) =  ""
+	
+	&sql(
+	select
+	    PAADM_PAPMI_DR->PAPMI_PAPER_DR->PAPER_FamilyDoctor_DR->REFD_Title_DR->TTL_Desc,
+	    PAADM_PAPMI_DR->PAPMI_PAPER_DR->PAPER_FamilyDoctor_DR->REFD_Forename,
+	    PAADM_PAPMI_DR->PAPMI_PAPER_DR->PAPER_FamilyDoctor_DR->REFD_Desc,
+	    PAADM_PAPMI_DR->PAPMI_PAPER_DR->PAPER_FamilyDoctorClinic_DR->CLN_Clinic_DR->CLN_Desc,
+	    PAADM_PAPMI_DR->PAPMI_PAPER_DR->PAPER_FamilyDoctorClinic_DR->CLN_Address1,
+	    PAADM_PAPMI_DR->PAPMI_PAPER_DR->PAPER_FamilyDoctorClinic_DR->CLN_City_DR->CTCIT_Desc,
+	    PAADM_PAPMI_DR->PAPMI_PAPER_DR->PAPER_FamilyDoctorClinic_DR->CLN_Zip_DR->CTZIP_Code
+	INTO :RefDrTitle, :RefDrFirstName, :RefDrSurname, :ClnDesc, :RefDrAdd, :RefDrSuburb, :RefDrPCode
+	FROM
+	    SQLUser.PA_ADM
+	WHERE
+	    PAADM_RowID = :EpisodeID
+	)
+	
+	if ($EXTRACT(RefDrAdd, *) = $CHAR(13)_$CHAR(10)) {
+		set RefDrAdd = $EXTRACT(RefDrAdd,1,*-1)
+	}
+	
+	//s RefDrAdd=$zstrip(RefDrAdd,"*C")
+	
+	set LineOne = RefDrTitle_" "_$ZCONVERT(RefDrFirstName, "W")_" "_$ZCONVERT(RefDrSurname, "W")
+	set LineThree = $ZCONVERT(RefDrSuburb, "W")_" "_RefDrPCode
+	set FormattedText = LineOne_$CHAR(13)_$CHAR(10)_ClnDesc_$CHAR(13)_$CHAR(10)_RefDrAdd_$CHAR(13)_$CHAR(10)_LineThree
+	q FormattedText
+]]></Implementation>
+</Method>
+
+<Method name="FormatRefDocFirstname">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>EpisodeID</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	new RefDrFirstName
+	set (RefDrFirstName) = ""
+	
+	&sql(select PAADM_RefDocList_DR->REFD_Forename INTO :RefDrFirstName FROM SQLUser.PA_ADM WHERE PAADM_RowID = :EpisodeID)
+	
+	set RefDrFirstName = $ZCONVERT(RefDrFirstName, "W")
+	quit RefDrFirstName
+]]></Implementation>
+</Method>
+
+<Method name="FormatRefDocTitleSurname">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>EpisodeID</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	new RefDrSurnameName, RefDrTitle, FormattedTitle
+	set (RefDrSurnameName, RefDrTitle, FormattedTitle) = ""
+	
+	&sql(select
+			PAADM_PAPMI_DR->PAPMI_PAPER_DR->PAPER_FamilyDoctor_DR->REFD_Desc,
+			PAADM_PAPMI_DR->PAPMI_PAPER_DR->PAPER_FamilyDoctor_DR->REFD_Title
+	 	INTO :RefDrSurnameName, :RefDrTitle
+	 	FROM SQLUser.PA_ADM WHERE PAADM_RowID = :EpisodeID)
+	
+	set RefDrSurnameName = $ZCONVERT(RefDrSurnameName, "W")
+	set RefDrTitle = $ZCONVERT(RefDrTitle, "W")
+	set FormattedTitle = RefDrTitle_" "_RefDrSurnameName
+	quit FormattedTitle
+]]></Implementation>
+</Method>
+
+<Method name="PatName">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>EpisodeID</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	new FormattedText, ClFirstName, ClDrSurname
+	set (FormattedText, ClFirstName, ClDrSurname) = ""
+	
+	&sql(
+		select
+			PAADM_PAPMI_DR->PAPMI_Name2,
+			PAADM_PAPMI_DR->PAPMI_Name
+	 	INTO :ClFirstName, :ClDrSurname
+	 	FROM SQLUser.PA_ADM WHERE PAADM_RowID = :EpisodeID)
+	
+	//Building the name with correct grammar
+	//EG Tim Beilby's and Sharon Rees'
+	if ($ZCONVERT($EXTRACT(ClDrSurname, *), "L") = "s") {
+		set FormattedText = $ZCONVERT(ClFirstName, "W")_" "_$ZCONVERT(ClDrSurname, "W")_"'"
+		quit FormattedText
+	}
+	if ($ZCONVERT($EXTRACT(ClDrSurname, *), "L") '= "s") {
+		set FormattedText = $ZCONVERT(ClFirstName, "W")_" "_$ZCONVERT(ClDrSurname, "W")_"'s"
+		quit FormattedText
+	}
+	quit FormattedText
+]]></Implementation>
+</Method>
+
+<Method name="BrokerageSummary">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>MRClinicalPathwaysID</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	new FormattedText, NGODesc, arcimdesc, OEORISttdat, OEORIEndDate, OEORIPhQtyOrd
+	set (FormattedText, NGODesc, arcimdesc, OEORISttdat, OEORIEndDate, OEORIPhQtyOrd) = ""
+	
+	&sql(
+        select
+        	OEORI_BrokerageVendor_DR->vend_ngo_Dr->NGO_Desc,
+        	oeori_itmmast_Dr->arcim_desc,
+        	OEORI_Sttdat,
+        	OEORI_EndDate,
+        	OEORI_PhQtyOrd
+        INTO :NGODesc, :arcimdesc, :OEORISttdat, :OEORIEndDate, :OEORIPhQtyOrd
+        from SQLUSER.oe_order, SQLUSER.oe_orditem, SQLUSER.mr_clinicalpathways
+        where cpw_Rowid=:MRClinicalPathwaysID and
+        	oeori_clinpathways_dr=cpw_Rowid and
+        	oeord_Rowid=oeori_oeord_parref and
+        	OEORI_ItemStat_DR->OSTAT_Code IN ('I','V','E')and OEORI_IsBrokerage='Y')
+	
+	Set FormattedText = NGODesc
+	quit FormattedText
+]]></Implementation>
+</Method>
+
+<Method name="BrokerageTest">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>MRClinicalPathWaysID</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	New Nerp
+	Set Nerp = MRClinicalPathWaysID
+	//&js<alert("lol");>
+	//&js<var DERP = window.parent.document.getElementById('MRClinicalPathWaysID');>
+	//&js<alert(DERP);>
+	Quit Nerp
+]]></Implementation>
+</Method>
+
+<Method name="SWARHPatAdd">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>EpisodeID</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	new LineOne,LineTwo,LineThree,LineFour,FormattedText,TTLDesc,PAPMIName2,PAPMIName,PAPERStName,PAPERForeignAddress,CTCITDesc,PROVDesc,CTZIPCode
+	
+	set (FormattedText, TTLDesc,PAPMIName2,PAPMIName,PAPERStName,PAPERForeignAddress,CTCITDesc,PROVDesc,CTZIPCode) =  ""
+	
+	&sql(
+		SELECT
+			PAADM_PAPMI_DR->PAPMI_Title_DR->TTL_Desc,
+			PAADM_PAPMI_DR->PAPMI_Name2,
+			PAADM_PAPMI_DR->PAPMI_Name,
+			PAADM_PAPMI_DR->PAPMI_Paper_DR->PAPER_StName,
+			PAADM_PAPMI_DR->PAPMI_Paper_DR->PAPER_ForeignAddress,
+			PAADM_PAPMI_DR->PAPMI_Paper_DR->PAPER_CityCode_DR->CTCIT_Desc,
+			PAADM_PAPMI_DR->PAPMI_Paper_DR->PAPER_CT_Province_DR->PROV_Desc,
+			PAADM_PAPMI_DR->PAPMI_Paper_DR->PAPER_Zip_DR->CTZIP_Code
+		INTO :TTLDesc,:PAPMIName2,:PAPMIName,:PAPERStName,:PAPERForeignAddress,:CTCITDesc,:PROVDesc,:CTZIPCode
+		FROM SQLUser.PA_Adm WHERE PAADM_RowID = :EpisodeID
+	)
+	
+	set LineOne = TTLDesc_" "_PAPMIName2_" "_PAPMIName_$CHAR(13)_$CHAR(10)
+	set PAPERStName=$ZSTRIP(PAPERStName,"*C")
+	set LineTwo = PAPERStName_$CHAR(13)_$CHAR(10)
+	If (PAPERForeignAddress'=""){
+		set PAPERForeignAddress=$ZSTRIP(PAPERForeignAddress,"*C")
+		set LineThree=PAPERForeignAddress_$CHAR(13)_$CHAR(10)
+	} else {
+		set LineThree=""
+	}
+	set LineFour = CTCITDesc_"   "_PROVDesc_"   "_CTZIPCode
+	set FormattedText = $ZCONVERT(LineOne_LineTwo_LineThree_LineFour,"U")
+	q FormattedText
+]]></Implementation>
+</Method>
+
+<Method name="SWARHWLPatAdd">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>WaitListID</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	new LineOne,LineTwo,LineThree,LineFour,FormattedText,ADDRRowID,TTLDesc,PAPMIName2,PAPMIName,PAPERStName,PAPERForeignAddress,CTCITDesc,PROVDesc,CTZIPCode
+	
+	set (FormattedText,ADDRRowID,TTLDesc,PAPMIName2,PAPMIName,PAPERStName,PAPERForeignAddress,CTCITDesc,PROVDesc,CTZIPCode) =  ""
+	&sql(
+			SELECT TOP 1
+				ADDR_RowID 
+			INTO	:ADDRRowID
+			FROM SQLUser.PA_WaitingList
+			LEFT JOIN SQLUser.PA_TempAddress on ADDR_ParRef=WL_PAPMI_DR
+			WHERE WL_RowID=:WaitListID
+				AND ADDR_AddressType_DR=2 --Postal Address
+				AND (ADDR_DateTo IS NULL OR ADDR_DateTo>GETDATE())
+			ORDER BY ADDR_DateFrom DESC
+	)
+
+	// OVERRIDE - Currently the user data in Trak in regards to Postal Addresses is extremely poor with duplicates and staff are
+    //            not checking this as they should. M.Atkinson has asked that it changed to always returns residential address
+    //            until they can reach an agreement as to what to do to fix this. Most likely they will end date all of the postal 
+    //            addresses and "start again" but only after it is agreed to at the HIAG meeting.
+    set (ADDRRowID) = ""
+
+	IF ADDRRowID=""
+	{		
+		&sql(
+			SELECT
+				WL_PAPMI_DR->PAPMI_Title_DR->TTL_Desc,
+				WL_PAPMI_DR->PAPMI_Name2,
+				WL_PAPMI_DR->PAPMI_Name,
+				WL_PAPMI_DR->PAPMI_Paper_DR->PAPER_StName,
+				WL_PAPMI_DR->PAPMI_Paper_DR->PAPER_ForeignAddress,
+				WL_PAPMI_DR->PAPMI_Paper_DR->PAPER_CityCode_DR->CTCIT_Desc,
+				WL_PAPMI_DR->PAPMI_Paper_DR->PAPER_CT_Province_DR->PROV_Desc,
+				WL_PAPMI_DR->PAPMI_Paper_DR->PAPER_Zip_DR->CTZIP_Code
+			INTO :TTLDesc,:PAPMIName2,:PAPMIName,:PAPERStName,:PAPERForeignAddress,:CTCITDesc,:PROVDesc,:CTZIPCode
+			FROM SQLUser.PA_WaitingList WHERE WL_RowID = :WaitListID
+		)
+	}Else{
+		&sql(
+			SELECT
+				ADDR_ParRef->PAPER_PAPMI_DR->PAPMI_Title_DR->TTL_Desc,
+		        ADDR_ParRef->PAPER_PAPMI_DR->PAPMI_Name2,
+		        ADDR_ParRef->PAPER_PAPMI_DR->PAPMI_Name,
+		        ADDR_Street,
+		        ADDR_Street2,
+		        ADDR_City_DR->CTCIT_Desc,
+		        ADDR_Province_DR->PROV_Desc,
+		        ADDR_Zip_DR->CTZIP_Code
+		    INTO :TTLDesc,:PAPMIName2,:PAPMIName,:PAPERStName,:PAPERForeignAddress,:CTCITDesc,:PROVDesc,:CTZIPCode
+			FROM SQLUser.PA_TempAddress 
+			WHERE ADDR_RowID=:ADDRRowID
+		)
+	}
+			
+	set LineOne = TTLDesc_" "_PAPMIName2_" "_PAPMIName_$CHAR(13)_$CHAR(10)
+	set PAPERStName=$ZSTRIP(PAPERStName,"*C")
+	set LineTwo = PAPERStName_$CHAR(13)_$CHAR(10)
+	If (PAPERForeignAddress'=""){
+		set PAPERForeignAddress=$ZSTRIP(PAPERForeignAddress,"*C")
+		set LineThree=PAPERForeignAddress_$CHAR(13)_$CHAR(10)
+	} else {
+		set LineThree=""
+	}
+	set LineFour = CTCITDesc_"   "_PROVDesc_"   "_CTZIPCode
+	set FormattedText = $ZCONVERT(LineOne_LineTwo_LineThree_LineFour,"U")
+	q FormattedText
+]]></Implementation>
+</Method>
+
+<Storage name="Default">
+<Type>%Library.CacheStorage</Type>
+<DataLocation>^Custom.SWARH8833.LTExpressionsD</DataLocation>
+<DefaultData>LTExpressionsDefaultData</DefaultData>
+<IdLocation>^Custom.SWARH8833.LTExpressionsD</IdLocation>
+<IndexLocation>^Custom.SWARH8833.LTExpressionsI</IndexLocation>
+<StreamLocation>^Custom.SWARH8833.LTExpressionsS</StreamLocation>
+<ExtentSize>100000</ExtentSize>
+<Data name="LTExpressionsDefaultData">
+<Value name="1">
+<Value>%%CLASSNAME</Value>
+</Value>
+</Data>
+</Storage>
+</Class>
+</Export>

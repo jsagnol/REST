@@ -1,0 +1,605 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.SWARHCUS99VCON">
+<ClassType/>
+<ProcedureBlock>0</ProcedureBlock>
+<Super>%Library.RegisteredObject,%XML.Adaptor</Super>
+<TimeCreated>62174,50455.795193</TimeCreated>
+<Inheritance>right</Inheritance>
+
+<Parameter name="SrcVer">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/SWARHCUS99VCON.xml#1 $</Default>
+</Parameter>
+
+<Method name="VCONClose">
+<Description>
+This is the Close component of the %Library.Query.
+This is standard code and should never have to change.
+This is where all the cleanup is performed, i.e. the purging of the temporary storage global ^CacheTemp.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>QHandle:%Library.Binary</FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Clean up by purging the temporary node in ^CacheTemp global
+ New repid
+ Set repid=$li(QHandle,2)
+ Kill ^CacheTemp(repid)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="VCONExecute">
+<Description>
+This is the Execute section for the %Library.Query. 
+All of the logic will be performed here.
+A new node for the ^CacheTemp global will be created and each subscript of this global will contain
+a row for the report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,DateFrom:%Date,DateTo:%Date,Hospital:%Integer]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+	
+ k ^zbernard	
+ // Get reportid i.e. use $INCREMENT to add another node to ^CacheTemp global. 
+ // We use ^CacheTemp global because it will always use memory before disk
+ New repid,ind
+
+ // Use $Increment to get the next node
+ Set repid=$I(^CacheTemp)
+ s ^zBernard("1")=(1)
+
+ // Build data into ^CacheTemp(ReportID)
+ // e.g. Set ^CacheTemp(ReportID,Index)=$LB(f1,f2,f3)
+ New Number,String,Date,Time,c,n
+ 
+ // Part 1
+ n ID, PAPMIName, PAPMIName2, PAPMIName3, PAPERStName, PAPERForeignAddress, CTCITDesc,CTZIPCode,
+ PAPERSexDR,PAPMIDOB,PAPMIMedicare,PAPMINo,CTCOUCode,CTCOUMappedCode,INDSTCode,QHospital,
+ QTumRefNo,QDateFirstAdmit,QFirstPDDT,QSiteFirstPLabel,
+ QMetDiagDT,QSiteMetDiagString,QTumMorphLabel,QHistGrade,QLaterPrimary,QMVBasDiag,
+ QPerfStatusScore,QStagBasis,QStagSchemeSource,QStagSchSEdNo,QTCode,QNCode,QMCode,QTNMStageCode,
+ QDSStageCode,QFABStageCode,QACPSStageCode,QFIGOStageCode,QDukesStageCode,QAnnArbourStageCode,QBinetStageCode,
+ QRaiStageCode,QCMLStageCode,QISSStageCode,QStageCodeOther,
+ QTumourSize,QMelanomaThickAtDiag,QRegLymphNodes,QRegLymphNodesPos,QHER2Status,QOestAStatus,
+ QProgestAStatus,
+ QNoMetSites,
+ QMetaDate1,QMetaSite1,
+ QMetaDate2,QMetaSite2,
+ QMetaDate3,QMetaSite3,
+ QMetaDate4,QMetaSite4,
+ QMetaDate5,QMetaSite5,
+ QMetaDate6,QMetaSite6,
+ QMetaDate7,QMetaSite7,
+ QMetaDate8,QMetaSite8,
+ QMetaDate9,QMetaSite9,
+ QMetaDate10,QMetaSite10
+ 
+  // Part 2
+ n P2QPart1ID,
+ QCanTrType,
+ QNumSurg,QIntOfTreatSurg,
+ QCanTrTargetLabel,QSurgProcedure,QDateSurgery,
+ QCanTrTargetLabel1,QSurgProcedure1,QDateSurgery1,
+ QCanTrTargetLabel2,QSurgProcedure2,QDateSurgery2,
+ QCanTrTargetLabel3,QSurgProcedure3,QDateSurgery3,
+ QCanTrTargetLabel4,QSurgProcedure4,QDateSurgery4,
+ QCanTrTargetLabel5,QSurgProcedure5,QDateSurgery5,
+ QCanTrTargetLabel6,QSurgProcedure6,QDateSurgery6,
+ QCanTrTargetLabel7,QSurgProcedure7,QDateSurgery7,
+ QCanTrTargetLabel8,QSurgProcedure8,QDateSurgery8,
+ QCanTrTargetLabel9,QSurgProcedure9,QDateSurgery9,
+ QNumSysTher,QIntOfTreatSyst,
+ QSystTherAgentString,QSystTherStartDate,QSystTherComplDate,
+ QSystTherAgentString1,QSystTherStartDate1,QSystTherComplDate1,
+ QSystTherAgentString2,QSystTherStartDate2,QSystTherComplDate2,
+ QSystTherAgentString3,QSystTherStartDate3,QSystTherComplDate3,
+ QSystTherAgentString4,QSystTherStartDate4,QSystTherComplDate4,
+ QSystTherAgentString5,QSystTherStartDate5,QSystTherComplDate5,
+ QSystTherAgentString6,QSystTherStartDate6,QSystTherComplDate6,
+ QSystTherAgentString7,QSystTherStartDate7,QSystTherComplDate7,
+ QSystTherAgentString8,QSystTherStartDate8,QSystTherComplDate8,
+ QSystTherAgentString9,QSystTherStartDate9,QSystTherComplDate9,
+ QOutOfTreat,
+ QTreatComplete
+ // Part 3
+ n P3QPart1ID,QDateDeath,QCauseDeath,QCauseDeathICDCode,QDateFirstRecur,QRegionFirstRecur
+ 
+ 
+ s (PAPERSexDR,QHospital)=0
+ 
+ s (ID, PAPMIName, PAPMIName2, PAPMIName3, PAPERStName, PAPERForeignAddress, CTCITDesc,CTZIPCode,
+ PAPMIDOB,PAPMIMedicare,PAPMINo,CTCOUCode,CTCOUMappedCode,INDSTCode,
+ QTumRefNo,QDateFirstAdmit,QFirstPDDT,QSiteFirstPLabel,
+ QMetDiagDT,QSiteMetDiagString,QTumMorphLabel,QHistGrade,QLaterPrimary,QMVBasDiag,
+ QPerfStatusScore,QStagBasis,QStagSchemeSource,QStagSchSEdNo,QTCode,QNCode,QMCode,QTNMStageCode,
+ QDSStageCode,QFABStageCode,QACPSStageCode,QFIGOStageCode,QDukesStageCode,QAnnArbourStageCode,QBinetStageCode,
+ QRaiStageCode,QCMLStageCode,QISSStageCode,QStageCodeOther,
+ QTumourSize,QMelanomaThickAtDiag,QRegLymphNodes,QRegLymphNodesPos,QHER2Status,QOestAStatus,
+ QProgestAStatus,QNoMetSites,
+ QMetaDate1,QMetaSite1,
+ QMetaDate2,QMetaSite2,
+ QMetaDate3,QMetaSite3,
+ QMetaDate4,QMetaSite4,
+ QMetaDate5,QMetaSite5,
+ QMetaDate6,QMetaSite6,
+ QMetaDate7,QMetaSite7,
+ QMetaDate8,QMetaSite8,
+ QMetaDate9,QMetaSite9,
+ QMetaDate10,QMetaSite10)=""
+ 
+ s (P2QPart1ID,QCanTrType,QNumSurg,QIntOfTreatSurg,
+ QCanTrTargetLabel,QSurgProcedure,QDateSurgery,
+ QCanTrTargetLabel1,QSurgProcedure1,QDateSurgery1,
+ QCanTrTargetLabel2,QSurgProcedure2,QDateSurgery2,
+ QCanTrTargetLabel3,QSurgProcedure3,QDateSurgery3,
+ QCanTrTargetLabel4,QSurgProcedure4,QDateSurgery4,
+ QCanTrTargetLabel5,QSurgProcedure5,QDateSurgery5,
+ QCanTrTargetLabel6,QSurgProcedure6,QDateSurgery6,
+ QCanTrTargetLabel7,QSurgProcedure7,QDateSurgery7,
+ QCanTrTargetLabel8,QSurgProcedure8,QDateSurgery8,
+ QCanTrTargetLabel9,QSurgProcedure9,QDateSurgery9,
+ QNumSysTher,QIntOfTreatSyst,
+ QSystTherAgentString,QSystTherStartDate,QSystTherComplDate,
+ QSystTherAgentString1,QSystTherStartDate1,QSystTherComplDate1,
+ QSystTherAgentString2,QSystTherStartDate2,QSystTherComplDate2,
+ QSystTherAgentString3,QSystTherStartDate3,QSystTherComplDate3,
+ QSystTherAgentString4,QSystTherStartDate4,QSystTherComplDate4,
+ QSystTherAgentString5,QSystTherStartDate5,QSystTherComplDate5,
+ QSystTherAgentString6,QSystTherStartDate6,QSystTherComplDate6,
+ QSystTherAgentString7,QSystTherStartDate7,QSystTherComplDate7,
+ QSystTherAgentString8,QSystTherStartDate8,QSystTherComplDate8,
+ QSystTherAgentString9,QSystTherStartDate9,QSystTherComplDate9,
+ QOutOfTreat,QTreatComplete)=""
+ 
+ s (P3QPart1ID,QDateDeath,QCauseDeath,QCauseDeathICDCode,QDateFirstRecur,QRegionFirstRecur)=""
+ 
+ s ind=1
+
+ //Convert ODBC dates to cache format
+ s DateFrom=$$intdate^SSUTIL4(DateFrom)
+ s DateTo=$$intdate^SSUTIL4(DateTo)
+
+ //s ^bernard("2")=(2)
+ 
+ &sql(declare VCON cursor for
+ 
+ select
+questionnaire.QVCONPART1.ID,
+questionnaire.QVCONPART1.QUESPAPatMasDR->PAPMI_Name,
+questionnaire.QVCONPART1.QUESPAPatMasDR->PAPMI_Name2,
+questionnaire.QVCONPART1.QUESPAPatMasDR->PAPMI_Name3,
+questionnaire.QVCONPART1.QUESPAPatMasDR->PAPMI_PAPER_DR->PAPER_StName,
+questionnaire.QVCONPART1.QUESPAPatMasDR->PAPMI_PAPER_DR->PAPER_ForeignAddress,
+questionnaire.QVCONPART1.QUESPAPatMasDR->PAPMI_PAPER_DR->PAPER_CityCode_DR->CTCIT_Desc,
+questionnaire.QVCONPART1.QUESPAPatMasDR->PAPMI_PAPER_DR->PAPER_Zip_DR->CTZIP_Code,
+questionnaire.QVCONPART1.QUESPAPatMasDR->PAPMI_PAPER_DR->PAPER_Sex_DR,
+questionnaire.QVCONPART1.QUESPAPatMasDR->PAPMI_DOB,
+questionnaire.QVCONPART1.QUESPAPatMasDR->PAPMI_Medicare,
+questionnaire.QVCONPART1.QUESPAPatMasDR->PAPMI_No,
+questionnaire.QVCONPART1.QUESPAPatMasDR->PAPMI_PAPER_DR->PAPER_Country_Birth_DR->CTCOU_Code,
+questionnaire.QVCONPART1.QUESPAPatMasDR->PAPMI_PAPER_DR->PAPER_IndigStat_DR->INDST_Code,
+questionnaire.QVCONPART1.QHospital,
+QTumRefNo,QDateFirstAdmit,QFirstPDDT,QSiteFirstPLabel,
+QMetDiagDT,QSiteMetDiagString,QTumMorphLabel,QHistGrade,QLaterPrimary,QMVBasDiag,
+QPerfStatusScore,QStagBasis,QStagSchemeSource,QStagSchSEdNo,QTCode,QNCode,QMCode,QTNMStageCode,
+
+QDSStageCode,QFABStageCode,QACPSStageCode,QFIGOStageCode,QDukesStageCode,QAnnArbourStageCode,QBinetStageCode,
+QRaiStageCode,QCMLStageCode,QISSStageCode,QStageCodeOther,
+QTumourSize,QMelanomaThickAtDiag,QRegLymphNodes,QRegLymphNodesPos,QHER2Status,QOestAStatus,
+QProgestAStatus,
+QNoMetSites,
+QMetaDate1,QMetaSite1,
+QMetaDate2,QMetaSite2,
+QMetaDate3,QMetaSite3,
+QMetaDate4,QMetaSite4,
+QMetaDate5,QMetaSite5,
+QMetaDate6,QMetaSite6,
+QMetaDate7,QMetaSite7,
+QMetaDate8,QMetaSite8,
+QMetaDate9,QMetaSite9,
+QMetaDate10,QMetaSite10,
+
+questionnaire.QVCONPART2.QPart1ID,
+QCanTrType,
+QNumSurg,QIntOfTreatSurg,
+QCanTrTargetLabel,QSurgProcedure,QDateSurgery,
+QCanTrTargetLabel1,QSurgProcedure1,QDateSurgery1,
+QCanTrTargetLabel2,QSurgProcedure2,QDateSurgery2,
+QCanTrTargetLabel3,QSurgProcedure3,QDateSurgery3,
+QCanTrTargetLabel4,QSurgProcedure4,QDateSurgery4,
+QCanTrTargetLabel5,QSurgProcedure5,QDateSurgery5,
+QCanTrTargetLabel6,QSurgProcedure6,QDateSurgery6,
+QCanTrTargetLabel7,QSurgProcedure7,QDateSurgery7,
+QCanTrTargetLabel8,QSurgProcedure8,QDateSurgery8,
+QCanTrTargetLabel9,QSurgProcedure9,QDateSurgery9,
+QNumSysTher,QIntOfTreatSyst,
+QSystTherAgentString,QSystTherStartDate,QSystTherComplDate,
+QSystTherAgentString1,QSystTherStartDate1,QSystTherComplDate1,
+QSystTherAgentString2,QSystTherStartDate2,QSystTherComplDate2,
+QSystTherAgentString3,QSystTherStartDate3,QSystTherComplDate3,
+QSystTherAgentString4,QSystTherStartDate4,QSystTherComplDate4,
+QSystTherAgentString5,QSystTherStartDate5,QSystTherComplDate5,
+QSystTherAgentString6,QSystTherStartDate6,QSystTherComplDate6,
+QSystTherAgentString7,QSystTherStartDate7,QSystTherComplDate7,
+QSystTherAgentString8,QSystTherStartDate8,QSystTherComplDate8,
+QSystTherAgentString9,QSystTherStartDate9,QSystTherComplDate9,
+QOutOfTreat,
+QTreatComplete,
+
+questionnaire.QVCONPART3.QPart1ID,
+QDateDeath,QCauseDeath,icd.MRCID_Code,QDateFirstRecur,QRegionFirstRecur
+
+from questionnaire.QVCONPART1,questionnaire.QVCONPART2,questionnaire.QVCONPART3 left join
+SQLUser.MRC_ICDDx icd on questionnaire.QVCONPART3.QCauseDeath = icd.MRCID_RowId
+where questionnaire.QVCONPART1.ID=*questionnaire.QVCONPART2.QPart1ID and questionnaire.QVCONPART1.ID=*questionnaire.QVCONPART3.QPart1ID
+and questionnaire.QVCONPART1.QFirstPDDT between :DateFrom AND :DateTo AND questionnaire.QVCONPART1.QHospital=:Hospital
+ 		       		
+)
+ &sql(open VCON)
+
+  //fetch first row 
+ &sql(fetch VCON into :ID,:PAPMIName,:PAPMIName2,:PAPMIName3,:PAPERStName,:PAPERForeignAddress,:CTCITDesc,:CTZIPCode,
+ :PAPERSexDR,:PAPMIDOB,:PAPMIMedicare,:PAPMINo,:CTCOUCode,:INDSTCode,:QHospital,
+ :QTumRefNo,:QDateFirstAdmit,:QFirstPDDT,:QSiteFirstPLabel,
+ :QMetDiagDT,:QSiteMetDiagString,:QTumMorphLabel,:QHistGrade,:QLaterPrimary,:QMVBasDiag,
+ :QPerfStatusScore,:QStagBasis,:QStagSchemeSource,:QStagSchSEdNo,:QTCode,:QNCode,:QMCode,:QTNMStageCode,
+ :QDSStageCode,:QFABStageCode,:QACPSStageCode,:QFIGOStageCode,:QDukesStageCode,:QAnnArbourStageCode,:QBinetStageCode,
+ :QRaiStageCode,:QCMLStageCode,:QISSStageCode,:QStageCodeOther,
+ :QTumourSize,:QMelanomaThickAtDiag,:QRegLymphNodes,:QRegLymphNodesPos,:QHER2Status,:QOestAStatus,
+ :QProgestAStatus,
+ :QNoMetSites,
+ :QMetaDate1,:QMetaSite1,
+ :QMetaDate2,:QMetaSite2,
+ :QMetaDate3,:QMetaSite3,
+ :QMetaDate4,:QMetaSite4,
+ :QMetaDate5,:QMetaSite5,
+ :QMetaDate6,:QMetaSite6,
+ :QMetaDate7,:QMetaSite7,
+ :QMetaDate8,:QMetaSite8,
+ :QMetaDate9,:QMetaSite9,
+ :QMetaDate10,:QMetaSite10,
+ :P2QPart1ID,
+ :QCanTrType,
+ :QNumSurg,:QIntOfTreatSurg,
+ :QCanTrTargetLabel,:QSurgProcedure,:QDateSurgery,
+ :QCanTrTargetLabel1,:QSurgProcedure1,:QDateSurgery1,
+ :QCanTrTargetLabel2,:QSurgProcedure2,:QDateSurgery2,
+ :QCanTrTargetLabel3,:QSurgProcedure3,:QDateSurgery3,
+ :QCanTrTargetLabel4,:QSurgProcedure4,:QDateSurgery4,
+ :QCanTrTargetLabel5,:QSurgProcedure5,:QDateSurgery5,
+ :QCanTrTargetLabel6,:QSurgProcedure6,:QDateSurgery6,
+ :QCanTrTargetLabel7,:QSurgProcedure7,:QDateSurgery7,
+ :QCanTrTargetLabel8,:QSurgProcedure8,:QDateSurgery8,
+ :QCanTrTargetLabel9,:QSurgProcedure9,:QDateSurgery9,
+ :QNumSysTher,:QIntOfTreatSyst,
+ :QSystTherAgentString,:QSystTherStartDate,:QSystTherComplDate,
+ :QSystTherAgentString1,:QSystTherStartDate1,:QSystTherComplDate1,
+ :QSystTherAgentString2,:QSystTherStartDate2,:QSystTherComplDate2,
+ :QSystTherAgentString3,:QSystTherStartDate3,:QSystTherComplDate3,
+ :QSystTherAgentString4,:QSystTherStartDate4,:QSystTherComplDate4,
+ :QSystTherAgentString5,:QSystTherStartDate5,:QSystTherComplDate5,
+ :QSystTherAgentString6,:QSystTherStartDate6,:QSystTherComplDate6,
+ :QSystTherAgentString7,:QSystTherStartDate7,:QSystTherComplDate7,
+ :QSystTherAgentString8,:QSystTherStartDate8,:QSystTherComplDate8,
+ :QSystTherAgentString9,:QSystTherStartDate9,:QSystTherComplDate9,
+ :QOutOfTreat,
+ :QTreatComplete,
+ 
+ :P3QPart1ID,
+ :QDateDeath,:QCauseDeath,:QCauseDeathICDCode,:QDateFirstRecur,:QRegionFirstRecur
+ )
+
+ while 'SQLCODE{
+ 
+ d FormatDates
+ s CTCOUMappedCode=""
+ s CTCOUMappedCode=##class(Custom.AUXXUtilities).GetMappedCode("CT_Country","CTCOU_Code","DHSVCTRY07",CTCOUCode)
+ s PAPERStName=$zstrip(PAPERStName,"<C")
+ s PAPERForeignAddress=$zstrip(PAPERForeignAddress,"<C")
+ s QSiteMetDiagString=$zstrip(QSiteMetDiagString,"*C")
+ s QSystTherAgentString=$piece($zstrip(QSystTherAgentString,"<C"),":",1)
+ s QSystTherAgentString1=$piece($zstrip(QSystTherAgentString1,"<C"),":",1)
+ s QSystTherAgentString2=$piece($zstrip(QSystTherAgentString2,"<C"),":",1)
+ s QSystTherAgentString3=$piece($zstrip(QSystTherAgentString3,"<C"),":",1)
+ s QSystTherAgentString4=$piece($zstrip(QSystTherAgentString4,"<C"),":",1)
+ s QSystTherAgentString5=$piece($zstrip(QSystTherAgentString5,"<C"),":",1)
+ s QSystTherAgentString6=$piece($zstrip(QSystTherAgentString6,"<C"),":",1)
+ s QSystTherAgentString7=$piece($zstrip(QSystTherAgentString7,"<C"),":",1)
+ s QSystTherAgentString8=$piece($zstrip(QSystTherAgentString8,"<C"),":",1)
+ s QSystTherAgentString9=$piece($zstrip(QSystTherAgentString9,"<C"),":",1)
+
+ // build the row
+ Set ^CacheTemp(repid,ind)=$LB(ID, PAPMIName, PAPMIName2, PAPMIName3, PAPERStName, PAPERForeignAddress, CTCITDesc,CTZIPCode,
+ PAPERSexDR,PAPMIDOB,PAPMIMedicare,PAPMINo,CTCOUCode,CTCOUMappedCode,INDSTCode,QHospital,
+ QTumRefNo,QDateFirstAdmit,QFirstPDDT,QSiteFirstPLabel,
+ QMetDiagDT,QSiteMetDiagString,QTumMorphLabel,QHistGrade,QLaterPrimary,QMVBasDiag,
+ QPerfStatusScore,QStagBasis,QStagSchemeSource,QStagSchSEdNo,QTCode,QNCode,QMCode,QTNMStageCode,
+ QDSStageCode,QFABStageCode,QACPSStageCode,QFIGOStageCode,QDukesStageCode,QAnnArbourStageCode,QBinetStageCode,
+ QRaiStageCode,QCMLStageCode,QISSStageCode,QStageCodeOther,
+ QTumourSize,QMelanomaThickAtDiag,QRegLymphNodes,QRegLymphNodesPos,QHER2Status,QOestAStatus,
+ QProgestAStatus,QNoMetSites,
+ QMetaDate1,QMetaSite1,
+ QMetaDate2,QMetaSite2,
+ QMetaDate3,QMetaSite3,
+ QMetaDate4,QMetaSite4,
+ QMetaDate5,QMetaSite5,
+ QMetaDate6,QMetaSite6,
+ QMetaDate7,QMetaSite7,
+ QMetaDate8,QMetaSite8,
+ QMetaDate9,QMetaSite9,
+ QMetaDate10,QMetaSite10,
+ P2QPart1ID,
+ QCanTrType,
+ QNumSurg,QIntOfTreatSurg,
+ QCanTrTargetLabel,QSurgProcedure,QDateSurgery,
+ QCanTrTargetLabel1,QSurgProcedure1,QDateSurgery1,
+ QCanTrTargetLabel2,QSurgProcedure2,QDateSurgery2,
+ QCanTrTargetLabel3,QSurgProcedure3,QDateSurgery3,
+ QCanTrTargetLabel4,QSurgProcedure4,QDateSurgery4,
+ QCanTrTargetLabel5,QSurgProcedure5,QDateSurgery5,
+ QCanTrTargetLabel6,QSurgProcedure6,QDateSurgery6,
+ QCanTrTargetLabel7,QSurgProcedure7,QDateSurgery7,
+ QCanTrTargetLabel8,QSurgProcedure8,QDateSurgery8,
+ QCanTrTargetLabel9,QSurgProcedure9,QDateSurgery9,
+ QNumSysTher,QIntOfTreatSyst,
+ QSystTherAgentString,QSystTherStartDate,QSystTherComplDate,
+ QSystTherAgentString1,QSystTherStartDate1,QSystTherComplDate1,
+ QSystTherAgentString2,QSystTherStartDate2,QSystTherComplDate2,
+ QSystTherAgentString3,QSystTherStartDate3,QSystTherComplDate3,
+ QSystTherAgentString4,QSystTherStartDate4,QSystTherComplDate4,
+ QSystTherAgentString5,QSystTherStartDate5,QSystTherComplDate5,
+ QSystTherAgentString6,QSystTherStartDate6,QSystTherComplDate6,
+ QSystTherAgentString7,QSystTherStartDate7,QSystTherComplDate7,
+ QSystTherAgentString8,QSystTherStartDate8,QSystTherComplDate8,
+ QSystTherAgentString9,QSystTherStartDate9,QSystTherComplDate9,
+ QOutOfTreat,
+ QTreatComplete,
+ P3QPart1ID,QDateDeath,QCauseDeath,QCauseDeathICDCode,QDateFirstRecur,QRegionFirstRecur,
+ )
+ s ind=ind+1
+ //fetch rows
+ &sql(fetch VCON into :ID,:PAPMIName,:PAPMIName2,:PAPMIName3,:PAPERStName,:PAPERForeignAddress,:CTCITDesc,:CTZIPCode,
+ :PAPERSexDR,:PAPMIDOB,:PAPMIMedicare,:PAPMINo,:CTCOUCode,:INDSTCode,:QHospital,
+ :QTumRefNo,:QDateFirstAdmit,:QFirstPDDT,:QSiteFirstPLabel,
+ :QMetDiagDT,:QSiteMetDiagString,:QTumMorphLabel,:QHistGrade,:QLaterPrimary,:QMVBasDiag,
+ :QPerfStatusScore,:QStagBasis,:QStagSchemeSource,:QStagSchSEdNo,:QTCode,:QNCode,:QMCode,:QTNMStageCode,
+ :QDSStageCode,:QFABStageCode,:QACPSStageCode,:QFIGOStageCode,:QDukesStageCode,:QAnnArbourStageCode,:QBinetStageCode,
+ :QRaiStageCode,:QCMLStageCode,:QISSStageCode,:QStageCodeOther,
+ :QTumourSize,:QMelanomaThickAtDiag,:QRegLymphNodes,:QRegLymphNodesPos,:QHER2Status,:QOestAStatus,
+ :QProgestAStatus,:QNoMetSites,
+ :QMetaDate1,:QMetaSite1,
+ :QMetaDate2,:QMetaSite2,
+ :QMetaDate3,:QMetaSite3,
+ :QMetaDate4,:QMetaSite4,
+ :QMetaDate5,:QMetaSite5,
+ :QMetaDate6,:QMetaSite6,
+ :QMetaDate7,:QMetaSite7,
+ :QMetaDate8,:QMetaSite8,
+ :QMetaDate9,:QMetaSite9,
+ :QMetaDate10,:QMetaSite10,
+ :P2QPart1ID,
+ :QCanTrType,
+ :QNumSurg,:QIntOfTreatSurg,
+ :QCanTrTargetLabel,:QSurgProcedure,:QDateSurgery,
+ :QCanTrTargetLabel1,:QSurgProcedure1,:QDateSurgery1,
+ :QCanTrTargetLabel2,:QSurgProcedure2,:QDateSurgery2,
+ :QCanTrTargetLabel3,:QSurgProcedure3,:QDateSurgery3,
+ :QCanTrTargetLabel4,:QSurgProcedure4,:QDateSurgery4,
+ :QCanTrTargetLabel5,:QSurgProcedure5,:QDateSurgery5,
+ :QCanTrTargetLabel6,:QSurgProcedure6,:QDateSurgery6,
+ :QCanTrTargetLabel7,:QSurgProcedure7,:QDateSurgery7,
+ :QCanTrTargetLabel8,:QSurgProcedure8,:QDateSurgery8,
+ :QCanTrTargetLabel9,:QSurgProcedure9,:QDateSurgery9,
+ :QNumSysTher,:QIntOfTreatSyst,
+ :QSystTherAgentString,:QSystTherStartDate,:QSystTherComplDate,
+ :QSystTherAgentString1,:QSystTherStartDate1,:QSystTherComplDate1,
+ :QSystTherAgentString2,:QSystTherStartDate2,:QSystTherComplDate2,
+ :QSystTherAgentString3,:QSystTherStartDate3,:QSystTherComplDate3,
+ :QSystTherAgentString4,:QSystTherStartDate4,:QSystTherComplDate4,
+ :QSystTherAgentString5,:QSystTherStartDate5,:QSystTherComplDate5,
+ :QSystTherAgentString6,:QSystTherStartDate6,:QSystTherComplDate6,
+ :QSystTherAgentString7,:QSystTherStartDate7,:QSystTherComplDate7,
+ :QSystTherAgentString8,:QSystTherStartDate8,:QSystTherComplDate8,
+ :QSystTherAgentString9,:QSystTherStartDate9,:QSystTherComplDate9,
+ :QOutOfTreat,
+ :QTreatComplete,
+ :P3QPart1ID,:QDateDeath,:QCauseDeath,:QCauseDeathICDCode,:QDateFirstRecur,:QRegionFirstRecur
+ )
+ }
+
+ //s ^zBernard("3")=(3)
+ &sql(close VCON)
+
+ // Build QHandle (AtEnd,ReportID,Index)
+ Set QHandle=$lb(0,repid,0)
+
+ //s ^zBernard("4")=(4)
+
+ Quit $$$OK
+
+
+FormatDates
+ // Convert the dates to ODBC date format
+ If PAPMIDOB Set PAPMIDOB=$ZD(PAPMIDOB,3)
+ If QFirstPDDT Set QFirstPDDT=$ZD(QFirstPDDT,3)
+ If QMetDiagDT Set QMetDiagDT=$ZD(QMetDiagDT,3)
+ If QDateFirstAdmit Set QDateFirstAdmit=$ZD(QDateFirstAdmit,3)
+ If QDateSurgery Set QDateSurgery=$ZD(QDateSurgery,3)
+ If QDateSurgery1 Set QDateSurgery1=$ZD(QDateSurgery1,3)
+ If QDateSurgery2 Set QDateSurgery2=$ZD(QDateSurgery2,3)
+ If QDateSurgery3 Set QDateSurgery3=$ZD(QDateSurgery3,3)
+ If QDateSurgery4 Set QDateSurgery4=$ZD(QDateSurgery4,3)
+ If QDateSurgery5 Set QDateSurgery5=$ZD(QDateSurgery5,3)
+ If QDateSurgery6 Set QDateSurgery6=$ZD(QDateSurgery6,3)
+ If QDateSurgery7 Set QDateSurgery7=$ZD(QDateSurgery7,3)
+ If QDateSurgery8 Set QDateSurgery8=$ZD(QDateSurgery8,3)
+ If QDateSurgery9 Set QDateSurgery9=$ZD(QDateSurgery9,3)
+ If QSystTherStartDate Set QSystTherStartDate=$ZD(QSystTherStartDate,3)
+ If QSystTherComplDate Set QSystTherComplDate=$ZD(QSystTherComplDate,3)
+ If QSystTherStartDate1 Set QSystTherStartDate1=$ZD(QSystTherStartDate1,3)
+ If QSystTherComplDate1 Set QSystTherComplDate1=$ZD(QSystTherComplDate1,3)
+ If QSystTherStartDate2 Set QSystTherStartDate2=$ZD(QSystTherStartDate2,3)
+ If QSystTherComplDate2 Set QSystTherComplDate2=$ZD(QSystTherComplDate2,3)
+ If QSystTherStartDate3 Set QSystTherStartDate3=$ZD(QSystTherStartDate3,3)
+ If QSystTherComplDate3 Set QSystTherComplDate3=$ZD(QSystTherComplDate3,3)
+ If QSystTherStartDate4 Set QSystTherStartDate4=$ZD(QSystTherStartDate4,3)
+ If QSystTherComplDate4 Set QSystTherComplDate4=$ZD(QSystTherComplDate4,3)
+ If QSystTherStartDate5 Set QSystTherStartDate5=$ZD(QSystTherStartDate5,3)
+ If QSystTherComplDate5 Set QSystTherComplDate5=$ZD(QSystTherComplDate5,3)
+ If QSystTherStartDate6 Set QSystTherStartDate6=$ZD(QSystTherStartDate6,3)
+ If QSystTherComplDate6 Set QSystTherComplDate6=$ZD(QSystTherComplDate6,3)
+ If QSystTherStartDate7 Set QSystTherStartDate7=$ZD(QSystTherStartDate7,3)
+ If QSystTherComplDate7 Set QSystTherComplDate7=$ZD(QSystTherComplDate7,3)
+ If QSystTherStartDate8 Set QSystTherStartDate8=$ZD(QSystTherStartDate8,3)
+ If QSystTherComplDate8 Set QSystTherComplDate8=$ZD(QSystTherComplDate8,3)
+ If QSystTherStartDate9 Set QSystTherStartDate9=$ZD(QSystTherStartDate9,3)
+ If QSystTherComplDate9 Set QSystTherComplDate9=$ZD(QSystTherComplDate9,3)
+ If QDateDeath Set QDateDeath=$ZD(QDateDeath,3)
+ If QDateFirstRecur Set QDateFirstRecur=$ZD(QDateFirstRecur,3)
+ If QMetaDate1 Set QMetaDate1=$ZD(QMetaDate1,3)
+ If QMetaDate2 Set QMetaDate2=$ZD(QMetaDate2,3)
+ If QMetaDate3 Set QMetaDate3=$ZD(QMetaDate3,3)
+ If QMetaDate4 Set QMetaDate4=$ZD(QMetaDate4,3)
+ If QMetaDate5 Set QMetaDate5=$ZD(QMetaDate5,3)
+ If QMetaDate6 Set QMetaDate6=$ZD(QMetaDate6,3)
+ If QMetaDate7 Set QMetaDate7=$ZD(QMetaDate7,3)
+ If QMetaDate8 Set QMetaDate8=$ZD(QMetaDate8,3)
+ If QMetaDate9 Set QMetaDate9=$ZD(QMetaDate9,3)
+ If QMetaDate10 Set QMetaDate10=$ZD(QMetaDate10,3)
+ 
+ Quit
+]]></Implementation>
+</Method>
+
+<Method name="VCONFetch">
+<Description>
+This is the Fetch component of the %Library.Query. 
+This should never have to change. It is designed to fetch the row for each subscript of the ^CacheTemp
+global and return this row to the Crystal Report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,&Row:%Library.List,&AtEnd:%Library.Integer=0]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // This fetch method should never have to change. 
+
+ // repid - Report ID
+ // ind   - sequence index which represents each row
+
+ New repid,ind
+
+ // Restore QHandle
+ Set AtEnd=$li(QHandle,1)
+ Set repid=$li(QHandle,2)
+ Set ind=$li(QHandle,3)
+
+ Set ind=$o(^CacheTemp(repid,ind))
+ If ind="" {	// if there are no more rows, finish fetching
+ Set AtEnd=1
+ Set Row=""
+ }
+ Else      {	// fetch row
+ Set Row=^CacheTemp(repid,ind)
+ }
+
+ // Save QHandle
+ s QHandle=$lb(AtEnd,repid,ind)
+
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Query name="VCON">
+<Description>
+GHA List reports Stored Procedure
+It expects 2 parameter of type date and will return a list of records:
+Field1 - Integer
+Field2 - String(MAXLEN=255)
+Field3 - Date
+Field4 - Time</Description>
+<Type>%Library.Query</Type>
+<FormalSpec>DateFrom:%Date,DateTo:%Date,Hospital:%Integer</FormalSpec>
+<SqlProc>1</SqlProc>
+<Parameter name="CONTAINID" value="0"/>
+<Parameter name="ROWSPEC" value="ID:%Integer, PAPMIName:%String(MAXLEN=255), PAPMIName2:%String(MAXLEN=255), PAPMIName3:%String(MAXLEN=255), PAPERStName:%String(MAXLEN=255), PAPERForeignAddress:%String(MAXLEN=255), CTCITDesc:%String(MAXLEN=255),CTZIPCode:%String(MAXLEN=255),PAPERSexDR:%Integer,PAPMIDOB:%String(MAXLEN=255),PAPMIMedicare:%String(MAXLEN=255),PAPMINo:%String(MAXLEN=255),CTCOUCode:%String(MAXLEN=255),CTCOUMappedCode:%String(MAXLEN=255),INDSTCode:%String(MAXLEN=255),QHospital:%Integer,QTumRefNo:%String(MAXLEN=255),QDateFirstAdmit:%String(MAXLEN=255),QFirstPDDT:%String(MAXLEN=255),QSiteFirstPLabel:%String(MAXLEN=255),QMetDiagDT:%String(MAXLEN=255),QSiteMetDiagString:%String(MAXLEN=255),QTumMorphLabel:%String(MAXLEN=255),QHistGrade:%String(MAXLEN=255),QLaterPrimary:%String(MAXLEN=255),QMVBasDiag:%String(MAXLEN=255),QPerfStatusScore:%String(MAXLEN=255),QStagBasis:%String(MAXLEN=255),QStagSchemeSource:%String(MAXLEN=255),QStagSchSEdNo:%String(MAXLEN=255),QTCode:%String(MAXLEN=255),QNCode:%String(MAXLEN=255),QMCode:%String(MAXLEN=255),QTNMStageCode:%String(MAXLEN=255),QDSStageCode:%String(MAXLEN=255),QFABStageCode:%String(MAXLEN=255),QACPSStageCode:%String(MAXLEN=255),QFIGOStageCode:%String(MAXLEN=255),QDukesStageCode:%String(MAXLEN=255),QAnnArbourStageCode:%String(MAXLEN=255),QBinetStageCode:%String(MAXLEN=255),QRaiStageCode:%String(MAXLEN=255),QCMLStageCode:%String(MAXLEN=255),QISSStageCode:%String(MAXLEN=255),QStageCodeOther:%String(MAXLEN=255),QTumourSize:%String(MAXLEN=255),QMelanomaThickAtDiag:%String(MAXLEN=255),QRegLymphNodes:%String(MAXLEN=255),QRegLymphNodesPos:%String(MAXLEN=255),QHER2Status:%String(MAXLEN=255),QOestAStatus:%String(MAXLEN=255),QProgestAStatus:%String(MAXLEN=255),QNoMetSites:%String(MAXLEN=255),QMetaDate1:%String(MAXLEN=255),QMetaSite1:%String(MAXLEN=255),QMetaDate2:%String(MAXLEN=255),QMetaSite2:%String(MAXLEN=255),QMetaDate3:%String(MAXLEN=255),QMetaSite3:%String(MAXLEN=255),QMetaDate4:%String(MAXLEN=255),QMetaSite4:%String(MAXLEN=255),QMetaDate5:%String(MAXLEN=255),QMetaSite5:%String(MAXLEN=255),QMetaDate6:%String(MAXLEN=255),QMetaSite6:%String(MAXLEN=255),QMetaDate7:%String(MAXLEN=255),QMetaSite7:%String(MAXLEN=255),QMetaDate8:%String(MAXLEN=255),QMetaSite8:%String(MAXLEN=255),QMetaDate9:%String(MAXLEN=255),QMetaSite9:%String(MAXLEN=255),QMetaDate10:%String(MAXLEN=255),QMetaSite10:%String(MAXLEN=255),P2QPart1ID:%String(MAXLEN=255),QCanTrType:%String(MAXLEN=255),QNumSurg:%String(MAXLEN=255),QIntOfTreatSurg:%String(MAXLEN=255),QCanTrTargetLabel:%String(MAXLEN=255),QSurgProcedure:%String(MAXLEN=255),QDateSurgery:%String(MAXLEN=255),QCanTrTargetLabel1:%String(MAXLEN=255),QSurgProcedure1:%String(MAXLEN=255),QDateSurgery1:%String(MAXLEN=255),QCanTrTargetLabel2:%String(MAXLEN=255),QSurgProcedure2:%String(MAXLEN=255),QDateSurgery2:%String(MAXLEN=255),QCanTrTargetLabel3:%String(MAXLEN=255),QSurgProcedure3:%String(MAXLEN=255),QDateSurgery3:%String(MAXLEN=255),QCanTrTargetLabel4:%String(MAXLEN=255),QSurgProcedure4:%String(MAXLEN=255),QDateSurgery4:%String(MAXLEN=255),QCanTrTargetLabel5:%String(MAXLEN=255),QSurgProcedure5:%String(MAXLEN=255),QDateSurgery5:%String(MAXLEN=255),QCanTrTargetLabel6:%String(MAXLEN=255),QSurgProcedure6:%String(MAXLEN=255),QDateSurgery6:%String(MAXLEN=255),QCanTrTargetLabel7:%String(MAXLEN=255),QSurgProcedure7:%String(MAXLEN=255),QDateSurgery7:%String(MAXLEN=255),QCanTrTargetLabel8:%String(MAXLEN=255),QSurgProcedure8:%String(MAXLEN=255),QDateSurgery8:%String(MAXLEN=255),QCanTrTargetLabel9:%String(MAXLEN=255),QSurgProcedure9:%String(MAXLEN=255),QDateSurgery9:%String(MAXLEN=255),QNumSysTher:%String(MAXLEN=255),QIntOfTreatSyst:%String(MAXLEN=255),QSystTherAgentString:%String(MAXLEN=255),QSystTherStartDate:%String(MAXLEN=255),QSystTherComplDate:%String(MAXLEN=255),QSystTherAgentString1:%String(MAXLEN=255),QSystTherStartDate1:%String(MAXLEN=255),QSystTherComplDate1:%String(MAXLEN=255),QSystTherAgentString2:%String(MAXLEN=255),QSystTherStartDate2:%String(MAXLEN=255),QSystTherComplDate2:%String(MAXLEN=255),QSystTherAgentString3:%String(MAXLEN=255),QSystTherStartDate3:%String(MAXLEN=255),QSystTherComplDate3:%String(MAXLEN=255),QSystTherAgentString4:%String(MAXLEN=255),QSystTherStartDate4:%String(MAXLEN=255),QSystTherComplDate4:%String(MAXLEN=255),QSystTherAgentString5:%String(MAXLEN=255),QSystTherStartDate5:%String(MAXLEN=255),QSystTherComplDate5:%String(MAXLEN=255),QSystTherAgentString6:%String(MAXLEN=255),QSystTherStartDate6:%String(MAXLEN=255),QSystTherComplDate6:%String(MAXLEN=255),QSystTherAgentString7:%String(MAXLEN=255),QSystTherStartDate7:%String(MAXLEN=255),QSystTherComplDate7:%String(MAXLEN=255),QSystTherAgentString8:%String(MAXLEN=255),QSystTherStartDate8:%String(MAXLEN=255),QSystTherComplDate8:%String(MAXLEN=255),QSystTherAgentString9:%String(MAXLEN=255),QSystTherStartDate9:%String(MAXLEN=255),QSystTherComplDate9:%String(MAXLEN=255),QOutOfTreat:%String(MAXLEN=255),QTreatComplete:%String(MAXLEN=255),P3QPart1ID,QDateDeath,QCauseDeath,QCauseDeathICDCode,QDateFirstRecur,QRegionFirstRecur,P4QPart1ID:%String(MAXLEN=255)"/>
+<Parameter name="SELECTMODE" value="ODBC"/>
+</Query>
+
+<Query name="LookUpHospital">
+<Description>
+Lookup on Hospital returning all active services</Description>
+<Type>%Library.SQLQuery</Type>
+<FormalSpec>Hospital:%String</FormalSpec>
+<SqlQuery><![CDATA[SELECT HOSP_Desc, HOSP_RowId, HOSP_Code
+FROM SQLUser.CT_Hospital
+WHERE ((%ALPHAUP HOSP_Desc %STARTSWITH %ALPHAUP :Hospital) OR (%ALPHAUP HOSP_Code %STARTSWITH %ALPHAUP :Hospital))
+AND (HOSP_DateFrom <= CURRENT_DATE)
+AND ((HOSP_DateTo IS NULL) OR (HOSP_DateTo >= CURRENT_DATE))
+ORDER BY HOSP_Desc]]></SqlQuery>
+<Parameter name="CONTAINID" value="2"/>
+<Parameter name="ROWSPEC" value="Description:%String,HIDDEN:%String,Code:%String"/>
+</Query>
+
+<Method name="LookUpBrokerHospital">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>itmjs:%Library.String="",itmjsex:%Library.String="",Hospital:%Library.String=""</FormalSpec>
+<Implementation><![CDATA[
+ n id,code,desc,activedate
+
+ s (id,code,desc)=""
+
+ ; Try and find a matching code
+ &sql(SELECT	HOSP_Desc, HOSP_RowId, HOSP_Code
+ INTO	:desc, :id, :code
+ FROM	SQLUser.CT_Hospital
+ WHERE	((%ALPHAUP HOSP_Desc = %ALPHAUP :Hospital) OR (%ALPHAUP HOSP_Code = %ALPHAUP :Hospital))
+ AND (HOSP_DateFrom <= CURRENT_DATE)
+ AND ((HOSP_DateTo IS NULL) OR (HOSP_DateTo >= CURRENT_DATE))
+ )
+ ;
+ i SQLCODE s desc=Hospital q 0
+ s retval=itmjs_"('"_$ZCVT(desc,"O","JS")_"');"
+ i itmjsex'="""" s retval=retval_itmjsex_"('"_$ZCVT(desc,"O","JS")_"^"_id_"^"_$ZCVT(code,"O","JS")_"');"
+ &javascript<#(retval)#>
+ q 1
+]]></Implementation>
+</Method>
+
+<Query name="LookUpAlert">
+<Description>
+Lookup on Alerts </Description>
+<Type>%Library.SQLQuery</Type>
+<FormalSpec>Alert:%String</FormalSpec>
+<SqlQuery>SELECT Alert_Desc, Alert_RowId, Alert_Code 
+FROM SQLUser.PAC_PatientAlert
+WHERE ((%ALPHAUP Alert_Desc %STARTSWITH %ALPHAUP :Alert) OR (%ALPHAUP Alert_Code %STARTSWITH %ALPHAUP :Alert))
+ORDER BY Alert_Desc</SqlQuery>
+<Parameter name="CONTAINID" value="2"/>
+<Parameter name="ROWSPEC" value="Description:%String,HIDDEN:%String,Code:%String"/>
+</Query>
+
+<Method name="LookUpBrokerAlert">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>itmjs:%Library.String="",itmjsex:%Library.String="",Alert:%Library.String=""</FormalSpec>
+<Implementation><![CDATA[
+ n id,code,desc
+
+ s (id,code,desc)=""
+
+ ; Try and find a matching code
+ &sql(SELECT	 Alert_Desc, Alert_Code, Alert_RowId
+ INTO	:desc, :code, :id
+ FROM	SQLUser.PAC_PatientAlert
+ WHERE	((%ALPHAUP Alert_Desc = %ALPHAUP :Alert) OR (%ALPHAUP Alert_Code = %ALPHAUP :Alert))
+ )
+ ;
+ i SQLCODE s desc=Alert q 0
+ s retval=itmjs_"('"_$ZCVT(desc,"O","JS")_"');"
+ i itmjsex'="""" s retval=retval_itmjsex_"('"_$ZCVT(desc,"O","JS")_"^"_id_"^"_$ZCVT(code,"O","JS")_"');"
+ &javascript<#(retval)#>
+ q 1
+]]></Implementation>
+</Method>
+</Class>
+</Export>

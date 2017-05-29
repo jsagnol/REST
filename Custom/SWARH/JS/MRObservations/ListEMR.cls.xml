@@ -1,0 +1,399 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.SWARH.JS.MRObservations.ListEMR">
+<Description>
+Component JavaScript for: MRObservations.ListEMR</Description>
+<Modified>0</Modified>
+<Super>websys.AbstractJavaScript</Super>
+<TimeCreated>63537,10516.292905</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+This Parameter is updated by Perforce</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/SWARH/JS/MRObservations/ListEMR.xml#1 $</Default>
+</Parameter>
+
+<Method name="JSContent">
+<Description>
+ </Description>
+<Language>javascript</Language>
+<ClientMethod>1</ClientMethod>
+<Implementation><![CDATA[
+	
+/*#############################################################################################################################################################
+## Created:  2016-06-17 (rpgladman) - Augments the observations table by making the alerts row collapsable if the contents are too large					 ##
+## Modified: 2016-09-20 (rpgladman) - Added SWH-W MET Poster Popup																							 ##
+##           2016-11-14 (rpgladman) - HTML 5 Compliance changes, almost all of this could be changed to straight CSS...										 ##
+##           2017-03-06 (rpgladman) - Added aestheticsMod																									 ##
+##			 2017-04-28 (rpgladman) - aestheticsMod now uses tkMakeServerCall to retrieve JSON data															 ##
+#############################################################################################################################################################*/
+
+//###########################################################################################################################################################//
+function showMETPoster() {
+  var popupEl = document.getElementById('saPopupMETPoster');
+  if (!popupEl) {
+	var popupEl		= document.createElement('div');
+	var targetRect  = document.getElementById('OBSValueDatez0').getBoundingClientRect();	// Look for the date entry field to determine where to position our DIV
+	
+	popupEl.id              = 'saPopupMETPoster';
+	popupEl.style.position  = 'absolute';
+	popupEl.style.width     = 'auto';
+	popupEl.style.height	= ((window.innerHeight || document.documentElement.clientHeight || document.body.clientHeight) - 40)+'px';
+	popupEl.style.left      = (targetRect.right+32)+'px';
+	popupEl.style.top       = '18px';
+	popupEl.style.display   = 'block';
+	popupEl.innerHTML       = '<img src="../CUSTOM/SWARH/IMAGES/SWH-W_MET_Poster.png" style="height:100%; border:2px solid black;" title="Click anywhere on the MET Poster or hit the Esc key to remove" onclick="document.getElementById(\'saPopupMETPoster\').style.display = \'none\';"/><div style="position:absolute; right:4px; top:4px; font-weight:bold; color:rgb(32,128,224);"></div>';
+	document.body.appendChild(popupEl);											// The image URL is hard coded at the moment
+	document.onkeypress 	= function(evt) {evt = evt || window.event; if (evt.keyCode == 27) document.getElementById('saPopupMETPoster').style.display = 'none';};
+  }																				// Handle Esc key
+}
+
+//###########################################################################################################################################################//
+function moveChildNodes(srcEl,destEl) {                                         // UTIL - Moves all child nodes from one element to another
+  var nodeLst = srcEl.childNodes;
+  while (srcEl.childNodes.length>0) {
+     destEl.appendChild(srcEl.childNodes[0]);
+  }
+}
+
+//###########################################################################################################################################################//
+function getStyleAttribute(oElm, strCssRule){                                   // UTIL - Allows you to read style for any attribute from elements which you normally cannot do using normal JavaScript
+    var strValue = "";
+    if(document.defaultView && document.defaultView.getComputedStyle){
+        strValue = document.defaultView.getComputedStyle(oElm, "").getPropertyValue(strCssRule);
+    }
+    else if(oElm.currentStyle){
+        strCssRule = strCssRule.replace(/\-(\w)/g, function (strMatch, p1){
+            return p1.toUpperCase();
+        });
+        strValue = oElm.currentStyle[strCssRule];
+    }
+    return strValue;
+}
+
+//###########################################################################################################################################################//
+function toggleShow(ev) {                                                       // Makes the 'more' div more obvious when the mouse is over the parent div
+  var fnDesc  = 'toggleShow('+ev+')';
+  ev          = ev || window.event;
+  var evEl    = ev.target || ev.srcElement;
+  var toggleEl= evEl.getElementsByTagName('div')[0]
+  //SWARH.log(fnDesc+'Element = '+toggleEl);
+  if (typeof(toggleEl) != 'undefined' && toggleEl != null) {
+    toggleEl.style.opacity  = '1.0';
+  }
+}
+
+//###########################################################################################################################################################//
+function toggleHide(ev) {                                                       // Makes the 'more' div more inconspicuous when the mouse is not over the parent div
+  var fnDesc  = 'toggleHide('+ev+')';
+  ev          = ev || window.event;
+  var evEl    = ev.target || ev.srcElement;
+  var toggleEl= evEl.getElementsByTagName('div')[0]
+  //SWARH.log(fnDesc+'Element = '+toggleEl);
+  if (typeof(toggleEl) != 'undefined' && toggleEl != null) {
+    toggleEl.style.opacity  = '0.33';
+  }
+}
+
+//###########################################################################################################################################################//
+function toggleClick(ev) {                                                      // Expand/Contract the Alerts rows
+  var fnDesc    = 'toggleClick('+ev+'): ';
+  var tdLst     = document.getElementsByTagName('TD');
+
+  //SWARH.log(fnDesc+'Starting...   There are '+tdLst.length+' elements');
+  for (var tdLoop=0; tdLoop<tdLst.length; tdLoop++) {
+    if (tdLst[tdLoop].innerHTML == 'Alerts') {
+      alertsEl  = tdLst[tdLoop];
+      rowEl     = tdLst[tdLoop].parentElement;
+      //SWARH.log(fnDesc+'Found an Alerts row ['+tdLoop+'] - current height = '+rowEl.offsetHeight+', saFoldHeight = '+window['saFoldHeight']);
+
+      if (rowEl.offsetHeight>window['saFoldHeight']-4 && rowEl.offsetHeight<window['saFoldHeight']+4) {
+        //SWARH.log(fnDesc+'Currently compressed, set height to auto');
+        var setSize     = 'auto';
+        var setImg      = 'url(\'../images/websys/slideup.png\')';
+        var setOverflow = 'visible';
+      } else {
+        //SWARH.log(fnDesc+'Currently expanded, setting height to fold value');
+        var setSize     = window['saFoldHeight']+'px';
+        var setImg      = 'url(\'../images/websys/slidedown.png\')';
+        var setOverflow = 'hidden';
+      }
+
+      cellLst = rowEl.getElementsByTagName('TD');
+      //SWARH.log(fnDesc+'There are '+cellLst.length+' td elements in this row.');
+      for (var cellLoop=0; cellLoop<cellLst.length; cellLoop++) {
+        //SWARH.log(fnDesc+'Current height = '+cellLst[cellLoop].offsetHeight);
+        var divLst = cellLst[cellLoop].getElementsByTagName('div');
+        if (divLst.length>0) {
+          divLst[0].style.height    = setSize;
+          divLst[0].style.overflow  = setOverflow;
+          var subDivLst = divLst[0].getElementsByTagName('div');
+          if (subDivLst.length>0) {
+            subDivLst[0].style.backgroundImage  = setImg;
+          }
+          //SWARH.log(fnDesc+'New height = '+divLst[0].style.height);
+        }
+      }
+      rowEl.style.height = setSize;                                             // IE needs this to make it force it to fully complete redrawing the table, modern browsers do not require it.
+    }
+  }
+  //SWARH.log(fnDesc+'Completed...');
+}
+
+//###########################################################################################################################################################//
+function toggleWaitForOverlay(delay) {                                          // Repeatedly checks to see if the cloned table has been created and then adds the missing event handlers
+  var fnDesc      = 'toggleWaitForOverlay('+delay+'): ';
+
+  // When it creates the overlay fixed location copies of the tables it calls websysScrollTables_Setup(idCompListed,oTable,cssclassSeparator)
+  // We cannot override this function as it can sometimes cause stack overflows in all browsers depending how many nodes are in the table
+  // It uses cloneNode to duplicate the table.  In modern browsers it does not duplicate the event handlers (this is the expected behaviour)
+  //   so we have to add them back on again to the clone after it appears.
+
+  if (window.ShowOnly == '') window.ShowOnly = 1;								// ShowOnly is a variable Trak makes to indicate which top tab it is supposed to
+  																				//    display however on initial entering of the page this variable is null.
+  var ovlEl = document.getElementById('tMRObservations_ListEMR'+window.ShowOnly+'FixedColDIV');	
+  if (ovlEl) {
+	// %%%%%%%% SWH MET Poster Popup %%%%%%%%
+	try {
+      if (session['LOGON.HOSPID']==696 && document.querySelectorAll('.selectedPrefTab')[0].innerText.trim().toLowerCase()=='vital signs') {	// If for SWH-W&&Vital Signs then add focus handlers for the popup MET poster
+        var inpLst = ovlEl.getElementsByTagName('input');
+        for (var inpSeek=inpLst.length-1; inpSeek>0; inpSeek--) {
+	      if (inpLst[inpSeek].id.substring(0,8) == 'OBSValue') {					// Observation item fields are always inputs with an id starting with 'OBSValue'
+	        //SWARH.log(fnDesc+'Input('+inpSeek+') = "'+inpLst[inpSeek].id+'"');
+    	    websys_addListener('focus','onfocus',showMETPoster,inpLst[inpSeek]);
+          }
+        }
+      }
+	} catch(error) {
+	  SWARH.log(fnDesc+'Failed to check/process for SWH MET Poster Popup ['+error+']');
+	}
+  
+    // %%%%%%%% Add event handlers for mouseenter, mouseleave & click for the 'most recent' column cell if required %%%%%%%%
+    //SWARH.log(fnDesc+'Overlay check - Overlay found - Searching for element');
+    var tdLst = ovlEl.getElementsByTagName('td');
+    for (var rowSeek=0; rowSeek<tdLst.length; rowSeek++) {
+      if (tdLst[rowSeek].innerHTML=='Alerts') {
+        //SWARH.log(fnDesc+'Overlay check - Found Alerts row');
+        // From this point on we assume everything in the DOM is where it should be - no error checking
+        cellsLst = tdLst[rowSeek].parentElement.getElementsByTagName('td');
+        for (var cellSeek=0; cellSeek<cellsLst.length; cellSeek++) {			// We can't check to see if the cell contents are larger than the fold height (thus requiring the toggle) because this clone has already been resized - so just add one anyway
+          if (cellsLst[cellSeek].className.replace('LockedEntry') != cellsLst[cellSeek].className) {
+	        if (!!cellsLst[cellSeek].getElementsByTagName('div')[0]) {			// If there is no alert text then there will no divs within it so we need to check
+              websys_addListener('mouseenter','onmouseenter',toggleShow, cellsLst[cellSeek].getElementsByTagName('div')[0]);
+              websys_addListener('mouseleave','onmouseleave',toggleHide, cellsLst[cellSeek].getElementsByTagName('div')[0]);
+	          websys_addListener('click','onclick',toggleClick,cellsLst[cellSeek].getElementsByTagName('div')[0].getElementsByTagName('div')[0]);
+              //SWARH.log(fnDesc+'Event handlers added');
+            };
+            return;
+          }
+        }
+        //SWARH.log(fnDesc+'Alerts row found but no td with a LockedEntry class - No observations have been recorded yet - nothing to do');
+        return;
+      }
+    }
+    
+  } else {
+    //SWARH.log(fnDesc+'Overlay check - Overlay not available yet, wait another '+delay+'mS');
+    setTimeout(function(){toggleWaitForOverlay(delay);},delay);                 // Now we wait....
+    return;
+  }
+}
+
+//###########################################################################################################################################################//
+function toggleProcessLayout(delay) {                                           // Parses all elements looking for Alerts rows and create the required div's & event handlers
+  var fnDesc      = 'toggleProcessLayout('+delay+'): ';
+  var rowEl       = null;
+  var alertsEl    = null;
+
+  if (typeof(window['saFoldHeight']) == 'undefined' || window['saFoldHeight'] == null) window['saFoldHeight'] = 120;
+  if (typeof(delay == 'undefined' || delay == null)) delay = 50;
+
+  //SWARH.log(fnDesc+'Initial pass - Creating Layout');
+  var tdLst       = document.getElementsByTagName('TD');
+
+  for (var loop=0; loop<tdLst.length; loop++) {
+    if (tdLst[loop].innerHTML == 'Alerts') {                                    // This td contains the magic text 'Alerts'
+      alertsEl    = tdLst[loop];
+      rowEl       = tdLst[loop].parentElement;
+      //SWARH.log(fnDesc+'Found an Alerts row');
+
+      if (rowEl != null && rowEl.offsetHeight>window['saFoldHeight']) {         // If the row height is over the threshhold then we can parse the child TDs to add resize mechanisms
+
+        var cellsLst  = rowEl.getElementsByTagName('TD');
+       	var rowSeek   = cellsLst.length-1;
+
+       	while (cellsLst[rowSeek].innerHTML!='Alerts') {
+          //SWARH.log(fnDesc+rowSeek+':'+cellsLst[rowSeek].innerHTML);
+
+          if (cellsLst[rowSeek].innerHTML.replace(/&nbsp;/,'').length > 10) {   // Check to see if the cell contents are effectively blank - Trak adds &nbsp; sometimes to ensure it gets displayed (IE workaround?)
+
+            var cellDivEl = document.createElement('div');                      // Create a div containing the text from the cell (We need to do this due to how text wrapping works)
+            var toggleEl  = document.createElement('div');                      // Create a div for toggle image
+            moveChildNodes(cellsLst[rowSeek],cellDivEl);                        // Move the existing child nodes from the td to our new div regardless of what it contains
+            cellsLst[rowSeek].innerHTML = '';                                   // We have copied all the contents to the new div so clear out the TD's contents
+            cellDivEl.appendChild(toggleEl);                                    // Append the new divs as children of the td
+            cellsLst[rowSeek].appendChild(cellDivEl);
+
+
+            //SWARH.log(fnDesc+'childNodes = '+cellsLst[rowSeek].childNodes.length);
+            cellDivEl.style.position    = 'relative';                           // Now add the details required to the divs
+            cellDivEl.style.width       = '100%';
+            cellDivEl.style.height      = window['saFoldHeight']+'px';
+            cellDivEl.style.display     = 'block';
+            cellDivEl.style.overflow    = 'hidden';
+            cellDivEl.style.borderStyle = 'solid';
+            cellDivEl.style.borderWidth = '0px 0px 0px 0px';
+            cellDivEl.style.paddingRight= getStyleAttribute(cellsLst[rowSeek],'padding-right');
+            cellsLst[rowSeek].style.paddingRight  = '0px';                      // This brings the padding into our DIV so we can put our toggle DIV in the empty space
+
+            toggleEl.style.backgroundImage = 'url(\'../images/websys/slidedown.png\')'; // Shouldn't need to do this
+            toggleEl.style.position     = 'absolute';
+            toggleEl.style.top          = '1px';
+            toggleEl.style.right        = '11px';
+            toggleEl.style.width        = '13px';
+            toggleEl.style.height       = '18px';
+            toggleEl.style.display      = 'block';
+            toggleEl.style.opacity		= '0.33';
+
+            websys_addListener('mouseenter','onmouseenter',toggleShow, cellDivEl);
+            websys_addListener('mouseleave','onmouseleave',toggleHide, cellDivEl);
+            websys_addListener('click',     'onclick',     toggleClick,toggleEl);
+          } else {
+            //SWARH.log(fnDesc+'This cell is under the threshold - leaving it alone.');
+          } // END If the current cell is over the saFoldHeight threshold
+          rowSeek--;
+      	} // END While loop checking to see if we aren't looking at the td containing 'Alerts'
+      } else {
+        //SWARH.log(fnDesc+'None of the cells are larger that the saFoldHeight, nothing to do');
+      } // END Check if row height meets saFoldHeight threshold
+    } // END If Alerts TD
+  } // END For loop
+  // Find the cell/div whatever that will hold this table and put the element into it
+  window['foldLayout'] = true;
+  toggleWaitForOverlay(delay);
+  //SWARH.log(fnDesc+'Complete....');
+}
+
+//###########################################################################################################################################################//
+function aestheticsMod() {
+	var fnDesc='aestheticMod(): ';
+
+	// Disable certain features until they get passed by EHRAG
+	var enhancedFeatures = true;
+	
+	// Parse JSON data
+	try {
+		var saOBS = JSON.parse(tkMakeServerCall('Custom.SWARH.web.MRObservations','ListEMRAestheticsModDataJSON',EpisodeID,document.getElementById('MRCObsGroupID').value))
+	} catch(error) {
+		SWARH.log(fnDesc+'Failed to parse JSON data ['+error+']');
+		return;
+	}
+	
+	// Modify Rows
+	for (var row=0;row<saOBS.rows.length;row++) {
+		if (saOBS.rows[row].modifiedRange == true) {                            // Modified Reference Range
+			try {
+				var el=document.getElementById(saOBS.rows[row].elementPrefix+'z'+saOBS.rows[row].rowNo+'RefRange'); 
+				if (!!enhancedFeatures) {										// ENHANCED FEATURES ENABLED
+					if (el===null && saOBS.group.bpOnSameLine===true && saOBS.rows[row].itemCode==='VS2') {
+						// If the group has bpOnSameLine enabled and this item is Diastolic (VS2) then the id of the el we need will have the number of the previous row on it, plus it will be the second sibling of the TD.  
+						el=document.getElementById(saOBS.rows[row-1].elementPrefix+'z'+saOBS.rows[row-1].rowNo+'RefRange').nextSibling.nextSibling;
+						var newSepEl = document.createElement('div');							// Create a replacement HTMLElement with the separator in a div
+						newSepEl.innerHTML = '<div style="float:left; padding:0px 4px;">/<br><br></div>';	// Make it float left as well so it 'stacks' properly
+						el.parentNode.removeChild(el.previousSibling);							// Remove the existing separator TextNode
+						el.parentNode.insertBefore(newSepEl,el);								// Insert our new separator div
+						el.parentElement.style.paddingRight = '1px';							// Remove excessing padding on containing TD so it all fits.
+					}
+					// Show modified & original reference ranges
+					el.innerHTML = '<div style="float:left;"><span style=\'font-weight:bold; font-style:italic; color:rgb(32,128,224);\' title=\'['+saOBS.rows[row].itemDesc+']&#13;Altered Reference Range: '+saOBS.rows[row].modifiedRangeLow+' - '+saOBS.rows[row].modifiedRangeHigh+'&#13;Normal Reference Range: '+saOBS.rows[row].rangeLow+' - '+saOBS.rows[row].rangeHigh+'\'>'+saOBS.rows[row].modifiedRangeLow+' - '+saOBS.rows[row].modifiedRangeHigh+'</span></div>';
+				} else {														// ENHANCED FEATURES DISABLED
+					el.innerHTML = '<span style=\'font-weight:bold; color:rgb(32,128,224);\'>'+saOBS.rows[row].modifiedRangeLow+' - '+saOBS.rows[row].modifiedRangeHigh+'</span>';
+				}
+			} catch(error) {
+				SWARH.log(fnDesc+'Modified Range item '+saOBS.rows[row].itemID+'//'+saOBS.rows[row].itemCode+'//'+saOBS.rows[row].itemDesc+' ('+saOBS.rows[row].elementPrefix+'z'+saOBS.rows[row].rowNo+'RefRange'+') failed with error ['+error+']')
+			}
+		}
+		if (!!document.getElementById('OBSValueDatez0') && saOBS.rows[row].itemHidden == true) {			// Defaulting & hiding elements if edit column is present
+			try {
+				var el=document.getElementById(saOBS.rows[row].elementPrefix+'z'+saOBS.rows[row].rowNo);
+				el.style.visibility = 'hidden';
+				el.value = ' 0'.substring(0,1+saOBS.rows[row].itemPrefix.length,saOBS.rows[row].itemPrefix.length);
+			} catch(error) {
+				SWARH.log(fnDesc+'Hiding item '+saOBS.rows[row].itemID+'//'+saOBS.rows[row].itemCode+'//'+saOBS.rows[row].itemDesc+' ('+saOBS.rows[row].elementPrefix+'z'+saOBS.rows[row].rowNo+') failed with error ['+error+']')
+			}
+		}
+	}
+
+	// Modify Columns
+	try {
+		if (ShowOnly == '') {ShowOnly = '1'};																	// ShowOnly is an existing page value that is always there to indicate which OBS tab you are on.  When entering the obs screen for the first time though this value is not set to anything (even though it shows page 1) so we set it manually
+		var headersNL  = document.getElementById('tMRObservations_ListEMR'+ShowOnly).querySelectorAll('th');	// Get all the elements we care about. 
+		var headersArr = [].map.call(headersNL,function(obj){return obj;});										// Convert the nodeList to an array so we can use it
+		
+		for (var loop=0;loop<headersArr.length;loop++) {														// Relabel RefRange column to 'Reference Range'
+			if (headersArr[loop].innerText == 'Normal Reference Range') {
+				headersArr[loop].innerHTML = 'Reference Range';
+			}
+		}
+		
+		for (var column=0;column<saOBS.columns.length;column++) {
+			var matchingArr = headersArr.filter(function(e){if (e.innerText.replace(/\r?\n|\r/g,'') == saOBS.columns[column].dateTimeDisplayed.replace(/\s+/g,'')) return e; return false}); // Return element(s) with the required innerText
+			if (matchingArr.length == 1 && matchingArr[0] instanceof Element) {                        // If any matches and it is a DOM element then do some stuff
+				if (!!enhancedFeatures) {										// ENHANCED FEATURES ENABLED
+					// When they were still showing observations for all episodes they asked to show what hospital they were recorded at - They then decided to only show current episode so this is now not required.
+					//matchingArr[0].insertAdjacentHTML('beforeend', '<div style=\'position:relative; font-weight:normal; font-style:italic; float:right; top:-0.66em;\'>['+saOBS.columns[column].hospitalAbbr+']</div>');
+					// Here we can add 'data-' attributes to the columns so we can use an embedded search on this page [Future]
+				} else { 														// ENHANCED FEATURES DISABLED
+					//  Do nothing
+				}
+			} else {
+				if (matchingArr.length != 0) {
+					SWARH.log(fnDesc+'output length is not 0 or 1 as expected!?!?! ['+matchingArr.length+'] - Not meant to happen.....');
+				}
+			}
+		}
+	} catch(error) {
+		SWARH.log(fnDesc+'Failed to modify columns ['+error+']');
+		return
+	}
+
+}  
+
+
+//###########################################################################################################################################################//
+function getQueryVariable(varname,qs) {
+	if (!qs) qs = window.location.search;
+	qs = qs.substring(1);
+	var exprs = qs.split("&");
+	for (var i=0;i<exprs.length;i++) {
+		var value = exprs[i].split("=");
+		if (value[0] == varname) {
+			return value[1];
+		}
+	}
+}
+
+//###########################################################################################################################################################//
+function CustomLoadHandler() {
+	if (getQueryVariable('TRELOAD')==1&&window.top&&window.top.opener&&window.top.opener.fPACWard_ListPatientsInWard) {;
+		window.top.opener.treload('websys.csp');
+		window.close();
+	}
+}
+
+//###########################################################################################################################################################//
+// Remove MET poster popup if still there (It persists after an update when an observation recording gets saved)
+if (!!document.getElementById('saPopupMETPoster')) document.getElementById('saPopupMETPoster').parentNode.removeChild(document.getElementById('saPopupMETPoster'));
+
+// Aesthetics Modifications
+aestheticsMod();
+
+// Process the layout immediately
+toggleProcessLayout();
+
+//document.body.onload=CustomLoadHandler;
+websys_addListener("load","onload",CustomLoadHandler);
+]]></Implementation>
+</Method>
+</Class>
+</Export>

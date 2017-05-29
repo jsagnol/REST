@@ -1,0 +1,172 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.SWARHCUS103AROCPat">
+<ClassType/>
+<ProcedureBlock>0</ProcedureBlock>
+<Super>%Library.RegisteredObject</Super>
+<TimeCreated>62048,53437.59689</TimeCreated>
+
+<Method name="AROCFIMDataClose">
+<Description>
+This is the Close component of the %Library.Query.
+This is standard code and should never have to change.
+This is where all the cleanup is performed, i.e. the purging of the temporary storage global ^CacheTemp.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>QHandle:%Library.Binary</FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Clean up by purging the temporary node in ^CacheTemp global
+ New repid
+ Set repid=$li(QHandle,2)
+ Kill ^CacheTemp(repid)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="AROCFIMDataExecute">
+<Description>
+This is the Execute section for the %Library.Query. 
+All of the logic will be performed here.
+A new node for the ^CacheTemp global will be created and each subscript of this global will contain
+a row for the report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,Hospital:%Integer,DateFrom:%Date,DateTo:%Date]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Get reportid i.e. use $INCREMENT to add another node to ^CacheTemp global. 
+ // We use ^CacheTemp global because it will always use memory before disk
+ New repid,ind
+
+ // Use $Increment to get the next node
+ Set repid=$I(^CacheTemp)
+
+ // Build data into ^CacheTemp(ReportID)
+ // e.g. Set ^CacheTemp(ReportID,Index)=$LB(f1,f2,f3)
+ New Number,String,Date,Time,c,n
+ n PAPMINo,PAPMIName,PAPMIName2,PAPMIDOB,PAPERSexDR,HOSPDesc,PAADMAdmDate,PAADMDischgDate,WARDDesc,QFIMStart,QFIMEnd,QMultiDiscipPlanDate,QDischargPlanEstab,FIMStartScore,FIMEndScore
+ s (HOSPCode)=0
+ s (PAPMINo,PAPMIName,PAPMIName2,PAPMIDOB,PAPERSexDR,HOSPDesc,PAADMAdmDate,PAADMDischgDate,WARDDesc,QFIMStart,QFIMEnd,QMultiDiscipPlanDate,QDischargPlanEstab,FIMStartScore,FIMEndScore)=""
+ s ind=1
+
+
+ &sql(declare AROCFIMData cursor for
+	SELECT
+		QUESPAPatMasDR->PAPMI_No,
+		QUESPAPatMasDR->PAPMI_Name,
+		QUESPAPatMasDR->PAPMI_Name2,
+		QUESPAPatMasDR->PAPMI_DOB,
+		QUESPAPatMasDR->PAPMI_PAPER_DR->PAPER_Sex_DR,
+		QUESPAAdmDR->PAADM_Hospital_DR->HOSP_Desc,
+		QUESPAAdmDR->PAADM_AdmDate,
+		QUESPAAdmDR->PAADM_DischgDate,
+		QUESPAAdmDR->PAADM_CurrentWard_DR->WARD_Desc,
+		QFIMStart,
+		QFIMEnd,
+		QMultiDiscipPlanDate,
+		QDischargPlanEstab,
+		QAdmEat+QAdmGroom+QAdmBath+QAdmUpper+QAdmLower+QAdmToilet+QAdmBladder+QAdmBowel+QAdmXfer+QAdmXfrToil+QAdmTub+QAdmWalk+QAdmStair+QAdmComp+QAdmExp+QAdmSocial+QAdmProb+QAdmMemor AS FIMStartScore,
+		QDisEat+QDisGroom+QDisBath+QDisUpper+QDisLower+QDisToilet+QDisBladder+QDisBowel+QDisXfer+QDisXfrToil+QDisTub+QDisWalk+QDisStair+QDisComp+QDisExp+QDisSocial+QDisProb+QDisMemor AS FIMEndScore
+	FROM questionnaire.QAROC
+	WHERE
+ 		QUESPAAdmDR->PAADM_DischgDate between :DateFrom AND :DateTo
+ 	AND QUESPAAdmDR->PAADM_Hospital_DR->HOSP_RowId=:Hospital)
+ &sql(open AROCFIMData)
+
+
+ //fetch first row
+ &sql(fetch AROCFIMData into :PAPMINo,:PAPMIName,:PAPMIName2,:PAPMIDOB,:PAPERSexDR,:HOSPDesc,:PAADMAdmDate,:PAADMDischgDate,:WARDDesc,:QFIMStart,:QFIMEnd,:QMultiDiscipPlanDate,:QDischargPlanEstab,:FIMStartScore,:FIMEndScore)
+
+ while 'SQLCODE{
+	 d FormatDates
+	 //d FormatTimes
+	 
+	 //s MRADMPreHospTreatment=$zstrip(MRADMPreHospTreatment,"<C")
+	 //if $extract(MRADMPreHospTreatment,2)=$char(1) {
+	 //	 s MRADMPreHospTreatment=$zstrip($extract(MRADMPreHospTreatment,2,$length(MRADMPreHospTreatment)),"<C")
+	 //}
+	 //s MRADMPreHospTreatment=$zstrip(MRADMPreHospTreatment,"*C")
+	 
+	 
+	 // build the row
+	 Set ^CacheTemp(repid,ind)=$LB(PAPMINo,PAPMIName,PAPMIName2,PAPMIDOB,PAPERSexDR,HOSPDesc,PAADMAdmDate,PAADMDischgDate,QFIMStart,QFIMEnd,QMultiDiscipPlanDate,QDischargPlanEstab,FIMStartScore,FIMEndScore)
+	 s ind=ind+1
+	 //fetch rows
+	 &sql(fetch AROCFIMData into :PAPMINo,:PAPMIName,:PAPMIName2,:PAPMIDOB,:PAPERSexDR,:HOSPDesc,:PAADMAdmDate,:PAADMDischgDate,:WARDDesc,:QFIMStart,:QFIMEnd,:QMultiDiscipPlanDate,:QDischargPlanEstab,:FIMStartScore,:FIMEndScore)
+ }
+
+ &sql(close AROCFIMData)
+
+ // Build QHandle (AtEnd,ReportID,Index)
+ Set QHandle=$lb(0,repid,0)
+
+ Quit $$$OK
+FormatDates
+ // Convert the dates to ODBC date format
+ If PAPMIDOB Set PAPMIDOB=$ZD(PAPMIDOB,3)
+ If QFIMStart Set QFIMStart=$ZD(QFIMStart,3)
+ If QFIMEnd Set QFIMEnd=$ZD(QFIMEnd,3)
+ If PAADMDischgDate Set PAADMDischgDate=$ZD(PAADMDischgDate,3)
+ If PAADMAdmDate Set PAADMAdmDate=$ZD(PAADMAdmDate,3)
+ Quit
+
+ //FormatTimes
+ // Convert the times to ODBC time format
+ //If PAADMAdmTime Set PAADMAdmTime=$ZT(PAADMAdmTime,2)
+ //If PAADMCreateTime Set PAADMCreateTime=$ZT(PAADMCreateTime,2)
+ //Quit
+]]></Implementation>
+</Method>
+
+<Method name="AROCFIMDataFetch">
+<Description>
+This is the Fetch component of the %Library.Query. 
+This should never have to change. It is designed to fetch the row for each subscript of the ^CacheTemp
+global and return this row to the Crystal Report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,&Row:%Library.List,&AtEnd:%Library.Integer=0]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // This fetch method should never have to change. 
+
+ // repid - Report ID
+ // ind   - sequence index which represents each row
+
+ New repid,ind
+
+ // Restore QHandle
+ Set AtEnd=$li(QHandle,1)
+ Set repid=$li(QHandle,2)
+ Set ind=$li(QHandle,3)
+
+ Set ind=$o(^CacheTemp(repid,ind))
+ If ind="" {	// if there are no more rows, finish fetching
+ Set AtEnd=1
+ Set Row=""
+ }
+ Else      {	// fetch row
+ Set Row=^CacheTemp(repid,ind)
+ }
+
+ // Save QHandle
+ s QHandle=$lb(AtEnd,repid,ind)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Query name="AROCFIMData">
+<Description>
+SWARH Local Doc List Stored Proc
+It expects 2 parameter of type ADMIT date and will return a list of records:
+Field1 - Integer
+Field2 - String(MAXLEN=255)
+Field3 - Date
+Field4 - Time</Description>
+<Type>%Library.Query</Type>
+<FormalSpec>Hospital:%Integer,DateFrom:%Date,DateTo:%Date</FormalSpec>
+<SqlProc>1</SqlProc>
+<Parameter name="CONTAINID" value="0"/>
+<Parameter name="ROWSPEC" value="PAPMINo:%Integer,PAPMIName:%String(MAXLEN=255),PAPMIName2:%String(MAXLEN=255),PAPMIDOB:%Date,PAPERSexDR:%Integer,HOSPDesc:%String(MAXLEN=255),PAADMAdmDate:%Date,PAADMDischgDate:%Date,WARDDesc:%String(MAXLEN=255),QFIMStart:%Date,QFIMEnd:%Date,QMultiDiscipPlanDate:%Date,QDischargPlanEstab:%Date,FIMStartScore:%Integer,FIMEndScore:%Integer"/>
+<Parameter name="SELECTMODE" value="ODBC"/>
+</Query>
+</Class>
+</Export>

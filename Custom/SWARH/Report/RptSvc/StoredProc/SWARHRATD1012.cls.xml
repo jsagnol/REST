@@ -1,0 +1,265 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.SWARH.Report.RptSvc.StoredProc.SWARHRATD1012">
+<Description>
+Class for SWARHRATD1012 Report</Description>
+<ProcedureBlock>0</ProcedureBlock>
+<Super>Custom.SWARH.Report.ZEN.StoredProc.Abstract</Super>
+<TimeCreated>62335,45574.688786</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/SWARH/Report/RptSvc/StoredProc/SWARHRATD1012.xml#1 $</Default>
+</Parameter>
+
+<UDLText name="T">
+<Content><![CDATA[
+/* Developer: P.HOANG
+ * Report Name: Trauma Report <br>
+ * Report Code: SWARHRATD1012 <br>
+ */
+]]></Content>
+</UDLText>
+
+<Method name="SWARHRATD1012QueryClose">
+<Description>
+This is the Close component of the %Library.Query.
+This is standard code and should never have to change.
+This is where all the cleanup is performed, i.e. the purging of the temporary storage global ^CacheTemp.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>QHandle:%Library.Binary</FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Clean up by purging the temporary node in ^CacheTemp global
+ New repid,ind
+ Set repid=$li(QHandle,2)
+
+ //Start Monitor (if configured to capture stats)
+ i mon Do ..MonitorEnd(mon)
+
+ Kill ^CacheTemp("TRAK",repid)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="SWARHRATD1012QueryExecute">
+<Description>
+This is the Execute section for the %Library.Query. 
+All of the logic will be performed here.
+A new node for the ^CacheTemp global will be created and each subscript of this global will contain
+a row for the report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,Hospital:%Library.Integer,DateFrom:%Date,DateTo:%Date]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Get reportid i.e. use $INCREMENT to add another node to ^CacheTemp global. 
+ // We use ^CacheTemp global because it will always use memory before disk
+ New repid,ind
+
+  // Use $Increment to get the next node
+ Set repid=$I(^CacheTemp("TRAK"))
+
+ /* TEMPLATE MODIFY: Define and initialise appropriate column variables to describe output rowset columns */
+ New PAADMRowId,HOSPDesc,EpisodeNo,UR,DOB,DeceasedDate,DeathInHospital,AdmDate,DischgDate,LOS,ICUCCUCount,
+ MRADMRowId,TRDDesc,
+ PrimaryCodePrefix,PrimaryCode,
+ ICDCodePrefix,ICDCodeRank,
+ ICUHours,DurationMechVent,ICDCodeNum,DischDestType
+ 
+ s (PAADMRowId,DischClassifDR,LOS,ICUCCUCount,ICDCodeRank,MRADMRowId)=0
+ s (HOSPDesc,EpisodeNo,UR,DOB,DeceasedDate,DeathInHospital,AdmDate,DischgDate,DischClassifCode,DischgClassifDesc,TRDDesc,
+ PrimaryCodePrefix,PrimaryCode,ICDCodePrefix,ICUHours,DurationMechVent,ICDCodeNum,DischDestType)=""
+
+ s ind=1
+
+ //Convert ODBC dates to cache format
+ s DateFrom=..ConvertDateToCache(DateFrom)
+ s DateTo=..ConvertDateToCache(DateTo)
+
+ //Start Monitor (if configured to capture stats)
+ s mon=..MonitorBegin()
+ 
+
+ &SQL(DECLARE MyReportCursor CURSOR FOR 
+ SELECT
+ p.PAADM_RowId,h.HOSP_Desc as HOSPDesc,p.PAADM_AdmNo as EpisodeNo,
+ p.PAADM_PAPMI_DR->PAPMI_No as UR,
+ p.PAADM_PAPMI_DR->PAPMI_DOB as DOB,
+ p.PAADM_PAPMI_DR->PAPMI_Deceased_Date as DeceasedDate,
+ CASE WHEN p.PAADM_PAPMI_DR->PAPMI_Deceased_Date between p.PAADM_AdmDate and p.PAADM_DischgDate THEN 'Y' ELSE 'N' END as DeathInHospital,
+ p.PAADM_AdmDate as AdmDate,
+ p.PAADM_DischgDate as DischgDate,
+ CASE WHEN p.PAADM_DischgDate is null THEN datediff("d",p.PAADM_AdmDate,getdate()) ELSE
+ (CASE WHEN datediff("d",p.PAADM_AdmDate,p.PAADM_DischgDate)=0 THEN 1 ELSE datediff("d",p.PAADM_AdmDate,p.PAADM_DischgDate) END) END as LOS,
+ count(WARD_Code) as ICUCCUCount,
+ MRADM_RowId,
+ trd.TRD_Desc,
+ mrdiag.MRDIA_Prefix as PrimaryCodePrefix,
+ mrcid.MRCID_Code as PrimaryCode,
+ MRADM_ICUHours,
+ MRADM_DurationMechVent,
+ ctdsp.CTDSP_Code
+ from SQLUser.PA_Adm p
+ inner join SQLUser.CT_Hospital h on p.PAADM_Hospital_DR=h.HOSP_RowId
+ left outer join SQLUser.PA_Adm p1 on p.PAADM_RowId=p1.PAADM_RowId
+ left join SQLUser.PA_AdmTransaction t on t.TRANS_ParRef=p1.PAADM_RowId
+ left join SQLUser.PAC_Ward on (t.TRANS_Ward_DR=WARD_RowId and (WARD_Code like 'ICU' or WARD_Code like 'CCU'))
+ left join SQLUser.MR_Adm mradm on mradm.MRADM_RowId=p1.PAADM_MainMRADM_DR
+ left join SQLUser.CT_Disposit ctdsp on ctdsp.CTDSP_RowId=mradm.MRADM_DischType_DR
+ left join SQLUser.PAC_TransferDestination trd on mradm.MRADM_TransfDest_DR=trd.TRD_RowId
+ left join SQLUser.MR_Diagnos mrdiag on mrdiag.MRDIA_MRADM_ParRef=mradm.MRADM_RowId
+ left join SQLUser.MRC_ICDDx mrcid on mrcid.MRCID_RowId=mrdiag.MRDIA_ICDCode_DR
+ where p.PAADM_AdmDate between :DateFrom and :DateTo
+ and p.PAADM_Hospital_DR=:Hospital
+ and p.PAADM_Type='I' -- Inpatient Episodes ONLY
+ and p.PAADM_VisitStatus ='D'
+ and mrdiag.MRDIA_Prefix='P'
+ and mrdiag.MRDIA_DRGOrder=1
+ and
+ (
+        left(mrcid.MRCID_Code,1)='S' or
+        (
+                left(mrcid.MRCID_Code,1)='T'
+                and
+                (
+                        (convert(integer,left(right(mrcid.MRCID_Code,length(mrcid.MRCID_Code)-1),2))<=14)
+                        or
+                        ((convert(integer,left(right(mrcid.MRCID_Code,length(mrcid.MRCID_Code)-1),2))>=20) and (convert(integer,left(right(mrcid.MRCID_Code,length(mrcid.MRCID_Code)-1),2))<=31))
+                        or
+                        ((convert(integer,left(right(mrcid.MRCID_Code,length(mrcid.MRCID_Code)-1),2))>=66) and (convert(integer,left(right(mrcid.MRCID_Code,length(mrcid.MRCID_Code)-1),2))<=78))
+                )
+        )
+        or (mrcid.MRCID_Code='G93.1')
+ )
+ group by
+ p.PAADM_RowId,p.PAADM_Hospital_DR->HOSP_Desc,
+ p.PAADM_AdmNo,
+ p.PAADM_PAPMI_DR->PAPMI_No,
+ p.PAADM_PAPMI_DR->PAPMI_Name,
+ p.PAADM_PAPMI_DR->PAPMI_DOB,
+ p.PAADM_PAPMI_DR->PAPMI_Deceased_Date,
+ p.PAADM_AdmDate,
+ p.PAADM_DischgDate,
+ MRADM_RowId,
+ MRADM_TransfDest_DR->TRD_Desc,
+ mrdiag.MRDIA_Prefix,
+ mrcid.MRCID_Code,
+ MRADM_ICUHours,
+ MRADM_DurationMechVent,
+ mradm.MRADM_DischType_DR->CTDSP_Desc
+
+having (mradm.MRADM_DischType_DR->CTDSP_Code='T')
+or
+(p.PAADM_PAPMI_DR->PAPMI_Deceased_Date between p.PAADM_AdmDate and p.PAADM_DischgDate)
+or
+(mradm.MRADM_DischType_DR->CTDSP_Code<>'T' and (datediff("d",p.PAADM_AdmDate,p.PAADM_DischgDate)>=3 or count(WARD_Code) > 0))
+or (mradm.MRADM_DischType_DR->CTDSP_Code is null)
+ 
+ )
+ &SQL(OPEN MyReportCursor)
+ 
+ 
+ 
+ /* TEMPLATE MODIFY: Rename cursor to something moreChange fetch INTO parameter list to match column variable names */
+ //FETCH FIRST ROW
+ &sql(fetch MyReportCursor INTO :PAADMRowId,:HOSPDesc,:EpisodeNo,:UR,:DOB,:DeceasedDate,:DeathInHospital,:AdmDate,:DischgDate,:LOS,:ICUCCUCount,
+ :MRADMRowId,:TRDDesc,
+ :PrimaryCodePrefix,:PrimaryCode,
+ :ICUHours,:DurationMechVent,:DischDestType)
+  
+ while 'SQLCODE{
+  
+	 d FormatDates
+     s ICDCodeList=..GetICD10CodeListPrefix(MRADMRowId,"P")
+  	 
+	 /* TEMPLATE MODIFY: Build the sort string here from column variables. Convert strings to uppercase ($ZCVT(<field>,"U") and separate with spaces */
+	 s sort = ind		// don't sort - uncomment this line if you've sorted in the query
+	 //s sort = $ZCVT(HOSPDesc,"U")_" "_$ZCVT(WARDDesc,"U")_" "_$ZCVT(ROOMCode,"U")_" "_$ZCVT(BEDCode,"U")_" "_$ZCVT(CTRLGDesc,"U")_" "_$ZCVT(PAPERName,"U")_" "_$ZCVT(PAPERName2,"U")_" "_$ZCVT(PAPERName3,"U")_ind
+ 
+	 /* TEMPLATE MODIFY: Build the list of fields by placing correct column variable names in the $LB() here. */
+	 s ^CacheTemp("TRAK",repid,sort)=$LB(PAADMRowId,HOSPDesc,EpisodeNo,UR,DOB,DeceasedDate,DeathInHospital,AdmDate,DischgDate,LOS,ICUCCUCount,
+	 MRADMRowId,TRDDesc,
+	 PrimaryCodePrefix,PrimaryCode,
+	 ICDCodeList,
+	 ICUHours,DurationMechVent,DischDestType)
+	 s ind=ind+1
+ 
+	 /* TEMPLATE MODIFY: Change field variables to match row columns - copy FETCH FIRST ROW from above */
+	 //fetch rows
+	 &sql(fetch MyReportCursor INTO :PAADMRowId,:HOSPDesc,:EpisodeNo,:UR,:DOB,:DeceasedDate,:DeathInHospital,:AdmDate,:DischgDate,:LOS,:ICUCCUCount,
+	 :MRADMRowId,:TRDDesc,
+	 :PrimaryCodePrefix,:PrimaryCode,
+	 :ICUHours,:DurationMechVent,:DischDestType)
+ }
+
+ &SQL(CLOSE MyReportCursor)
+ 
+ // Build QHandle (AtEnd,ReportID,Index)
+ Set QHandle=$lb(0,repid,0)
+
+ Quit $$$OK
+
+FormatDates
+ /* TEMPLATE MODIFY: Add an entry to perform a date format for all date/time fields here */
+ s AdmDate=..ConvertDateToODBC(AdmDate)
+ s DischgDate=..ConvertDateToODBC(DischgDate)
+ s DeceasedDate=..ConvertDateToODBC(DeceasedDate)
+ s DOB=..ConvertDateToODBC(DOB)
+]]></Implementation>
+</Method>
+
+<Method name="SWARHRATD1012QueryFetch">
+<Description>
+This is the Fetch component of the %Library.Query. 
+This should never have to change. It is designed to fetch the row for each subscript of the ^CacheTemp
+global and return this row to the Crystal Report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,&Row:%Library.List,&AtEnd:%Library.Integer=0]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // This fetch method should never have to change. 
+
+ // repid - Report ID
+ // ind   - sequence index which represents each row
+
+ New repid,ind
+
+ // Restore QHandle
+ Set AtEnd=$li(QHandle,1)
+ Set repid=$li(QHandle,2)
+ Set ind=$li(QHandle,3)
+
+ Set ind=$o(^CacheTemp("TRAK",repid,ind))
+ If ind="" {	// if there are no more rows, finish fetching
+ Set AtEnd=1
+ Set Row=""
+ }
+ Else      {	// fetch row
+ Set Row=^CacheTemp("TRAK",repid,ind)
+ }
+
+ // Save QHandle
+ s QHandle=$lb(AtEnd,repid,ind)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<UDLText name="T">
+<Content><![CDATA[
+/* TEMPLATE MODIFY: Rename Stored Proc query to <MyStoredProcName> 
+ * TEMPLATE MODIFY: Change parameters to match desired stored procedure parameters
+ * TEMPLATE MODIFY: Change ROWSPEC list to match desired output column names and column data types */
+]]></Content>
+</UDLText>
+
+<Query name="SWARHRATD1012Query">
+<Type>%Library.Query</Type>
+<FormalSpec>Hospital:%Library.Integer,DateFrom:%Date,DateTo:%Date</FormalSpec>
+<SqlProc>1</SqlProc>
+<Parameter name="CONTAINID" value="0"/>
+<Parameter name="ROWSPEC" value="PAADMRowId:%Integer,HOSPDesc:%String(MAXLEN=255),EpisodeNo:%String(MAXLEN=255),UR:%String(MAXLEN=255),DOB:%Date,DeceasedDate:%Date,DeathInHospital:%String(MAXLEN=255),AdmDate:%Date,DischgDate:%Date,LOS:%Integer,ICUCCUCount:%Integer,MRADMRowId:%Integer,TRDDesc:%String(MAXLEN=255),PrimaryCodePrefix:%String(MAXLEN=255),PrimaryCode:%String(MAXLEN=255),ICDCodeList:%String(MAXLEN=255),ICUHours:%String(MAXLEN=255),DurationMechVent:%String(MAXLEN=255),DischDestType:%String(MAXLEN=2)"/>
+<Parameter name="SELECTMODE" value="ODBC"/>
+</Query>
+</Class>
+</Export>

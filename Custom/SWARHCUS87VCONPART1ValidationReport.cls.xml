@@ -1,0 +1,235 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.SWARHCUS87VCONPART1ValidationReport">
+<ClassType/>
+<ProcedureBlock>0</ProcedureBlock>
+<Super>%Library.RegisteredObject</Super>
+<TimeCreated>64233,35001</TimeCreated>
+
+<Method name="ValidationReportClose">
+<Description>
+This is the Close component of the %Library.Query.
+This is standard code and should never have to change.
+This is where all the cleanup is performed, i.e. the purging of the temporary storage global ^CacheTemp.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>QHandle:%Library.Binary</FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Clean up by purging the temporary node in ^CacheTemp global
+ New repid
+ Set repid=$li(QHandle,2)
+ Kill ^CacheTemp(repid)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="ValidationReportExecute">
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,Hospital:%Integer]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ New repid,ind // Use $Increment to get the next node
+ Set repid=$I(^CacheTemp) // Build data into ^CacheTemp(ReportID) e.g. Set ^CacheTemp(ReportID,Index)=$LB(f1,f2,f3)
+ New Number,String,Date,Time,c,n,str
+ 
+ n ID,QUESPAPatMasDR,PatUR,PatName,PatName2,Episode,QSiteFirstP,
+ PatUR1,PatName1,PatName21,Episode1,QSiteFirstP1,QLaterPrimary1,
+ PatUR2,PatName2,PatName22,Episode2,QSiteFirstP2,QTumMorph2
+ s (ID,QUESPAPatMasDR)=0 
+ s (PatUR,PatName,PatName2,Episode,QSiteFirstP)=""
+ s (PatUR1,PatName1,PatName21,Episode1,QSiteFirstP1,QLaterPrimary1)=""
+ s (PatUR2,PatName2,PatName22,Episode2,QSiteFirstP2,QTumMorph2)=""
+ s ind=1
+ s END=0
+
+ // valid primary site structure
+ &sql(declare ValidationReport cursor for
+Select  distinct ID,
+		QUESPAPatMasDR,
+        QUESPAPatMasDR->PAPMI_No,
+        QUESPAPatMasDR->PAPMI_Name,
+        QUESPAPatMasDR->PAPMI_Name2,
+		QUESPAAdmDR->PAADM_ADMNo,
+		QSiteFirstP
+From    questionnaire.QVCONPART1
+Where	QHOSPITAL=:Hospital and (
+
+not length(QSiteFirstP) between 3 and 6
+or (substring(QSiteFirstP,1,1) <> 'C' and substring(QSiteFirstP,1,1) <> 'D')
+or (substring(QSiteFirstP,4,1) <> '.' and length(QSiteFirstP)>=5 and substring(QSiteFirstP,5,1) not in ('0','1','2','3','4','5','6','7','8','9'))
+or (substring(QSiteFirstP,2,1) not in ('0','1','2','3','4','5','6','7','8','9'))
+or (substring(QSiteFirstP,3,1) not in ('0','1','2','3','4','5','6','7','8','9'))
+or (length(QSiteFirstP)=6 and substring(QSiteFirstP,6,1) not in ('0','1','2','3','4','5','6','7','8','9'))
+)
+)
+
+ // valid laterality (applicability)
+ &sql(select 
+        QUESPAPatMasDR->PAPMI_No,
+        QUESPAPatMasDR->PAPMI_Name,
+        QUESPAPatMasDR->PAPMI_Name2,
+        QUESPAAdmDR->PAADM_ADMNo,
+        QSiteFirstP,QLaterPrimary
+ into :PatUR1,:PatName1,:PatName21,:Episode1,:QSiteFirstP1,:QLaterPrimary1
+ from questionnaire.QVCONPART1
+ where QHOSPITAL=:Hospital and (
+ QLaterPrimary = '8' and
+ (QSiteFirstP like 'C34%' or
+ QSiteFirstP like 'C50%' or
+ QSiteFirstP like 'C56%' or
+ QSiteFirstP like 'C57%' or
+ QSiteFirstP like 'C64%' or
+ QSiteFirstP like 'C62%' or
+ QSiteFirstP like 'C69%' or
+ QSiteFirstP in ('C02.4','C03.9','C09.0','C09.1','C09.9','C11.1','C30.1',
+ 'C40.0','C40.2','C43.1','C43.2','C43.3','C43.5','C43.6','C43.7','C47.1','C47.2',
+ 'C49.0','C49.1','C49.2','C63.1','C66.9','C72.3','C74.0','C74.1','C74.9','C75.0',
+ 'C75.4','C76.4','C76.5','C77.3','C77.4','C44.2','C44.6','C44.7','C72.3'))
+ )
+ or (QLaterPrimary <> '8' and not
+ (QSiteFirstP like 'C34%' or
+ QSiteFirstP like 'C50%' or
+ QSiteFirstP like 'C56%' or
+ QSiteFirstP like 'C57%' or
+ QSiteFirstP like 'C64%' or
+ QSiteFirstP like 'C62%' or
+ QSiteFirstP like 'C69%' or
+ QSiteFirstP in ('C02.4','C03.9','C09.0','C09.1','C09.9','C11.1','C30.1',
+ 'C40.0','C40.2','C43.1','C43.2','C43.3','C43.5','C43.6','C43.7','C47.1','C47.2',
+ 'C49.0','C49.1','C49.2','C63.1','C66.9','C72.3','C74.0','C74.1','C74.9','C75.0',
+ 'C75.4','C76.4','C76.5','C77.3','C77.4','C44.2','C44.6','C44.7','C72.3'))
+ )
+ or QLaterPrimary not in ('1','2','3','8','9')
+ )
+ 
+ // valid tumour morphology format
+ &sql(select 
+        QUESPAPatMasDR->PAPMI_No,
+        QUESPAPatMasDR->PAPMI_Name,
+        QUESPAPatMasDR->PAPMI_Name2,
+        QUESPAAdmDR->PAADM_ADMNo,
+        QSiteFirstP,QTumMorph
+ into :PatUR2,:PatName2,:PatName22,:Episode2,:QSiteFirstP2,:QTumMorph2
+ from questionnaire.QVCONPART1 where QHOSPITAL=:Hospital
+ and right(QTumMorph,1)<>'3'
+ )
+ 
+ &sql(open ValidationReport)
+ //fetch first order record
+ &sql(fetch ValidationReport into :ID,:QUESPAPatMasDR,:PatUR,:PatName,:PatName2,:Episode,:QSiteFirstP)
+ while 'SQLCODE{
+ 
+ Do FormatDates
+ s PatName = $zconvert(PatName,"u")
+ s PatName2 = $zconvert($extract(PatName2,1),"u")_$zconvert($extract(PatName2,2,$length(PatName2)),"l")
+ 
+ ; define all off the Text Area strings.
+ ; Set up maxlength here. Once defined, we don't have to define it again - it will apply to all loops.
+ s maxlength=30000
+ // build the row
+ Set str=$LB(ID,QUESPAPatMasDR,PatUR,PatName,PatName2,Episode,QSiteFirstP)
+ Set ^CacheTemp(repid,ind)=str
+ s ind=ind+1
+ //fetch next order records
+ &sql(fetch ValidationReport into :ID,:QUESPAPatMasDR,:PatUR,:PatName,:PatName2,:Episode,:QSiteFirstP)
+ }
+ &sql(close ValidationReport)
+
+ // Build QHandle (AtEnd,ReportID,Index)
+ Set QHandle=$lb(0,repid,0)
+
+ Quit $$$OK
+FormatDates
+ // Convert the dates to ODBC date format
+ //If QUESDate Set QUESDate=$ZD(QUESDate,3)
+ Quit
+]]></Implementation>
+</Method>
+
+<Method name="ValidationReportFetch">
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,&Row:%Library.List,&AtEnd:%Library.Integer=0]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // This fetch method should never have to change. 
+
+ // repid - Report ID
+ // ind   - sequence index which represents each row
+
+ New repid,ind
+
+ // Restore QHandle
+ Set AtEnd=$li(QHandle,1)
+ Set repid=$li(QHandle,2)
+ Set ind=$li(QHandle,3)
+
+ Set ind=$o(^CacheTemp(repid,ind))
+ If ind="" {	// if there are no more rows, finish fetching
+ Set AtEnd=1
+ Set Row=""
+ }
+ Else      {	// fetch row
+ Set Row=^CacheTemp(repid,ind)
+ }
+
+ // Save QHandle
+ s QHandle=$lb(AtEnd,repid,ind)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Query name="ValidationReport">
+<Description>
+It expects 1 parameter of type integer and will return 40 odd fields:
+Field1 - Integer
+Field2 - String(MAXLEN=255)
+Field3 - Date
+Field4 - Time</Description>
+<Type>%Library.Query</Type>
+<FormalSpec>Hospital:%Integer</FormalSpec>
+<SqlProc>1</SqlProc>
+<Parameter name="CONTAINID" value="0"/>
+<Parameter name="ROWSPEC" value="ID:%Integer,QUESPAPatMasDR:%Integer,PatUR:%String(MAXLEN=255),PatName:%String(MAXLEN=255),PatName2:%String(MAXLEN=255),Episode:%String(MAXLEN=255),QSiteFirstP:%String(MAXLEN=255)"/>
+</Query>
+
+<Query name="LookUpHospital">
+<Description>
+Lookup on Hospital returning all active services</Description>
+<Type>%Library.SQLQuery</Type>
+<FormalSpec>Hospital:%String</FormalSpec>
+<SqlQuery><![CDATA[SELECT HOSP_Desc, HOSP_RowId, HOSP_Code
+FROM SQLUser.CT_Hospital
+WHERE ((%ALPHAUP HOSP_Desc %STARTSWITH %ALPHAUP :Hospital) OR (%ALPHAUP HOSP_Code %STARTSWITH %ALPHAUP :Hospital))
+AND (HOSP_DateFrom <= CURRENT_DATE)
+AND ((HOSP_DateTo IS NULL) OR (HOSP_DateTo >= CURRENT_DATE))
+ORDER BY HOSP_Desc]]></SqlQuery>
+<Parameter name="CONTAINID" value="2"/>
+<Parameter name="ROWSPEC" value="Description:%String,HIDDEN:%String,Code:%String"/>
+</Query>
+
+<Method name="LookUpBrokerHospital">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>itmjs:%Library.String="",itmjsex:%Library.String="",Hospital:%Library.String=""</FormalSpec>
+<Implementation><![CDATA[
+ n id,code,desc,activedate
+
+ s (id,code,desc)=""
+
+ ; Try and find a matching code
+ &sql(SELECT	HOSP_Desc, HOSP_RowId, HOSP_Code
+ INTO	:desc, :id, :code
+ FROM	SQLUser.CT_Hospital
+ WHERE	((%ALPHAUP HOSP_Desc = %ALPHAUP :Hospital) OR (%ALPHAUP HOSP_Code = %ALPHAUP :Hospital))
+ AND (HOSP_DateFrom <= CURRENT_DATE)
+ AND ((HOSP_DateTo IS NULL) OR (HOSP_DateTo >= CURRENT_DATE))
+ )
+ ;
+ i SQLCODE s desc=Hospital q 0
+ s retval=itmjs_"('"_$ZCVT(desc,"O","JS")_"');"
+ i itmjsex'="""" s retval=retval_itmjsex_"('"_$ZCVT(desc,"O","JS")_"^"_id_"^"_$ZCVT(code,"O","JS")_"');"
+ &javascript<#(retval)#>
+ q 1
+]]></Implementation>
+</Method>
+</Class>
+</Export>

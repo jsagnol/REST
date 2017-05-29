@@ -1,0 +1,417 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.AUXX.Report.ZEN.StoredProc.OperationsRegister">
+<ProcedureBlock>0</ProcedureBlock>
+<Super>Report.Abstract</Super>
+<TimeCreated>59388,55236.125</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/AUXX/Report/ZEN/StoredProc/OperationsRegister.xml#1 $</Default>
+</Parameter>
+
+<UDLText name="T">
+<Content><![CDATA[
+// Report Name: AUXX Operations Register <br>
+
+]]></Content>
+</UDLText>
+
+<UDLText name="T">
+<Content><![CDATA[
+// Report Code: AUXX.OPT0002 <br>
+
+]]></Content>
+</UDLText>
+
+<UDLText name="T">
+<Content><![CDATA[
+// Report Description: Identifies the actual Theatre Register, patients, surgeons and procedures for a date range by theatre.
+
+]]></Content>
+</UDLText>
+
+<Method name="OperationsRegisterClose">
+<Description>
+This is the Close component of the %Library.Query.
+This is standard code and should never have to change.
+This is where all the cleanup is performed, i.e. the purging of the temporary storage global ^CacheTemp.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>QHandle:%Library.Binary</FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Clean up by purging the temporary node in ^CacheTemp global
+ New repid
+ Set repid=$LIST(QHandle,2)
+ 
+ //Start Monitor (if configured to capture stats)
+ i mon Do ..MonitorEnd(mon)
+
+ Kill ^CacheTemp("TRAK",repid)
+ 
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="OperationsRegisterExecute">
+<Description>
+This is the Execute section for the %Library.Query. 
+All of the logic will be performed here.
+A new node for the ^CacheTemp("TRAK") global will be created and each subscript of this global will contain
+a row for the report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,DateFrom:%Library.Date,DateTo:%Library.Date,Hospital:%Library.String,TheatreDept:%Library.String,Theatre:%Library.String]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Get reportid i.e. use $INCREMENT to add another node to ^CacheTemp("TRAK") global. 
+ // We use ^CacheTemp global because CACHETEMP is a memory resident database
+ New repid,ind
+
+ // Use $Increment to get the next node and clean up
+ Set repid=$Increment(^CacheTemp("TRAK"))
+ Kill ^CacheTemp("TRAK",repid)
+ 
+ //Start Monitor (if configured to capture stats)
+ s mon=..MonitorBegin()
+  
+ n ANAOPRowID,ANAOPParRef,RBOPRowID,HOSPDesc,TheatreDeptDesc,TheatreDesc,TheatreCode,PAPMINo,PAADMADMNo,PAPERName,PAPERName2,PAPERRowID,PAPMIVIPFlag,ANTYPEDesc,SurgTTLCode,SurgCTPCPDesc,SurgCTPCPFirstName,SurgCTPCPOtherName
+ n SurgCTPCPSurname,AnaesTTLCode,AnaesCTPCPDesc,AnaesCTPCPFirstName,AnaesCTPCPOtherName,AnaesCTPCPSurname,ANAOPOpStartDate,ANAOPProcedure,SPPPDesc,AddStaffTTLCode,AddStaffCTPCPDesc,AddStaffCTPCPFirstName,AddStaffCTPCPOtherName,AddStaffCTPCPSurname,RBOPASCareProvType
+ n ANAPAADMPARREF,ANAChildSub,ANAOPChildSub,PAPERAge,ANATheatreInTime,ANATheatreOutTime,CareProv,AssistingSurgeon,ScrubNurse,CircNurse,AnaeTech,AnaeNurse,Assistant,AssistantsRowIDs,AddStaffCTPCPRowID,SortOrder,TTLCode
+ n NOTindex,NOTcounter,ANAOPNotes,ANAOPNotesLine,OPSecOpers
+ 
+ S (ANAOPRowID,ANAOPParRef,RBOPRowID,HOSPDesc,TheatreDeptDesc,TheatreDesc,TheatreCode,PAPMINo,PAADMADMNo,PAPERName,PAPERName2,PAPERRowID,PAPMIVIPFlag,ANTYPEDesc,SurgTTLCode,SurgCTPCPDesc,SurgCTPCPFirstName,SurgCTPCPOtherName)=""
+ S (SurgCTPCPSurname,AnaesTTLCode,AnaesCTPCPDesc,AnaesCTPCPFirstName,AnaesCTPCPOtherName,AnaesCTPCPSurname,ANAOPOpStartDate,ANAOPProcedure,SPPPDesc,AddStaffTTLCode,AddStaffCTPCPDesc,AddStaffCTPCPFirstName,AddStaffCTPCPOtherName,AddStaffCTPCPSurname,RBOPASCareProvType)=""
+ S (ANAPAADMPARREF,ANAChildSub,ANAOPChildSub,PAPERAge,ANATheatreInTime,ANATheatreOutTime,CareProv,AssistingSurgeon,ScrubNurse,CircNurse,AnaeTech,AnaeNurse,Assistant,AssistantsRowIDs,AddStaffCTPCPRowID,SortOrder,TTLCode)=""
+ S (NOTindex,NOTcounter,ANAOPNotes,ANAOPNotesLine,OPSecOpers)=""
+ 
+ ;s DateFrom=$$intdate^SSUTIL4(DateFrom)
+ s DateFrom=..ConvertDateToCache(DateFrom)
+ ;s DateTo=$$intdate^SSUTIL4(DateTo)
+ s DateTo=..ConvertDateToCache(DateTo)
+ 
+ i $g(Hospital)'="" s Hospital=$zstrip(Hospital,"*C")
+ i $g(TheatreDept)'="" s TheatreDept=$zstrip(TheatreDept,"*C")
+ i $g(Theatre)'="" s Theatre=$zstrip(Theatre,"*C")
+ 
+ 
+ d GetData
+ 
+ // Build QHandle (AtEnd,ReportID,Index)
+ Set QHandle=$LISTBUILD(0,repid,0)
+ Quit $$$OK
+
+GetData
+ &SQL(DECLARE OPER CURSOR FOR 
+ SELECT 
+ ANAOP_RowID,
+ ANAOP_Par_Ref,
+ ANAOP_Par_Ref->ANA_RBOPERATINGROOM_DR->RBOP_RowID,
+ ANAOP_RESOURCE_DR->RES_CTLOC_DR->CTLOC_Hospital_DR->HOSP_Desc,
+ ANAOP_RESOURCE_DR->RES_CTLOC_DR->CTLOC_Desc,
+ ANAOP_RESOURCE_DR->RES_Desc,
+ ANAOP_RESOURCE_DR->RES_Code,
+ ANAOP_Par_Ref->ANA_PAADM_PARREF->PAADM_PAPMI_DR->PAPMI_No,
+ ANAOP_Par_Ref->ANA_PAADM_PARREF->PAADM_ADMNo,
+ ANAOP_Par_Ref->ANA_PAADM_PARREF->PAADM_PAPMI_DR->PAPMI_Title_DR->TTL_Code,
+ ANAOP_Par_Ref->ANA_PAADM_PARREF->PAADM_PAPMI_DR->PAPMI_PAPER_DR->PAPER_Name,
+ ANAOP_Par_Ref->ANA_PAADM_PARREF->PAADM_PAPMI_DR->PAPMI_PAPER_DR->PAPER_Name2,
+ ANAOP_Par_Ref->ANA_PAADM_PARREF->PAADM_PAPMI_DR->PAPMI_PAPER_DR->PAPER_Name3,
+ ANAOP_Par_Ref->ANA_PAADM_PARREF->PAADM_PAPMI_DR->PAPMI_PAPER_DR,
+ ANAOP_Par_Ref->ANA_PAADM_PARREF->PAADM_PAPMI_DR->PAPMI_VIPFlag,
+ ANAOP_Par_Ref->ANA_Method->ANMET_Desc,
+ ANAOP_Surgeon_DR->CTPCP_Title_DR->TTL_Code,
+ ANAOP_Surgeon_DR->CTPCP_Desc,
+ ANAOP_Surgeon_DR->CTPCP_FirstName,
+ ANAOP_Surgeon_DR->CTPCP_OtherName,
+ ANAOP_Surgeon_DR->CTPCP_Surname,
+ ANAOP_Par_Ref->ANA_Anaesthetist_DR->CTPCP_Title_DR->TTL_Code,
+ ANAOP_Par_Ref->ANA_Anaesthetist_DR->CTPCP_Desc,
+ ANAOP_Par_Ref->ANA_Anaesthetist_DR->CTPCP_FirstName,
+ ANAOP_Par_Ref->ANA_Anaesthetist_DR->CTPCP_OtherName,
+ ANAOP_Par_Ref->ANA_Anaesthetist_DR->CTPCP_Surname,
+ ANAOP_OpStartDate,
+ ANAOP_Par_Ref->ANA_TheatreInTime, 
+ ANAOP_Par_Ref->ANA_TheatreOutTime,
+ ANAOP_Type_DR->OPER_Desc,
+ ANAOP_StatePPP_DR->SPPP_Desc,
+ ANAOP_Par_Ref->ANA_PAADM_PARREF,
+ ANAOP_Par_Ref->ANA_ChildSub,
+ ANAOP_ChildSub
+ INTO :ANAOPRowID,:ANAOPParRef,:RBOPRowID,:HOSPDesc,:TheatreDeptDesc,:TheatreDesc,:TheatreCode,:PAPMINo,:PAADMADMNo,:TTLCode,:PAPERName,:PAPERName2,:PAPERName3,:PAPERRowID,:PAPMIVIPFlag,:ANTYPEDesc,:SurgTTLCode,:SurgCTPCPDesc,:SurgCTPCPFirstName,:SurgCTPCPOtherName,:SurgCTPCPSurname,:AnaesTTLCode,:AnaesCTPCPDesc,:AnaesCTPCPFirstName,:AnaesCTPCPOtherName,:AnaesCTPCPSurname,:ANAOPOpStartDate,:ANATheatreInTime,:ANATheatreOutTime,:ANAOPProcedure,:SPPPDesc,:ANAPAADMPARREF,:ANAChildSub,:ANAOPChildSub
+ FROM  SQLUser.OR_Anaest_Operation
+ WHERE ANAOP_OpStartDate BETWEEN :DateFrom AND :DateTo
+ AND (ANAOP_Status='D' OR ANAOP_Status IS NULL)
+ AND (({fn CONCAT( ',', {fn CONCAT((:Hospital),',')})} [ {fn CONCAT( ',', {fn CONCAT((ANAOP_RESOURCE_DR->RES_CTLOC_DR->CTLOC_Hospital_DR->HOSP_RowId),',')})}) OR (:Hospital IS NULL))
+ AND (({fn CONCAT( ',', {fn CONCAT((:TheatreDept),',')})} [ {fn CONCAT( ',', {fn CONCAT((ANAOP_RESOURCE_DR->RES_CTLOC_DR->CTLOC_RowID),',')})}) OR (:TheatreDept IS NULL))
+ AND (({fn CONCAT( ',', {fn CONCAT((:Theatre),',')})} [ {fn CONCAT( ',', {fn CONCAT((ANAOP_RESOURCE_DR->RES_RowId),',')})}) OR (:Theatre IS NULL)))
+
+	
+ &SQL(OPEN OPER)
+ 
+ f  &SQL(FETCH OPER) q:SQLCODE'=0  d
+ . d FormatDates,FormatTimes
+ . s PAPERAge=##Class(Report.OperationsRegister).GetCurrentAge(PAPERRowID)
+ . s ANAOPProcedure=$ZSTRIP(ANAOPProcedure,"*C")
+ . s TheatreDeptDesc=$ZSTRIP(TheatreDeptDesc,"*C")
+ . s TheatreDesc=$ZSTRIP(TheatreDesc,"*C")
+ . s FullSurgeonName=$s(SurgTTLCode'="":SurgTTLCode_" ",1:"")_$s(SurgCTPCPFirstName'="":$zcvt($e(SurgCTPCPFirstName,1),"U")_" ",1:"")_$s(SurgCTPCPOtherName'="":$zcvt($e(SurgCTPCPOtherName,1),"U")_" ",1:"")_$s(SurgCTPCPSurname'="":SurgCTPCPSurname,1:"")
+ . i FullSurgeonName="" s FullSurgeonName=SurgCTPCPDesc
+ . s FullAnaesName=$s(AnaesTTLCode'="":AnaesTTLCode_" ",1:"")_$s(AnaesCTPCPFirstName'="":$zcvt($e(AnaesCTPCPFirstName,1),"U")_" ",1:"")_$s(AnaesCTPCPOtherName'="":$zcvt($e(AnaesCTPCPOtherName,1),"U")_" ",1:"")_$s(AnaesCTPCPSurname'="":AnaesCTPCPSurname,1:"")
+ . i FullAnaesName="" s FullAnaesName=AnaesCTPCPDesc
+ . d GetNotes
+ . d GetAdditionalStaff
+ . d  s OPSecOpers= ..GetSecOper(ANAPAADMPARREF,ANAChildSub,ANAOPChildSub)
+ . d  s SPPPDesc=..GetSPPPDesc(SPPPDesc,OPSecOpers)
+ . d BuildRow
+
+ &SQL(CLOSE OPER)
+
+ q
+
+GetAdditionalStaff
+ s (AddStaffTTLCode,AddStaffCTPCPDesc,AddStaffCTPCPFirstName,AddStaffCTPCPOtherName,AddStaffCTPCPSurname,RBOPASCareProvType)=""
+ s (AssistantsRowIDs,AddStaffCTPCPRowID,SortOrder)=""
+ s (AssistingSurgeon,ScrubNurse,CircNurse,AnaeTech,AnaeNurse,Assistant)=""
+ 
+ &SQL(DECLARE ADDS CURSOR FOR
+ SELECT
+ ANAAS_CareProv_DR->CTPCP_Title_DR->TTL_Code,
+ ANAAS_CareProv_DR->CTPCP_Desc,
+ ANAAS_CareProv_DR->CTPCP_FirstName,
+ ANAAS_CareProv_DR->CTPCP_OtherName,
+ ANAAS_CareProv_DR->CTPCP_Surname,
+ ANAAS_CareProvType,
+ ANAAS_CareProv_DR,
+ 1
+ FROM SQLUser.OR_AnaestAdditionalStaff
+ WHERE ANAAS_ParRef=:ANAOPParRef
+ UNION
+ SELECT
+ OPAS_CareProv_DR->CTPCP_Title_DR->TTL_Code,
+ OPAS_CareProv_DR->CTPCP_Desc,
+ OPAS_CareProv_DR->CTPCP_FirstName,
+ OPAS_CareProv_DR->CTPCP_OtherName,
+ OPAS_CareProv_DR->CTPCP_Surname,
+ OPAS_CareProvType,
+ OPAS_CareProv_DR,
+ 2
+ FROM SQLUser.OR_An_Oper_Additional_Staff
+ WHERE OPAS_ParRef=:ANAOPRowID
+ ORDER BY 8 ASC) 
+
+ &SQL(OPEN ADDS)
+ f  &SQL(FETCH ADDS INTO :AddStaffTTLCode,:AddStaffCTPCPDesc,:AddStaffCTPCPFirstName,:AddStaffCTPCPOtherName,:AddStaffCTPCPSurname,:RBOPASCareProvType,:AddStaffCTPCPRowID,:SortOrder) q:SQLCODE'=0  d
+ . d FormatCareProvDetails
+ . i RBOPASCareProvType="SA"  d
+ . . i AssistingSurgeon'=""  d
+ . . . s AssistingSurgeon=AssistingSurgeon_";"_$c(10)_CareProv
+ . . e  s AssistingSurgeon=CareProv
+ . i RBOPASCareProvType="FSA"  d
+ . . i AssistingSurgeon'=""  d
+ . . . s AssistingSurgeon=AssistingSurgeon_";"_$c(10)_CareProv
+ . . e  s AssistingSurgeon=CareProv
+ . i RBOPASCareProvType="SS"  d
+  . . i AssistingSurgeon'=""  d
+ . . . s AssistingSurgeon=AssistingSurgeon_";"_$c(10)_CareProv
+ . . e  s AssistingSurgeon=CareProv  
+ . i RBOPASCareProvType="SN" d
+ . . i ScrubNurse=""  d
+ . . . s ScrubNurse=CareProv
+ . . . s AssistantsRowIDs=AddStaffCTPCPRowID
+ . . e  d
+ . . . i '($find(","_AssistantsRowIDs_",",","_AddStaffCTPCPRowID_","))  d
+ . . . . i Assistant=""  d
+ . . . . . s Assistant=CareProv
+ . . . . e  s Assistant=Assistant_$CHAR(13)_CareProv
+ . . . e  s AssistantsRowIDs=AssistantsRowIDs_","_AddStaffCTPCPRowID
+ . i RBOPASCareProvType="CN" s CircNurse=CareProv
+ . i RBOPASCareProvType="AA" s AnaeNurse=CareProv
+ . i RBOPASCareProvType="O" s AnaeTech=CareProv
+ 
+ &SQL(CLOSE ADDS)
+ q 
+
+FormatCareProvDetails
+ s CareProv=""
+ 
+ i AddStaffCTPCPSurname=""  d
+ . s CareProv=AddStaffCTPCPDesc
+ e  d
+ . i AddStaffTTLCode'="" s AddStaffTTLCode=AddStaffTTLCode_" "
+ . i AddStaffCTPCPFirstName'="" s AddStaffCTPCPFirstName=$e(AddStaffCTPCPFirstName,1,1)_" "
+ . i AddStaffCTPCPOtherName'="" s AddStaffCTPCPOtherName=$e(AddStaffCTPCPOtherName,1,1)_" "
+ . s CareProv = AddStaffTTLCode_AddStaffCTPCPFirstName_AddStaffCTPCPOtherName_AddStaffCTPCPSurname	 
+ q
+
+GetNotes
+ s NOTindex=1,NOTcounter=0
+ s (ANAOPNotes,ANAOPNotesLine)=""
+
+ s NOTcounter=$g(^OR(ANAPAADMPARREF,"ANA",ANAChildSub,"OP",ANAOPChildSub,"REM",0))
+ f NOTindex=1:1:NOTcounter {
+	 s ANAOPNotesLine=$g(^OR(ANAPAADMPARREF,"ANA",ANAChildSub,"OP",ANAOPChildSub,"REM",NOTcounter))
+	 i NOTcounter>1 {
+		 s ANAOPNotes = ANAOPNotes_$CHAR(13)_ANAOPNotesLine
+	 }
+	 else {
+		 s ANAOPNotes = ANAOPNotesLine
+	 }
+ }
+ q
+
+FormatDates
+ s ANAOPOpStartDate=..ConvertDateToODBC(ANAOPOpStartDate)
+ q
+
+FormatTimes
+ s ANATheatreInTime=..ConvertTimeToODBC(ANATheatreInTime)
+ s ANATheatreOutTime=..ConvertTimeToODBC(ANATheatreOutTime)
+ q
+
+BuildRow
+ s ind=$i(ind)
+ s ^CacheTemp("TRAK",repid,$ZCVT(HOSPDesc,"U")_$ZCVT(TheatreDeptDesc,"U")_$ZCVT(TheatreDesc,"U")_ANAOPOpStartDate_ANATheatreInTime_ind)=$lb(ANAOPRowID,RBOPRowID,HOSPDesc,TheatreDeptDesc,TheatreDesc,TheatreCode,PAPMINo,PAADMADMNo,TTLCode,PAPERName,PAPERName2,PAPERName3,PAPERRowID,PAPMIVIPFlag,ANTYPEDesc,FullSurgeonName,FullAnaesName,ANAOPOpStartDate,ANAOPProcedure,SPPPDesc,AssistingSurgeon,ScrubNurse,CircNurse,AnaeTech,AnaeNurse,Assistant,PAPERAge,ANATheatreInTime,ANATheatreOutTime,ANAOPNotes)
+ s (ANAOPRowID,RBOPRowID,HOSPDesc,TheatreDeptDesc,TheatreDesc,TheatreCode,PAPMINo,PAADMADMNo,TTLCode,PAPERName,PAPERName2,PAPERName3,PAPERRowID,PAPMIVIPFlag,ANTYPEDesc,SurgTTLCode,SurgCTPCPDesc,SurgCTPCPFirstName,SurgCTPCPOtherName,SurgCTPCPSurname,AnaesTTLCode,AnaesCTPCPDesc,AnaesCTPCPFirstName,AnaesCTPCPOtherName,AnaesCTPCPSurname,ANAOPOpStartDate,ANAOPProcedure,SPPPDesc,AssistingSurgeon,ScrubNurse,CircNurse,AnaeTech,AnaeNurse,Assistant,PAPERAge,ANATheatreInTime,ANATheatreOutTime,ANAOPNotes)=""
+ q
+]]></Implementation>
+</Method>
+
+<Method name="OperationsRegisterFetch">
+<Description>
+This is the Fetch component of the %Library.Query. 
+This should never have to change. It is designed to fetch the row for each subscript of the 
+^CacheTemp("TRAK" global and return this row to the Report writer</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,&Row:%Library.List,&AtEnd:%Library.Integer=0]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // This fetch method should never have to change. 
+ // repid - Report ID
+ // ind   - sequence index which represents each row
+
+ New repid,ind
+
+ // Restore QHandle
+ Set AtEnd=$LI(QHandle,1)
+ Set repid=$LI(QHandle,2)
+ Set ind=$LI(QHandle,3)
+
+ Set ind=$order(^CacheTemp("TRAK",repid,ind))
+ If ind="" {	// if there are no more rows, finish fetching
+ 	Set AtEnd=1
+ 	Set Row=""
+ }  Else  {	// fetch row
+ 	Set Row=^CacheTemp("TRAK",repid,ind)
+ }
+
+ // Save QHandle
+ Set QHandle=$lb(AtEnd,repid,ind)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Query name="OperationsRegister">
+<Type>%Library.Query</Type>
+<FormalSpec>DateFrom:%Library.Date,DateTo:%Library.Date,Hospital:%Library.String,TheatreDept:%Library.String,Theatre:%Library.String</FormalSpec>
+<SqlProc>1</SqlProc>
+<Parameter name="CONTAINID" value="0"/>
+<Parameter name="ROWSPEC" value="ANAOPRowID:%Library.String,RBOPRowID:%Library.String,HOSPDesc:%Library.String,TheatreDeptDesc:%Library.String,TheatreDesc:%Library.String,TheatreCode:%Library.String,PAPMINo:%Library.String,PAADMADMNo:%Library.String,TTLCode:%String,PAPERName:%Library.String,PAPERName2:%Library.String,PAPERName3:%Library.String,PAPERRowID:%Library.String,PAPMIVIPFlag:%Library.String,ANTYPEDesc:%Library.String,FullSurgeonName:%Library.String,FullAnaesName:%Library.String,ANAOPOpStartDate:%Library.Date,ANAOPProcedure:%Library.String,SPPPDesc:%Library.String,AssistingSurgeon:%Library.String,ScrubNurse:%Library.String,CircNurse:%Library.String,AnaeTech:%Library.String,AnaeNurse:%Library.String,Assistant:%Library.String,PAPERAge:%Library.String,ANATheatreInTime:%Library.String,ANATheatreOutTime:%Library.String,ANAOPNotes:%Library.String"/>
+</Query>
+
+<Method name="GetCurrentAge">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>patid:%String</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+ n dob,unit,days,months,inDays,inWeeks,inMonths,inYears,AgeYear,AgeMth,AgeDays,inWkDays,ageStr,agedate,data,cfdata,param
+ s (dob,unit,days,months,inDays,inWeeks,inMonths,inYears,AgeYear,AgeMth,AgeDays,inWkDays,ageStr,agedate,data,cfdata)=""
+ s param = 1
+  
+ q:(patid="") "^"
+ 
+ s data=$g(^PAPER(patid,"ALL"))
+ 
+ s agedate=$s($p(data,"^",13)>0:$p(data,"^",13),1:+$h)
+ ;do not new 't', fetch only if it doesn't already exist
+ //i '$d(t("UnitYears")) d ##Class(websys.Component).GetComponentMessages(.t,"websys.SYSTEM,PAPerson.Edit")
+ s dob=$p(data,"^",6)
+ q:'$g(dob) ""
+ 
+ ; ab 3.04.03 - limits for age display now system parameters
+ s cfdata=$g(^CF("PATCF",1,11))
+ s inDays=$s($p(cfdata,"^",39):$p(cfdata,"^",39),1:14)	;show in days
+ ;s inWeeks=$s($p($g(^CF("PATCF",1,11)),"^",40):$p($g(^CF("PATCF",1,11)),"^",40),1:13)	;show in weeks
+ s inWeeks=$p(cfdata,"^",40) i inWeeks="" s inWeeks=13
+ s inMonths=$s($p(cfdata,"^",41):$p(cfdata,"^",41),1:24)	;show in months
+ s inWkDays=inWeeks*7  ;convert weeks to days
+ s age=$$CalAge^at182(dob,agedate,"","","")
+ s AgeYear=$p(age,"|",12)
+ s AgeMth=$p(age,"|",13)
+ s AgeDays=$p(age,"|",14)
+ s days=+$h-dob
+ i days'>inDays q days_"d"
+ i days>inDays,days'>inWkDays q days\7_"w"
+ s months=AgeYear*12+AgeMth
+ i months'>inMonths q AgeYear*12+AgeMth_"m"
+ i 'param d
+ .i months>inMonths s ageStr= AgeYear_"y"
+ i param d
+ .i months>inMonths,AgeYear<5 s ageStr= AgeYear_"y "_AgeMth_"m"
+ .i AgeYear'<5 s ageStr= AgeYear_"y"
+ q ageStr
+]]></Implementation>
+</Method>
+
+<Method name="GetSecOper">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>ANAPAADMPARREF:%Integer,ANAChildSub:%Integer,ANAOPChildSub:%Integer</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+   s (Count,ORANAOPSPRChildsub,OPERRowId)=0
+   s (OPERCode,OPERDesc,OPERDesc1)=""  
+   
+   If ANAPAADMPARREF="" q ""   
+   If ANAChildSub="" q ""
+   If ANAOPChildSub="" q "" 
+   
+   s ORANAOPSPRChildsub=$o(^OR(ANAPAADMPARREF,"ANA",ANAChildSub,"OP",ANAOPChildSub,"SPR",ORANAOPSPRChildsub))
+       
+   WHILE(ORANAOPSPRChildsub)'="" {
+	s Count=Count+1
+	s OPERRowId=$p($g(^OR(ANAPAADMPARREF,"ANA",ANAChildSub,"OP",ANAOPChildSub,"SPR",ORANAOPSPRChildsub)),"^",1)
+	
+	i OPERRowId '="" { 
+      s OPERCode=$p($g(^PAC("SPPP",OPERRowId)),"^",1)
+      s OPERDesc=$p($g(^PAC("SPPP",OPERRowId)),"^",2)
+       
+      if Count=1 {
+	      if OPERDesc '="" {set OPERDesc1 = " - "_OPERDesc}          
+      }	
+      else {set OPERDesc1 =  OPERDesc1_$c(10)_" - "_OPERDesc}
+    }
+    s ORANAOPSPRChildsub=$o(^OR(ANAPAADMPARREF,"ANA",ANAChildSub,"OP",ANAOPChildSub,"SPR",ORANAOPSPRChildsub))
+    
+     }
+ q OPERDesc1
+]]></Implementation>
+</Method>
+
+<Method name="GetSPPPDesc">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>SPPPDesc:%Integer,OPSecOpers:%Integer</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	Set Op=""
+	If SPPPDesc'=""
+	{set Op=SPPPDesc
+	  If OPSecOpers'=""{set Op=Op_$c(10)_OPSecOpers}
+	}
+	Else {If OPSecOpers'=""{set Op=OPSecOpers}
+	
+	}
+  q Op
+]]></Implementation>
+</Method>
+</Class>
+</Export>

@@ -1,0 +1,135 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.SWARH.JS.questionnaire.QFRAT2.Edit">
+<Description>
+Component JavaScript for: questionnaire.QFRAT2.Edit</Description>
+<Modified>0</Modified>
+<Super>websys.AbstractJavaScript</Super>
+<TimeCreated>63537,10519.271559</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)</Description>
+<Default>$Id$</Default>
+</Parameter>
+
+<Method name="JSContent">
+<Language>javascript</Language>
+<ClientMethod>1</ClientMethod>
+<Implementation><![CDATA[
+	SWARH.loadGTKYP(function(){
+		var devNull		= new GTKYP.init();
+		FRSUpdater();
+	});
+	
+	//function setAttributes(el,attrs) {for (var key in attrs) {el.setAttribute(key, attrs[key]);}}; //Fails in Chrome
+	function setAttributes(el,attrs) {for (var key in attrs) {el[key] = attrs[key];}};
+	function cloneDisplayStyle(el) {el.parentElement.parentElement.style.display = el.style.display;}
+	
+	function FRSUpdater() {												// This uses a timed loop instead of events because:
+		fnDesc				= 'FRSUpdater(): ';							//  - onchange does not work if the field was updated with JS (Only user changes)
+																		//  - blur event is triggered before the data is changed
+		try {															//  - If you enter the code and tab out, the delay before it is filled cannot be 
+			var recentEl	= document.getElementById('QFRSRECENT');	//      accurately predicted
+			var medsEl		= document.getElementById('QFRSMEDS');		//  - MutationEvent is now deprecated due to MutationObserver
+			var psychEl		= document.getElementById('QFRSPSYCH');		//  - MutationObserver only sort of works in IE11
+			var cognitiveEl = document.getElementById('QFRSCOGNITIVE');
+			var changeEl    = document.getElementById('QFRSCHANGE');
+			var dizzinessEl = document.getElementById('QFRSDIZZINESS');
+			var statusEl    = document.getElementById('QFRSSTATUS');
+			var riskEl		= document.getElementById('QFRSRISK');
+			var partIIEl	= document.getElementById('RISKFACTORCHECKLIST');
+			var statusCellEl= document.getElementById('FALLSRISKSTATUSCELL');
+			var score		= 0;
+			var status		= '';
+			var showPartII	= false;
+		
+			if (typeof(recentEl['data-scores']) !== 'undefined' && typeof(medsEl['data-scores']) !== 'undefined' && typeof(psychEl['data-scores']) !== 'undefined' && typeof(cognitiveEl['data-scores']) !== 'undefined') {
+				score = recentEl['data-scores'][recentEl.value] + medsEl['data-scores'][medsEl.value] + psychEl['data-scores'][psychEl.value] + cognitiveEl['data-scores'][cognitiveEl.value] + (+changeEl.checked*16) + (+dizzinessEl.checked*16);
+				if (isNaN(score)) score='';								// If any are blank or the value in them doesn't have a score (They should be red 
+																		//   already) then it will return NaN
+			} else {
+				var fnError 	= 'Error - One (or more) of the listed questions does not have a data-score attribute, unable to calculate - Report issue to SWARH with patient UR';
+				SWARH.log(fnDesc+fnError);
+				alert(fnDesc+fnError);
+				riskEl.value	= '';									// Clear out so the required calc field is blank and you cannot save the questionnaire
+				statusEl.value	= '';
+				return;
+			}
+			
+			switch (true) {												// Beautify the risk field
+				case (score>=5  && score<=11)	: 
+					status		= 'Low';// ('+score+')';	
+					setAttributes(statusCellEl.style,{fontStyle:'normal', backgroundColor:'yellow', fontWeight:'normal', color:'black'});	break
+				case (score>=12 && score<=15)	: 
+					status		= 'Medium';// ('+score+')';	
+					showPartII	= true;
+					setAttributes(statusCellEl.style,{fontStyle:'normal', backgroundColor:'orange', fontWeight:'bold',   color:'black'});	break
+				case (score>=16)				: 
+					status		= 'High';// ('+score+')';	
+					showPartII	= true;
+					setAttributes(statusCellEl.style,{fontStyle:'normal', backgroundColor:'red',    fontWeight:'bold',   color:'white'});	break
+				default							: 
+					status		= ''; 
+					setAttributes(statusCellEl.style,{fontStyle:'italic', backgroundColor:'white',  fontWeight:'normal', color:'black'});
+			}
+			if (riskEl.value != score || statusCellEl.innerHTML	!= status) {	// Something changed?  Do things.
+				riskEl.value			= score;
+				statusCellEl.innerHTML	= status||'Waiting for all required questions to be answered...';
+				statusEl.value			= status;
+				statusEl.onchange();
+				if (showPartII == true) {
+					partIIEl.style.display = 'block';
+				} else {
+					partIIEl.style.display = 'none';
+				}
+			}
+			
+			// Help Trak's ability to hide questions by hiding the row with it
+			cloneDisplayStyle(document.getElementById('QHISINFOFROM'));
+			cloneDisplayStyle(document.getElementById('QHISLIST'));
+			cloneDisplayStyle(document.getElementById('QAPFALLSMAGNET'));
+			cloneDisplayStyle(document.getElementById('QAPGAITAIDTAG'));
+			cloneDisplayStyle(document.getElementById('QAPBATHROOM'));
+			cloneDisplayStyle(document.getElementById('QAPNEARNURSE'));
+			cloneDisplayStyle(document.getElementById('QAPCHECKHOURLY'));
+			document.getElementById('HIGHRISKSTRATEGIESHDRCELL').parentElement.style.display = document.getElementById('QAPCHECKHOURLY').style.display;
+
+			// Show all the optional high risk factor options in the action list where required
+			var selectedArr	= [];
+			var classOddEven= 'EVEN';
+			var beforeRowEl	= document.getElementById('ACTIONPLAN').querySelector('tr:last-child');							// Get the last row - we insert these rows before that one
+			var lastRisks	= beforeRowEl.getAttribute('data-lastrisks') || '';												// Get whatever the list was last time this was triggered
+			var optionsNL  	= document.getElementById('RISKFACTORCHECKLIST').querySelectorAll('option');					// Get all the elements we care about. 
+			var optionsArr 	= [].map.call(optionsNL,function(obj){return obj;});											// Convert the nodeList to an array so we can use it
+			for (var option=0;option<optionsArr.length;option++) {															// Get all the selected options, we need to do this differently depending on whether the questionnaire is in read-only or an edit mode
+				if (optionsArr[option].disabled === true && optionsArr[option].className === 'clsDisabledListboxOption') selectedArr.push(optionsArr[option].innerText);
+				if (optionsArr[option].disabled === false && optionsArr[option].selected === true) selectedArr.push(optionsArr[option].innerText);
+			}
+			
+			if (lastRisks !== selectedArr.toString()) {																		// Something has changed - Redo our rows
+				//SWARH.log(fnDesc+'Change Detected [Was:'+lastRisks+'] [Now:'+selectedArr.toString()+']');
+				[].map.call(document.getElementById('ACTIONPLAN').querySelectorAll('.ACTIONLISTTEMPROW'),function(obj){obj.parentNode.removeChild(obj);}); 
+																															// Delete all the temporary rows already put there
+				if (selectedArr.length !== 0) {
+					for (var loop=0;loop<selectedArr.length;loop++) {
+						var newRowEl			= document.createElement('tr');												// Create a new TR element
+						newRowEl.insertAdjacentHTML('beforeend','<TD class=\'STC\'>&nbsp;</TD><TD class=\'STC\'>'+selectedArr[loop]+'</TD>');
+						newRowEl.className		= 'STR Q'+classOddEven+' ACTIONLISTTEMPROW';								// Add the required cells and content & set the correct odd/even class
+						if (classOddEven === 'EVEN') {classOddEven = 'ODD';} else {classOddEven = 'EVEN';}					// Toggle Odd/Even each time
+						beforeRowEl.parentNode.insertBefore(newRowEl,beforeRowEl);											// Insert the new TR before the last TR
+					}
+					beforeRowEl.className = 'STR Q'+classOddEven;															// Update the Odd/Even class of the last cell to keep it all nice looking
+				}
+				beforeRowEl.setAttribute('data-lastrisks',selectedArr.toString());											// Write the updated list to last row to compare against next time
+			}
+		} catch(error) {
+			SWARH.log(fnDesc+'Caught Exception - "'+error.message+'"');
+			return
+		}
+		setTimeout(function(){FRSUpdater()},100);						// Lets do it all again...
+	}
+]]></Implementation>
+</Method>
+</Class>
+</Export>

@@ -1,0 +1,160 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.SWARH.JS.RBResSched.List">
+<Description>
+Component JavaScript for: RBResSched.List</Description>
+<Modified>0</Modified>
+<Super>websys.AbstractJavaScript</Super>
+<TimeCreated>63537,10520.382583</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+This Parameter is updated by Perforce</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/SWARH/JS/RBResSched/List.xml#1 $</Default>
+</Parameter>
+
+<Method name="JSContent">
+<Description>
+ </Description>
+<Language>javascript</Language>
+<ClientMethod>1</ClientMethod>
+<Implementation><![CDATA[
+///Update 24072014
+SWARH.loadSNAP();
+
+websys_removeListener("load","onload",DocumentLoadHandler);
+websys_addListener("load","onload",CustomDocumentLoadHandler);
+
+var logonUserId=session['LOGON.USERID'];
+var logonLocId=session['LOGON.CTLOCID'];
+
+function createButton(name,label) {
+	var obj=document.createElement('input');	// 2016-10-05 (RG) - Changed from '<input type="button" />' to 'input'
+	obj.setAttribute('type','button');
+	obj.setAttribute('name',name);
+	obj.setAttribute('id',name);
+	obj.setAttribute('value',label);
+	obj.setAttribute('title',name);
+	obj.className = 'clsButton';
+	return obj;
+}
+
+function showElement(el) {
+	el.style.display='';
+}
+
+function hideElement(el) {
+	el.style.display='none';
+}
+
+function GetHospitalId() {
+	var parentFrame = window.parent.frames["RBResEffDateTop"];
+	if (parentFrame) {
+		var objHOSPId=parentFrame.document.getElementById('HOSPId');
+		if (objHOSPId)
+			return objHOSPId.value;
+	}
+	
+	return false;
+}
+
+function ShowHideViewRoomAllocBtn(btn) {
+	var objHOSPId=document.getElementById('HOSPId');
+	var objResId = document.getElementById('ResourceId');
+	if (!btn)
+		btn = document.getElementById('ViewRoomAlloc');
+	if (objResId && objResId.value > 0 && SNAP.isSNAPHospital(GetHospitalId())) {
+		showElement(btn);
+	}
+	else {
+		hideElement(btn);
+	}
+}
+
+function ResourceChangeHandler(e) {
+	var rv = RESDesc_changehandler(e);
+	ShowHideViewRoomAllocBtn();
+	return rv;
+}
+
+var oldResourceLookUpSelect = ResourceLookUpSelect;
+ResourceLookUpSelect = function(str) {
+    oldResourceLookUpSelect(str);
+	ShowHideViewRoomAllocBtn();
+};
+
+function CustomDocumentLoadHandler() {
+	DocumentLoadHandler();
+
+	var ViewRoomAllocBtn = createButton('ViewRoomAlloc','Room Allocation');
+	ShowHideViewRoomAllocBtn(ViewRoomAllocBtn);
+	
+	var objEffDateId = document.getElementById('SESSParRef');
+	var objResId = document.getElementById('ResourceId');
+	
+	var sEffDateId = objEffDateId.value;
+	var sResId = objResId.value;
+	
+	sEffDateId = encodeURIComponent(sEffDateId);
+	sResId = encodeURIComponent(sResId);
+	
+	var callback = function() {
+		var labelRoom, objSessId, sessRoomAllocLink;
+		var tRBResSched_List=document.getElementById('tRBResSched_List');
+
+		if (tRBResSched_List && SNAP.isSNAPHospital(GetHospitalId())) {
+			var rows=tRBResSched_List.getElementsByTagName('tr');
+			if (rows.length>0) {
+				for (i=1;i<rows.length;i++) {
+					labelRoom = document.getElementById('SESS_Room_DRz'+i);
+					objSessId = document.getElementById('SESSRowIdz'+i);
+					if (labelRoom) {
+						// function GetSNAPServer defined in SNAP.js
+						var sSessId = objSessId.value;
+						sSessId = encodeURIComponent(sSessId);
+						
+						var uri = 'BookableAvailability.aspx?LogonUserId='+logonUserId+'&LogonLocId='+logonLocId+'&SessionID='+sSessId;
+						var url = 'http://'+ SNAP.getSNAPServer() +'/'+uri;
+						labelRoom.innerHTML+='<a id="SessionRoomAllocLinkz'+i+'" href="'+encodeURI(url)+'" target="_blank">Session Room Allocation</a>';
+						
+						sessRoomAllocLink=document.getElementById("SessionRoomAllocLinkz"+i);
+						sessRoomAllocLink.snapurl = uri;
+						websys_addListener('click', 'onclick',
+							function(e) {
+								e = e || window.event;
+								var target = e.srcElement || e.target;
+								if (typeof(e.stopPropogation) == 'function') {
+									e.stopPropogation();
+								} else {
+									e.cancelBubble = true;
+								}
+								var snapurl = target.snapurl;
+								SNAP.openSWARHSNAP(snapurl);
+								return false;
+							},
+							sessRoomAllocLink
+						);
+					}
+				}
+			}
+		}
+	};
+
+	SWARH.loadSNAP(callback);
+	
+	var RESDesc = document.getElementById('RESDesc');
+	RESDesc.onchange=ResourceChangeHandler;
+	
+	var Find = document.getElementById('Find' );
+	if (Find) {
+		Find.parentElement.appendChild(ViewRoomAllocBtn,Find);
+		Find.parentElement.appendChild(document.createTextNode(" "),ViewRoomAllocBtn);
+	}
+	ViewRoomAllocBtn.onclick=function() {
+		SNAP.openSWARHSNAP('BookableAvailability.aspx?LogonUserId='+logonUserId+'&LogonLocId='+logonLocId+'&ResourceID='+sResId+'&EffectiveDateId='+sEffDateId,'BookableAvailability'); // function openSWARHSNAP defined in SNAP.js
+	};
+}
+]]></Implementation>
+</Method>
+</Class>
+</Export>

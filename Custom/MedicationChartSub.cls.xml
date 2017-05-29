@@ -1,0 +1,545 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.MedicationChartSub">
+<Description>
+This class returns the medication records for the Medication Chart report</Description>
+<ProcedureBlock>0</ProcedureBlock>
+<Super>Report.Abstract</Super>
+<TimeCreated>59388,55236.125</TimeCreated>
+
+<Method name="MedicationClose">
+<Description>
+This is the Close component of the %Library.Query.
+This is standard code and should never have to change.
+This is where all the cleanup is performed, i.e. the purging of the temporary storage global ^CacheTemp.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>QHandle:%Library.Binary</FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Clean up by purging the temporary node in ^CacheTemp global
+ New repid
+ Set repid=$LIST(QHandle,2)
+ 
+ //Start Monitor (if configured to capture stats)
+ i mon Do ..MonitorEnd(mon)
+
+ Kill ^CacheTemp("TRAK",repid)
+ 
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="MedicationExecute">
+<Description>
+This is the Execute section for the %Library.Query. 
+All of the logic will be performed here.
+A new node for the ^CacheTemp("TRAK") global will be created and each subscript of this global will contain
+a row for the report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Get reportid i.e. use $INCREMENT to add another node to ^CacheTemp("TRAK") global. 
+ // We use ^CacheTemp global because CACHETEMP is a memory resident database
+ New repid,ind
+
+ // Use $Increment to get the next node and clean up
+ Set repid=$Increment(^CacheTemp("TRAK"))
+ Kill ^CacheTemp("TRAK",repid)
+ 
+ //Start Monitor (if configured to capture stats)
+ s mon=..MonitorBegin()
+ 
+
+ k pass
+ s pass("IV")=0
+ s pass("NIO")=0
+ s pass("PO")=0
+ s pass("POE")=0
+ s pass("DIS")=0
+ s pass("WARFARIN")=0
+ s pass("ADJ")=0
+ s pass("VAR")=0
+ s pass("OTH")=0
+ s pass("INSULIN")=0
+ s pass("PRN")=0
+ s pass("ONE")=0
+ s pass("STAT")=0
+ 
+ n oeirowid
+ s oeirowid=""
+ 
+ 
+ s id=0 f  s id=$o(^zCacheTemp("MEDCHART",id)) q:id=""  d
+ . s pass("NIO")=0
+ . s pass("PO")=0
+ . s pass("POE")=0
+ . s pass("DIS")=0
+ . s pass("WARFARIN")=0
+ . s pass("ADJ")=0
+ . s pass("VAR")=0
+ . s pass("OTH")=0
+ . s pass("INSULIN")=0
+ . s pass("PRN")=0
+ . s pass("ONE")=0
+ . s pass("STAT")=0
+ . ;
+ . s code=0 f  s code=$o(^zCacheTemp("MEDCHART",id,code)) q:code=""  d
+ . . i ((",IV,PO,POE,NIO,ONE,STAT,DIS,OTH,WARFARIN,REGULAR,INSULIN,ADJ,VAR,PRN,")[(","_code_",")) d
+ . . . s dates=0 f  s dates=$o(^zCacheTemp("MEDCHART",id,code,dates)) q:dates=""  d
+ . . . . s DateTo=$p(dates,"||",2),DateFrom=+dates
+ . . . . s seq=0 f  s seq=$o(^zCacheTemp("MEDCHART",id,code,dates,seq)) q:seq=""  d
+ . . . . . s arcim=0 f  s arcim=$o(^zCacheTemp("MEDCHART",id,code,dates,seq,arcim)) q:arcim=""  d
+ . . . . . . i (",IV,")'[(","_code_",") d
+ . . . . . . . s order=$p(arcim,"^",2)
+ . . . . . . . i $g(order)'="",$d(^OEORD(+order)) d
+ . . . . . . . . ; Treat as one order
+ . . . . . . . . i $p($g(^zCacheTemp("MEDCHART",id,"PATIENT",code,+order,$p(order,"||",2))),"^",23)=0 d
+ . . . . . . . . . d ..SingleOrders(id,code,dates,seq,arcim)
+ . . . . . . . . ; Treat as multiple order
+ . . . . . . . . i $p($g(^zCacheTemp("MEDCHART",id,"PATIENT",code,+order,$p(order,"||",2))),"^",23)=1 d
+ . . . . . . . . . d ..MultipleOrders(id,code,dates,seq,arcim)
+ . . . . . . ;i ((",PO,NIO,DIS,")[(","_code_",")) d
+ . . . . . . ;. d ..NormalOrders(id,code,dates,seq,arcim)
+ . . . . i code="IV" d ..IVOrders(id,code,dates)
+ . ;
+ . k ^zCacheTemp("MEDCHART",id,"EXISTS")
+ . s idxcode=0 f  s idxcode=$o(^zCacheTemp("MEDCHART",id,"PATIENT",idxcode)) q:idxcode=""  d
+ . . s oe=0 f  s oe=$o(^zCacheTemp("MEDCHART",id,"PATIENT",idxcode,oe)) q:oe=""  d
+ . . . s oei=0 f  s oei=$o(^zCacheTemp("MEDCHART",id,"PATIENT",idxcode,oe,oei)) q:oei=""  d
+ . . . . s cnt=0
+ . . . . f date=DateFrom:1:DateTo d
+ . . . . . s cnt=$i(cnt),DateHeading(cnt)=""
+ . . . . . s DateHeading(cnt)=$zd(date,3)
+ . . . . s arcim=$p($g(^OEORD(oe,"I",oei,1)),"^",2)
+ . . . . i $g(arcim)="",$o(^OEORDi(0,"VarDose",oe,oei,0))'="" s arcim=$p($g(^OEORD(oe,"I",$o(^OEORDi(0,"VarDose",oe,oei,0)),1)),"^",2)
+ . . . . s idx=0 f  s idx=$o(^CacheTemp("TRAK",repid,idx)) q:idx=""  d
+ . . . . . s ^zCacheTemp("MEDCHART",id,"EXISTS",$lg(^CacheTemp("TRAK",repid,idx),3))=1
+ . . . . ;. s varid=0 f  s varid=$o(^OEORDi(0,"VarDose",oe,oei,varid)) q:varid=""  d
+ . . . . ;. . s ^zCacheTemp("MEDCHART",id,"EXISTS",oe_"||"_varid)=1
+ . . . . i '$d(^zCacheTemp("MEDCHART",id,"EXISTS",oe_"||"_oei)),$d(^OEORD(oe)) d
+ . . . . . s (outrange(1),outrange(2),outrange(3),outrange(4),outrange(5),outrange(6),outrange(7))=""
+ . . . . . i $g(DateHeading(1))'="" d
+ . . . . . . i $d(^zCacheTemp("MEDCHART",id,"OREXISTS",oe_"||"_oei,$g(DateHeading(1)))) s outrange(1)="*"
+ . . . . . i $g(DateHeading(2))'="" d
+ . . . . . . i $d(^zCacheTemp("MEDCHART",id,"OREXISTS",oe_"||"_oei,$g(DateHeading(2)))) s outrange(2)="*"
+ . . . . . i $g(DateHeading(3))'="" d
+ . . . . . . i $d(^zCacheTemp("MEDCHART",id,"OREXISTS",oe_"||"_oei,$g(DateHeading(3)))) s outrange(3)="*"
+ . . . . . i $g(DateHeading(4))'="" d
+ . . . . . . i $d(^zCacheTemp("MEDCHART",id,"OREXISTS",oe_"||"_oei,$g(DateHeading(4)))) s outrange(4)="*"
+ . . . . . i $g(DateHeading(5))'="" d
+ . . . . . . i $d(^zCacheTemp("MEDCHART",id,"OREXISTS",oe_"||"_oei,$g(DateHeading(5)))) s outrange(5)="*"
+ . . . . . i $g(DateHeading(6))'="" d
+ . . . . . . i $d(^zCacheTemp("MEDCHART",id,"OREXISTS",oe_"||"_oei,$g(DateHeading(6)))) s outrange(6)="*"
+ . . . . . i $g(DateHeading(7))'="" d
+ . . . . . . i $d(^zCacheTemp("MEDCHART",id,"OREXISTS",oe_"||"_oei,$g(DateHeading(7)))) s outrange(7)="*"
+ . . . . . s ind=$i(ind)
+ . . . . . s outsiderange=$g(^zCacheTemp("MEDCHART",id,"OREXISTS",oe_"||"_oei))
+ . . . . . s ^CacheTemp("TRAK",repid,ind)=$lb(id,idxcode,oe_"||"_oei,arcim,DateHeading(1),"","","","","","","","","","","","","","","","","",$g(outrange(1)),"",DateHeading(2),"","","","","","","","","","","","","","","","","",$g(outrange(2)),"",DateHeading(3),"","","","","","","","","","","","","","","","","",$g(outrange(3)),"",DateHeading(4),"","","","","","","","","","","","","","","","","",$g(outrange(4)),"",DateHeading(5),"","","","","","","","","","","","","","","","","",$g(outrange(5)),"",DateHeading(6),"","","","","","","","","","","","","","","","","",$g(outrange(6)),"",DateHeading(7),"","","","","","","","","","","","","","","","","","",$g(outrange(7)),outsiderange)
+ . ;k ^zCacheTemp("MEDCHART",id,"OREXISTS")
+ 
+ // Build QHandle (AtEnd,ReportID,Index)
+ Set QHandle=$LISTBUILD(0,repid,0)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="MedicationFetch">
+<Description>
+This is the Fetch component of the %Library.Query. 
+This should never have to change. It is designed to fetch the row for each subscript of the 
+^CacheTemp("TRAK" global and return this row to the Report writer</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,&Row:%Library.List,&AtEnd:%Library.Integer=0]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // This fetch method should never have to change. 
+ // repid - Report ID
+ // ind   - sequence index which represents each row
+
+ New repid,ind
+
+ // Restore QHandle
+ Set AtEnd=$LI(QHandle,1)
+ Set repid=$LI(QHandle,2)
+ Set ind=$LI(QHandle,3)
+
+ Set ind=$order(^CacheTemp("TRAK",repid,ind))
+ If ind="" {	// if there are no more rows, finish fetching
+ 	Set AtEnd=1
+ 	Set Row=""
+ }  Else  {	// fetch row
+ 	Set Row=^CacheTemp("TRAK",repid,ind)
+ }
+
+ // Save QHandle
+ Set QHandle=$lb(AtEnd,repid,ind)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Query name="Medication">
+<Description>
+This is the Stored Procedure Template. For Sample use only.
+It expects one parameter of type integer and will return 4 fields:
+Field1 - Integer
+Field2 - String
+Field3 - Date
+Field4 - Time</Description>
+<Type>%Library.Query</Type>
+<SqlProc>1</SqlProc>
+<Parameter name="CONTAINID" value="0"/>
+<Parameter name="ROWSPEC" value="id:%Integer,code:%String(MAXLEN=1000),oeirowid:%String(MAXLEN=1000),arcim:%String(MAXLEN=1000),DateHeading1:%Date,AdminStatus1:%String(MAXLEN=1000),AdminQty1:%String(MAXLEN=1000),AdminUOM1:%String(MAXLEN=1000),AdminDate1:%Date,AdminTime1:%String(MAXLEN=1000),AdminBy1:%String(MAXLEN=1000),TargetINR1:%String(MAXLEN=1000),INRResult1:%String(MAXLEN=1000),ExStDate1:%Date,ExStTime1:%String(MAXLEN=1000),ExEnDate1:%Date,ExEnTime1:%String(MAXLEN=1000),INRMIN1:%String(MAXLEN=1000),INRMAX1:%String(MAXLEN=1000),plandose1:%String(MAXLEN=1000),status1:%String(MAXLEN=1000),SecAdmUser1:%String(MAXLEN=255),AdmBy1:%String(MAXLEN=255),outrange1:%String,DateHeading2:%Date,AdminStatus2:%String(MAXLEN=1000),AdminQty2:%String(MAXLEN=1000),AdminUOM2:%String(MAXLEN=1000),AdminDate2:%Date,AdminTime2:%String(MAXLEN=1000),AdminBy2:%String(MAXLEN=1000),TargetINR2:%String(MAXLEN=1000),INRResult2:%String(MAXLEN=1000),ExStDate2:%Date,ExStTime2:%String(MAXLEN=1000),ExEnDate2:%Date,ExEnTime2:%String(MAXLEN=1000),INRMIN2:%String(MAXLEN=1000),INRMAX2:%String(MAXLEN=1000),plandose2:%String(MAXLEN=1000),status2:%String(MAXLEN=1000),SecAdmUser2:%String(MAXLEN=255),AdmBy2:%String(MAXLEN=255),outrange2:%String,DateHeading3:%Date,AdminStatus3:%String(MAXLEN=1000),AdminQty3:%String(MAXLEN=1000),AdminUOM3:%String(MAXLEN=1000),AdminDate3:%Date,AdminTime3:%String(MAXLEN=1000),AdminBy3:%String(MAXLEN=1000),TargetINR3:%String(MAXLEN=1000),INRResult3:%String(MAXLEN=1000),ExStDate3:%Date,ExStTime3:%String(MAXLEN=1000),ExEnDate3:%Date,ExEnTime3:%String(MAXLEN=1000),INRMIN3:%String(MAXLEN=1000),INRMAX3:%String(MAXLEN=1000),plandose3:%String(MAXLEN=1000),status3:%String(MAXLEN=1000),SecAdmUser3:%String(MAXLEN=255),AdmBy3:%String(MAXLEN=255),outrange3:%String,DateHeading4:%Date,AdminStatus4:%String(MAXLEN=1000),AdminQty4:%String(MAXLEN=1000),AdminUOM4:%String(MAXLEN=1000),AdminDate4:%Date,AdminTime4:%String(MAXLEN=1000),AdminBy4:%String(MAXLEN=1000),TargetINR4:%String(MAXLEN=1000),INRResult4:%String(MAXLEN=1000),ExStDate4:%Date,ExStTime4:%String(MAXLEN=1000),ExEnDate4:%Date,ExEnTime4:%String(MAXLEN=1000),INRMIN4:%String(MAXLEN=1000),INRMAX4:%String(MAXLEN=1000),plandose4:%String(MAXLEN=1000),status4:%String(MAXLEN=1000),SecAdmUser4:%String(MAXLEN=255),AdmBy4:%String(MAXLEN=255),outrange4:%String,DateHeading5:%Date,AdminStatus5:%String(MAXLEN=1000),AdminQty5:%String(MAXLEN=1000),AdminUOM5:%String(MAXLEN=1000),AdminDate5:%Date,AdminTime5:%String(MAXLEN=1000),AdminBy5:%String(MAXLEN=1000),TargetINR5:%String(MAXLEN=1000),INRResult5:%String(MAXLEN=1000),ExStDate5:%Date,ExStTime5:%String(MAXLEN=1000),ExEnDate5:%Date,ExEnTime5:%String(MAXLEN=1000),INRMIN5:%String(MAXLEN=1000),INRMAX5:%String(MAXLEN=1000),plandose5:%String(MAXLEN=1000),status5:%String(MAXLEN=1000),SecAdmUser5:%String(MAXLEN=255),AdmBy5:%String(MAXLEN=255),outrange5:%String,DateHeading6:%Date,AdminStatus6:%String(MAXLEN=1000),AdminQty6:%String(MAXLEN=1000),AdminUOM6:%String(MAXLEN=1000),AdminDate6:%Date,AdminTime6:%String(MAXLEN=1000),AdminBy6:%String(MAXLEN=1000),TargetINR6:%String(MAXLEN=1000),INRResult6:%String(MAXLEN=1000),ExStDate6:%Date,ExStTime6:%String(MAXLEN=1000),ExEnDate6:%Date,ExEnTime6:%String(MAXLEN=1000),INRMIN6:%String(MAXLEN=1000),INRMAX6:%String(MAXLEN=1000),plandose6:%String(MAXLEN=1000),status6:%String(MAXLEN=1000),SecAdmUser6:%String(MAXLEN=255),AdmBy6:%String(MAXLEN=255),outrange6:%String,DateHeading7:%Date,AdminStatus7:%String(MAXLEN=1000),AdminQty7:%String(MAXLEN=1000),AdminUOM7:%String(MAXLEN=1000),AdminDate7:%Date,AdminTime7:%String(MAXLEN=1000),AdminBy7:%String(MAXLEN=1000),TargetINR7:%String(MAXLEN=1000),INRResult7:%String(MAXLEN=1000),ExStDate7:%Date,ExStTime7:%String(MAXLEN=1000),ExEnDate7:%Date,ExEnTime7:%String(MAXLEN=1000),INRMIN7:%String(MAXLEN=1000),INRMAX7:%String(MAXLEN=1000),plandose7:%String(MAXLEN=1000),status7:%String(MAXLEN=1000),SecAdmUser7:%String(MAXLEN=255),AdmBy7:%String(MAXLEN=255),outrange7:%String,outsiderange:%String(MAXLEN=3000)"/>
+<Parameter name="SELECTMODE" value="ODBC"/>
+</Query>
+
+<Method name="SingleOrders">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>id:%String,code:%String,dates:%String,seq:%String,arcim:%String</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+ ;Clear fields
+ f x=1:1:7 d
+ . s (DateHeading(x),AdminStatus(x),AdminQty(x),AdminUOM(x),AdminDate(x),AdminTime(x),AdminBy(x),TargetINR(x),INRResult(x),ExStDate(x),ExStTime(x),ExEnDate(x),ExEnTime(x),INRMIN(x),INRMAX(x),plandose(x),status(x),SecAdmUser(x),AdmBy(x),outrange(x))=""
+ 
+ s timecnt=1,outsiderange=""
+ s time="" f  s time=$o(^zCacheTemp("MEDCHART",id,code,dates,seq,arcim,time)) q:time=""  d
+ . s cnt=0
+ . f date=DateFrom:1:DateTo d
+ . . s cnt=$i(cnt)
+ . . s (DateHeading(cnt),AdminStatus(cnt),AdminQty(cnt),AdminUOM(cnt),AdminDate(cnt),AdminTime(cnt),AdminBy(cnt),TargetINR(cnt),INRResult(cnt),ExStDate(cnt),ExStTime(cnt),ExEnDate(cnt),ExEnTime(cnt),INRMIN(cnt),INRMAX(cnt),plandose(cnt),status(cnt),SecAdmUser(cnt),AdmBy(cnt),outrange(cnt))=""
+ . . s DateHeading(cnt)=$zd(date,3)
+ . . ;
+ . . i code="INSULIN" d
+ . . . s (BSL,BSLTime)=""
+ . . . s mradm=$p($g(^PAADM(+^OEORD($p($p(arcim,"^",2),"||")))),"^",61)
+ . . . i mradm'="" d
+ . . . . s time1="" f  s time1=$o(^MR(mradm,"OBS",0,"DateTime",date,time1)) q:time1=""  d
+ . . . . . s obs="" f  s obs=$o(^MR(mradm,"OBS",0,"DateTime",date,time1,obs)) q:obs=""  d
+ . . . . . . i $p($g(^MR(mradm,"OBS",obs)),"^",1)'="",$o(^MRC("OBITM",0,"Code","BSL",0))=$p($g(^MR(mradm,"OBS",obs)),"^",1) d
+ . . . . . . . i $p($g(^MR(mradm,"OBS",obs)),"^",2)'="" d
+ . . . . . . . . i BSL'="" s BSL=BSL_$c(13)_$p($g(^MR(mradm,"OBS",obs)),"^",2)_" ("_$zt($p($g(^MR(mradm,"OBS",obs)),"^",4),2)_")"
+ . . . . . . . . i BSL="" s BSL=$p($g(^MR(mradm,"OBS",obs)),"^",2)_" ("_$zt($p($g(^MR(mradm,"OBS",obs)),"^",4),2)_")"
+ . . . . . . . . ;i BSLTime'="" s BSLTime=BSLTime_", "_$zt($p($g(^MR(mradm,"OBS",obs)),"^",4),2)
+ . . . . . . . . ;i BSLTime="" s BSLTime=$zt($p($g(^MR(mradm,"OBS",obs)),"^",4),2)
+ . . . s TargetINR(cnt)=BSL
+ . . . s INRResult(cnt)=BSLTime
+ . . i code="WARFARIN" d
+ . . . s (INRMIN,INRMAX,INRResult,TargetINR)=""
+ . . . s mradm=$p($g(^PAADM(+^OEORD($p($p(arcim,"^",2),"||")))),"^",61)
+ . . . i mradm'="" d
+ . . . . s time1="" f  s time1=$o(^MR(mradm,"OBS",0,"DateTime",date,time1)) q:time1=""  d
+ . . . . . s obs="" f  s obs=$o(^MR(mradm,"OBS",0,"DateTime",date,time1,obs)) q:obs=""  d
+ . . . . . . i $p($g(^MR(mradm,"OBS",obs)),"^",1)'="" d
+ . . . . . . . i $o(^MRC("OBITM",0,"Code","INR",0))=$p($g(^MR(mradm,"OBS",obs)),"^",1) d
+ . . . . . . . . i $p($g(^MR(mradm,"OBS",obs)),"^",2)'="" d
+ . . . . . . . . . i INRResult'="" s INRResult=INRResult_$c(13)_$p($g(^MR(mradm,"OBS",obs)),"^",2)_" ("_$zt(time1,2)_")"
+ . . . . . . . . . i INRResult="" s INRResult=$p($g(^MR(mradm,"OBS",obs)),"^",2)_" ("_$zt(time1,2)_")"
+ . . . . . . . i $o(^MRC("OBITM",0,"Code","INR2",0))=$p($g(^MR(mradm,"OBS",obs)),"^",1) d
+ . . . . . . . . i $p($g(^MR(mradm,"OBS",obs)),"^",2)'="" d
+ . . . . . . . . . i TargetINR'="" s TargetINR=TargetINR_$c(13)_$p($g(^MR(mradm,"OBS",obs)),"^",2)_" ("_$zt(time1,2)_")"
+ . . . . . . . . . i TargetINR="" s TargetINR=$p($g(^MR(mradm,"OBS",obs)),"^",2)_" ("_$zt(time1,2)_")"
+ . . . . . . . i $o(^MRC("OBITM",0,"Code","INRMIN",0))=$p($g(^MR(mradm,"OBS",obs)),"^",1) d
+ . . . . . . . . i $p($g(^MR(mradm,"OBS",obs)),"^",2)'="" d
+ . . . . . . . . . i INRMIN'="" s INRMIN=INRMIN_$c(13)_$p($g(^MR(mradm,"OBS",obs)),"^",2)_" ("_$zt(time1,2)_")"
+ . . . . . . . . . i INRMIN="" s INRMIN=$p($g(^MR(mradm,"OBS",obs)),"^",2)_" ("_$zt(time1,2)_")"
+ . . . . . . . i $o(^MRC("OBITM",0,"Code","INRMAX",0))=$p($g(^MR(mradm,"OBS",obs)),"^",1) d
+ . . . . . . . . i $p($g(^MR(mradm,"OBS",obs)),"^",2)'="" d
+ . . . . . . . . . i INRMAX'="" s INRMAX=INRMAX_$c(13)_$p($g(^MR(mradm,"OBS",obs)),"^",2)_" ("_$zt(time1,2)_")"
+ . . . . . . . . . i INRMAX="" s INRMAX=$p($g(^MR(mradm,"OBS",obs)),"^",2)_" ("_$zt(time1,2)_")"
+ . . . s TargetINR(cnt)=TargetINR
+ . . . s INRResult(cnt)=INRResult
+ . . ; Create matrix
+ . . s oei=0 f  s oei=$o(^zCacheTemp("MEDCHART",id,code,dates,seq,arcim,time,date,oei)) q:oei=""  d
+ . . . s idx=0 f  s idx=$o(^zCacheTemp("MEDCHART",id,code,dates,seq,arcim,time,date,oei,idx)) q:idx=""  d
+ . . . . i '$d(ExStDate(time,timecnt,cnt)) d
+ . . . . . s timecnt=1
+ . . . . i $d(ExStDate(time,timecnt,cnt)) s timecnt=$i(timecnt)
+ . . . . s ExStDate(time,timecnt,cnt)=$zd(date,3)
+ . . . . s ExStTime(time,timecnt,cnt)=$zt(time,2)
+ . . . . s AdminDate(time,timecnt,cnt)=$p($g(^zCacheTemp("MEDCHART",id,code,dates,seq,arcim,time,date,oei,idx)),"^",4)
+ . . . . i AdminDate(time,timecnt,cnt)'="" s AdminDate(time,timecnt,cnt)=$zd(AdminDate(time,timecnt,cnt),3)
+ . . . . s AdminStatus(time,timecnt,cnt)=$p($g(^zCacheTemp("MEDCHART",id,code,dates,seq,arcim,time,date,oei,idx)),"^",1)
+ . . . . s AdminQty(time,timecnt,cnt)=$p($g(^zCacheTemp("MEDCHART",id,code,dates,seq,arcim,time,date,oei,idx)),"^",2)
+ . . . . i $g(AdminQty(time,timecnt,cnt))'="" s AdminQty(time,timecnt,cnt)=$s($e(AdminQty(time,timecnt,cnt))=".":"0"_AdminQty(time,timecnt,cnt),1:AdminQty(time,timecnt,cnt))
+ . . . . s AdminUOM(time,timecnt,cnt)=$p($g(^zCacheTemp("MEDCHART",id,code,dates,seq,arcim,time,date,oei,idx)),"^",3)
+ . . . . s AdminTime(time,timecnt,cnt)=$p($g(^zCacheTemp("MEDCHART",id,code,dates,seq,arcim,time,date,oei,idx)),"^",5)
+ . . . . i AdminTime(time,timecnt,cnt)'="" d
+ . . . . . s AdminTime(time,timecnt,cnt)=$zt(AdminTime(time,timecnt,cnt),2)
+ . . . . . i $p($g(^zCacheTemp("MEDCHART",id,code,dates,seq,arcim,time,date,oei,idx)),"^",4)'=date s AdminTime(time,timecnt,cnt)=$zd($p($g(^zCacheTemp("MEDCHART",id,code,dates,seq,arcim,time,date,oei,idx)),"^",4),4)_" "_AdminTime(time,timecnt,cnt)
+ . . . . s AdminBy(time,timecnt,cnt)=$p($g(^zCacheTemp("MEDCHART",id,code,dates,seq,arcim,time,date,oei,idx)),"^",6)
+ . . . . s ExStDate(time,timecnt,cnt)=$zd(date,3)
+ . . . . s ExStTime(time,timecnt,cnt)=$zt(time,2)
+ . . . . s ExEnDate(time,timecnt,cnt)=$p($g(^zCacheTemp("MEDCHART",id,code,dates,seq,arcim,time,date,oei,idx)),"^",7)
+ . . . . i ExEnDate(time,timecnt,cnt)'="" s ExEnDate(time,timecnt,cnt)=$zd(ExEnDate(time,timecnt,cnt),3)
+ . . . . s ExEnTime(time,timecnt,cnt)=$p($g(^zCacheTemp("MEDCHART",id,code,dates,seq,arcim,time,date,oei,idx)),"^",8)
+ . . . . i ExEnTime(time,timecnt,cnt)'="" s ExEnTime(time,timecnt,cnt)=$zt(ExEnTime(time,timecnt,cnt),2)
+ . . . . s plandose(time,timecnt,cnt)=$p($g(^zCacheTemp("MEDCHART",id,code,dates,seq,arcim,time,date,oei,idx)),"^",11)
+ . . . . i $g(plandose(time,timecnt,cnt))'="" s plandose(time,timecnt,cnt)=$s($e(plandose(time,timecnt,cnt))=".":"0"_plandose(time,timecnt,cnt),1:plandose(time,timecnt,cnt))
+ . . . . i $o(^zCacheTemp("MEDCHART",id,code,dates,seq,arcim,time,date,oei,idx))="" s status(time,timecnt,cnt)=$p($g(^zCacheTemp("MEDCHART",id,code,dates,seq,arcim,time,date,oei,idx)),"^",18)
+ . . . . s SecAdmUser(time,timecnt,cnt)=$p($g(^zCacheTemp("MEDCHART",id,code,dates,seq,arcim,time,date,oei,idx)),"^",19)
+ . . . . s AdmBy(time,timecnt,cnt)=$p($g(^zCacheTemp("MEDCHART",id,code,dates,seq,arcim,time,date,oei,idx)),"^",20)
+ . . . . s outrange(time,timecnt,cnt)=$p($g(^zCacheTemp("MEDCHART",id,code,dates,seq,arcim,time,date,oei,idx)),"^",21)
+ . . . . i outrange(time,timecnt,cnt)="Y" s DateHeading(cnt)="*"_DateHeading(cnt)
+ . . . . s pass(id,code,+oei,$p(oei,"||",2),arcim)=1
+ . ;
+ . ; Get out of range admininistered details
+ . s date=0 f  s date=$o(^zCacheTemp("MEDCHART",id,code,dates,seq,arcim,time,date)) q:date=""  d
+ . . i date>DateTo d
+ . . . s oei=0 f  s oei=$o(^zCacheTemp("MEDCHART",id,code,dates,seq,arcim,time,date,oei)) q:oei=""  d
+ . . . . s idx=0 f  s idx=$o(^zCacheTemp("MEDCHART",id,code,dates,seq,arcim,time,date,oei,idx)) q:idx=""  d
+ . . . . . i $p($g(^zCacheTemp("MEDCHART",id,code,dates,seq,arcim,time,date,oei,idx)),"^",21)="Y" d
+ . . . . . . ;<Actual date of administration> - <Dose> <uom> <status> at <actual time of administration> but planned for <Planned date of administration> <Planned time of administration> 
+ . . . . . . s AdminDate=$p($g(^zCacheTemp("MEDCHART",id,code,dates,seq,arcim,time,date,oei,idx)),"^",4)
+ . . . . . . i $g(AdminDate)'="" s ^zCacheTemp("MEDCHART",id,"OREXISTS",$p(oei,"||",1,2),$zd(AdminDate,3))=""
+ . . . . . . s AdminQty=$p($g(^zCacheTemp("MEDCHART",id,code,dates,seq,arcim,time,date,oei,idx)),"^",2)
+ . . . . . . i $g(AdminQty)'="",$p(AdminQty,".")="" s AdminQty="0"_AdminQty
+ . . . . . . s AdminUOM=$p($g(^zCacheTemp("MEDCHART",id,code,dates,seq,arcim,time,date,oei,idx)),"^",3)
+ . . . . . . s AdminStatus=$p($g(^zCacheTemp("MEDCHART",id,code,dates,seq,arcim,time,date,oei,idx)),"^",1)
+ . . . . . . s AdminTime=$p($g(^zCacheTemp("MEDCHART",id,code,dates,seq,arcim,time,date,oei,idx)),"^",5)
+ . . . . . . i $g(outsiderange)'="",$g(AdminDate)'="" s outsiderange=outsiderange_$c(13)_"* "_$zd(AdminDate,4)_" - "_$s(AdminQty'="":AdminQty_" "_AdminUOM_" ",1:"")_AdminStatus_" at "_$zt(AdminTime,2)_" but planned for "_$zd(date,4)_" "_$zt(time,2)
+ . . . . . . i $g(outsiderange)="",$g(AdminDate)'="" s outsiderange="* "_$zd(AdminDate,4)_" - "_$s(AdminQty'="":AdminQty_" "_AdminUOM_" ",1:"")_AdminStatus_" at "_$zt(AdminTime,2)_" but planned for "_$zd(date,4)_" "_$zt(time,2)
+ . . . . . . s ^zCacheTemp("MEDCHART",id,"OREXISTS",$p(oei,"||",1,2))=outsiderange
+ 
+ s time="" f  s time=$o(ExStDate(time)) q:time=""  d
+ . s timecnt="" f  s timecnt=$o(ExStDate(time,timecnt)) q:timecnt=""  d
+ . . s (outrange(time,timecnt,1),outrange(time,timecnt,2),outrange(time,timecnt,3),outrange(time,timecnt,4),outrange(time,timecnt,5),outrange(time,timecnt,6),outrange(time,timecnt,7))=""
+ . . s ind=$i(ind)
+ . . i $g(DateHeading(1))'="" d
+ . . . i $d(^zCacheTemp("MEDCHART",id,"OREXISTS",$p(arcim,"^",2),$g(DateHeading(1)))) s outrange(time,timecnt,1)="*"
+ . . i $g(DateHeading(2))'="" d
+ . . . i $d(^zCacheTemp("MEDCHART",id,"OREXISTS",$p(arcim,"^",2),$g(DateHeading(2)))) s outrange(time,timecnt,2)="*"
+ . . i $g(DateHeading(3))'="" d
+ . . . i $d(^zCacheTemp("MEDCHART",id,"OREXISTS",$p(arcim,"^",2),$g(DateHeading(3)))) s outrange(time,timecnt,3)="*"
+ . . i $g(DateHeading(4))'="" d
+ . . . i $d(^zCacheTemp("MEDCHART",id,"OREXISTS",$p(arcim,"^",2),$g(DateHeading(4)))) s outrange(time,timecnt,4)="*"
+ . . i $g(DateHeading(5))'="" d
+ . . . i $d(^zCacheTemp("MEDCHART",id,"OREXISTS",$p(arcim,"^",2),$g(DateHeading(5)))) s outrange(time,timecnt,5)="*"
+ . . i $g(DateHeading(6))'="" d
+ . . . i $d(^zCacheTemp("MEDCHART",id,"OREXISTS",$p(arcim,"^",2),$g(DateHeading(6)))) s outrange(time,timecnt,6)="*"
+ . . i $g(DateHeading(7))'="" d
+ . . . i $d(^zCacheTemp("MEDCHART",id,"OREXISTS",$p(arcim,"^",2),$g(DateHeading(7)))) s outrange(time,timecnt,7)="*"
+ . . s ^CacheTemp("TRAK",repid,ind)=$lb(id,code,$p(arcim,"^",2),$p(arcim,"^"),$g(DateHeading(1)),$g(AdminStatus(time,timecnt,1)),$g(AdminQty(time,timecnt,1)),$g(AdminUOM(time,timecnt,1)),$g(AdminDate(time,timecnt,1)),$g(AdminTime(time,timecnt,1)),$g(AdminBy(time,timecnt,1)),$g(TargetINR(1)),$g(INRResult(1)),$g(ExStDate(time,timecnt,1)),$g(ExStTime(time,timecnt,1)),$g(ExEnDate(time,timecnt,1)),$g(ExEnTime(time,timecnt,1)),$g(INRMIN(time,timecnt,1)),$g(INRMAX(time,timecnt,1)),$g(plandose(time,timecnt,1)),$g(status(time,timecnt,1)),$g(SecAdmUser(time,timecnt,1)),$g(AdmBy(time,timecnt,1)),$g(outrange(time,timecnt,1)),$g(DateHeading(2)),$g(AdminStatus(time,timecnt,2)),$g(AdminQty(time,timecnt,2)),$g(AdminUOM(time,timecnt,2)),$g(AdminDate(time,timecnt,2)),$g(AdminTime(time,timecnt,2)),$g(AdminBy(time,timecnt,2)),$g(TargetINR(2)),$g(INRResult(2)),$g(ExStDate(time,timecnt,2)),$g(ExStTime(time,timecnt,2)),$g(ExEnDate(time,timecnt,2)),$g(ExEnTime(time,timecnt,2)),$g(INRMIN(time,timecnt,2)),$g(INRMAX(time,timecnt,2)),$g(plandose(time,timecnt,2)),$g(status(time,timecnt,2)),$g(SecAdmUser(time,timecnt,2)),$g(AdmBy(time,timecnt,2)),$g(outrange(time,timecnt,2)),$g(DateHeading(3)),$g(AdminStatus(time,timecnt,3)),$g(AdminQty(time,timecnt,3)),$g(AdminUOM(time,timecnt,3)),$g(AdminDate(time,timecnt,3)),$g(AdminTime(time,timecnt,3)),$g(AdminBy(time,timecnt,3)),$g(TargetINR(3)),$g(INRResult(3)),$g(ExStDate(time,timecnt,3)),$g(ExStTime(time,timecnt,3)),$g(ExEnDate(time,timecnt,3)),$g(ExEnTime(time,timecnt,3)),$g(INRMIN(time,timecnt,3)),$g(INRMAX(time,timecnt,3)),$g(plandose(time,timecnt,3)),$g(status(time,timecnt,3)),$g(SecAdmUser(time,timecnt,3)),$g(AdmBy(time,timecnt,3)),$g(outrange(time,timecnt,3)),$g(DateHeading(4)),$g(AdminStatus(time,timecnt,4)),$g(AdminQty(time,timecnt,4)),$g(AdminUOM(time,timecnt,4)),$g(AdminDate(time,timecnt,4)),$g(AdminTime(time,timecnt,4)),$g(AdminBy(time,timecnt,4)),$g(TargetINR(4)),$g(INRResult(4)),$g(ExStDate(time,timecnt,4)),$g(ExStTime(time,timecnt,4)),$g(ExEnDate(time,timecnt,4)),$g(ExEnTime(time,timecnt,4)),$g(INRMIN(time,timecnt,4)),$g(INRMAX(time,timecnt,4)),$g(plandose(time,timecnt,4)),$g(status(time,timecnt,4)),$g(SecAdmUser(time,timecnt,4)),$g(AdmBy(time,timecnt,4)),$g(outrange(time,timecnt,4)),$g(DateHeading(5)),$g(AdminStatus(time,timecnt,5)),$g(AdminQty(time,timecnt,5)),$g(AdminUOM(time,timecnt,5)),$g(AdminDate(time,timecnt,5)),$g(AdminTime(time,timecnt,5)),$g(AdminBy(time,timecnt,5)),$g(TargetINR(5)),$g(INRResult(5)),$g(ExStDate(time,timecnt,5)),$g(ExStTime(time,timecnt,5)),$g(ExEnDate(time,timecnt,5)),$g(ExEnTime(time,timecnt,5)),$g(INRMIN(time,timecnt,5)),$g(INRMAX(time,timecnt,5)),$g(plandose(time,timecnt,5)),$g(status(time,timecnt,5)),$g(SecAdmUser(time,timecnt,5)),$g(AdmBy(time,timecnt,5)),$g(outrange(time,timecnt,5)),$g(DateHeading(6)),$g(AdminStatus(time,timecnt,6)),$g(AdminQty(time,timecnt,6)),$g(AdminUOM(time,timecnt,6)),$g(AdminDate(time,timecnt,6)),$g(AdminTime(time,timecnt,6)),$g(AdminBy(time,timecnt,6)),$g(TargetINR(6)),$g(INRResult(6)),$g(ExStDate(time,timecnt,6)),$g(ExStTime(time,timecnt,6)),$g(ExEnDate(time,timecnt,6)),$g(ExEnTime(time,timecnt,6)),$g(INRMIN(time,timecnt,6)),$g(INRMAX(time,timecnt,6)),$g(plandose(time,timecnt,6)),$g(status(time,timecnt,6)),$g(SecAdmUser(time,timecnt,6)),$g(AdmBy(time,timecnt,6)),$g(outrange(time,timecnt,6)),$g(DateHeading(7)),$g(AdminStatus(time,timecnt,7)),$g(AdminQty(time,timecnt,7)),$g(AdminUOM(time,timecnt,7)),$g(AdminDate(time,timecnt,7)),$g(AdminTime(time,timecnt,7)),$g(AdminBy(time,timecnt,7)),$g(TargetINR(7)),$g(INRResult(7)),$g(ExStDate(time,timecnt,7)),$g(ExStTime(time,timecnt,7)),$g(ExEnDate(time,timecnt,7)),$g(ExEnTime(time,timecnt,7)),$g(INRMIN(time,timecnt,7)),$g(INRMAX(time,timecnt,7)),$g(plandose(time,timecnt,7)),$g(status(time,timecnt,7)),$g(SecAdmUser(time,timecnt,7)),$g(AdmBy(time,timecnt,7)),$g(outrange(time,timecnt,7)),outsiderange)
+ k DateHeading,AdminStatus,AdminQty,AdminUOM,AdminDate,AdminTime,AdminBy,TargetINR,INRResult,ExStDate,ExStTime,ExEnDate,ExEnTime,INRMIN,INRMAX,plandose,status,SecAdmUser,AdmBy,outrange,outsiderange
+]]></Implementation>
+</Method>
+
+<Method name="MultipleOrders">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>id:%String,code:%String,dates:%String,seq:%String,arcim:%String</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+ ;Clear fields
+ f x=1:1:7 d
+ . s (DateHeading(x),AdminStatus(x),AdminQty(x),AdminUOM(x),AdminDate(x),AdminTime(x),AdminBy(x),TargetINR(x),INRResult(x),ExStDate(x),ExStTime(x),ExEnDate(x),ExEnTime(x),INRMIN(x),INRMAX(x),plandose(x),status(x),SecAdmUser(x),AdmBy(x),outrange(x))=""
+
+ s cnt=0,pass(code)=0,outsiderange=""
+ f date=DateFrom:1:DateTo d
+ . s cnt=$i(cnt)
+ . s (DateHeading(cnt),AdminStatus(cnt),AdminQty(cnt),AdminUOM(cnt),AdminDate(cnt),AdminTime(cnt),AdminBy(cnt),TargetINR(cnt),INRResult(cnt),ExStDate(cnt),ExStTime(cnt),ExEnDate(cnt),ExEnTime(cnt),INRMIN(cnt),INRMAX(cnt),plandose(cnt),status(cnt),SecAdmUser(cnt),AdmBy(cnt),outrange(cnt))=""
+ . s DateHeading(cnt)=$zd(date,3)
+ . i code="INSULIN" d
+ . . s (BSL,BSLTime)=""
+ . . s mradm=$p($g(^PAADM(+^OEORD($p($p(arcim,"^",2),"||")))),"^",61)
+ . . i mradm'="" d
+ . . . s time1="" f  s time1=$o(^MR(mradm,"OBS",0,"DateTime",date,time1)) q:time1=""  d
+ . . . . s obs="" f  s obs=$o(^MR(mradm,"OBS",0,"DateTime",date,time1,obs)) q:obs=""  d
+ . . . . . i $p($g(^MR(mradm,"OBS",obs)),"^",1)'="",$o(^MRC("OBITM",0,"Code","BSL",0))=$p($g(^MR(mradm,"OBS",obs)),"^",1) d
+ . . . . . . i $p($g(^MR(mradm,"OBS",obs)),"^",2)'="" d
+ . . . . . . . i BSL'="" s BSL=BSL_$c(13)_$p($g(^MR(mradm,"OBS",obs)),"^",2)_" ("_$zt($p($g(^MR(mradm,"OBS",obs)),"^",4),2)_")"
+ . . . . . . . i BSL="" s BSL=$p($g(^MR(mradm,"OBS",obs)),"^",2)_" ("_$zt($p($g(^MR(mradm,"OBS",obs)),"^",4),2)_")"
+ . . . . . . . ;i BSLTime'="" s BSLTime=BSLTime_", "_$zt($p($g(^MR(mradm,"OBS",obs)),"^",4),2)
+ . . . . . . . ;i BSLTime="" s BSLTime=$zt($p($g(^MR(mradm,"OBS",obs)),"^",4),2)
+ . . s TargetINR(cnt)=BSL
+ . . s INRResult(cnt)=BSLTime
+ . i code="WARFARIN" d
+ . . s (INRMIN,INRMAX,INRResult,TargetINR)=""
+ . . s mradm=$p($g(^PAADM(+^OEORD($p($p(arcim,"^",2),"||")))),"^",61)
+ . . i mradm'="" d
+ . . . s time1="" f  s time1=$o(^MR(mradm,"OBS",0,"DateTime",date,time1)) q:time1=""  d
+ . . . . s obs="" f  s obs=$o(^MR(mradm,"OBS",0,"DateTime",date,time1,obs)) q:obs=""  d
+ . . . . . i $p($g(^MR(mradm,"OBS",obs)),"^",1)'="" d
+ . . . . . . i $o(^MRC("OBITM",0,"Code","INR",0))=$p($g(^MR(mradm,"OBS",obs)),"^",1) d
+ . . . . . . . i $p($g(^MR(mradm,"OBS",obs)),"^",2)'="" d
+ . . . . . . . . i INRResult'="" s INRResult=INRResult_$c(13)_$p($g(^MR(mradm,"OBS",obs)),"^",2)_" ("_$zt(time1,2)_")"
+ . . . . . . . . i INRResult="" s INRResult=$p($g(^MR(mradm,"OBS",obs)),"^",2)_" ("_$zt(time1,2)_")"
+ . . . . . . i $o(^MRC("OBITM",0,"Code","INR2",0))=$p($g(^MR(mradm,"OBS",obs)),"^",1) d
+ . . . . . . . i $p($g(^MR(mradm,"OBS",obs)),"^",2)'="" d
+ . . . . . . . . i TargetINR'="" s TargetINR=TargetINR_$c(13)_$p($g(^MR(mradm,"OBS",obs)),"^",2)_" ("_$zt(time1,2)_")"
+ . . . . . . . . i TargetINR="" s TargetINR=$p($g(^MR(mradm,"OBS",obs)),"^",2)_" ("_$zt(time1,2)_")"
+ . . . . . . i $o(^MRC("OBITM",0,"Code","INRMIN",0))=$p($g(^MR(mradm,"OBS",obs)),"^",1) d
+ . . . . . . . i $p($g(^MR(mradm,"OBS",obs)),"^",2)'="" d
+ . . . . . . . . i INRMIN'="" s INRMIN=INRMIN_$c(13)_$p($g(^MR(mradm,"OBS",obs)),"^",2)_" ("_$zt(time1,2)_")"
+ . . . . . . . . i INRMIN="" s INRMIN=$p($g(^MR(mradm,"OBS",obs)),"^",2)_" ("_$zt(time1,2)_")"
+ . . . . . . i $o(^MRC("OBITM",0,"Code","INRMAX",0))=$p($g(^MR(mradm,"OBS",obs)),"^",1) d
+ . . . . . . . i $p($g(^MR(mradm,"OBS",obs)),"^",2)'="" d
+ . . . . . . . . i INRMAX'="" s INRMAX=INRMAX_$c(13)_$p($g(^MR(mradm,"OBS",obs)),"^",2)_" ("_$zt(time1,2)_")"
+ . . . . . . . . i INRMAX="" s INRMAX=$p($g(^MR(mradm,"OBS",obs)),"^",2)_" ("_$zt(time1,2)_")"
+ . . s TargetINR(cnt)=TargetINR
+ . . s INRResult(cnt)=INRResult
+ . s time="" f  s time=$o(^zCacheTemp("MEDCHART",id,code,dates,seq,arcim,date,time)) q:time=""  d
+ . . ;
+ . . ; Create matrix
+ . . s oei=0 f  s oei=$o(^zCacheTemp("MEDCHART",id,code,dates,seq,arcim,date,time,oei)) q:oei=""  d
+ . . . s idx=0 f  s idx=$o(^zCacheTemp("MEDCHART",id,code,dates,seq,arcim,date,time,oei,idx)) q:idx=""  d
+ . . . . s stat=idx
+ . . . . s ExStDate(time_stat,cnt)=$zd(date,3)
+ . . . . s ExStTime(time_stat,cnt)=$zt(time,2)
+ . . . . i $g(DateHeading(cnt))=$zd(date,3) s plandose(time_stat,cnt)=$p($g(^zCacheTemp("MEDCHART",id,code,dates,seq,arcim,date,time,oei,idx)),"^",11)
+ . . . . i $g(DateHeading(cnt))=$zd($p($g(^zCacheTemp("MEDCHART",id,code,dates,seq,arcim,date,time,oei,idx)),"^",9),3),$p($g(^zCacheTemp("MEDCHART",id,code,dates,seq,arcim,date,time,oei,idx)),"^",10)=time d
+ . . . . . ;
+ . . . . . s AdminDate(time_stat,cnt)=$p($g(^zCacheTemp("MEDCHART",id,code,dates,seq,arcim,date,time,oei,idx)),"^",9)
+ . . . . . i AdminDate(time_stat,cnt)'="" s AdminDate(time_stat,cnt)=$zd(AdminDate(time_stat,cnt),3)
+ . . . . . s AdminStatus(time_stat,cnt)=$p($g(^zCacheTemp("MEDCHART",id,code,dates,seq,arcim,date,time,oei,idx)),"^",1)
+ . . . . . s AdminQty(time_stat,cnt)=$p($g(^zCacheTemp("MEDCHART",id,code,dates,seq,arcim,date,time,oei,idx)),"^",2)
+ . . . . . i $g(AdminQty(time_stat,cnt))'="" s AdminQty(time_stat,cnt)=$s($e(AdminQty(time_stat,cnt))=".":"0"_AdminQty(time_stat,cnt),1:AdminQty(time_stat,cnt))
+ . . . . . s AdminUOM(time_stat,cnt)=$p($g(^zCacheTemp("MEDCHART",id,code,dates,seq,arcim,date,time,oei,idx)),"^",3)
+ . . . . . s AdminTime(time_stat,cnt)=$p($g(^zCacheTemp("MEDCHART",id,code,dates,seq,arcim,date,time,oei,idx)),"^",5)
+ . . . . . i AdminTime(time_stat,cnt)'="" d
+ . . . . . . s AdminTime(time_stat,cnt)=$zt(AdminTime(time_stat,cnt),2)
+ . . . . . . i $p($g(^zCacheTemp("MEDCHART",id,code,dates,seq,arcim,date,time,oei,idx)),"^",4)'=date s AdminTime(time_stat,cnt)=$zd($p($g(^zCacheTemp("MEDCHART",id,code,dates,seq,arcim,date,time,oei,idx)),"^",4),4)_" "_AdminTime(time_stat,cnt)
+ . . . . . s AdminBy(time_stat,cnt)=$p($g(^zCacheTemp("MEDCHART",id,code,dates,seq,arcim,date,time,oei,idx)),"^",6)
+ . . . . . s ExEnDate(time_stat,cnt)=$p($g(^zCacheTemp("MEDCHART",id,code,dates,seq,arcim,date,time,oei,idx)),"^",7)
+ . . . . . i ExEnDate(time_stat,cnt)'="" s ExEnDate(time_stat,cnt)=$zd(ExEnDate(time_stat,cnt),3)
+ . . . . . s ExEnTime(time_stat,cnt)=$p($g(^zCacheTemp("MEDCHART",id,code,dates,seq,arcim,date,time,oei,idx)),"^",8)
+ . . . . . i ExEnTime(time_stat,cnt)'="" s ExEnTime(time_stat,cnt)=$zt(ExEnTime(time_stat,cnt),2)
+ . . . . . s plandose(time_stat,cnt)=$p($g(^zCacheTemp("MEDCHART",id,code,dates,seq,arcim,date,time,oei,idx)),"^",11)
+ . . . . . i $g(plandose(time_stat,cnt))'="" s plandose(time_stat,cnt)=$s($e(plandose(time_stat,cnt))=".":"0"_plandose(time_stat,cnt),1:plandose(time_stat,cnt))
+ . . . . . i $o(^zCacheTemp("MEDCHART",id,code,dates,seq,arcim,date,time,oei,idx))="" s status(time_stat,cnt)=$p($g(^zCacheTemp("MEDCHART",id,code,dates,seq,arcim,date,time,oei,idx)),"^",18)
+ . . . . . s SecAdmUser(time_stat,cnt)=$p($g(^zCacheTemp("MEDCHART",id,code,dates,seq,arcim,date,time,oei,idx)),"^",19)
+ . . . . . s AdmBy(time_stat,cnt)=$p($g(^zCacheTemp("MEDCHART",id,code,dates,seq,arcim,date,time,oei,idx)),"^",20)
+ . . . . . s outrange(time_stat,cnt)=$p($g(^zCacheTemp("MEDCHART",id,code,dates,seq,arcim,date,time,oei,idx)),"^",21)
+ . . . . . i outrange(time_stat,cnt)="Y" s DateHeading(cnt)="*"_DateHeading(cnt)
+ . . . . . s actualldate(time_stat,cnt)=$p($g(^zCacheTemp("MEDCHART",id,code,dates,seq,arcim,date,time,oei,idx)),"^",10)
+ . . . . . s pass(id,code,+oei,$p(oei,"||",2),arcim)=1
+ 
+ ; Get out of range admininistered details
+ s date=0 f  s date=$o(^zCacheTemp("MEDCHART",id,code,dates,seq,arcim,date)) q:date=""  d
+ . i date>DateTo d
+ . s time="" f  s time=$o(^zCacheTemp("MEDCHART",id,code,dates,seq,arcim,date,time)) q:time=""  d
+ . . s oei=0 f  s oei=$o(^zCacheTemp("MEDCHART",id,code,dates,seq,arcim,date,time,oei)) q:oei=""  d
+ . . . s idx=0 f  s idx=$o(^zCacheTemp("MEDCHART",id,code,dates,seq,arcim,date,time,oei,idx)) q:idx=""  d
+ . . . . i $p($g(^zCacheTemp("MEDCHART",id,code,dates,seq,arcim,date,time,oei,idx)),"^",21)="Y" d
+ . . . . . ;<Actual date of administration> - <Dose> <uom> <status> at <actual time of administration> but planned for <Planned date of administration> <Planned time of administration> 
+ . . . . . s AdminDate=$p($g(^zCacheTemp("MEDCHART",id,code,dates,seq,arcim,date,time,oei,idx)),"^",4)
+ . . . . . i $g(AdminDate)'="" s ^zCacheTemp("MEDCHART",id,"OREXISTS",$p(oei,"||",1,2),$zd(AdminDate,3))=""
+ . . . . . s AdminQty=$p($g(^zCacheTemp("MEDCHART",id,code,dates,seq,arcim,date,time,oei,idx)),"^",2)
+ . . . . . i $g(AdminQty)'="",$p(AdminQty,".")="" s AdminQty="0"_AdminQty
+ . . . . . s AdminUOM=$p($g(^zCacheTemp("MEDCHART",id,code,dates,seq,arcim,date,time,oei,idx)),"^",3)
+ . . . . . s AdminStatus=$p($g(^zCacheTemp("MEDCHART",id,code,dates,seq,arcim,date,time,oei,idx)),"^",1)
+ . . . . . s AdminTime=$p($g(^zCacheTemp("MEDCHART",id,code,dates,seq,arcim,date,time,oei,idx)),"^",5)
+ . . . . . i $g(outsiderange)'="",$g(AdminDate)'="" s outsiderange=outsiderange_$c(13)_"* "_$zd(AdminDate,4)_" - "_$s(AdminQty'="":AdminQty_" "_AdminUOM_" ",1:"")_AdminStatus_" at "_$zt(AdminTime,2)_" but planned for "_$zd(date,4)_" "_$zt(time,2)
+ . . . . . i $g(outsiderange)="",$g(AdminDate)'="" s outsiderange="* "_$zd(AdminDate,4)_" - "_$s(AdminQty'="":AdminQty_" "_AdminUOM_" ",1:"")_AdminStatus_" at "_$zt(AdminTime,2)_" but planned for "_$zd(date,4)_" "_$zt(time,2)
+ . . . . . s ^zCacheTemp("MEDCHART",id,"OREXISTS",$p(oei,"||",1,2))=outsiderange
+
+ s time="" f  s time=$o(ExStDate(time)) q:time=""  d
+ . s check=0
+ . f x=1:1:7 d
+ . . i $g(actualldate(time,x))'="" s check=1
+ . i check=1 d
+ . . s (outrange(time,1),outrange(time,2),outrange(time,3),outrange(time,4),outrange(time,5),outrange(time,6),outrange(time,7))=""
+ . . i $g(DateHeading(1))'="" d
+ . . . i $d(^zCacheTemp("MEDCHART",id,"OREXISTS",$p(arcim,"^",2),$g(DateHeading(1)))) s outrange(time,1)="*"
+ . . i $g(DateHeading(2))'="" d
+ . . . i $d(^zCacheTemp("MEDCHART",id,"OREXISTS",$p(arcim,"^",2),$g(DateHeading(2)))) s outrange(time,2)="*"
+ . . i $g(DateHeading(3))'="" d
+ . . . i $d(^zCacheTemp("MEDCHART",id,"OREXISTS",$p(arcim,"^",2),$g(DateHeading(3)))) s outrange(time,3)="*"
+ . . i $g(DateHeading(4))'="" d
+ . . . i $d(^zCacheTemp("MEDCHART",id,"OREXISTS",$p(arcim,"^",2),$g(DateHeading(4)))) s outrange(time,4)="*"
+ . . i $g(DateHeading(5))'="" d
+ . . . i $d(^zCacheTemp("MEDCHART",id,"OREXISTS",$p(arcim,"^",2),$g(DateHeading(5)))) s outrange(time,5)="*"
+ . . i $g(DateHeading(6))'="" d
+ . . . i $d(^zCacheTemp("MEDCHART",id,"OREXISTS",$p(arcim,"^",2),$g(DateHeading(6)))) s outrange(time,6)="*"
+ . . i $g(DateHeading(7))'="" d
+ . . . i $d(^zCacheTemp("MEDCHART",id,"OREXISTS",$p(arcim,"^",2),$g(DateHeading(7)))) s outrange(time,7)="*"
+ . . s ind=$i(ind)
+ . . s ^CacheTemp("TRAK",repid,ind)=$lb(id,code,$p(arcim,"^",2),$p(arcim,"^"),DateHeading(1),AdminStatus(time,1),AdminQty(time,1),AdminUOM(time,1),AdminDate(time,1),AdminTime(time,1),AdminBy(time,1),TargetINR(1),INRResult(1),ExStDate(time,1),ExStTime(time,1),ExEnDate(time,1),ExEnTime(time,1),INRMIN(time,1),INRMAX(time,1),plandose(time,1),status(time,1),SecAdmUser(time,1),AdmBy(time,1),outrange(time,1),DateHeading(2),AdminStatus(time,2),AdminQty(time,2),AdminUOM(time,2),AdminDate(time,2),AdminTime(time,2),AdminBy(time,2),TargetINR(2),INRResult(2),ExStDate(time,2),ExStTime(time,2),ExEnDate(time,2),ExEnTime(time,2),INRMIN(time,2),INRMAX(time,2),plandose(time,2),status(time,2),SecAdmUser(time,2),AdmBy(time,2),outrange(time,2),DateHeading(3),AdminStatus(time,3),AdminQty(time,3),AdminUOM(time,3),AdminDate(time,3),AdminTime(time,3),AdminBy(time,3),TargetINR(3),INRResult(3),ExStDate(time,3),ExStTime(time,3),ExEnDate(time,3),ExEnTime(time,3),INRMIN(time,3),INRMAX(time,3),plandose(time,3),status(time,3),SecAdmUser(time,3),AdmBy(time,3),outrange(time,3),DateHeading(4),AdminStatus(time,4),AdminQty(time,4),AdminUOM(time,4),AdminDate(time,4),AdminTime(time,4),AdminBy(time,4),TargetINR(4),INRResult(4),ExStDate(time,4),ExStTime(time,4),ExEnDate(time,4),ExEnTime(time,4),INRMIN(time,4),INRMAX(time,4),plandose(time,4),status(time,4),SecAdmUser(time,4),AdmBy(time,4),outrange(time,4),DateHeading(5),AdminStatus(time,5),AdminQty(time,5),AdminUOM(time,5),AdminDate(time,5),AdminTime(time,5),AdminBy(time,5),TargetINR(5),INRResult(5),ExStDate(time,5),ExStTime(time,5),ExEnDate(time,5),ExEnTime(time,5),INRMIN(time,5),INRMAX(time,5),plandose(time,5),status(time,5),SecAdmUser(time,5),AdmBy(time,5),outrange(time,5),DateHeading(6),AdminStatus(time,6),AdminQty(time,6),AdminUOM(time,6),AdminDate(time,6),AdminTime(time,6),AdminBy(time,6),TargetINR(6),INRResult(6),ExStDate(time,6),ExStTime(time,6),ExEnDate(time,6),ExEnTime(time,6),INRMIN(time,6),INRMAX(time,6),plandose(time,6),status(time,6),SecAdmUser(time,6),AdmBy(time,6),outrange(time,6),DateHeading(7),AdminStatus(time,7),AdminQty(time,7),AdminUOM(time,7),AdminDate(time,7),AdminTime(time,7),AdminBy(time,7),TargetINR(7),INRResult(7),ExStDate(time,7),ExStTime(time,7),ExEnDate(time,7),ExEnTime(time,7),INRMIN(time,7),INRMAX(time,7),plandose(time,7),status(time,7),SecAdmUser(time,7),AdmBy(time,7),outrange(time,7),outsiderange)
+ k DateHeading,AdminStatus,AdminQty,AdminUOM,AdminDate,AdminTime,AdminBy,TargetINR,INRResult,ExStDate,ExStTime,ExEnDate,ExEnTime,INRMIN,INRMAX,plandose,status,SecAdmUser,AdmBy,outrange,outsiderange
+]]></Implementation>
+</Method>
+
+<Method name="NormalOrders">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>id:%String,code:%String,dates:%String,seq:%String,arcim:%String</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+ s cnt=0,pass(code)=0,timecnt=0,timetotal=0
+ k DateHeading,AdminStatus,AdminQty,AdminUOM,AdminDate,AdminTime,AdminBy,TargetINR,INRResult,ExStDate,ExStTime,ExEnDate,ExEnTime,plandose
+ s (DateHeading(1),AdminStatus(1),AdminQty(1),AdminUOM(1),AdminDate(1),AdminTime(1),AdminBy(1),TargetINR(1),INRResult(1),ExStDate(1),ExStTime(1),ExEnDate(1),ExEnTime(1),INRMIN(1),INRMAX(1),plandose(1),DateHeading(2),AdminStatus(2),AdminQty(2),AdminUOM(2),AdminDate(2),AdminTime(2),AdminBy(2),TargetINR(2),INRResult(2),ExStDate(2),ExStTime(2),ExEnDate(2),ExEnTime(2),INRMIN(2),INRMAX(2),plandose(2),DateHeading(3),AdminStatus(3),AdminQty(3),AdminUOM(3),AdminDate(3),AdminTime(3),AdminBy(3),TargetINR(3),INRResult(3),ExStDate(3),ExStTime(3),ExEnDate(3),ExEnTime(3),INRMIN(3),INRMAX(3),plandose(3))=""
+ s (DateHeading(4),AdminStatus(4),AdminQty(4),AdminUOM(4),AdminDate(4),AdminTime(4),AdminBy(4),TargetINR(4),INRResult(4),ExStDate(4),ExStTime(4),ExEnDate(4),ExEnTime(4),INRMIN(4),INRMAX(4),plandose(4),DateHeading(5),AdminStatus(5),AdminQty(5),AdminUOM(5),AdminDate(5),AdminTime(5),AdminBy(5),TargetINR(5),INRResult(5),ExStDate(5),ExStTime(5),ExEnDate(5),ExEnTime(5),INRMIN(5),INRMAX(5),plandose(5),DateHeading(6),AdminStatus(6),AdminQty(6),AdminUOM(6),AdminDate(6),AdminTime(6),AdminBy(6),TargetINR(6),INRResult(6),ExStDate(6),ExStTime(6),ExEnDate(6),ExEnTime(6),INRMIN(6),INRMAX(6),plandose(6),DateHeading(7),AdminStatus(7),AdminQty(7),AdminUOM(7),AdminDate(7),AdminTime(7),AdminBy(7),TargetINR(7),INRResult(7),ExStDate(7),ExStTime(7),ExEnDate(7),ExEnTime(7),INRMIN(7),INRMAX(7),plandose(7))=""
+ f date=DateFrom:1:DateTo d
+ . s cnt=$i(cnt)
+ . s (DateHeading(cnt),AdminStatus(cnt),AdminQty(cnt),AdminUOM(cnt),AdminDate(cnt),AdminTime(cnt),AdminBy(cnt),TargetINR(cnt),INRResult(cnt),ExStDate(cnt),ExStTime(cnt),ExEnDate(cnt),ExEnTime(cnt),INRMIN(cnt),INRMAX(cnt),plandose(cnt))=""
+ . s DateHeading(cnt)=$zd(date,3)
+ . s time="",timecnt=0 f  s time=$o(^zCacheTemp("MEDCHART",id,code,dates,seq,arcim,date,time)) q:time=""  d
+ . . s oei=0 f  s oei=$o(^zCacheTemp("MEDCHART",id,code,dates,seq,arcim,date,time,oei)) q:oei=""  d
+ . . . s timecnt=$i(timecnt)
+ . . . s ExStDate(cnt,timecnt)=$zd(date,3)
+ . . . s ExStTime(cnt,timecnt)=$zt(time,2)
+ . . . s AdminDate(cnt,timecnt)=$p($g(^zCacheTemp("MEDCHART",id,code,dates,seq,arcim,date,time,oei)),"^",4)
+ . . . i AdminDate(cnt,timecnt)'="" s AdminDate(cnt,timecnt)=$zd(AdminDate(cnt,timecnt),3)
+ . . . i $g(DateHeading(cnt))=$g(AdminDate(cnt,timecnt)),$p($g(^zCacheTemp("MEDCHART",id,code,dates,seq,arcim,date,time,oei)),"^",1)'="" d
+ . . . . s AdminStatus(cnt,timecnt)=$p($g(^zCacheTemp("MEDCHART",id,code,dates,seq,arcim,date,time,oei)),"^",1)
+ . . . . s AdminQty(cnt,timecnt)=$p($g(^zCacheTemp("MEDCHART",id,code,dates,seq,arcim,date,time,oei)),"^",2)
+ . . . . s AdminUOM(cnt,timecnt)=$p($g(^zCacheTemp("MEDCHART",id,code,dates,seq,arcim,date,time,oei)),"^",3)
+ . . . . s AdminTime(cnt,timecnt)=$p($g(^zCacheTemp("MEDCHART",id,code,dates,seq,arcim,date,time,oei)),"^",5)
+ . . . . i AdminTime(cnt,timecnt)'="" s AdminTime(cnt,timecnt)=$zt(AdminTime(cnt,timecnt),2)
+ . . . . s AdminBy(cnt,timecnt)=$p($g(^zCacheTemp("MEDCHART",id,code,dates,seq,arcim,date,time,oei)),"^",6)
+ . . . . s ExStDate(cnt,timecnt)=$zd(date,3)
+ . . . . s ExStTime(cnt,timecnt)=$zt(time,2)
+ . . . . s ExEnDate(cnt,timecnt)=$p($g(^zCacheTemp("MEDCHART",id,code,dates,seq,arcim,date,time,oei)),"^",7)
+ . . . . i ExEnDate(cnt,timecnt)'="" s ExEnDate(cnt,timecnt)=$zd(ExEnDate(cnt,timecnt),3)
+ . . . . s ExEnTime(cnt,timecnt)=$p($g(^zCacheTemp("MEDCHART",id,code,dates,seq,arcim,date,time,oei)),"^",8)
+ . . . . i ExEnTime(cnt,timecnt)'="" s ExEnTime(cnt,timecnt)=$zt(ExEnTime(cnt,timecnt),2)
+ . . . . s plandose(cnt,timecnt)=$p($g(^zCacheTemp("MEDCHART",id,code,dates,seq,arcim,date,time,oei)),"^",11)
+ . . . . s pass(id,code,+oei,$p(oei,"||",2),arcim)=1
+ . . . . i timetotal<timecnt s timetotal=timecnt
+ f timecnt=1:1:timetotal d
+ . s ind=$i(ind)
+ . s ^CacheTemp("TRAK",repid,ind)=$lb(id,code,$p(arcim,"^",2),$p(arcim,"^"),DateHeading(1),AdminStatus(1,timecnt),AdminQty(1,timecnt),AdminUOM(1,timecnt),AdminDate(1,timecnt),AdminTime(1,timecnt),AdminBy(1,timecnt),TargetINR(1,timecnt),INRResult(1,timecnt),ExStDate(1,timecnt),ExStTime(1,timecnt),ExEnDate(1,timecnt),ExEnTime(1,timecnt),INRMIN(1,timecnt),INRMAX(1,timecnt),plandose(1,timecnt),DateHeading(2),AdminStatus(2,timecnt),AdminQty(2,timecnt),AdminUOM(2,timecnt),AdminDate(2,timecnt),AdminTime(2,timecnt),AdminBy(2,timecnt),TargetINR(2,timecnt),INRResult(2,timecnt),ExStDate(2,timecnt),ExStTime(2,timecnt),ExEnDate(2,timecnt),ExEnTime(2,timecnt),INRMIN(2,timecnt),INRMAX(2,timecnt),plandose(2,timecnt),DateHeading(3),AdminStatus(3,timecnt),AdminQty(3,timecnt),AdminUOM(3,timecnt),AdminDate(3,timecnt),AdminTime(3,timecnt),AdminBy(3,timecnt),TargetINR(3,timecnt),INRResult(3,timecnt),ExStDate(3,timecnt),ExStTime(3,timecnt),ExEnDate(3,timecnt),ExEnTime(3,timecnt),INRMIN(3,timecnt),INRMAX(3,timecnt),plandose(3,timecnt),DateHeading(4),AdminStatus(4,timecnt),AdminQty(4,timecnt),AdminUOM(4,timecnt),AdminDate(4,timecnt),AdminTime(4,timecnt),AdminBy(4,timecnt),TargetINR(4,timecnt),INRResult(4,timecnt),ExStDate(4,timecnt),ExStTime(4,timecnt),ExEnDate(4,timecnt),ExEnTime(4,timecnt),INRMIN(4,timecnt),INRMAX(4,timecnt),plandose(4,timecnt),DateHeading(5),AdminStatus(5,timecnt),AdminQty(5,timecnt),AdminUOM(5,timecnt),AdminDate(5,timecnt),AdminTime(5,timecnt),AdminBy(5,timecnt),TargetINR(5,timecnt),INRResult(5,timecnt),ExStDate(5,timecnt),ExStTime(5,timecnt),ExEnDate(5,timecnt),ExEnTime(5,timecnt),INRMIN(5,timecnt),INRMAX(5,timecnt),plandose(5,timecnt),DateHeading(6),AdminStatus(6,timecnt),AdminQty(6,timecnt),AdminUOM(6,timecnt),AdminDate(6,timecnt),AdminTime(6,timecnt),AdminBy(6,timecnt),TargetINR(6,timecnt),INRResult(6,timecnt),ExStDate(6,timecnt),ExStTime(6,timecnt),ExEnDate(6,timecnt),ExEnTime(6,timecnt),INRMIN(6,timecnt),INRMAX(6,timecnt),plandose(6,timecnt),DateHeading(7),AdminStatus(7,timecnt),AdminQty(7,timecnt),AdminUOM(7,timecnt),AdminDate(7,timecnt),AdminTime(7,timecnt),AdminBy(7,timecnt),TargetINR(7,timecnt),INRResult(7,timecnt),ExStDate(7,timecnt),ExStTime(7,timecnt),ExEnDate(7,timecnt),ExEnTime(7,timecnt),INRMIN(7,timecnt),INRMAX(7,timecnt),plandose(7,timecnt))
+ . s (DateHeading,AdminStatus,AdminQty,AdminUOM,AdminDate,AdminTime,AdminBy,TargetINR,INRResult,ExStDate,ExStTime,ExEnDate,ExEnTime,INRMIN,INRMAX,plandose)=""
+ k DateHeading,AdminStatus,AdminQty,AdminUOM,AdminDate,AdminTime,AdminBy,TargetINR,INRResult,ExStDate,ExStTime,ExEnDate,ExEnTime,INRMIN,INRMAX,plandose
+]]></Implementation>
+</Method>
+
+<Method name="IVOrders">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>id:%String,code:%String,dates:%String</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+ s dates=0 f  s dates=$o(^zCacheTemp("MEDCHART",id,code,dates)) q:dates=""  d
+ . s DateTo=$p(dates,"||",2),DateFrom=+dates
+ . s seq=0 f  s seq=$o(^zCacheTemp("MEDCHART",id,code,dates,seq)) q:seq=""  d
+ . . s arcim=0 f  s arcim=$o(^zCacheTemp("MEDCHART",id,code,dates,seq,arcim)) q:arcim=""  d
+ . . . s cnt=0,pass(code)=0
+ . . . s date=0 f  s date=$o(^zCacheTemp("MEDCHART",id,code,dates,seq,arcim,date)) q:date=""  d
+ . . . . s time="" f  s time=$o(^zCacheTemp("MEDCHART",id,code,dates,seq,arcim,date,time)) q:time=""  d
+ . . . . . s cnt=1
+ . . . . . s (DateHeading(1),AdminStatus(1),AdminQty(1),AdminUOM(1),AdminDate(1),AdminTime(1),AdminBy(1),TargetINR(1),INRResult(1),ExStDate(1),ExStTime(1),ExEnDate(1),ExEnTime(1),INRMIN(1),INRMAX(1),plandose(1),DateHeading(2),AdminStatus(2),AdminQty(2),AdminUOM(2),AdminDate(2),AdminTime(2),AdminBy(2),TargetINR(2),INRResult(2),ExStDate(2),ExStTime(2),ExEnDate(2),ExEnTime(2),INRMIN(2),INRMAX(2),plandose(2),DateHeading(3),AdminStatus(3),AdminQty(3),AdminUOM(3),AdminDate(3),AdminTime(3),AdminBy(3),TargetINR(3),INRResult(3),ExStDate(3),ExStTime(3),ExEnDate(3),ExEnTime(3),INRMIN(3),INRMAX(3),plandose(3))=""
+ . . . . . s (DateHeading(4),AdminStatus(4),AdminQty(4),AdminUOM(4),AdminDate(4),AdminTime(4),AdminBy(4),TargetINR(4),INRResult(4),ExStDate(4),ExStTime(4),ExEnDate(4),ExEnTime(4),INRMIN(4),INRMAX(4),plandose(4),DateHeading(5),AdminStatus(5),AdminQty(5),AdminUOM(5),AdminDate(5),AdminTime(5),AdminBy(5),TargetINR(5),INRResult(5),ExStDate(5),ExStTime(5),ExEnDate(5),ExEnTime(5),INRMIN(5),INRMAX(5),plandose(5),DateHeading(6),AdminStatus(6),AdminQty(6),AdminUOM(6),AdminDate(6),AdminTime(6),AdminBy(6),TargetINR(6),INRResult(6),ExStDate(6),ExStTime(6),ExEnDate(6),ExEnTime(6),INRMIN(6),INRMAX(6),plandose(6),DateHeading(7),AdminStatus(7),AdminQty(7),AdminUOM(7),AdminDate(7),AdminTime(7),AdminBy(7),TargetINR(7),INRResult(7),ExStDate(7),ExStTime(7),ExEnDate(7),ExEnTime(7),INRMIN(7),INRMAX(7),plandose(7))=""
+ . . . . . i date>=DateFrom,date<=DateTo d
+ . . . . . . s DateHeading(cnt)=$zd(date,3)
+ . . . . . . s oei=0 f  s oei=$o(^zCacheTemp("MEDCHART",id,code,dates,seq,arcim,date,time,oei)) q:oei=""  d
+ . . . . . . . s AdminStatus(cnt)=$p($g(^zCacheTemp("MEDCHART",id,code,dates,seq,arcim,date,time,oei)),"^",1)
+ . . . . . . . s AdminQty(cnt)=$p($g(^zCacheTemp("MEDCHART",id,code,dates,seq,arcim,date,time,oei)),"^",2)
+ . . . . . . . s AdminUOM(cnt)=$p($g(^zCacheTemp("MEDCHART",id,code,dates,seq,arcim,date,time,oei)),"^",3)
+ . . . . . . . s AdminDate(cnt)=$p($g(^zCacheTemp("MEDCHART",id,code,dates,seq,arcim,date,time,oei)),"^",4)
+ . . . . . . . i AdminDate(cnt)'="" s AdminDate(cnt)=$zd(AdminDate(cnt),3)
+ . . . . . . . s AdminTime(cnt)=$p($g(^zCacheTemp("MEDCHART",id,code,dates,seq,arcim,date,time,oei)),"^",5)
+ . . . . . . . i AdminTime(cnt)'="" s AdminTime(cnt)=$zt(AdminTime(cnt),2)
+ . . . . . . . s AdminBy(cnt)=$p($g(^zCacheTemp("MEDCHART",id,code,dates,seq,arcim,date,time,oei)),"^",6)
+ . . . . . . . s ExStDate(cnt)=$zd(date,3)
+ . . . . . . . s ExStTime(cnt)=$zt(time,2)
+ . . . . . . . s ExEnDate(cnt)=$p($g(^zCacheTemp("MEDCHART",id,code,dates,seq,arcim,date,time,oei)),"^",7)
+ . . . . . . . i ExEnDate(cnt)'="" s ExEnDate(cnt)=$zd(ExEnDate(cnt),3)
+ . . . . . . . s ExEnTime(cnt)=$p($g(^zCacheTemp("MEDCHART",id,code,dates,seq,arcim,date,time,oei)),"^",8)
+ . . . . . . . i ExEnTime(cnt)'="" s ExEnTime(cnt)=$zt(ExEnTime(cnt),2)
+ . . . . . . . s pass(id,code,+oei,$p(oei,"||",2),arcim)=1
+ . . . . . . . s ind=$i(ind)
+ . . . . . . . s ^CacheTemp("TRAK",repid,ind)=$lb(id,code,$p(arcim,"^",2),$p(arcim,"^"),DateHeading(1),AdminStatus(1),AdminQty(1),AdminUOM(1),AdminDate(1),AdminTime(1),AdminBy(1),TargetINR(1),INRResult(1),ExStDate(1),ExStTime(1),ExEnDate(1),ExEnTime(1),INRMIN(1),INRMAX(1),plandose(1),DateHeading(2),AdminStatus(2),AdminQty(2),AdminUOM(2),AdminDate(2),AdminTime(2),AdminBy(2),TargetINR(2),INRResult(2),ExStDate(2),ExStTime(2),ExEnDate(2),ExEnTime(2),INRMIN(2),INRMAX(2),plandose(2),DateHeading(3),AdminStatus(3),AdminQty(3),AdminUOM(3),AdminDate(3),AdminTime(3),AdminBy(3),TargetINR(3),INRResult(3),ExStDate(3),ExStTime(3),ExEnDate(3),ExEnTime(3),INRMIN(3),INRMAX(3),plandose(3),DateHeading(4),AdminStatus(4),AdminQty(4),AdminUOM(4),AdminDate(4),AdminTime(4),AdminBy(4),TargetINR(4),INRResult(4),ExStDate(4),ExStTime(4),ExEnDate(4),ExEnTime(4),INRMIN(4),INRMAX(4),plandose(4),DateHeading(5),AdminStatus(5),AdminQty(5),AdminUOM(5),AdminDate(5),AdminTime(5),AdminBy(5),TargetINR(5),INRResult(5),ExStDate(5),ExStTime(5),ExEnDate(5),ExEnTime(5),INRMIN(5),INRMAX(5),plandose(5),DateHeading(6),AdminStatus(6),AdminQty(6),AdminUOM(6),AdminDate(6),AdminTime(6),AdminBy(6),TargetINR(6),INRResult(6),ExStDate(6),ExStTime(6),ExEnDate(6),ExEnTime(6),INRMIN(6),INRMAX(6),plandose(6),DateHeading(7),AdminStatus(7),AdminQty(7),AdminUOM(7),AdminDate(7),AdminTime(7),AdminBy(7),TargetINR(7),INRResult(7),ExStDate(7),ExStTime(7),ExEnDate(7),ExEnTime(7),INRMIN(7),INRMAX(7),plandose(7))
+ . . . . . . . s (DateHeading,AdminStatus,AdminQty,AdminUOM,AdminDate,AdminTime,AdminBy,TargetINR,INRResult,ExStDate,ExStTime,ExEnDate,ExEnTime,INRMIN,INRMAX,plandose)=""
+ k DateHeading,AdminStatus,AdminQty,AdminUOM,AdminDate,AdminTime,AdminBy,TargetINR,INRResult,ExStDate,ExStTime,ExEnDate,ExEnTime,INRMIN,INRMAX,plandose
+]]></Implementation>
+</Method>
+</Class>
+</Export>

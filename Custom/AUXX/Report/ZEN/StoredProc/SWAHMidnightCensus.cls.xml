@@ -1,0 +1,655 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.AUXX.Report.ZEN.StoredProc.SWAHMidnightCensus">
+<ProcedureBlock>0</ProcedureBlock>
+<Super>Report.Abstract</Super>
+<TimeCreated>61996,29378.011257</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/AUXX/Report/ZEN/StoredProc/SWAHMidnightCensus.xml#1 $</Default>
+</Parameter>
+
+<Method name="FindPatientWard">
+<ClassMethod>1</ClassMethod>
+<CodeMode>code</CodeMode>
+<FormalSpec>admrow:%Library.Integer,date:%Library.Date,PAADMAdmDate:%Library.Date</FormalSpec>
+<ReturnType>%Library.Integer</ReturnType>
+<Implementation><![CDATA[
+ ;; get ward for patient id on requested date
+ //s date=date-1
+ // get list of transaction for patient in the given date range where status is 'accepted', 'done' or 'transfer'
+ // note: TRAK P7SUP TRANS_TransType_DR = 3
+ s pTRANSTransTypeDR=2
+ s pAccepted=3,pDone=4,pTransfer=5
+	&sql(DECLARE PWARD CURSOR FOR
+ select trans_childsub 
+ from sqluser.pa_admtransaction
+ where (trans_startdate between :PAADMAdmDate and :date)
+ and (trans_parref=:admrow)
+ and (TRANS_TransType_DR=:pTRANSTransTypeDR )
+ and (TRANS_Status_DR IN (:pAccepted,:pDone,:pTransfer))
+ order by trans_childsub desc)
+
+ //get most recent transaction for bed/ward movement
+ &sql(OPEN PWARD)
+
+ &sql(FETCH PWARD INTO :TRANSID)	
+ i SQLCODE s TYPE=2,STATUS=0
+ i 'SQLCODE {
+ s TYPE=$p($g(^PAADM(admrow,"TRANS",TRANSID)),"^",21)
+ s STATUS=$p($g(^PAADM(admrow,"TRANS",TRANSID)),"^",12)
+ } 
+ i STATUS=0 s TRANSID=0
+
+ &sql(CLOSE PWARD)
+
+ q TRANSID
+]]></Implementation>
+</Method>
+
+<Method name="GetPatientListClose">
+<Description>
+This is the Close component of the %Library.Query.
+This is standard code and should never have to change.
+This is where all the cleanup is performed, i.e. the purging of the temporary storage global ^CacheTemp.</Description>
+<ClassMethod>1</ClassMethod>
+<CodeMode>code</CodeMode>
+<FormalSpec>QHandle:%Library.Binary</FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Clean up by purging the temporary node in ^CacheTemp global
+ New repid
+ Set repid=$li(QHandle,2)
+ Kill ^CacheTemp(repid)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="GetPatientListExecute">
+<Description>
+This is the Execute section for the %Library.Query. 
+All of the logic will be performed here.
+A new node for the ^CacheTemp global will be created and each subscript of this global will contain
+a row for the report.</Description>
+<ClassMethod>1</ClassMethod>
+<CodeMode>code</CodeMode>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,date:%Library.Date,hospital:%Library.Integer,ward:%Library.Integer]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Get reportid i.e. use $INCREMENT to add another node to ^CacheTemp global. 
+ // We use ^CacheTemp global because it will always use memory before disk
+ 
+ New repid,ind
+
+ n WARDFLAG,flag2,TYPE,STATUS,CurrRoomID,MRADMRowId,TRANSID,i,id,dfrlom,admrow,PAADMRowId,PAPMIRowId,PAPMIName,PAPMIName2,PAPMIName3,PAPMINo,PAADMAdmNo,PAPMIDOB,PAPERAgeYr,PAPERAge,CTSEXCode,PAADMAdmDate,PAADMAdmTime,PAADMDischgDate,PAADMDischgTime,TRANSStartDate,CurrWardID,CurrWardCode,CurrWardDesc,CurrWARDLocDR,CurrBedID,CurrBedCode,CurrBedDesc,PAADMDepCodeDR,UnitCode,UnitDesc,TRANSStartTime,TRANSEndDate,TRANSEndTime,TRANSWardID,TRANSWardCode,TRANSWardDesc,TRANSBedID,TRANSBEDCode,TRANSBEDDesc,MRADMDischTypeDR,CTDSPCode,CTDSPDesc,PAADMInPatAdmTypeDR,ADSOURowId,INSChildsub,INSTRowId,INSTCode,PAADMVisitStatus,PAADMType,ArrDepType,BEDChildSub,PAPEREstMonth,PAPEREstYear,PAPEREstTimeStamp,ADMLGoingOutDate,ADMLGoingOutTime,ADMLActualDateReturn,ADMLActualTimeReturn,ADMLChildsub,CacheAdmDate,CacheDischgDate,CurrWARDLocDR,TRANSWardIDOLD,CacheAdmTime,CacheDischgTime,TRANSWARDLocDR,OutpuFlag,TRANSWARDLocDROLD,discharge,print,MRADMCareTypeDR,CARETYPCode,CARETYPDesc,TRANSIDOLD
+
+ s (WARDFLAG,CurrRoomID,PAPMIName,PAPMIName2,PAPMIName3,PAPMINo,PAADMAdmNo,PAPMIDOB,PAPERAgeYr,CTSEXCode,PAADMAdmDate,PAADMAdmTime,PAADMDischgDate,PAADMDischgTime,TRANSStartDate,CurrWardID,CurrWardCode,CurrWardDesc,CurrWARDLocDR,CurrBedID,CurrBedCode,CurrBedDesc,PAADMDepCodeDR,UnitCode,UnitDesc,TRANSStartTime,TRANSEndDate,TRANSEndTime,TRANSWardID,TRANSWardCode,TRANSWardDesc,TRANSBedID,TRANSBEDCode,TRANSBEDDesc,MRADMDischTypeDR,CTDSPCode,CTDSPDesc,PAADMInPatAdmTypeDR,ADSOURowId,INSTCode,PAADMVisitStatus,PAADMType,ArrDepType,PAPEREstMonth,PAPEREstYear,PAPEREstTimeStamp,PAPERAge,INSTRowId,ADMLGoingOutDate,ADMLGoingOutTime,ADMLActualDateReturn,ADMLActualTimeReturn,MRADMCareTypeDR,CARETYPCode,CARETYPDesc)=""
+ s (flag2,TYPE,STATUS,TRANSID,i,id,admrow,PAADMRowId,PAPMIRowId,BEDChildSub,MRADMRowId,INSChildsub,ADMLChildsub,CacheAdmDate,CacheDischgDate,CurrWARDLocDR,TRANSWardIDOLD,CacheAdmTime,CacheDischgTime,TRANSWARDLocDR,OutpuFlag,TRANSWARDLocDROLD,discharge,print,TRANSIDOLD)=0
+ 
+ n Grouping,RecordType,WARDCode,Specialty,Male,Female,SexTotal,InAtMid,totalInAtMid,totalAdm,admission,totalIn
+ n transIn, totalTI, transOut, totalTO,totalDIS,disch,onLeave,totalOL,leaveIn, totalLI,leaveOut,totalLO,totalOut
+ s (Grouping,RecordType,WARDCode,Specialty,Male,Female,SexTotal)=""
+ s (InAtMid,totalInAtMid,totalAdm,admission,leaveIn,totalLI,leaveOut,totalLO)=0
+ s (transIn, totalTI, transOut, totalTO,totalDIS,disch,onLeave,totalOL,totalIn,totalOut)=0
+ 
+ // Use $Increment to get the next node
+ Set repid=$I(^CacheTemp)
+ s ind=1
+ 
+  // Strip white space/control chars from blank input variables
+ i $g(ward)'="" s ward=$zstrip(ward,"*WC"),WARDCode=$p($g(^PAWARD(ward)),"^",1)
+ i $g(hospital)'="" s hospital=$zstrip(hospital,"*WC")
+ 
+ //convert to Ward_LocationDR
+ i ward s ward=$p($g(^PAWARD(ward)),"^",5)
+  
+ // Convert date to cache format
+ s date=..ConvertDateToCache(date)
+ ;set date
+ s dfrom=date	
+
+ ;get repid for inpatient list
+ s id=##class(Custom.AUXX.Report.ZEN.StoredProc.TRAKCurrentPatient).FindHistoryID(date+1)
+
+ f  s i=$o(^CacheTemp(id,0,"PAAdmRowID",i)) q:i=""  d
+ .d reset
+ .s PAADMRowId=$g(^CacheTemp(id,0,"PAAdmRowID",i))
+ .s admrow=PAADMRowId
+ .d admdate
+ .;get the ward the patient was in on the report date
+ .s TRANSID=..FindPatientWard(admrow,date,PAADMAdmDate)
+ .i TRANSID'=0 d GetCurrWardBed 
+ .d ProcessPatient
+
+ ;get repid for discharge patient list
+ s id=##class(Custom.AUXX.Report.ZEN.StoredProc.TRAKDischargePatient).FindHistoryID(dfrom)
+ s discharge=1
+
+ f  s i=$o(^CacheTemp(id,0,"PAAdmRowID",i)) q:i=""  d
+ .d reset
+ .s PAADMRowId=$g(^CacheTemp(id,0,"PAAdmRowID",i))
+ .s admrow=PAADMRowId
+ .s PAADMAdmDate=$p($g(^PAADM(admrow)),"^",6)
+ .;get the ward the patient was in on the report date
+ .s TRANSID=..FindPatientWard(admrow,date,PAADMAdmDate)
+ .i TRANSID'=0 d GetCurrWardBed 
+ .d ProcessPatient
+ 
+ d BuildSummary
+
+ // Build QHandle (AtEnd,ReportID,Index)
+ k ^CacheTemp(id)           
+ Set QHandle=$lb(0,repid,0)
+ Quit $$$OK
+
+ProcessPatient
+ d adm
+ s CacheAdmDate=PAADMAdmDate,CacheDischgDate=PAADMDischgDate,CacheAdmTime=PAADMAdmTime,CacheDischgTime=PAADMDischgTime
+ d FormatDates
+ d FormatTimes
+ ;get transaction for the report date and output row for each one
+ d GetTrans
+ ;get leave transaction for the report date and output row for each one
+ d GetLeave
+
+ q
+
+reset
+ s (CurrRoomID,PAPMIName,PAPMIName2,PAPMIName3,PAPMINo,PAADMAdmNo,PAPMIDOB,PAPERAgeYr,CTSEXCode,PAADMAdmDate,PAADMAdmTime,PAADMDischgDate,PAADMDischgTime,TRANSStartDate,CurrWardID,CurrWardCode,CurrWardDesc,CurrWARDLocDR,CurrBedID,CurrBedCode,CurrBedDesc,PAADMDepCodeDR,UnitCode,UnitDesc,MRADMDischTypeDR,CTDSPCode,CTDSPDesc,PAADMInPatAdmTypeDR,ADSOURowId,INSTCode,PAADMVisitStatus,PAADMType,ArrDepType,PAPEREstMonth,PAPEREstYear,PAPEREstTimeStamp,PAPERAge,INSTRowId,MRADMCareTypeDR,CARETYPCode,CARETYPDesc)=""
+ s (TYPE,STATUS,TRANSID,PAPMIRowId,BEDChildSub,MRADMRowId,INSChildsub,TRANSWardIDOLD,CacheAdmTime,CacheDischgTime,TRANSWARDLocDR,OutpuFlag,TRANSWARDLocDROLD,TRANSIDOLD)=0
+
+ q
+
+GetCurrWardBed
+ s CurrWardID=$p($g(^PAADM(admrow,"TRANS",TRANSID)),"^",9)
+ i CurrWardID'="" {
+ s CurrWardCode=$p($g(^PAWARD(CurrWardID)),"^",1)
+ s CurrWardDesc=$p($g(^PAWARD(CurrWardID)),"^",2)
+ s CurrWARDLocDR=$p($g(^PAWARD(CurrWardID)),"^",5) 
+ }
+ s CurrBedID=$p($g(^PAADM(admrow,"TRANS",TRANSID)),"^",8)
+ i CurrBedID'="" {
+ s BEDChildSub=$p(CurrBedID,"||",2)
+ i BEDChildSub'=""{
+ s CurrBedCode=$p($g(^PAWARD(CurrWardID,"BED",BEDChildSub)),"^",1)
+	s CurrBedDesc=$p($g(^PAWARD(CurrWardID,"BED",BEDChildSub)),"^",2)
+ }
+ }
+ s CurrRoomID=$p($g(^PAADM(admrow,"TRANS",TRANSID)),"^",7)
+ q
+
+admdate
+ s PAADMAdmDate=$p($g(^PAADM(admrow)),"^",6)
+ s PAADMAdmTime=$p($g(^PAADM(admrow)),"^",7)
+ s PAADMDischgDate=$p($g(^PAADM(admrow)),"^",17)
+ s PAADMDischgTime=$p($g(^PAADM(admrow)),"^",18)
+
+ q
+
+adm
+ ;Only type I should be returned
+ S PAADMType=$p($g(^PAADM(admrow)),"^",2)
+ //get report fields
+ s PAADMAdmNo=$p($g(^PAADM(admrow)),"^",81)
+ s PAADMVisitStatus=$p($g(^PAADM(admrow)),"^",20)
+ s PAADMDepCodeDR=$p($g(^PAADM(admrow)),"^",4)
+ s PAADMAdmDate=$p($g(^PAADM(admrow)),"^",6)
+ s PAADMAdmTime=$p($g(^PAADM(admrow)),"^",7)
+ s PAADMDischgDate=$p($g(^PAADM(admrow)),"^",17)
+ s PAADMDischgTime=$p($g(^PAADM(admrow)),"^",18)
+ s PAADMInPatAdmTypeDR=$p($g(^PAADM(admrow,2)),"^",28)
+ S ADSOURowId=$p($g(^PAADM(admrow)),"^",10)
+ i PAADMDepCodeDR'="" {
+ s UnitCode=$p($g(^CTLOC(PAADMDepCodeDR)),"^",1)
+ s UnitDesc=$p($g(^CTLOC(PAADMDepCodeDR)),"^",2)
+ }
+ i ADSOURowId'="" {
+ s ADSOUCode=$p($g(^PAC("ADSOU",ADSOURowId)),"^",1)
+ s ADSOUDesc=$p($g(^PAC("ADSOU",ADSOURowId)),"^",2)
+ }
+ s MRADMRowId=$p($g(^PAADM(admrow)),"^",61)
+ i MRADMRowId'="" {
+ s MRADMDischTypeDR=$p($g(^MR(MRADMRowId,"PRO",1)),"^",11)
+ i MRADMDischTypeDR'="" {
+ s CTDSPCode=$p($g(^CT("DSP",MRADMDischTypeDR)),"^",1) 
+ s CTDSPDesc=$p($g(^CT("DSP",MRADMDischTypeDR)),"^",2) 
+ }
+	 	s MRADMCareTypeDR=$p($g(^MR(MRADMRowId,"PRO",1)),"^",59)
+ i MRADMCareTypeDR'="" {
+			s CARETYPCode=$p($g(^PAC("CARD",MRADMCareTypeDR)),"^",1) 
+ s CARETYPDesc=$p($g(^PAC("CARD",MRADMCareTypeDR)),"^",2) 
+ }
+ }
+ s PAPMIRowId=$p($g(^PAADM(admrow)),"^",1)
+ s PAPMINo=$p($g(^PAPER(PAPMIRowId,"PAT",1)),"^",1)
+ s PAPMIDOB=$p($g(^PAPER(PAPMIRowId,"ALL")),"^",6)
+ s PAPMIName=$p($g(^PAPER(PAPMIRowId,"ALL")),"^",1)
+ s PAPMIName2=$p($g(^PAPER(PAPMIRowId,"ALL")),"^",2)
+ s PAPMIName3=$p($g(^PAPER(PAPMIRowId,"ALL")),"^",19)
+ s CTSEXRowId=$p($g(^PAPER(PAPMIRowId,"ALL")),"^",7)
+ i CTSEXRowId'="" s CTSEXCode=$p($g(^CT("SEX",CTSEXRowId)),"^",1)
+ s PAPEREstMonth=$p($g(^PAPER(PAPMIRowId,"ALL")),"^",16)
+ s PAPEREstYear=$p($g(^PAPER(PAPMIRowId,"ALL")),"^",15)
+ s PAPEREstTimeStamp=$p($g(^PAPER(PAPMIRowId,"ALL")),"^",17)
+ s PAPERAgeYr=$$CalAge^at182(PAPMIDOB,+$H,PAPEREstMonth,PAPEREstYear,PAPEREstTimeStamp)
+ s PAPERAge=$P(PAPERAgeYr,"|",12)
+ s INSChildsub=$o(^PAADM(admrow,"INS",INSChildsub))
+ i INSChildsub'="" {
+ s INSTRowid=$p($g(^PAADM(admrow,"INS",INSChildsub)),"^",1)
+ i INSTRowid'="" s INSTCode=$p($g(^ARC("INST",INSTRowid)),"^",1)
+ }
+
+ q
+
+GetTrans
+ s flag=0
+ ;get trans for previous 24 hrs
+ // P7SUP TRANS_TransType_DR = 3
+ s pTRANSTransTypeDR=2
+ &sql(DECLARE TRANS CURSOR FOR
+ select trans_childsub 
+ from sqluser.pa_admtransaction
+ where trans_startdate<=:dfrom
+ and trans_parref=:admrow
+ and TRANS_TransType_DR=:pTRANSTransTypeDR
+ and TRANS_Status_dr<>2
+ order by trans_childsub asc)
+
+ &sql(OPEN TRANS)
+
+ ;get previous transaction if there is one to check previous ward
+ while TRANSStartDate<dfrom {
+ &sql(FETCH TRANS INTO :TRANSID)
+ i SQLCODE{ 
+ s TRANSStartDate=dfrom
+ s TRANSID=TRANSIDOLD
+ }else{
+	 s TYPE=$p($g(^PAADM(admrow,"TRANS",TRANSID)),"^",21)
+	 s STATUS=$p($g(^PAADM(admrow,"TRANS",TRANSID)),"^",12)
+ 	 s TRANSStartDate=$p($g(^PAADM(admrow,"TRANS",TRANSID)),"^",1)
+ 	 i TRANSStartDate<dfrom {
+ 	 	s TRANSIDOLD=TRANSID
+ 	 	s TRANSWardIDOLD=$p($g(^PAADM(admrow,"TRANS",TRANSID)),"^",9)
+ 	 	i TRANSWardIDOLD'="" s TRANSWARDLocDROLD=$p($g(^PAWARD(TRANSWardIDOLD)),"^",5)
+	 }
+ 	}
+ }
+ ;loop through trans, output row for every movement
+ d {
+ i SQLCODE {
+ 	s TRANSStartDate=$p($g(^PAADM(admrow,"TRANS",TRANSID)),"^",1)
+ 	s TRANSEndDate=$p($g(^PAADM(admrow,"TRANS",TRANSID)),"^",3)
+ 	s TRANSWardID=$p($g(^PAADM(admrow,"TRANS",TRANSID)),"^",9)
+ 	i TRANSWardID'="" {
+ 		s TRANSWARDLocDR=$p($g(^PAWARD(TRANSWardID)),"^",5)
+ 		i TRANSWARDLocDR {
+ 			i TRANSWARDLocDR=ward s WARDFLAG=1
+ 		}
+ 	}
+ }
+ i 'SQLCODE s flag2=1
+ i TRANSStartDate=dfrom s flag2=1
+ i TRANSEndDate=dfrom s flag2=1
+ i flag2=1 {	
+ s TYPE=$p($g(^PAADM(admrow,"TRANS",TRANSID)),"^",21)
+ s STATUS=$p($g(^PAADM(admrow,"TRANS",TRANSID)),"^",12)
+ i "345"[STATUS {
+ s flag=1
+ d BuildRow
+ }
+ &sql(FETCH TRANS INTO :TRANSID)
+ s flag2=0
+ }	
+ } while 'SQLCODE
+
+ q
+
+
+GetLeave
+ &sql(DECLARE ADML CURSOR FOR
+ select distinct 
+ adml_goingoutdate,
+ adml_goingouttime,
+ ADML_ActualDateReturn,
+ ADML_ActualTimeReturn
+ from sqluser.pa_admleave
+ where adml_goingoutdate<=:dfrom
+ and adml_parref=:admrow
+ order by adml_goingoutdate desc, adml_goingouttime desc)
+
+ &sql(OPEN ADML)
+
+ while 'SQLCODE{
+ &sql(FETCH ADML INTO ADMLGoingOutDate,ADMLGoingOutTime,ADMLActualDateReturn,ADMLActualTimeReturn)
+ i 'SQLCODE {
+ i ADMLActualDateReturn'<dfrom {
+ s flag=2
+ ;d FormatLeaveDateTime
+ d BuildRow
+ }elseif ADMLActualDateReturn="" {
+ s flag=2
+ ;d FormatLeaveDateTime
+ d BuildRow
+ }
+ d ResetLeave
+ }
+	}
+
+ &sql(CLOSE ADML)
+
+ //output row for current inpatient irrespective of transactions
+ i CurrWARDLocDR=ward {
+ s flag=0,OutpuFlag=0,ArrDepType=""
+ i discharge=1 s ArrDepType="DIS"
+ d BuildRow
+ }
+
+ &sql(CLOSE TRANS)
+
+ q
+
+ResetLeave
+ s (ADMLGoingOutDate,ADMLGoingOutTime,ADMLActualDateReturn,ADMLActualTimeReturn)=""
+
+ q
+
+FormatLeaveDateTime
+ If ADMLGoingOutDate Set ADMLGoingOutDate=$ZD(ADMLGoingOutDate,3)
+ If ADMLActualDateReturn Set ADMLActualDateReturn=$ZD(ADMLActualDateReturn,3)
+ If ADMLGoingOutTime Set ADMLGoingOutTime=$ZT(ADMLGoingOutTime,3)
+ If ADMLActualTimeReturn Set ADMLActualTimeReturn=$ZT(ADMLActualTimeReturn,3)
+
+ q
+
+BuildRow
+ //reset trans
+ s (TRANSStartTime,TRANSEndDate,TRANSEndTime,TRANSWardID,TRANSWardCode,TRANSWardDesc,TRANSBedID,TRANSBEDCode,TRANSBEDDesc)=""
+ s print=0
+ ; adding these so that if its a TI and the old ward has been put it we still have 
+ ; a copy of the ward ids for the current TRANSID so that TRANSWardIDOLD and 
+ ; TRANSWARDLocDROLD are set
+ N CPYTRANSWardID,CPYTRANSWARDLocDR
+ S (CPYTRANSWardID,CPYTRANSWARDLocDR)=""
+	//Get Trans info
+ i flag=1 {
+ s TRANSStartDate=$p($g(^PAADM(admrow,"TRANS",TRANSID)),"^",1)
+ s TRANSStartTime=$p($g(^PAADM(admrow,"TRANS",TRANSID)),"^",2)
+ s TRANSEndDate=$p($g(^PAADM(admrow,"TRANS",TRANSID)),"^",3)
+ s TRANSEndTime=$p($g(^PAADM(admrow,"TRANS",TRANSID)),"^",3)
+ s TRANSWardID=$p($g(^PAADM(admrow,"TRANS",TRANSID)),"^",9)
+ i TRANSWardID'="" {
+ s TRANSWardCode=$p($g(^PAWARD(TRANSWardID)),"^",1)
+ s TRANSWardDesc=$p($g(^PAWARD(TRANSWardID)),"^",2)
+ s TRANSWARDLocDR=$p($g(^PAWARD(TRANSWardID)),"^",5)
+ }
+ s TRANSBedID=$p($g(^PAADM(admrow,"TRANS",TRANSID)),"^",8)
+ i TRANSBedID'="" {
+ s BEDChildSub=$p(TRANSBedID,"||",2)
+ i BEDChildSub'=""{
+ s TRANSBEDCode=$p($g(^PAWARD(TRANSWardID,"BED",BEDChildSub)),"^",1)
+ s TRANSBEDDesc=$p($g(^PAWARD(TRANSWardID,"BED",BEDChildSub)),"^",2)
+ }
+ }
+ }
+ S CPYTRANSWardID=TRANSWardID, CPYTRANSWARDLocDR=TRANSWARDLocDR
+ //calculate ArrDepType fields value
+ i flag'=0 {
+ i ADMLGoingOutDate'="" {
+	 ;i ADMLGoingOutDate=dfrom {
+	 ;		s ArrDepType="OL"
+	 ;}else
+	 if ADMLActualDateReturn=dfrom { ;return at the report date
+		 	s ArrDepType="LI"
+	 ;}elseif ADMLGoingOutDate<=dfrom,$s(ADMLActualDateReturn="":+$h,ADMLActualDateReturn'="":ADMLActualDateReturn)>dfrom {
+	 }else {
+		 	s ArrDepType="LEV"
+	 }
+	 
+ }elseif TRANSStartTime=CacheAdmTime,TRANSStartDate=CacheAdmDate {
+ ;if transaction same time as admission, then it's an admission into the ward
+ i TRANSWARDLocDR=ward {
+ s ArrDepType="ADM"
+ s print=1
+ }else{
+ s ArrDepType="NO"
+ }
+ ;if type 40
+ }elseif MRADMDischTypeDR=40 {
+ i PAADMInPatAdmTypeDR=1 {
+ s ArrDepType="STATTI" 
+ }else{
+ s ArrDepType="STATTO" 	
+ }
+ ;if ward is same then transfer in, else transfer out
+ }elseif TRANSWARDLocDR=ward {
+ i TRANSWardIDOLD'=TRANSWardID 
+ {
+ s ArrDepType="TI"
+ s print=1
+ ;set ward id to old ward - the one transfering from
+ s TRANSWardID=TRANSWardIDOLD
+ i TRANSWardID'="" {
+ s TRANSWardCode=$p($g(^PAWARD(TRANSWardID)),"^",1)
+ s TRANSWardDesc=$p($g(^PAWARD(TRANSWardID)),"^",2)
+ s TRANSWARDLocDR=$p($g(^PAWARD(TRANSWardID)),"^",5)
+ }
+ ;null bed as ward has changed to old ward
+ s TRANSBedID=""
+ s TRANSBEDCode=""
+ s TRANSBEDDesc=""
+ }else{
+
+ s ArrDepType="NO"
+ s flag=0
+ }	
+ ;}elseif TRANSWARDLocDROLD=ward {
+ ;corrected as TO not being returned properly
+ }elseif TRANSWARDLocDR'=ward {
+ if TRANSWARDLocDROLD=ward{
+	 			S ArrDepType="TO"
+	 			s print=1
+ }else{
+ s ArrDepType="NO"
+ s flag=0
+ }
+ }else{
+ s ArrDepType="NO"
+ s flag=0
+ }
+ ;removed to output all TRANS for patient who was discharged today 
+ ;i discharge=1 s ArrDepType="NO",flag=0
+ }
+ ;i WARDFLAG=1 s print=1 
+ ;i TRANSWARDLocDROLD=ward s print=1 
+ ;i TRANSWARDLocDR=ward s print=1 
+ i CurrWARDLocDR=ward s print=1 
+ ;i ArrDepType="LEV" s print=1 
+ i ArrDepType'="NO",print=1,"AD"[PAADMVisitStatus,PAADMType="I" {
+	//Groupings
+ 	; Current - 1
+ 	; Blank - 2
+ 	; Leave - 3
+ 	; Arrivals - 4
+ 	; Departure - 5
+ 	; Summary - 6
+ 
+ 	; Admission (ADM) + Transfer In (TI) + Leave In (LI) = arrival
+ 	s (RecordType,Grouping)=""
+ 	;i (",ADM,TI,LI,")[(","_ArrDepType_","),PAADMVisitStatus="A" {
+	i ((",TI,LI,")[(","_ArrDepType_","))||((ArrDepType="ADM") && (CacheAdmDate=date)) {
+ 		s RecordType="Arrival", Grouping=4
+ 	}elseif ArrDepType="LEV" {
+	 	s RecordType="Leave", Grouping=3
+ 	}elseif (",DIS,TO,")[(","_ArrDepType_",") {
+ 		s RecordType="Departure", Grouping=5
+ 	;}elseif PAADMVisitStatus="A" {
+	 ;$s(CacheDischgDate"":+$h,CacheDischgDate'="":CacheDischgDate)>dfrom {	
+	}elseif ($s(CacheDischgDate="":+$h+1,CacheDischgDate'="":CacheDischgDate)>dfrom) {
+	 	s RecordType="Current", Grouping=1
+	 	i UnitCode'="" s ^CacheTemp(repid,0,"Current",UnitCode,PAADMRowId)=CTSEXCode
+ 	}
+ 	;Total Inpatients at last night
+ 	;i (TRANSEndDate>=(dfrom))||(TRANSEndDate=""),(",TI,LEV,")'[(","_ArrDepType_","),TRANSStartDate'=(dfrom),Grouping'="" s InAtMid=1
+ 	;s totalInAtMid=totalInAtMid+InAtMid
+ 	
+ 	;toal admission
+ 	i ArrDepType="ADM",Grouping'="" set admission=1
+ 	s totalAdm=totalAdm+admission
+ 	
+ 	;total transIn
+ 	i ArrDepType="TI" set transIn=1
+ 	s totalTI=totalTI+transIn
+ 	
+ 	;total On Leave
+ 	i ArrDepType="LEV" set onLeave=1
+ 	s totalOL=totalOL+onLeave
+ 	
+ 	;total LeaveIn
+ 	i ArrDepType="LI" set leaveIn=1
+ 	s totalLI=totalLI+leaveIn
+ 	
+ 	;total discharge
+ 	i ArrDepType="DIS" set disch=1
+ 	s totalDIS=totalDIS+disch
+ 	
+ 	;total transOut 
+ 	i ArrDepType="TO" set transOut=1
+ 	s totalTO=totalTO+transOut
+ 	
+ 	;total leaveOut
+ 	i ArrDepType="LEV",ADMLGoingOutDate=dfrom set leaveOut=1
+ 	s totalLO=totalLO+leaveOut
+ 	
+ 	d FormatLeaveDateTime
+ 	d FormatTransDateTime
+ 	s ^CacheTemp(repid,Grouping_"|"_ind)=$LB(PAADMRowId,PAPMIRowId,PAPMIName,PAPMIName2,PAPMIName3,PAPMINo,PAADMAdmNo,PAPMIDOB,PAPERAge,CTSEXCode,PAADMAdmDate,PAADMAdmTime,PAADMDischgDate,PAADMDischgTime,TRANSStartDate,CurrWardID,CurrWardCode,CurrWardDesc,CurrBedID,CurrBedCode,CurrBedDesc,PAADMDepCodeDR,UnitCode,UnitDesc,TRANSStartTime,TRANSEndDate,TRANSEndTime,TRANSWardID,TRANSWardCode,TRANSWardDesc,TRANSBedID,TRANSBEDCode,TRANSBEDDesc,MRADMDischTypeDR,CTDSPCode,CTDSPDesc,CARETYPCode,CARETYPDesc,PAADMInPatAdmTypeDR,ADSOURowId,INSTCode,PAADMVisitStatus,ADMLGoingOutDate,ADMLGoingOutTime,ADMLActualDateReturn,ADMLActualTimeReturn,ArrDepType,Grouping,RecordType,WARDCode,"","","","","","","","","","","","","","","")
+ 	s ind=ind+1
+ 	s OutpuFlag=1
+ 	s print=0
+ 	s InAtMid=0
+ 	s admission=0
+ 	s transIn=0
+ 	s onLeave=0
+ 	s leaveIn=0
+ 	s disch=0
+ 	s transOut=0
+ 	s leaveOut=0
+ 	
+ }else{
+ 	s ArrDepType=""
+ }
+ i ArrDepType="TI" s TRANSWardID=$p($g(^PAADM(admrow,"TRANS",TRANSID)),"^",9)
+ ;remember previous ward so we can check if next trans is a just a bed movement in the same ward
+ s TRANSWardIDOLD=CPYTRANSWardID	
+ s TRANSWARDLocDROLD=CPYTRANSWARDLocDR
+
+ q
+
+FormatTransDateTime
+ If TRANSStartDate Set TRANSStartDate=$ZD(TRANSStartDate,3)
+ If TRANSEndDate Set TRANSEndDate=$ZD(TRANSEndDate,3)
+ If TRANSStartTime Set TRANSStartTime=$ZT(TRANSStartTime,3)
+ If TRANSEndTime Set TRANSEndTime=$ZT(TRANSEndTime,3)
+
+ q
+
+FormatDates
+ // Convert the dates to ODBC date format
+ If PAPMIDOB Set PAPMIDOB=$ZD(PAPMIDOB,3)
+ If PAADMAdmDate Set PAADMAdmDate=$ZD(PAADMAdmDate,3)
+ If PAADMDischgDate Set PAADMDischgDate=$ZD(PAADMDischgDate,3)
+
+ q
+
+FormatTimes
+ // Convert the times to ODBC time format
+ If PAADMAdmTime Set PAADMAdmTime=$ZT(PAADMAdmTime,3)
+ If PAADMDischgTime Set PAADMDischgTime=$ZT(PAADMDischgTime,3)
+
+ q
+
+FormatCacheDates
+ // Convert the dates to ODBC date format
+ s PAADMAdmDate=$$intdate^SSUTIL4(PAADMAdmDate)
+ s PAADMDischgDate=$$intdate^SSUTIL4(PAADMDischgDate)
+
+ q
+ 
+BuildSummary
+ ;summary for current patients
+ s (totalmale,totalfemale,totaltotal,totalunknown)=0
+ s unitcode="" f  s unitcode=$o(^CacheTemp(repid,0,"Current",unitcode)) q:unitcode=""  d
+ . s (male,female,unknown)=0
+ . s admid=0 f  s admid=$o(^CacheTemp(repid,0,"Current",unitcode,admid)) q:admid=""  d
+ . . s sexcode=$g(^CacheTemp(repid,0,"Current",unitcode,admid))
+ . . i ((sexcode="M")||(sexcode="1")) s male=$i(male)
+ . . i ((sexcode="F")||(sexcode="2")) s female=$i(female)
+ . . i (sexcode'="M"),(sexcode'="F") s unknown=$i(unknown)
+ . . s total=male+female+unknown
+ . s totalmale=male+totalmale
+ . s totalfemale=female+totalfemale
+ . s totalunknown=unknown+totalunknown
+ . s totaltotal=totalmale+totalfemale+totalunknown
+ . s ind=$i(ind)
+ . s ^CacheTemp(repid,"6|"_ind)=$LB("","","","","","","","","","","","","","","","","","","","","","","","","","","","","","","","","","","","","","","","","","","","","","","","2","Current",WARDCode,unitcode,male,female,unknown,total,"","","","","","","","","","")
+ s ind=$i(ind)
+ s ^CacheTemp(repid,"6|"_ind)=$LB("","","","","","","","","","","","","","","","","","","","","","","","","","","","","","","","","","","","","","","","","","","","","","","","2","Current",WARDCode,"Total",totalmale,totalfemale,totalunknown,totaltotal,"","","","","","","","","","")
+ ;summary for reconciliation
+ s ind=$i(ind)
+ s totalIn=totalAdm+totalTI+totalLI
+ s totalOut=totalDIS+totalTO+totalLO
+ s totalInAtMid=totaltotal+totalOut-totalIn-totalOL ;Total Inpatients present at last night
+ s ^CacheTemp(repid,"7|"_ind)=$LB("","","","","","","","","","","","","","","","","","","","","","","","","","","","","","","","","","","","","","","","","","","","","","","","6","Summary",WARDCode,"Total","","","",totaltotal,totalInAtMid,totalAdm,totalTI,totalOL,totalLI,totalDIS,totalTO,totalLO,totalIn,totalOut)
+ q
+]]></Implementation>
+</Method>
+
+<Method name="GetPatientListFetch">
+<Description>
+This is the Fetch component of the %Library.Query. 
+This should never have to change. It is designed to fetch the row for each subscript of the ^CacheTemp
+global and return this row to the Crystal Report.</Description>
+<ClassMethod>1</ClassMethod>
+<CodeMode>code</CodeMode>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,&Row:%Library.List,&AtEnd:%Library.Integer=0]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // This fetch method should never have to change. 
+
+ // repid - Report ID
+ // ind   - sequence index which represents each row
+
+ New repid,ind
+
+ // Restore QHandle
+ Set AtEnd=$li(QHandle,1)
+ Set repid=$li(QHandle,2)
+ Set ind=$li(QHandle,3)
+
+ Set ind=$o(^CacheTemp(repid,ind))
+ If ind="" {	// if there are no more rows, finish fetching
+ Set AtEnd=1
+ Set Row=""
+ }
+ Else      {	// fetch row
+ Set Row=^CacheTemp(repid,ind)
+ }
+
+ // Save QHandle
+ s QHandle=$lb(AtEnd,repid,ind)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Query name="GetPatientList">
+<Type>%Library.Query</Type>
+<FormalSpec>date:%Library.Date,hospital:%Library.Integer,ward:%Library.Integer</FormalSpec>
+<SqlProc>1</SqlProc>
+<Parameter name="CONTAINID" value="0"/>
+<Parameter name="ROWSPEC" value="PAADMRowId:%Library.Integer,PAPMIRowId:%Library.Integer,PAPMIName:%Library.String,PAPMIName2:%Library.String,PAPMIName3:%Library.String,PAPMINo:%Library.String,PAADMAdmNo:%Library.String,PAPMIDOB:%Library.Date,PAPERAgeYr:%Library.Integer,CTSEXCode:%Library.String,PAADMAdmDate:%Library.Date,PAADMAdmTime:%Library.Time,PAADMDischgDate:%Library.Date,PAADMDischgTime:%Library.Time,TRANSStartDate:%Library.Date,CurrWardID:%Library.String,CurrWardCode:%Library.String,CurrWardDesc:%Library.String,CurrBedID:%Library.String,CurrBedCode:%Library.String,CurrBedDesc:%Library.String,PAADMDepCodeDR:%Library.String,UnitCode:%Library.String,UnitDesc:%Library.String,TRANSStartTime:%Library.Time,TRANSEndDate:%Library.Date,TRANSEndTime:%Library.Time,TRANSWardID:%Library.String,TRANSWardCode:%Library.String,TRANSWardDesc:%Library.String,TRANSBedID:%Library.String,TRANSBEDCode:%Library.String,TRANSBEDDesc:%Library.String,MRADMDischTypeDR:%Library.String,CTDSPCode:%Library.String,CTDSPDesc:%Library.String,CARETYPCode:%Library.String,CARETYPDesc:%Library.String,PAADMInPatAdmTypeDR:%Library.String,ADSOURowId:%Library.String,INSTCode:%Library.String,PAADMVisitStatus:%Library.String,ADMLGoingOutDate:%Library.Date,ADMLGoingOutTime:%Library.Time,ADMLActualDateReturn:%Library.Date,ADMLActualTimeReturn:%Library.Time,ArrDepType:%Library.String,Grouping:%String,RecordType:%String,WARDCode:%String,Specialty:%String,Male:%String,Female:%String,Unknown:%String,TotalCurrent:%String,totalInAtMid:%String,totalAdm:%String,totalTI:%String,totalOL:%String,totalLI:%String,totalDIS:%String,totalTO:%String,totalLO:%String,totalIn:%String,totalOut:%String"/>
+<Parameter name="SELECTMODE" value="ODBC"/>
+</Query>
+</Class>
+</Export>

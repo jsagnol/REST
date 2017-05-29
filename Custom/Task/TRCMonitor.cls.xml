@@ -1,0 +1,257 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.Task.TRCMonitor">
+<IncludeGenerator>%occInclude</IncludeGenerator>
+<Super>%SYS.Task.Definition</Super>
+<TimeCreated>63770,40672.45375</TimeCreated>
+
+<Parameter name="TaskName">
+<Default>TRC Resource and Print Monitor</Default>
+</Parameter>
+
+<Property name="PrintHistoryMonitorActive">
+<Description>
+Enable Print History Waiting Job monitoring</Description>
+<Type>%Boolean</Type>
+<InitialExpression>1</InitialExpression>
+</Property>
+
+<Property name="PerfMonitorActive">
+<Description>
+Enable Performance Statistics Monitoring </Description>
+<Type>%Boolean</Type>
+<InitialExpression>1</InitialExpression>
+</Property>
+
+<Property name="AutoButtonsFlag">
+<Description>
+Enable automatic Buttons (quiet) run on monitor alerts</Description>
+<Type>%Boolean</Type>
+<InitialExpression>1</InitialExpression>
+</Property>
+
+<Property name="ButtonsPerDayLimit">
+<Description>
+Number of automatically triggered Buttons reports allowed per day</Description>
+<Type>%Integer</Type>
+<InitialExpression>5</InitialExpression>
+<Parameter name="MAXVAL" value="10"/>
+<Parameter name="MINVAL" value="0"/>
+</Property>
+
+<Property name="ButtonsLogDirectory">
+<Description>
+Directory to write Buttons output (default is /mgr/ directory)</Description>
+<Type>%String</Type>
+<Parameter name="MAXLEN" value="500"/>
+</Property>
+
+<Property name="PrintHistoryMonitorRenderRestart">
+<Description>
+Automatically restart render server if conditions met</Description>
+<Type>%Boolean</Type>
+<InitialExpression>1</InitialExpression>
+</Property>
+
+<Property name="pTimeThreshold">
+<Description>
+websys.Monitor process time (pTime) length threshold, in seconds</Description>
+<Type>%Integer</Type>
+<InitialExpression>30</InitialExpression>
+<Parameter name="MAXVAL" value="1200"/>
+<Parameter name="MINVAL" value="15"/>
+</Property>
+
+<Property name="MonitorTimeTimespan">
+<Description>
+Time, in minutes to check for websys.Monitor entries fitting criteria</Description>
+<Type>%Integer</Type>
+<InitialExpression>5</InitialExpression>
+<Parameter name="MAXVAL" value="600"/>
+<Parameter name="MINVAL" value="1"/>
+</Property>
+
+<Property name="PerformanceMonitorCountThreshold">
+<Description>
+Threshold for websys.Monitor entries where process time limit is exceeded</Description>
+<Type>%Integer</Type>
+<InitialExpression>10</InitialExpression>
+<Parameter name="MAXVAL" value="50"/>
+<Parameter name="MINVAL" value="1"/>
+</Property>
+
+<Property name="WaitingPrintJobNumberThreshold">
+<Description>
+Number of waiting print jobs threshold</Description>
+<Type>%Integer</Type>
+<InitialExpression>3</InitialExpression>
+<Parameter name="MAXVAL" value="10"/>
+<Parameter name="MINVAL" value="1"/>
+</Property>
+
+<Property name="PrintHistoryTimespan">
+<Description>
+Time, in minutes, to check for waiting print jobs</Description>
+<Type>%Integer</Type>
+<InitialExpression>5</InitialExpression>
+<Parameter name="MAXVAL" value="10"/>
+<Parameter name="MINVAL" value="1"/>
+</Property>
+
+<Property name="AlertMailList">
+<Description>
+Email address list for monitor alerts, semicolon or comma delimited</Description>
+<Type>%String</Type>
+<Parameter name="MAXLEN" value="300"/>
+</Property>
+
+<Property name="ErrorNotificationEmail">
+<Description>
+Email address to send task error notifications to (use to prevent suspend on error and override 'send error email notification to')</Description>
+<Type>%String</Type>
+<Parameter name="MAXLEN" value="300"/>
+</Property>
+
+<Method name="OnTask">
+<ReturnType>%Status</ReturnType>
+<Implementation><![CDATA[
+	set tSC=$$$OK, ButtonsRunFlag=0
+	if ..PrintHistoryMonitorActive {
+		Set tSC = ..PrintHistoryCheck(.ButtonsRunFlag)
+	}
+	
+	if ..PerfMonitorActive {
+		Set tSC = $$$ADDSC(tSC,..MonitorCheck(.ButtonsRunFlag))
+	}
+	
+	if ButtonsRunFlag {
+		if $DATA(^ZTRC($ZNAME,"ButtonsRunning"))=0 {
+			if ($DATA(^ZTRC($ZNAME,+$HOROLOG))=0)||(^ZTRC($ZNAME,+$HOROLOG)<..ButtonsPerDayLimit) {
+				set ^ZTRC($ZNAME,"ButtonsRunning")=1
+				set homenamespace=$NAMESPACE
+				znspace "%SYS"
+				set buttonsstatus=$$Begin^Buttons("Advanced",..ButtonsLogDirectory,1)
+				znspace homenamespace
+				if $$$ISERR(buttonsstatus) {
+					set tSC = $$$ADDSC(tSC,$$$ERROR($$$GeneralError,"Buttons failed to run"))
+				}
+				set ^ZTRC($ZNAME,+$HOROLOG)=$INCREMENT(^ZTRC($ZNAME,+$HOROLOG))
+				kill ^ZTRC($ZNAME,"ButtonsRunning")
+			}
+		}
+	}
+	
+	If $$$ISERR(tSC)&&(..ErrorNotificationEmail'="")
+	{
+		set errmailstring=..ErrorNotificationEmail
+		if $LENGTH(errmailstring,",") set errmailstring=$REPLACE(errmailstring,",",";")
+		set error=##class(%Exception.StatusException).CreateFromStatus(tSC)
+		set report(1)=("TRC Resource and Print Monitor task failed with the following error:"_$CHAR(13,10))
+		set report(2)=(error.DisplayString())
+		set tSC=##class(websys.Mail).AddItem("<do-not-reply@"_$zconvert(##class(%SYS.System).GetNodeName(),"L")_">",errmailstring,"","TRC Resource and Print Monitor task failed",.report,"")
+	}
+	Quit tSC
+]]></Implementation>
+</Method>
+
+<Method name="MonitorCheck">
+<FormalSpec><![CDATA[&ButtonsRunFlag:%Boolean]]></FormalSpec>
+<ReturnType>%Status</ReturnType>
+<Implementation><![CDATA[
+	Set tSC=$$$OK, SQLCODE=0
+	set SecondsToCheck = (..MonitorTimeTimespan*60)
+	Set starttime = ($PIECE($HOROLOG,",",2)-SecondsToCheck)
+	Set pTimeThreshold=..pTimeThreshold
+	if starttime<0 {
+		set starttime=(863400+starttime)
+		set CheckDate=(+$HOROLOG-1)
+		&SQL(SELECT COUNT(*) INTO :LongProcessCount From websys.Monitor WHERE ((MonitorDate =:CheckDate AND MonitorTime >= :starttime) OR (MonitorDate = CURRENT_DATE AND MonitorTime >= {t '00:00:00'})) AND pTime >= :pTimeThreshold)
+		if SQLCODE quit $$$ADDSC(tSC,$$$ERROR($$$SQLError,SQLCODE,$get(%msg)))
+	}else{
+		&SQL(SELECT COUNT(*) INTO :LongProcessCount From websys.Monitor WHERE MonitorDate = CURRENT_DATE AND MonitorTime >= :starttime AND pTime >= :pTimeThreshold)
+	}
+	if SQLCODE quit $$$ADDSC(tSC,$$$ERROR($$$SQLError,SQLCODE,$get(%msg)))
+	if LongProcessCount > ..PerformanceMonitorCountThreshold {
+		if ..AutoButtonsFlag {
+			set ButtonsRunFlag=1
+		}
+		set tSC=$$$ADDSC(tSC,..MailAlert("perfmon"))
+	}
+	quit tSC
+]]></Implementation>
+</Method>
+
+<Method name="PrintHistoryCheck">
+<FormalSpec><![CDATA[&ButtonsRunFlag:%Boolean]]></FormalSpec>
+<ReturnType>%Status</ReturnType>
+<Implementation><![CDATA[
+		Set tSC=$$$OK, SQLCODE=0, renderstate=""
+		set SecondsToCheck = (..PrintHistoryTimespan*60)
+		Set starttime = ($PIECE($HOROLOG,",",2)-SecondsToCheck)
+		if starttime<0 {
+			set starttime=(863400+starttime)
+			set CheckDate=(+$HOROLOG-1)
+			&SQL(SELECT COUNT(*) INTO :WaitJobCount From websys.PrintHistory WHERE ((RequestedDate =:CheckDate AND RequestedTime >= :starttime) OR (RequestedDate = CURRENT_DATE AND RequestedTime >= {t '00:00:00'})) AND Status='W' AND PrinterDR->Description <> 'PDF')
+			if SQLCODE quit $$$ADDSC(tSC,$$$ERROR($$$SQLError,SQLCODE,$get(%msg)))
+		}else{
+			&SQL(SELECT COUNT(*) INTO :WaitJobCount From websys.PrintHistory WHERE RequestedDate = CURRENT_DATE AND RequestedTime >= :starttime AND Status='W'  AND PrinterDR->Description <> 'PDF')
+			if SQLCODE quit $$$ADDSC(tSC,$$$ERROR($$$SQLError,SQLCODE,$get(%msg)))
+		}
+		if WaitJobCount > ..WaitingPrintJobNumberThreshold {
+			if ..PrintHistoryMonitorRenderRestart {
+				set renderserver=0
+				for {
+					set renderserver=$ORDER(^%SYS("zenreport","DEFINITION","DATA",renderserver),1,renderserverdata) 
+					quit:renderserver=""   
+					set renderpingport=$LISTGET(renderserverdata,4)
+					if renderpingport'="" {
+						set tSC = $$$ADDSC(tSC,##class(%ZEN.Report.Ping).shutdown(renderpingport))
+					}	
+				}					
+			}
+			if ..AutoButtonsFlag {
+				set ButtonsRunFlag=1
+			}
+			if $DATA(^websys.PrintHistoryI("StatusIndex"," I"))'=0 {
+				merge ^ZTRC($ZNAME,+$HOROLOG,$PIECE($HOROLOG,",",2),"INPROGRESS")=^websys.PrintHistoryI("StatusIndex"," I")
+			}
+			set tSC=$$$ADDSC(tSC,..MailAlert("print"))
+		}
+		quit tSC
+]]></Implementation>
+</Method>
+
+<Method name="MailAlert">
+<FormalSpec>AlertType:%String</FormalSpec>
+<ReturnType>%Status</ReturnType>
+<Implementation><![CDATA[
+		set linecount=0
+		set MailList=..AlertMailList
+		quit:MailList="" $$$OK
+		if $LENGTH(MailList,",") set MailList=$REPLACE(MailList,",",";")
+		if MailList'="",AlertType="print" {
+			set subjectline="Waiting Print Job Alert"
+			set report($INCREMENT(linecount))=("More than "_..WaitingPrintJobNumberThreshold_" waiting print jobs found that have been requested in the past "_..PrintHistoryTimespan_" minutes.  ")
+			if ..PrintHistoryMonitorRenderRestart {
+				set report($INCREMENT(linecount))=("Render Server(s) stopped, to restart with next processed waiting job.  ")
+			}	
+		}elseif MailList'="",AlertType="perfmon" {
+			set subjectline="Long Processing Time Alert"
+			set report($INCREMENT(linecount))=("More than "_..PerformanceMonitorCountThreshold_" websys.Monitor entries have clocked process times over "_..pTimeThreshold_" in the past "_..MonitorTimeTimespan_" minutes.  ")
+		}
+		if ..AutoButtonsFlag {
+			if $DATA(^ZTRC($ZNAME,"ButtonsRunning")){
+				set report($INCREMENT(linecount))=("No Buttons diagnostic run as previous run is still engaged.  "  )
+			}elseif ($DATA(^ZTRC($ZNAME,+$HOROLOG))=0)||(($DATA(^ZTRC($ZNAME,+$HOROLOG))=1)&&(^ZTRC($ZNAME,+$HOROLOG)<..ButtonsPerDayLimit)) {
+				set OutputDirectory=$SELECT(..ButtonsLogDirectory'="":..ButtonsLogDirectory,1:$ZUTIL(12))
+				set report($INCREMENT(linecount))=("Check "_OutputDirectory_" for automatic Buttons diagnostic output (limited to "_..ButtonsPerDayLimit_" runs per day).  ")
+			}else{
+				set report($INCREMENT(linecount))=("No Buttons diagnostic run as daily limit of "_..ButtonsPerDayLimit_" reached.  ")
+			}
+		}
+		if $GET(subjectline)'="" set MailSC=##class(websys.Mail).AddItem("<do-not-reply@"_$zconvert(##class(%SYS.System).GetNodeName(),"L")_">",MailList,"",subjectline,.report,"")
+		quit MailSC
+]]></Implementation>
+</Method>
+</Class>
+</Export>

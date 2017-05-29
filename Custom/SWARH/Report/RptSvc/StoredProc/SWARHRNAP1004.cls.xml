@@ -1,0 +1,461 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.SWARH.Report.RptSvc.StoredProc.SWARHRNAP1004">
+<Description><![CDATA[
+<pre>
+**************************************************************************************************************************************
+* Report Code: SWARHRNAP1004
+* Report Description: Staff Activity Report
+* Menu Caption: 
+* Initial release: 
+* Developer: Michael Welsh
+* Modified: 2015/09/17 - rpgladman - Added support for multiple specialties & programs
+* Modified: 2016/01/08 - rpgladman - Added conNonReportableIndirectTime field, updated CacheTemp
+**************************************************************************************************************************************
+</pre>]]></Description>
+<ProcedureBlock>0</ProcedureBlock>
+<Super>Custom.SWARH.Report.ZEN.StoredProc.Abstract</Super>
+<TimeCreated>60905,54849</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/SWARH/Report/RptSvc/StoredProc/SWARHRNAP1004.xml#1 $</Default>
+</Parameter>
+
+<Method name="SWARHRNAP1004Close">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)
+This is the Close component of the %Library.Query.
+This is standard code and should never have to change.
+This is where all the cleanup is performed, i.e. the purging of the temporary storage global ^CacheTemp.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>QHandle:%Library.Binary</FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Clean up by purging the temporary node in ^CacheTemp global
+ New repid,ind
+ Set repid=$li(QHandle,2)
+
+ //Start Monitor (if configured to capture stats)
+ i mon Do ..MonitorEnd(mon)
+
+ Kill ^CacheTemp(..#CACHETEMPSUBSCRIPT,repid)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="SWARHRNAP1004Execute">
+<Description>
+This is the Execute section for the %Library.Query. 
+All of the logic will be performed here.
+A new node for the ^CacheTemp global will be created and each subscript of this global will contain
+a row for the report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,Hospital:%Integer,DateFrom:%Date,DateTo:%Date,Specialty:%String,Program:%String,Clinician:%Integer]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+		   
+ New repid,ind
+
+ Set repid=$I(^CacheTemp(..#CACHETEMPSUBSCRIPT))
+ 
+ New conRowID,conDate,conTime,conStatus,conURNo,conSurName,conGivenName,conMidName,conStreet,conCity,conPostCode,conHomePhone,conMobPhone
+ 	,conSpecialtyCode,conSpecialtyDesc,conClinicianDR,conClinicianCode,conClinicianDesc,conProgramCode,conProgramDesc,conDuration,conIndirectTime,conNonReportableIndirectTime
+ 	,conTravelTime,conInterpretTime,conDistanceTravelled,conApptStatus,conPresentStatus,IsAdminTime,ARCICDesc,ARCICCode,ENQRBEventDR,IsEvent
+ Set (conDate,conTime,conStatus,conURNo,conSurName,conGivenName,conMidName,conStreet,conCity,conPostCode,conHomePhone,conMobPhone
+ 	,conSpecialtyCode,conSpecialtyDesc,conClinicianCode,conClinicianDesc,conProgramCode,conProgramDesc,conApptStatus,conPresentStatus,ARCICDesc,ARCICCode) = ""
+ Set (conRowID,conClinicianDR,conDuration,conIndirectTime,conNonReportableIndirectTime,conTravelTime,conInterpretTime,conDistanceTravelled,IsAdminTime,ENQRBEventDR,IsEvent)=0
+ s ind=1, END=0
+
+ //Start Monitor (if configured to capture stats)
+ s mon=..MonitorBegin()
+ 
+ //Convert ODBC dates to cache format
+ s DateFrom=$$intdate^SSUTIL4(DateFrom)
+ s DateTo=$$intdate^SSUTIL4(DateTo)
+
+ &SQL(DECLARE SWARHRNAP1004 CURSOR FOR
+ 
+ /*
+ --BS 2014-12-16
+ -- ORIGINAL
+ 	SELECT
+        con.ENQ_RowID AS conRowID
+        ,con.ENQ_Date AS conDate
+        ,con.ENQ_Time AS conTime
+        ,con.ENQ_RequestStatus_DR->REQST_Desc AS conStatus
+        ,con.ENQ_PAPER_DR->PAPER_PAPMI_DR->PAPMI_No AS conURNo
+        ,con.ENQ_PAPER_DR->PAPER_Name AS conSurName
+        ,con.ENQ_PAPER_DR->PAPER_Name2 AS conGivenName
+        ,con.ENQ_PAPER_DR->PAPER_Name3 AS conMidName
+        ,con.ENQ_PAPER_DR->PAPER_StName AS conStreet
+        ,con.ENQ_PAPER_DR->PAPER_Zip_DR->CTZIP_Desc AS conCity
+        ,con.ENQ_PAPER_DR->PAPER_Zip_DR->CTZIP_Code AS conPostCode
+        ,con.ENQ_PAPER_DR->PAPER_TelH AS conHomePhone
+        ,con.ENQ_PAPER_DR->PAPER_MobPhone AS conMobPhone
+        ,con.ENQ_Location_DR->CTLOC_Code AS conSpecialtyCode
+        ,con.ENQ_Location_DR->CTLOC_Desc AS conSpecialtyDesc
+        ,con.ENQ_CTCP_DR AS conClinicianDR
+        ,con.ENQ_CTCP_DR->CTPCP_Code AS conClinicianCode
+        ,con.ENQ_CTCP_DR->CTPCP_Desc AS conClinicianDesc
+        ,con.ENQ_GovernDepart_DR->DEP_Code AS conProgramCode
+        ,con.ENQ_GovernDepart_DR->DEP_Desc AS conProgramDesc
+        ,con.ENQ_Duration AS conDuration
+        ,con.ENQ_IndirectTime AS conIndirectTime
+        ,con.ENQ_TravelTime AS conTravelTime
+        ,con.ENQ_InterpretingTime AS conInterpretTime
+        ,con.ENQ_DistanceTravelled AS conDistanceTravelled
+        ,con.ENQ_OEOrdItem_DR->OEORI_APPT_DR->APPT_Status AS conApptStatus
+        ,con.ENQ_ContClientPresStat_DR->CONTCLNPRST_Code AS conPresentStatus
+        ,con.ENQ_ItemCat_DR->ARCIC_Desc
+        ,con.ENQ_ItemCat_DR->ARCIC_Code
+        ,con.ENQ_RBEvent_DR
+        ,0 AS IsEvent
+FROM
+        SQLUser.PA_EnquiryContact con
+WHERE con.ENQ_Hospital_DR = :Hospital
+		AND CON.ENQ_RBEvent_DR IS NULL
+        AND (con.ENQ_Date BETWEEN :DateFrom AND :DateTo)
+        --AND (con.ENQ_OEOrdItem_DR->OEORI_APPT_DR->APPT_Status <> 'P')
+        AND (con.ENQ_OEOrdItem_DR->OEORI_APPT_DR->APPT_Status <> 'P' OR con.ENQ_OEOrdItem_DR->OEORI_APPT_DR->APPT_Status IS NULL)
+        AND (con.ENQ_Location_DR->CTLOC_RowId = :Specialty OR (:Specialty IS NULL))
+        AND (con.ENQ_GovernDepart_DR->DEP_RowID = :Program OR (:Program IS NULL))
+        AND (con.ENQ_CTCP_DR->CTPCP_RowId = :Clinician OR (:Clinician IS NULL))
+UNION
+ 	SELECT DISTINCT BY (ENQ_RBEvent_DR)
+        con.ENQ_RowID AS conRowID
+        ,con.ENQ_Date AS conDate
+        ,con.ENQ_Time AS conTime
+        ,con.ENQ_RequestStatus_DR->REQST_Desc AS conStatus
+        ,con.ENQ_PAPER_DR->PAPER_PAPMI_DR->PAPMI_No AS conURNo
+        ,con.ENQ_PAPER_DR->PAPER_Name AS conSurName
+        ,con.ENQ_PAPER_DR->PAPER_Name2 AS conGivenName
+        ,con.ENQ_PAPER_DR->PAPER_Name3 AS conMidName
+        ,con.ENQ_PAPER_DR->PAPER_StName AS conStreet
+        ,con.ENQ_PAPER_DR->PAPER_Zip_DR->CTZIP_Desc AS conCity
+        ,con.ENQ_PAPER_DR->PAPER_Zip_DR->CTZIP_Code AS conPostCode
+        ,con.ENQ_PAPER_DR->PAPER_TelH AS conHomePhone
+        ,con.ENQ_PAPER_DR->PAPER_MobPhone AS conMobPhone
+        ,con.ENQ_Location_DR->CTLOC_Code AS conSpecialtyCode
+        ,con.ENQ_Location_DR->CTLOC_Desc AS conSpecialtyDesc
+        ,con.ENQ_CTCP_DR AS conClinicianDR
+        ,con.ENQ_CTCP_DR->CTPCP_Code AS conClinicianCode
+        ,con.ENQ_CTCP_DR->CTPCP_Desc AS conClinicianDesc
+        ,con.ENQ_GovernDepart_DR->DEP_Code AS conProgramCode
+        ,con.ENQ_GovernDepart_DR->DEP_Desc AS conProgramDesc
+        ,con.ENQ_Duration AS conDuration
+        ,con.ENQ_IndirectTime AS conIndirectTime
+        ,con.ENQ_TravelTime AS conTravelTime
+        ,con.ENQ_InterpretingTime AS conInterpretTime
+        ,con.ENQ_DistanceTravelled AS conDistanceTravelled
+        ,con.ENQ_OEOrdItem_DR->OEORI_APPT_DR->APPT_Status AS conApptStatus
+        ,con.ENQ_ContClientPresStat_DR->CONTCLNPRST_Code AS conPresentStatus
+        ,con.ENQ_ItemCat_DR->ARCIC_Desc
+        ,con.ENQ_ItemCat_DR->ARCIC_Code
+        ,con.ENQ_RBEvent_DR
+        ,1 AS IsEvent
+FROM
+        SQLUser.PA_EnquiryContact con
+WHERE con.ENQ_Hospital_DR = :Hospital
+		AND CON.ENQ_RBEvent_DR IS NOT NULL
+        AND (con.ENQ_Date BETWEEN :DateFrom AND :DateTo)
+        --AND (con.ENQ_OEOrdItem_DR->OEORI_APPT_DR->APPT_Status <> 'P')
+        AND (con.ENQ_OEOrdItem_DR->OEORI_APPT_DR->APPT_Status <> 'P' OR con.ENQ_OEOrdItem_DR->OEORI_APPT_DR->APPT_Status IS NULL)
+        AND (con.ENQ_Location_DR->CTLOC_RowId = :Specialty OR (:Specialty IS NULL))
+        AND (con.ENQ_GovernDepart_DR->DEP_RowID = :Program OR (:Program IS NULL))
+        AND (con.ENQ_CTCP_DR->CTPCP_RowId = :Clinician OR (:Clinician IS NULL))
+*/
+
+--BS 2014-12-16
+-- Rewrite query to include all event contacts and make simpler.
+SELECT
+    	    con.ENQ_RowID AS conRowID
+	,       con.ENQ_Date AS conDate
+	,       con.ENQ_Time AS conTime
+	,       con.ENQ_RequestStatus_DR->REQST_Desc AS conStatus
+	,       con.ENQ_PAPER_DR->PAPER_PAPMI_DR->PAPMI_No AS conURNo
+	,       con.ENQ_PAPER_DR->PAPER_Name AS conSurName
+	,       con.ENQ_PAPER_DR->PAPER_Name2 AS conGivenName
+	,       con.ENQ_PAPER_DR->PAPER_Name3 AS conMidName
+	,       con.ENQ_PAPER_DR->PAPER_StName AS conStreet
+	,       con.ENQ_PAPER_DR->PAPER_Zip_DR->CTZIP_Desc AS conCity
+	,       con.ENQ_PAPER_DR->PAPER_Zip_DR->CTZIP_Code AS conPostCode
+	,       con.ENQ_PAPER_DR->PAPER_TelH AS conHomePhone
+	,       con.ENQ_PAPER_DR->PAPER_MobPhone AS conMobPhone
+	,       con.ENQ_Location_DR->CTLOC_Code AS conSpecialtyCode
+	,       con.ENQ_Location_DR->CTLOC_Desc AS conSpecialtyDesc
+	,       con.ENQ_CTCP_DR AS conClinicianDR
+	,       con.ENQ_CTCP_DR->CTPCP_Code AS conClinicianCode
+	,       con.ENQ_CTCP_DR->CTPCP_Desc AS conClinicianDesc
+	,       con.ENQ_GovernDepart_DR->DEP_Code AS conProgramCode
+	,       con.ENQ_GovernDepart_DR->DEP_Desc AS conProgramDesc
+	,       con.ENQ_Duration AS conDuration
+	,       con.ENQ_IndirectTime AS conIndirectTime
+	,       con.ENQ_EstimMins AS conNonReportableIndirectTime
+	,       con.ENQ_TravelTime AS conTravelTime
+	,       con.ENQ_InterpretingTime AS conInterpretTime
+	,       con.ENQ_DistanceTravelled AS conDistanceTravelled
+	,       con.ENQ_OEOrdItem_DR->OEORI_APPT_DR->APPT_Status AS conApptStatus
+	,       con.ENQ_ContClientPresStat_DR->CONTCLNPRST_Code AS conPresentStatus
+	,       con.ENQ_ItemCat_DR->ARCIC_Desc
+	,       con.ENQ_ItemCat_DR->ARCIC_Code
+	,       con.ENQ_RBEvent_DR
+	,       CASE
+                WHEN con.ENQ_RBEvent_DR IS NOT NULL THEN 1
+                ELSE 0
+            END AS IsEvent
+FROM
+        SQLUser.PA_EnquiryContact con
+WHERE 
+		con.ENQ_Hospital_DR = :Hospital
+    AND (con.ENQ_Date BETWEEN :DateFrom AND :DateTo)
+    AND ((con.ENQ_OEOrdItem_DR->OEORI_APPT_DR->APPT_Status <> 'P') OR 
+    	 (con.ENQ_OEOrdItem_DR->OEORI_APPT_DR->APPT_Status IS NULL))
+    	 
+    -- AND (con.ENQ_Location_DR->CTLOC_RowId = :Specialty OR (:Specialty IS NULL)) -- Single Specialty Only
+    AND (({fn CONCAT( ',', {fn CONCAT((:Specialty),',')})} [ {fn CONCAT( ',', {fn CONCAT((con.ENQ_Location_DR->CTLOC_RowId),',')})}) OR (:Specialty IS NULL))  -- Multiple Specialties
+    
+    -- AND (con.ENQ_GovernDepart_DR->DEP_RowID = :Program OR (:Program IS NULL)) -- Single Program Only
+	AND (({fn CONCAT( ',', {fn CONCAT((:Program),',')})} [ {fn CONCAT( ',', {fn CONCAT((con.ENQ_GovernDepart_DR->DEP_RowID),',')})}) OR (:Program IS NULL)) -- Multiple Programs
+    
+    AND (con.ENQ_CTCP_DR->CTPCP_RowId = :Clinician OR (:Clinician IS NULL))
+
+    )
+                
+ &SQL(OPEN SWARHRNAP1004)
+ 
+ d FetchRow //Fetch first row
+  
+ while END=0 {
+	 
+	 s (Cancelled,DNA) = 0
+ 
+ 	 //Sets cancelled flag.
+ 	 If (conStatus = 5) {Set Cancelled = 1}
+ 	 
+ 	 //Sets DNA flag.
+ 	 If (conPresentStatus = 32) {Set DNA = 1} 
+ 	 
+ 	  
+	 d FormatDates, FormatTimes, FormatStrings
+	 s IsAdminTime=..IsContactAdminTime(conRowID)
+  	 s sort = ind
+	 s ^CacheTemp(..#CACHETEMPSUBSCRIPT,repid,sort)=$LB(conRowID,conDate,conTime,conStatus,conURNo,conSurName,conGivenName,conMidName,conStreet,conCity,conPostCode
+	 ,conHomePhone,conMobPhone,conSpecialtyCode,conSpecialtyDesc,conClinicianDR,conClinicianCode,conClinicianDesc,conProgramCode,conProgramDesc,conDuration
+	 ,conIndirectTime,conNonReportableIndirectTime,conTravelTime,conInterpretTime,conDistanceTravelled,conApptStatus,conPresentStatus,IsAdminTime,Cancelled,DNA,ARCICDesc,ARCICCode,ENQRBEventDR,IsEvent)
+	 s ind=ind+1
+ 	 d FetchRow //Fetch next row
+ }
+
+ &SQL(CLOSE SWARHRNAP1004)
+ 
+ // Build QHandle (AtEnd,ReportID,Index)
+ Set QHandle=$lb(0,repid,0)
+
+ Quit $$$OK
+
+FetchRow
+ &sql(FETCH SWARHRNAP1004 INTO :conRowID,:conDate,:conTime,:conStatus,:conURNo,:conSurName,:conGivenName,:conMidName,:conStreet,:conCity,:conPostCode
+ 	,:conHomePhone,:conMobPhone,:conSpecialtyCode,:conSpecialtyDesc,:conClinicianDR,:conClinicianCode,:conClinicianDesc,:conProgramCode,:conProgramDesc
+ 	,:conDuration,:conIndirectTime,:conNonReportableIndirectTime,:conTravelTime,:conInterpretTime,:conDistanceTravelled,:conApptStatus,:conPresentStatus,:ARCICDesc,:ARCICCode,:ENQRBEventDR,:IsEvent)
+ if SQLCODE '= 0 set END = 1
+ q
+ 
+FormatDates
+ s conDate=..ConvertDateToODBC(conDate)
+
+ q
+ 
+FormatTimes
+ s conTime=$ZT(conTime,2)
+ q
+ 
+FormatStrings // Cleanup specified strings
+ s conSurName = $ZCONVERT(conSurName,"W") 
+ s conGivenName = $ZCONVERT(conGivenName,"W")
+ s conMidName = $ZCONVERT(conMidName,"W")
+ s conStreet = $ZCONVERT($ZSTRIP(conStreet,"*C"),"W")
+ s conCity = $ZCONVERT($ZSTRIP(conCity,"*C"),"W")
+ q
+]]></Implementation>
+</Method>
+
+<Method name="SWARHRNAP1004Fetch">
+<Description>
+This is the Fetch component of the %Library.Query. 
+This should never have to change. It is designed to fetch the row for each subscript of the ^CacheTemp
+global and return this row to the Crystal Report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,&Row:%Library.List,&AtEnd:%Library.Integer=0]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // This fetch method should never have to change. 
+ // repid - Report ID
+ // ind   - sequence index which represents each row
+
+ New repid,ind
+
+ // Restore QHandle
+ Set AtEnd=$li(QHandle,1)
+ Set repid=$li(QHandle,2)
+ Set ind=$li(QHandle,3)
+
+ Set ind=$o(^CacheTemp(..#CACHETEMPSUBSCRIPT,repid,ind))
+ If ind="" {	// if there are no more rows, finish fetching
+	 Set AtEnd=1
+	 Set Row=""
+ }
+ Else      {	// fetch row 
+ 	Set Row=^CacheTemp(..#CACHETEMPSUBSCRIPT,repid,ind)
+ }
+
+ // Save QHandle 
+ s QHandle=$lb(AtEnd,repid,ind)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Query name="SWARHRNAP1004">
+<Type>%Library.Query</Type>
+<FormalSpec>Hospital:%Integer,DateFrom:%Date,DateTo:%Date,Specialty:%String,Program:%String,Clinician:%Integer</FormalSpec>
+<SqlProc>1</SqlProc>
+<Parameter name="CONTAINID" value="0"/>
+<Parameter name="ROWSPEC" value="conRowID:%Integer,conDate:%Date,conTime:%String,conStatus:%String,conURNo:%String,conSurName:%String,conGivenName:%String,conMidName:%String,conStreet:%String,conCity:%String,conPostCode:%String,conHomePhone:%String,conMobPhone:%String,conSpecialtyCode:%String,conSpecialtyDesc:%String,conClinicianDR:%Integer,conClinicianCode:%String,conClinicianDesc:%String,conProgramCode:%String,conProgramDesc:%String,conDuration:%Integer,conIndirectTime:%Integer,conNonReportableIndirectTime:%Integer,conTravelTime:%Integer,conInterpretTime:%Integer,conDistanceTravelled:%Integer,conApptStatus:%String,conPresentStatus:%String,IsAdminTime:%Integer,Cancelled:%Integer,DNA:%Integer,ARCICDesc:%String,ARCICCode:%String,ENQRBEventDR:%Integer,IsEvent:%Integer"/>
+<Parameter name="SELECTMODE" value="ODBC"/>
+</Query>
+
+<Method name="SWARHRNAP1004DNAs">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>QHandle:%Library.Binary</FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ New repid
+ Set repid=$li(QHandle,2)
+ Kill ^CacheTemp(..#CACHETEMPSUBSCRIPT,repid)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="SWARHRNAP1004DNAsExecute">
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,dnaHospital:%Integer,dnaDateFrom:%Date,dnaDateTo:%Date,dnaClinicianDR:%Integer]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ k ^zbernard	
+ New repid,ind
+
+ // Use $Increment to get the next node
+ Set repid=$I(^CacheTemp(..#CACHETEMPSUBSCRIPT))
+ s ^zBernard("1")=(1)
+
+ // Build data into ^CacheTemp(ReportID)
+ // e.g. Set ^CacheTemp(ReportID,Index)=$LB(f1,f2,f3),ICDCode,DRGCode
+ New Number,String,Date,Time,c,n
+ New appStatus,appDate,appDuration,appClinicianDesc,appSpecialtyDesc
+ s (appStatus,appDate,appClinicianDesc,appSpecialtyDesc)=""
+ s (appDuration) = 0
+  
+ s ind=1
+ //Convert ODBC dates to cache format
+ s dnaDateFrom=$$intdate^SSUTIL4(dnaDateFrom)
+ s dnaDateTo=$$intdate^SSUTIL4(dnaDateTo)
+
+ &SQL(DECLARE DNAs CURSOR FOR
+	
+ 	SELECT
+        app.APPT_Status AS appStatus
+        ,app.APPT_AS_ParRef->AS_Date AS appDate
+        ,app.APPT_Duration AS appDuration
+        ,app.APPT_AS_ParRef->AS_RES_ParRef->RES_CTPCP_DR->CTPCP_Desc AS appClinicianDesc
+        ,app.APPT_AS_ParRef->AS_RES_ParRef->RES_CTLOC_DR->CTLOC_Desc AS appSpecialtyDesc
+    FROM
+        SQLUser.RB_Appointment app
+	WHERE
+        (app.APPT_LastUpdateHospital_DR = :dnaHospital)
+        AND (app.APPT_AS_ParRef->AS_Date BETWEEN :dnaDateFrom AND :dnaDateTo)
+        AND (app.APPT_AS_ParRef->AS_RES_ParRef->RES_CTPCP_DR = :dnaClinician OR (:dnaClinician IS NULL))
+        --AND (app.APPT_Status = 'N') --DNA's
+        AND (app.APPT_Status <> 'P') --Excludes Booked
+ 
+ )
+ 
+ &sql(open DNAs)
+ do DNAsFetchrow
+  
+ while 'SQLCODE {
+	 
+	s (appDNA,appCancelled,appANS) = 0
+ 
+ 	//Sets DNA flag.
+ 	If (appStatus = "N") {Set appDNA = 1} 
+ 	
+ 	//Sets cancelled flag.
+ 	If (appStatus = "X") {Set appCancelled = 1}
+ 	
+ 	//Sets Arrived Not Seen flag.
+ 	If (appStatus = "S") {Set appANS = 1}
+ 	
+	d DNAsFormatDates
+	
+	Set ^CacheTemp(..#CACHETEMPSUBSCRIPT,repid,ind)=$LB(appStatus,appDate,appDuration,appClinicianDesc,appSpecialtyDesc,appDNA,appCancelled,appANS)
+ 	s ind=ind+1
+	do DNAsFetchrow
+ }
+ &sql(close DNAs)
+
+ Set QHandle=$lb(0,repid,0)
+
+ Quit $$$OK 
+
+DNAsFetchrow
+	&sql(fetch DNAs into :appStatus,:appDate,:appDuration,:appClinicianDesc,:appSpecialtyDesc)
+  	q
+  	
+DNAsFormatDates
+	s appDate=..ConvertDateToODBC(appDate)
+ 	q
+]]></Implementation>
+</Method>
+
+<Method name="SWARHRNAP1004DNAsFetch">
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,&Row:%Library.List,&AtEnd:%Library.Integer=0]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // This fetch method should never have to change. 
+ // repid - Report ID
+ // ind   - sequence index which represents each row
+
+ New repid,ind
+
+ // Restore QHandle
+ Set AtEnd=$li(QHandle,1)
+ Set repid=$li(QHandle,2)
+ Set ind=$li(QHandle,3)
+
+ Set ind=$o(^CacheTemp(..#CACHETEMPSUBSCRIPT,repid,ind))
+ If ind="" {	// if there are no more rows, finish fetching
+ Set AtEnd=1
+ Set Row=""
+ }
+ Else      {	// fetch row
+ Set Row=^CacheTemp(..#CACHETEMPSUBSCRIPT,repid,ind)
+ }
+
+ // Save QHandle
+ s QHandle=$lb(AtEnd,repid,ind)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Query name="SWARHRNAP1004DNAs">
+<Type>%Library.Query</Type>
+<FormalSpec>dnaHospital:%Integer,dnaDateFrom:%Date,dnaDateTo:%Date,dnaClinicianDR:%Integer</FormalSpec>
+<SqlProc>1</SqlProc>
+<Parameter name="CONTAINID" value="0"/>
+<Parameter name="ROWSPEC" value="appStatus:%String,appDate:%Date,appDuration:%Integer,appClinicianDesc:%String,appSpecialtyDesc:%String,appDNA:%Integer,appCancelled:%Integer,appANS:%Integer"/>
+<Parameter name="SELECTMODE" value="ODBC"/>
+</Query>
+</Class>
+</Export>

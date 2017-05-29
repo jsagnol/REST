@@ -1,0 +1,423 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.SWARH.Report.RptSvc.StoredProc.SWARHRTHR1007">
+<ProcedureBlock>0</ProcedureBlock>
+<Super>Custom.SWARH.Report.ZEN.StoredProc.Abstract</Super>
+<TimeCreated>60905,54849</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/SWARH/Report/RptSvc/StoredProc/SWARHRTHR1007.xml#1 $</Default>
+</Parameter>
+
+<UDLText name="T">
+<Content><![CDATA[
+/*
+ * Report Name: <SWARHReportName> <br>
+ * Report Code: SWARH.R.<SWARHReportCode> <br>
+ * SWARH Developer: your name <br>
+ */
+]]></Content>
+</UDLText>
+
+<Method name="SWARHRTHR1007QueryClose">
+<Description>
+This is the Close component of the %Library.Query.
+This is standard code and should never have to change.
+This is where all the cleanup is performed, i.e. the purging of the temporary storage global ^CacheTemp.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>QHandle:%Library.Binary</FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Clean up by purging the temporary node in ^CacheTemp global
+ New repid,ind
+ Set repid=$li(QHandle,2)
+
+ //Start Monitor (if configured to capture stats)
+ i mon Do ..MonitorEnd(mon)
+
+ Kill ^CacheTemp("TRAK",repid)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="SWARHRTHR1007QueryExecute">
+<Description>
+This is the Execute section for the %Library.Query. 
+All of the logic will be performed here.
+A new node for the ^CacheTemp global will be created and each subscript of this global will contain
+a row for the report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,Hospital:%Library.String,DateFrom:%Date,DateTo:%Date]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Get reportid i.e. use $INCREMENT to add another node to ^CacheTemp global. 
+ // We use ^CacheTemp global because it will always use memory before disk
+ New repid,ind
+
+  // Use $Increment to get the next node
+ Set repid=$I(^CacheTemp("TRAK"))
+ 
+ /* TEMPLATE MODIFY: Define and initialise appropriate column variables to describe output rowset columns */
+ New RBOPReasonSuspendDR,SUSPDesc,TotCancel,EmergCancelCount,ElectCancelCount,PrivateCancelCount
+ New PublicCancelCount,YTotCancel,YEmergCancelCount,YElectCancelCount,YPrivateCancelCount,YPublicCancelCount
+ Set (RBOPReasonSuspendDR,SUSPDesc,TotCancel,EmergCancelCount,ElectCancelCount,PrivateCancelCount)=""
+ Set (PublicCancelCount,YTotCancel,YEmergCancelCount,YElectCancelCount,YPrivateCancelCount,YPublicCancelCount)=""
+
+ s ind=1, END=0
+
+ //Start Monitor (if configured to capture stats)
+ s mon=..MonitorBegin()
+ 
+ s Hospital=$zstrip(Hospital,"*CW")
+ //Convert ODBC dates to cache format
+ s DateFrom=..ConvertDateToCache(DateFrom)
+ s DateTo=..ConvertDateToCache(DateTo)
+ 
+ s YearDate = ..ConvertDateToCache($PIECE($ZDATE($HOROLOG,3),"-")_"-01-01")
+ 
+ &SQL(DECLARE SWARHRTHR1007Cursor CURSOR FOR 
+					Select 
+	   		RB.RBOP_ReasonSuspend_DR,
+		   	('Cancellation Reason:'|| '' || %SQLSTRING(RB.RBOP_ReasonSuspend_DR->SUSP_Desc)) AS SUSP_Desc,
+		   	count(*) As TotCancel,
+			SUM(CASE WHEN rb.RBOP_BookingType = 'EM' THEN 1 ELSE 0 END) AS EmergCancelCount,
+			SUM(CASE WHEN rb.RBOP_BookingType = 'EL' THEN 1 ELSE 0 END) AS ElectCancelCount,
+			SUM(CASE WHEN C.INS_InsType_DR->INST_code not in('PUB','ACC') THEN 1 ELSE 0 END) AS PrivateCancelCount,
+			SUM(CASE WHEN C.INS_InsType_DR->INST_code = 'PUB' THEN 1 ELSE 0 END) AS PublicCancelCount,
+			YTotCancel,
+			YEmergCancelCount,
+			YElectCancelCount,
+			YPrivateCancelCount,
+			YPublicCancelCount
+
+	FROM SQLUser.RB_OperatingRoom RB
+	LEFT JOIN SQLUser.PA_AdmInsurance C ON RB.RBOP_PAADM_DR = C.INS_ParRef
+		LEFT JOIN (
+					Select 
+						YRB.RBOP_ReasonSuspend_DR,
+						('Cancellation Reason:'|| '' || %SQLSTRING(YRB.RBOP_ReasonSuspend_DR->SUSP_Desc)) AS YSUSP_Desc,
+					   	count(*) As YTotCancel,
+						SUM(CASE WHEN YrB.RBOP_BookingType = 'EM' THEN 1 ELSE 0 END) AS YEmergCancelCount,
+						SUM(CASE WHEN YrB.RBOP_BookingType = 'EL' THEN 1 ELSE 0 END) AS YElectCancelCount,
+						SUM(CASE WHEN YC.INS_InsType_DR->INST_code not in('PUB','ACC') THEN 1 ELSE 0 END) AS YPrivateCancelCount,
+						SUM(CASE WHEN YC.INS_InsType_DR->INST_code = 'PUB' THEN 1 ELSE 0 END) AS YPublicCancelCount
+								
+					FROM SQLUser.RB_OperatingRoom YRB
+					LEFT JOIN SQLUser.PA_AdmInsurance YC ON YRB.RBOP_PAADM_DR = YC.INS_ParRef	
+					WHERE YRB.RBOP_DateBook > :YearDate
+					AND YRB.RBOP_Status = 'X'
+					AND YRB.RBOP_PAADM_DR->PAADM_Hospital_DR = :Hospital
+					GROUP BY  YRB.RBOP_ReasonSuspend_DR, YRB.RBOP_ReasonSuspend_DR->SUSP_Desc) YRB ON (RB.RBOP_ReasonSuspend_DR=YRB.RBOP_ReasonSuspend_DR)
+						
+WHERE RB.RBOP_DateBook between :DateFrom and :DateTo
+AND RB.RBOP_PAADM_DR->PAADM_Hospital_DR = :Hospital
+AND RB.RBOP_Status = 'X'
+GROUP BY  RB.RBOP_ReasonSuspend_DR, RB.RBOP_ReasonSuspend_DR->SUSP_Desc
+
+union
+select 
+	'' AS RBOP_ReasonSuspend_DR,
+	'Total Patients' AS SUSP_Desc,
+	count(DISTINCT RB.RBOP_Person_DR) as TotCancel,
+	(SELECT COUNT(DISTINCT RB.RBOP_Person_DR) as thecount from SQLUser.OR_Anaesthesia AN INNER JOIN SQLUser.RB_OperatingRoom RB on AN.ANA_RBOperatingRoom_DR = RB.RBOP_RowId where AN.ANA_Date between :DateFrom and :DateTo and rb.RBOP_BookingType = 'EM' AND RB.RBOP_PAADM_DR->PAADM_Hospital_DR = :Hospital) as EmergCancelCount,
+	(SELECT COUNT(DISTINCT RB.RBOP_Person_DR) as thecount from SQLUser.OR_Anaesthesia AN INNER JOIN SQLUser.RB_OperatingRoom RB on AN.ANA_RBOperatingRoom_DR = RB.RBOP_RowId where AN.ANA_Date between :DateFrom and :DateTo and rb.RBOP_BookingType = 'EL' AND RB.RBOP_PAADM_DR->PAADM_Hospital_DR = :Hospital) as ElectCancelCount,
+	(SELECT COUNT(DISTINCT RB.RBOP_Person_DR) as thecount from SQLUser.OR_Anaesthesia AN INNER JOIN SQLUser.RB_OperatingRoom RB on AN.ANA_RBOperatingRoom_DR = RB.RBOP_RowId LEFT JOIN SQLUser.PA_AdmInsurance C ON RB.RBOP_PAADM_DR = C.INS_ParRef where AN.ANA_Date between :DateFrom and :DateTo and C.INS_InsType_DR->INST_code not in('PUB','ACC') AND RB.RBOP_PAADM_DR->PAADM_Hospital_DR = :Hospital) as PrivateCancelCount,
+	(SELECT COUNT(DISTINCT RB.RBOP_Person_DR) as thecount from SQLUser.OR_Anaesthesia AN INNER JOIN SQLUser.RB_OperatingRoom RB on AN.ANA_RBOperatingRoom_DR = RB.RBOP_RowId LEFT JOIN SQLUser.PA_AdmInsurance C ON RB.RBOP_PAADM_DR = C.INS_ParRef where AN.ANA_Date between :DateFrom and :DateTo and C.INS_InsType_DR->INST_code = 'PUB' AND RB.RBOP_PAADM_DR->PAADM_Hospital_DR = :Hospital) as PublicCancelCount,
+	(SELECT COUNT(DISTINCT RB.RBOP_Person_DR) FROM SQLUser.OR_Anaesthesia AN INNER JOIN SQLUser.RB_OperatingRoom RB on AN.ANA_RBOperatingRoom_DR = RB.RBOP_RowId where AN.ANA_Date > :YearDate AND RB.RBOP_PAADM_DR->PAADM_Hospital_DR = :Hospital)  as YTotCancel,
+	(SELECT COUNT(DISTINCT RB.RBOP_Person_DR) as thecount from SQLUser.OR_Anaesthesia AN INNER JOIN SQLUser.RB_OperatingRoom RB on AN.ANA_RBOperatingRoom_DR = RB.RBOP_RowId where AN.ANA_Date > :YearDate and rb.RBOP_BookingType = 'EM' AND RB.RBOP_PAADM_DR->PAADM_Hospital_DR = :Hospital) as YEmergCancelCount,
+	(SELECT COUNT(DISTINCT RB.RBOP_Person_DR) as thecount from SQLUser.OR_Anaesthesia AN INNER JOIN SQLUser.RB_OperatingRoom RB on AN.ANA_RBOperatingRoom_DR = RB.RBOP_RowId where AN.ANA_Date > :YearDate and rb.RBOP_BookingType = 'EL' AND RB.RBOP_PAADM_DR->PAADM_Hospital_DR = :Hospital) as YElectCancelCount,
+	(SELECT COUNT(DISTINCT RB.RBOP_Person_DR) as thecount from SQLUser.OR_Anaesthesia AN INNER JOIN SQLUser.RB_OperatingRoom RB on AN.ANA_RBOperatingRoom_DR = RB.RBOP_RowId LEFT JOIN SQLUser.PA_AdmInsurance C ON RB.RBOP_PAADM_DR = C.INS_ParRef where AN.ANA_Date > :YearDate and C.INS_InsType_DR->INST_code not in('PUB','ACC') AND RB.RBOP_PAADM_DR->PAADM_Hospital_DR = :Hospital) as YPrivateCancelCount,
+	(SELECT COUNT(DISTINCT RB.RBOP_Person_DR) as thecount from SQLUser.OR_Anaesthesia AN INNER JOIN SQLUser.RB_OperatingRoom RB on AN.ANA_RBOperatingRoom_DR = RB.RBOP_RowId LEFT JOIN SQLUser.PA_AdmInsurance C ON RB.RBOP_PAADM_DR = C.INS_ParRef where AN.ANA_Date > :YearDate and C.INS_InsType_DR->INST_code = 'PUB' AND RB.RBOP_PAADM_DR->PAADM_Hospital_DR = :Hospital) as YPublicCancelCount
+FROM SQLUser.OR_Anaesthesia AN
+INNER JOIN SQLUser.RB_OperatingRoom RB on AN.ANA_RBOperatingRoom_DR = RB.RBOP_RowId
+where AN.ANA_Date between :DateFrom and :DateTo
+AND RB.RBOP_PAADM_DR->PAADM_Hospital_DR = :Hospital
+
+union
+select 
+	'' AS RBOP_ReasonSuspend_DR,
+	'Total Procedures' AS SUSP_Desc,
+	count(*) as TotCancel,
+	(SELECT COUNT(*) as thecount from SQLUser.OR_Anaesthesia AN INNER JOIN SQLUser.RB_OperatingRoom RB on AN.ANA_RBOperatingRoom_DR = RB.RBOP_RowId where AN.ANA_Date between :DateFrom and :DateTo and rb.RBOP_BookingType = 'EM' AND RB.RBOP_PAADM_DR->PAADM_Hospital_DR = :Hospital) as EmergCancelCount,
+	(SELECT COUNT(*) as thecount from SQLUser.OR_Anaesthesia AN INNER JOIN SQLUser.RB_OperatingRoom RB on AN.ANA_RBOperatingRoom_DR = RB.RBOP_RowId where AN.ANA_Date between :DateFrom and :DateTo and rb.RBOP_BookingType = 'EL' AND RB.RBOP_PAADM_DR->PAADM_Hospital_DR = :Hospital) as ElectCancelCount,
+	(SELECT COUNT(*) as thecount from SQLUser.OR_Anaesthesia AN INNER JOIN SQLUser.RB_OperatingRoom RB on AN.ANA_RBOperatingRoom_DR = RB.RBOP_RowId LEFT JOIN SQLUser.PA_AdmInsurance C ON RB.RBOP_PAADM_DR = C.INS_ParRef where AN.ANA_Date between :DateFrom and :DateTo and C.INS_InsType_DR->INST_code not in('PUB','ACC') AND RB.RBOP_PAADM_DR->PAADM_Hospital_DR = :Hospital) as PrivateCancelCount,
+	(SELECT COUNT(*) as thecount from SQLUser.OR_Anaesthesia AN INNER JOIN SQLUser.RB_OperatingRoom RB on AN.ANA_RBOperatingRoom_DR = RB.RBOP_RowId LEFT JOIN SQLUser.PA_AdmInsurance C ON RB.RBOP_PAADM_DR = C.INS_ParRef where AN.ANA_Date between :DateFrom and :DateTo and C.INS_InsType_DR->INST_code = 'PUB' AND RB.RBOP_PAADM_DR->PAADM_Hospital_DR = :Hospital) as PublicCancelCount,
+	(SELECT	count(*) FROM SQLUser.OR_Anaesthesia AN INNER JOIN SQLUser.RB_OperatingRoom RB on AN.ANA_RBOperatingRoom_DR = RB.RBOP_RowId where AN.ANA_Date > :YearDate AND RB.RBOP_PAADM_DR->PAADM_Hospital_DR = :Hospital) as YTotCancel,
+	(SELECT COUNT(*) as thecount from SQLUser.OR_Anaesthesia AN INNER JOIN SQLUser.RB_OperatingRoom RB on AN.ANA_RBOperatingRoom_DR = RB.RBOP_RowId where AN.ANA_Date > :YearDate and rb.RBOP_BookingType = 'EM' AND RB.RBOP_PAADM_DR->PAADM_Hospital_DR = :Hospital) as YEmergCancelCount,
+	(SELECT COUNT(*) as thecount from SQLUser.OR_Anaesthesia AN INNER JOIN SQLUser.RB_OperatingRoom RB on AN.ANA_RBOperatingRoom_DR = RB.RBOP_RowId where AN.ANA_Date > :YearDate and rb.RBOP_BookingType = 'EL' AND RB.RBOP_PAADM_DR->PAADM_Hospital_DR = :Hospital) as YElectCancelCount,
+	(SELECT COUNT(*) as thecount from SQLUser.OR_Anaesthesia AN INNER JOIN SQLUser.RB_OperatingRoom RB on AN.ANA_RBOperatingRoom_DR = RB.RBOP_RowId LEFT JOIN SQLUser.PA_AdmInsurance C ON RB.RBOP_PAADM_DR = C.INS_ParRef where AN.ANA_Date > :YearDate and C.INS_InsType_DR->INST_code not in('PUB','ACC') AND RB.RBOP_PAADM_DR->PAADM_Hospital_DR = :Hospital) as YPrivateCancelCount,
+	(SELECT COUNT(*) as thecount from SQLUser.OR_Anaesthesia AN INNER JOIN SQLUser.RB_OperatingRoom RB on AN.ANA_RBOperatingRoom_DR = RB.RBOP_RowId LEFT JOIN SQLUser.PA_AdmInsurance C ON RB.RBOP_PAADM_DR = C.INS_ParRef where AN.ANA_Date > :YearDate and C.INS_InsType_DR->INST_code = 'PUB' AND RB.RBOP_PAADM_DR->PAADM_Hospital_DR = :Hospital) as YPublicCancelCount
+FROM SQLUser.OR_Anaesthesia AN
+INNER JOIN SQLUser.RB_OperatingRoom RB on AN.ANA_RBOperatingRoom_DR = RB.RBOP_RowId
+where AN.ANA_Date between :DateFrom and :DateTo
+AND RB.RBOP_PAADM_DR->PAADM_Hospital_DR = :Hospital
+
+
+union
+select 
+	'' AS RBOP_ReasonSuspend_DR,
+	'Total Cancellations' AS SUSP_Desc,
+	count(*) as TotCancel,
+	(SELECT COUNT(*) as thecount from SQLUser.OR_Anaesthesia AN INNER JOIN SQLUser.RB_OperatingRoom RB on AN.ANA_RBOperatingRoom_DR = RB.RBOP_RowId where AN.ANA_Date between :DateFrom and :DateTo and rb.RBOP_BookingType = 'EM' and  RB.RBOP_Status = 'X' AND RB.RBOP_PAADM_DR->PAADM_Hospital_DR = :Hospital) as EmergCancelCount,
+	(SELECT COUNT(*) as thecount from SQLUser.OR_Anaesthesia AN INNER JOIN SQLUser.RB_OperatingRoom RB on AN.ANA_RBOperatingRoom_DR = RB.RBOP_RowId where AN.ANA_Date between :DateFrom and :DateTo and rb.RBOP_BookingType = 'EL' and  RB.RBOP_Status = 'X' AND RB.RBOP_PAADM_DR->PAADM_Hospital_DR = :Hospital) as ElectCancelCount,
+	(SELECT COUNT(*) as thecount from SQLUser.OR_Anaesthesia AN INNER JOIN SQLUser.RB_OperatingRoom RB on AN.ANA_RBOperatingRoom_DR = RB.RBOP_RowId LEFT JOIN SQLUser.PA_AdmInsurance C ON RB.RBOP_PAADM_DR = C.INS_ParRef where AN.ANA_Date between :DateFrom and :DateTo and C.INS_InsType_DR->INST_code not in('PUB','ACC') And RB.RBOP_Status = 'X' AND RB.RBOP_PAADM_DR->PAADM_Hospital_DR = :Hospital) as PrivateCancelCount,
+	(SELECT COUNT(*) as thecount from SQLUser.OR_Anaesthesia AN INNER JOIN SQLUser.RB_OperatingRoom RB on AN.ANA_RBOperatingRoom_DR = RB.RBOP_RowId LEFT JOIN SQLUser.PA_AdmInsurance C ON RB.RBOP_PAADM_DR = C.INS_ParRef where AN.ANA_Date between :DateFrom and :DateTo and C.INS_InsType_DR->INST_code = 'PUB' And RB.RBOP_Status = 'X' AND RB.RBOP_PAADM_DR->PAADM_Hospital_DR = :Hospital) as PublicCancelCount,
+	(SELECT	count(*)FROM SQLUser.RB_OperatingRoom where RBOP_DateBook > :YearDate And RBOP_Status = 'X' AND RBOP_PAADM_DR->PAADM_Hospital_DR = :Hospital) as YTotCancel,
+	(SELECT COUNT(*) as thecount from SQLUser.OR_Anaesthesia AN INNER JOIN SQLUser.RB_OperatingRoom RB on AN.ANA_RBOperatingRoom_DR = RB.RBOP_RowId where AN.ANA_Date > :YearDate and rb.RBOP_BookingType = 'EM' and  RB.RBOP_Status = 'X' AND RB.RBOP_PAADM_DR->PAADM_Hospital_DR = :Hospital) as YEmergCancelCount,
+	(SELECT COUNT(*) as thecount from SQLUser.OR_Anaesthesia AN INNER JOIN SQLUser.RB_OperatingRoom RB on AN.ANA_RBOperatingRoom_DR = RB.RBOP_RowId where AN.ANA_Date > :YearDate and rb.RBOP_BookingType = 'EL' and  RB.RBOP_Status = 'X' AND RB.RBOP_PAADM_DR->PAADM_Hospital_DR = :Hospital) as YElectCancelCount,
+	(SELECT COUNT(*) as thecount from SQLUser.OR_Anaesthesia AN INNER JOIN SQLUser.RB_OperatingRoom RB on AN.ANA_RBOperatingRoom_DR = RB.RBOP_RowId LEFT JOIN SQLUser.PA_AdmInsurance C ON RB.RBOP_PAADM_DR = C.INS_ParRef where AN.ANA_Date > :YearDate and C.INS_InsType_DR->INST_code not in('PUB','ACC') And RB.RBOP_Status = 'X' AND RB.RBOP_PAADM_DR->PAADM_Hospital_DR = :Hospital) as YPrivateCancelCount,
+	(SELECT COUNT(*) as thecount from SQLUser.OR_Anaesthesia AN INNER JOIN SQLUser.RB_OperatingRoom RB on AN.ANA_RBOperatingRoom_DR = RB.RBOP_RowId LEFT JOIN SQLUser.PA_AdmInsurance C ON RB.RBOP_PAADM_DR = C.INS_ParRef where AN.ANA_Date > :YearDate and C.INS_InsType_DR->INST_code = 'PUB' And RB.RBOP_Status = 'X' AND RB.RBOP_PAADM_DR->PAADM_Hospital_DR = :Hospital) as YPublicCancelCount
+FROM SQLUser.RB_OperatingRoom
+where RBOP_DateBook between :DateFrom and :DateTo
+And RBOP_Status = 'X'
+AND RBOP_PAADM_DR->PAADM_Hospital_DR = :Hospital
+
+
+union
+select 
+	'' AS RBOP_ReasonSuspend_DR,
+	'Total Procedure Hours' AS SUSP_Desc,
+	SUM(DATEDIFF(mi,CONVERT(TIMESTAMP,ANO.ANAOP_OpStartTime),CONVERT(TIMESTAMP,ANO.ANAOP_OpEndTime))) as TotCancel,
+	(select (SUM(DATEDIFF(mi,CONVERT(TIMESTAMP,ANO.ANAOP_OpStartTime),CONVERT(TIMESTAMP,ANO.ANAOP_OpEndTime)))) from SQLUser.OR_Anaesthesia AN inner join SQLUser.OR_Anaest_Operation ANO on ANO.ANAOP_Par_Ref = AN.ANA_RowId INNER JOIN SQLUser.RB_OperatingRoom RB on AN.ANA_RBOperatingRoom_DR = RB.RBOP_RowId where AN.ANA_Date between :DateFrom and :DateTo and rb.RBOP_BookingType = 'EM' AND RB.RBOP_PAADM_DR->PAADM_Hospital_DR = :Hospital) as EmergCancelCount,
+	(select (SUM(DATEDIFF(mi,CONVERT(TIMESTAMP,ANO.ANAOP_OpStartTime),CONVERT(TIMESTAMP,ANO.ANAOP_OpEndTime)))) from SQLUser.OR_Anaesthesia AN inner join SQLUser.OR_Anaest_Operation ANO on ANO.ANAOP_Par_Ref = AN.ANA_RowId INNER JOIN SQLUser.RB_OperatingRoom RB on AN.ANA_RBOperatingRoom_DR = RB.RBOP_RowId where AN.ANA_Date between :DateFrom and :DateTo and rb.RBOP_BookingType = 'EL' AND RB.RBOP_PAADM_DR->PAADM_Hospital_DR = :Hospital) as ElectCancelCount,
+	(SELECT (SUM(DATEDIFF(mi,CONVERT(TIMESTAMP,ANO.ANAOP_OpStartTime),CONVERT(TIMESTAMP,ANO.ANAOP_OpEndTime)))) from SQLUser.OR_Anaesthesia AN inner join SQLUser.OR_Anaest_Operation ANO on ANO.ANAOP_Par_Ref = AN.ANA_RowId INNER JOIN SQLUser.RB_OperatingRoom RB on AN.ANA_RBOperatingRoom_DR = RB.RBOP_RowId LEFT JOIN SQLUser.PA_AdmInsurance C ON RB.RBOP_PAADM_DR = C.INS_ParRef where AN.ANA_Date between :DateFrom and :DateTo and C.INS_InsType_DR->INST_code not in('PUB','ACC') AND RB.RBOP_PAADM_DR->PAADM_Hospital_DR = :Hospital) as PrivateCancelCount,
+	(SELECT (SUM(DATEDIFF(mi,CONVERT(TIMESTAMP,ANO.ANAOP_OpStartTime),CONVERT(TIMESTAMP,ANO.ANAOP_OpEndTime)))) from SQLUser.OR_Anaesthesia AN inner join SQLUser.OR_Anaest_Operation ANO on ANO.ANAOP_Par_Ref = AN.ANA_RowId INNER JOIN SQLUser.RB_OperatingRoom RB on AN.ANA_RBOperatingRoom_DR = RB.RBOP_RowId LEFT JOIN SQLUser.PA_AdmInsurance C ON RB.RBOP_PAADM_DR = C.INS_ParRef where AN.ANA_Date between :DateFrom and :DateTo and C.INS_InsType_DR->INST_code = 'PUB' AND RB.RBOP_PAADM_DR->PAADM_Hospital_DR = :Hospital) as PublicCancelCount,
+	(select SUM(DATEDIFF(mi,CONVERT(TIMESTAMP,ANO.ANAOP_OpStartTime),CONVERT(TIMESTAMP,ANO.ANAOP_OpEndTime)))from SQLUser.OR_Anaesthesia AN inner join SQLUser.OR_Anaest_Operation ANO on ANO.ANAOP_Par_Ref = AN.ANA_RowId INNER JOIN SQLUser.RB_OperatingRoom RB on AN.ANA_RBOperatingRoom_DR = RB.RBOP_RowId where AN.ANA_Date > :YearDate AND RB.RBOP_PAADM_DR->PAADM_Hospital_DR = :Hospital) as YTotCancel,
+	(select (SUM(DATEDIFF(mi,CONVERT(TIMESTAMP,ANO.ANAOP_OpStartTime),CONVERT(TIMESTAMP,ANO.ANAOP_OpEndTime)))) from SQLUser.OR_Anaesthesia AN inner join SQLUser.OR_Anaest_Operation ANO on ANO.ANAOP_Par_Ref = AN.ANA_RowId INNER JOIN SQLUser.RB_OperatingRoom RB on AN.ANA_RBOperatingRoom_DR = RB.RBOP_RowId where AN.ANA_Date > :YearDate and rb.RBOP_BookingType = 'EM' AND RB.RBOP_PAADM_DR->PAADM_Hospital_DR = :Hospital) as YEmergCancelCount,
+	(select (SUM(DATEDIFF(mi,CONVERT(TIMESTAMP,ANO.ANAOP_OpStartTime),CONVERT(TIMESTAMP,ANO.ANAOP_OpEndTime)))) from SQLUser.OR_Anaesthesia AN inner join SQLUser.OR_Anaest_Operation ANO on ANO.ANAOP_Par_Ref = AN.ANA_RowId INNER JOIN SQLUser.RB_OperatingRoom RB on AN.ANA_RBOperatingRoom_DR = RB.RBOP_RowId where AN.ANA_Date > :YearDate and rb.RBOP_BookingType = 'EL' AND RB.RBOP_PAADM_DR->PAADM_Hospital_DR = :Hospital) as YElectCancelCount,
+	(SELECT (SUM(DATEDIFF(mi,CONVERT(TIMESTAMP,ANO.ANAOP_OpStartTime),CONVERT(TIMESTAMP,ANO.ANAOP_OpEndTime)))) from SQLUser.OR_Anaesthesia AN inner join SQLUser.OR_Anaest_Operation ANO on ANO.ANAOP_Par_Ref = AN.ANA_RowId INNER JOIN SQLUser.RB_OperatingRoom RB on AN.ANA_RBOperatingRoom_DR = RB.RBOP_RowId LEFT JOIN SQLUser.PA_AdmInsurance C ON RB.RBOP_PAADM_DR = C.INS_ParRef where AN.ANA_Date > :YearDate and C.INS_InsType_DR->INST_code not in('PUB','ACC') AND RB.RBOP_PAADM_DR->PAADM_Hospital_DR = :Hospital) as YPrivateCancelCount,
+	(SELECT (SUM(DATEDIFF(mi,CONVERT(TIMESTAMP,ANO.ANAOP_OpStartTime),CONVERT(TIMESTAMP,ANO.ANAOP_OpEndTime)))) from SQLUser.OR_Anaesthesia AN inner join SQLUser.OR_Anaest_Operation ANO on ANO.ANAOP_Par_Ref = AN.ANA_RowId INNER JOIN SQLUser.RB_OperatingRoom RB on AN.ANA_RBOperatingRoom_DR = RB.RBOP_RowId LEFT JOIN SQLUser.PA_AdmInsurance C ON RB.RBOP_PAADM_DR = C.INS_ParRef where AN.ANA_Date > :YearDate and C.INS_InsType_DR->INST_code = 'PUB' AND RB.RBOP_PAADM_DR->PAADM_Hospital_DR = :Hospital) as YPublicCancelCount
+from SQLUser.OR_Anaesthesia AN inner join SQLUser.OR_Anaest_Operation ANO on ANO.ANAOP_Par_Ref = AN.ANA_RowId
+INNER JOIN SQLUser.RB_OperatingRoom RB on AN.ANA_RBOperatingRoom_DR = RB.RBOP_RowId
+where AN.ANA_Date between :DateFrom and :DateTo
+AND RB.RBOP_PAADM_DR->PAADM_Hospital_DR = :Hospital
+
+union
+select 
+	'' AS RBOP_ReasonSuspend_DR,
+	'Total Theatre Hours' AS SUSP_Desc,
+	SUM(DATEDIFF(mi,CONVERT(TIMESTAMP,AN.ANA_TheatreInTime),CONVERT(TIMESTAMP,AN.ANA_TheatreOutTime))) as TotCancel,
+	(select (SUM(DATEDIFF(mi,CONVERT(TIMESTAMP,AN.ANA_TheatreInTime),CONVERT(TIMESTAMP,AN.ANA_TheatreOutTime)))) from SQLUser.OR_Anaesthesia AN INNER JOIN SQLUser.RB_OperatingRoom RB on AN.ANA_RBOperatingRoom_DR = RB.RBOP_RowId where AN.ANA_Date between :DateFrom and :DateTo and rb.RBOP_BookingType = 'EM' AND RB.RBOP_PAADM_DR->PAADM_Hospital_DR = :Hospital) as EmergCancelCount,
+	(select (SUM(DATEDIFF(mi,CONVERT(TIMESTAMP,AN.ANA_TheatreInTime),CONVERT(TIMESTAMP,AN.ANA_TheatreOutTime)))) from SQLUser.OR_Anaesthesia AN INNER JOIN SQLUser.RB_OperatingRoom RB on AN.ANA_RBOperatingRoom_DR = RB.RBOP_RowId where AN.ANA_Date between :DateFrom and :DateTo and rb.RBOP_BookingType = 'EL' AND RB.RBOP_PAADM_DR->PAADM_Hospital_DR = :Hospital) as ElectCancelCount,
+	(SELECT (SUM(DATEDIFF(mi,CONVERT(TIMESTAMP,AN.ANA_TheatreInTime),CONVERT(TIMESTAMP,AN.ANA_TheatreOutTime)))) from SQLUser.OR_Anaesthesia AN INNER JOIN SQLUser.RB_OperatingRoom RB on AN.ANA_RBOperatingRoom_DR = RB.RBOP_RowId LEFT JOIN SQLUser.PA_AdmInsurance C ON RB.RBOP_PAADM_DR = C.INS_ParRef where AN.ANA_Date between :DateFrom and :DateTo and C.INS_InsType_DR->INST_code not in('PUB','ACC') AND RB.RBOP_PAADM_DR->PAADM_Hospital_DR = :Hospital) as PrivateCancelCount,
+	(SELECT (SUM(DATEDIFF(mi,CONVERT(TIMESTAMP,AN.ANA_TheatreInTime),CONVERT(TIMESTAMP,AN.ANA_TheatreOutTime)))) from SQLUser.OR_Anaesthesia AN INNER JOIN SQLUser.RB_OperatingRoom RB on AN.ANA_RBOperatingRoom_DR = RB.RBOP_RowId LEFT JOIN SQLUser.PA_AdmInsurance C ON RB.RBOP_PAADM_DR = C.INS_ParRef where AN.ANA_Date between :DateFrom and :DateTo and C.INS_InsType_DR->INST_code = 'PUB' AND RB.RBOP_PAADM_DR->PAADM_Hospital_DR = :Hospital) as PublicCancelCount,
+	(select	(SUM(DATEDIFF(mi,CONVERT(TIMESTAMP,AN.ANA_TheatreInTime),CONVERT(TIMESTAMP,AN.ANA_TheatreOutTime)))) from SQLUser.OR_Anaesthesia AN INNER JOIN SQLUser.RB_OperatingRoom RB on AN.ANA_RBOperatingRoom_DR = RB.RBOP_RowId where AN.ANA_Date > :YearDate AND RB.RBOP_PAADM_DR->PAADM_Hospital_DR = :Hospital) as YTotCancel,
+	(select (SUM(DATEDIFF(mi,CONVERT(TIMESTAMP,AN.ANA_TheatreInTime),CONVERT(TIMESTAMP,AN.ANA_TheatreOutTime)))) from SQLUser.OR_Anaesthesia AN INNER JOIN SQLUser.RB_OperatingRoom RB on AN.ANA_RBOperatingRoom_DR = RB.RBOP_RowId where AN.ANA_Date > :YearDate and rb.RBOP_BookingType = 'EM' AND RB.RBOP_PAADM_DR->PAADM_Hospital_DR = :Hospital) as YEmergCancelCount,
+	(select (SUM(DATEDIFF(mi,CONVERT(TIMESTAMP,AN.ANA_TheatreInTime),CONVERT(TIMESTAMP,AN.ANA_TheatreOutTime)))) from SQLUser.OR_Anaesthesia AN INNER JOIN SQLUser.RB_OperatingRoom RB on AN.ANA_RBOperatingRoom_DR = RB.RBOP_RowId where AN.ANA_Date > :YearDate and rb.RBOP_BookingType = 'EL' AND RB.RBOP_PAADM_DR->PAADM_Hospital_DR = :Hospital) as YElectCancelCount,
+	(SELECT (SUM(DATEDIFF(mi,CONVERT(TIMESTAMP,AN.ANA_TheatreInTime),CONVERT(TIMESTAMP,AN.ANA_TheatreOutTime)))) from SQLUser.OR_Anaesthesia AN INNER JOIN SQLUser.RB_OperatingRoom RB on AN.ANA_RBOperatingRoom_DR = RB.RBOP_RowId LEFT JOIN SQLUser.PA_AdmInsurance C ON RB.RBOP_PAADM_DR = C.INS_ParRef where AN.ANA_Date > :YearDate and C.INS_InsType_DR->INST_code not in('PUB','ACC') AND RB.RBOP_PAADM_DR->PAADM_Hospital_DR = :Hospital) as YPrivateCancelCount,
+	(SELECT (SUM(DATEDIFF(mi,CONVERT(TIMESTAMP,AN.ANA_TheatreInTime),CONVERT(TIMESTAMP,AN.ANA_TheatreOutTime)))) from SQLUser.OR_Anaesthesia AN INNER JOIN SQLUser.RB_OperatingRoom RB on AN.ANA_RBOperatingRoom_DR = RB.RBOP_RowId LEFT JOIN SQLUser.PA_AdmInsurance C ON RB.RBOP_PAADM_DR = C.INS_ParRef where AN.ANA_Date > :YearDate and C.INS_InsType_DR->INST_code = 'PUB' AND RB.RBOP_PAADM_DR->PAADM_Hospital_DR = :Hospital) as YPublicCancelCount
+from SQLUser.OR_Anaesthesia AN
+INNER JOIN SQLUser.RB_OperatingRoom RB on AN.ANA_RBOperatingRoom_DR = RB.RBOP_RowId
+where AN.ANA_Date between :DateFrom and :DateTo
+AND RB.RBOP_PAADM_DR->PAADM_Hospital_DR = :Hospital
+
+Union
+select 
+	'' AS RBOP_ReasonSuspend_DR,
+	'Average Minutes Per Patient' AS SUSP_Desc,
+	CONVERT(INT,SUM(DATEDIFF(mi,CONVERT(TIMESTAMP,AN.ANA_TheatreInTime),CONVERT(TIMESTAMP,AN.ANA_TheatreOutTime)))/(SELECT count(DISTINCT RB.RBOP_Person_DR) FROM SQLUser.OR_Anaesthesia AN INNER JOIN SQLUser.RB_OperatingRoom RB on AN.ANA_RBOperatingRoom_DR = RB.RBOP_RowId where AN.ANA_Date between :DateFrom and :DateTo AND RB.RBOP_PAADM_DR->PAADM_Hospital_DR = :Hospital)) as TotCancel,
+	(select CONVERT(INT,((SUM(DATEDIFF(mi,CONVERT(TIMESTAMP,AN.ANA_TheatreInTime),CONVERT(TIMESTAMP,AN.ANA_TheatreOutTime))))/(SELECT COUNT(DISTINCT RB.RBOP_Person_DR) as thecount from SQLUser.OR_Anaesthesia AN INNER JOIN SQLUser.RB_OperatingRoom RB on AN.ANA_RBOperatingRoom_DR = RB.RBOP_RowId where AN.ANA_Date between :DateFrom and :DateTo and rb.RBOP_BookingType = 'EM' AND RB.RBOP_PAADM_DR->PAADM_Hospital_DR = :Hospital))) from SQLUser.OR_Anaesthesia AN INNER JOIN SQLUser.RB_OperatingRoom RB on AN.ANA_RBOperatingRoom_DR = RB.RBOP_RowId where AN.ANA_Date between :DateFrom and :DateTo and rb.RBOP_BookingType = 'EM') as EmergCancelCount,
+	(select CONVERT(INT,((SUM(DATEDIFF(mi,CONVERT(TIMESTAMP,AN.ANA_TheatreInTime),CONVERT(TIMESTAMP,AN.ANA_TheatreOutTime))))/(SELECT COUNT(DISTINCT RB.RBOP_Person_DR) as thecount from SQLUser.OR_Anaesthesia AN INNER JOIN SQLUser.RB_OperatingRoom RB on AN.ANA_RBOperatingRoom_DR = RB.RBOP_RowId where AN.ANA_Date between :DateFrom and :DateTo and rb.RBOP_BookingType = 'EL' AND RB.RBOP_PAADM_DR->PAADM_Hospital_DR = :Hospital))) from SQLUser.OR_Anaesthesia AN INNER JOIN SQLUser.RB_OperatingRoom RB on AN.ANA_RBOperatingRoom_DR = RB.RBOP_RowId where AN.ANA_Date between :DateFrom and :DateTo and rb.RBOP_BookingType = 'EL') as ElectCancelCount,
+	(SELECT CONVERT(INT,((SUM(DATEDIFF(mi,CONVERT(TIMESTAMP,AN.ANA_TheatreInTime),CONVERT(TIMESTAMP,AN.ANA_TheatreOutTime))))/(SELECT COUNT(DISTINCT RB.RBOP_Person_DR) as thecount from SQLUser.OR_Anaesthesia AN INNER JOIN SQLUser.RB_OperatingRoom RB on AN.ANA_RBOperatingRoom_DR = RB.RBOP_RowId LEFT JOIN SQLUser.PA_AdmInsurance C ON RB.RBOP_PAADM_DR = C.INS_ParRef where AN.ANA_Date between :DateFrom and :DateTo and C.INS_InsType_DR->INST_code not in('PUB','ACC') AND RB.RBOP_PAADM_DR->PAADM_Hospital_DR = :Hospital))) from SQLUser.OR_Anaesthesia AN INNER JOIN SQLUser.RB_OperatingRoom RB on AN.ANA_RBOperatingRoom_DR = RB.RBOP_RowId LEFT JOIN SQLUser.PA_AdmInsurance C ON RB.RBOP_PAADM_DR = C.INS_ParRef where AN.ANA_Date between :DateFrom and :DateTo and C.INS_InsType_DR->INST_code not in('PUB','ACC') AND RB.RBOP_PAADM_DR->PAADM_Hospital_DR = :Hospital) as PrivateCancelCount,
+	(SELECT CONVERT(INT,((SUM(DATEDIFF(mi,CONVERT(TIMESTAMP,AN.ANA_TheatreInTime),CONVERT(TIMESTAMP,AN.ANA_TheatreOutTime))))/(SELECT COUNT(DISTINCT RB.RBOP_Person_DR) as thecount from SQLUser.OR_Anaesthesia AN INNER JOIN SQLUser.RB_OperatingRoom RB on AN.ANA_RBOperatingRoom_DR = RB.RBOP_RowId LEFT JOIN SQLUser.PA_AdmInsurance C ON RB.RBOP_PAADM_DR = C.INS_ParRef where AN.ANA_Date between :DateFrom and :DateTo and C.INS_InsType_DR->INST_code = 'PUB' AND RB.RBOP_PAADM_DR->PAADM_Hospital_DR = :Hospital))) from SQLUser.OR_Anaesthesia AN INNER JOIN SQLUser.RB_OperatingRoom RB on AN.ANA_RBOperatingRoom_DR = RB.RBOP_RowId LEFT JOIN SQLUser.PA_AdmInsurance C ON RB.RBOP_PAADM_DR = C.INS_ParRef where AN.ANA_Date between :DateFrom and :DateTo and C.INS_InsType_DR->INST_code = 'PUB' AND RB.RBOP_PAADM_DR->PAADM_Hospital_DR = :Hospital) as PublicCancelCount,
+	(SELECT CONVERT(INT,SUM(DATEDIFF(mi,CONVERT(TIMESTAMP,AN.ANA_TheatreInTime),CONVERT(TIMESTAMP,AN.ANA_TheatreOutTime)))/(SELECT count(DISTINCT RB.RBOP_Person_DR) FROM SQLUser.OR_Anaesthesia AN INNER JOIN SQLUser.RB_OperatingRoom RB on AN.ANA_RBOperatingRoom_DR = RB.RBOP_RowId where AN.ANA_Date > :YearDate))from SQLUser.OR_Anaesthesia AN where AN.ANA_Date > :YearDate AND RB.RBOP_PAADM_DR->PAADM_Hospital_DR = :Hospital) as YTotCancel,
+	(select CONVERT(INT,((SUM(DATEDIFF(mi,CONVERT(TIMESTAMP,AN.ANA_TheatreInTime),CONVERT(TIMESTAMP,AN.ANA_TheatreOutTime))))/(SELECT COUNT(DISTINCT RB.RBOP_Person_DR) as thecount from SQLUser.OR_Anaesthesia AN INNER JOIN SQLUser.RB_OperatingRoom RB on AN.ANA_RBOperatingRoom_DR = RB.RBOP_RowId where AN.ANA_Date > :YearDate and rb.RBOP_BookingType = 'EM' AND RB.RBOP_PAADM_DR->PAADM_Hospital_DR = :Hospital))) from SQLUser.OR_Anaesthesia AN INNER JOIN SQLUser.RB_OperatingRoom RB on AN.ANA_RBOperatingRoom_DR = RB.RBOP_RowId where AN.ANA_Date > :YearDate and rb.RBOP_BookingType = 'EM' AND RB.RBOP_PAADM_DR->PAADM_Hospital_DR = :Hospital) as YEmergCancelCount,
+	(select CONVERT(INT,((SUM(DATEDIFF(mi,CONVERT(TIMESTAMP,AN.ANA_TheatreInTime),CONVERT(TIMESTAMP,AN.ANA_TheatreOutTime))))/(SELECT COUNT(DISTINCT RB.RBOP_Person_DR) as thecount from SQLUser.OR_Anaesthesia AN INNER JOIN SQLUser.RB_OperatingRoom RB on AN.ANA_RBOperatingRoom_DR = RB.RBOP_RowId where AN.ANA_Date > :YearDate and rb.RBOP_BookingType = 'EL' AND RB.RBOP_PAADM_DR->PAADM_Hospital_DR = :Hospital))) from SQLUser.OR_Anaesthesia AN INNER JOIN SQLUser.RB_OperatingRoom RB on AN.ANA_RBOperatingRoom_DR = RB.RBOP_RowId where AN.ANA_Date > :YearDate and rb.RBOP_BookingType = 'EL' AND RB.RBOP_PAADM_DR->PAADM_Hospital_DR = :Hospital) as YElectCancelCount,
+	(SELECT CONVERT(INT,((SUM(DATEDIFF(mi,CONVERT(TIMESTAMP,AN.ANA_TheatreInTime),CONVERT(TIMESTAMP,AN.ANA_TheatreOutTime))))/(SELECT COUNT(DISTINCT RB.RBOP_Person_DR) as thecount from SQLUser.OR_Anaesthesia AN INNER JOIN SQLUser.RB_OperatingRoom RB on AN.ANA_RBOperatingRoom_DR = RB.RBOP_RowId LEFT JOIN SQLUser.PA_AdmInsurance C ON RB.RBOP_PAADM_DR = C.INS_ParRef where AN.ANA_Date > :YearDate and C.INS_InsType_DR->INST_code not in('PUB','ACC')AND RB.RBOP_PAADM_DR->PAADM_Hospital_DR = :Hospital))) from SQLUser.OR_Anaesthesia AN INNER JOIN SQLUser.RB_OperatingRoom RB on AN.ANA_RBOperatingRoom_DR = RB.RBOP_RowId LEFT JOIN SQLUser.PA_AdmInsurance C ON RB.RBOP_PAADM_DR = C.INS_ParRef where AN.ANA_Date > :YearDate and C.INS_InsType_DR->INST_code not in('PUB','ACC')AND RB.RBOP_PAADM_DR->PAADM_Hospital_DR = :Hospital) as YPrivateCancelCount,
+	(SELECT CONVERT(INT,((SUM(DATEDIFF(mi,CONVERT(TIMESTAMP,AN.ANA_TheatreInTime),CONVERT(TIMESTAMP,AN.ANA_TheatreOutTime))))/(SELECT COUNT(DISTINCT RB.RBOP_Person_DR) as thecount from SQLUser.OR_Anaesthesia AN INNER JOIN SQLUser.RB_OperatingRoom RB on AN.ANA_RBOperatingRoom_DR = RB.RBOP_RowId LEFT JOIN SQLUser.PA_AdmInsurance C ON RB.RBOP_PAADM_DR = C.INS_ParRef where AN.ANA_Date > :YearDate and C.INS_InsType_DR->INST_code = 'PUB' AND RB.RBOP_PAADM_DR->PAADM_Hospital_DR = :Hospital))) from SQLUser.OR_Anaesthesia AN INNER JOIN SQLUser.RB_OperatingRoom RB on AN.ANA_RBOperatingRoom_DR = RB.RBOP_RowId LEFT JOIN SQLUser.PA_AdmInsurance C ON RB.RBOP_PAADM_DR = C.INS_ParRef where AN.ANA_Date > :YearDate and C.INS_InsType_DR->INST_code = 'PUB' AND RB.RBOP_PAADM_DR->PAADM_Hospital_DR = :Hospital) as YPublicCancelCount
+from SQLUser.OR_Anaesthesia AN
+INNER JOIN SQLUser.RB_OperatingRoom RB on AN.ANA_RBOperatingRoom_DR = RB.RBOP_RowId
+where AN.ANA_Date between :DateFrom and :DateTo
+AND RB.RBOP_PAADM_DR->PAADM_Hospital_DR = :Hospital
+
+union
+select 
+	'' AS RBOP_ReasonSuspend_DR,
+	'Average Minutes Per Procedure' AS SUSP_Desc,
+	CONVERT(INT,(SUM(DATEDIFF(mi,CONVERT(TIMESTAMP,ANO.ANAOP_OpStartTime),CONVERT(TIMESTAMP,ANO.ANAOP_OpEndTime)))/(SELECT COUNT(*) as thecount from SQLUser.OR_Anaesthesia AN INNER JOIN SQLUser.RB_OperatingRoom RB on AN.ANA_RBOperatingRoom_DR = RB.RBOP_RowId where AN.ANA_Date between :DateFrom and :DateTo AND RB.RBOP_PAADM_DR->PAADM_Hospital_DR = :Hospital))) as TotCancel,
+	(select CONVERT(INT,((SUM(DATEDIFF(mi,CONVERT(TIMESTAMP,ANO.ANAOP_OpStartTime),CONVERT(TIMESTAMP,ANO.ANAOP_OpEndTime))))/(SELECT COUNT(*) as thecount from SQLUser.OR_Anaesthesia AN INNER JOIN SQLUser.RB_OperatingRoom RB on AN.ANA_RBOperatingRoom_DR = RB.RBOP_RowId where AN.ANA_Date between :DateFrom and :DateTo and rb.RBOP_BookingType = 'EM' AND RB.RBOP_PAADM_DR->PAADM_Hospital_DR = :Hospital))) from SQLUser.OR_Anaesthesia AN inner join SQLUser.OR_Anaest_Operation ANO on ANO.ANAOP_Par_Ref = AN.ANA_RowId INNER JOIN SQLUser.RB_OperatingRoom RB on AN.ANA_RBOperatingRoom_DR = RB.RBOP_RowId where AN.ANA_Date between :DateFrom and :DateTo and rb.RBOP_BookingType = 'EM' AND RB.RBOP_PAADM_DR->PAADM_Hospital_DR = :Hospital) as EmergCancelCount,
+	(select CONVERT(INT,((SUM(DATEDIFF(mi,CONVERT(TIMESTAMP,ANO.ANAOP_OpStartTime),CONVERT(TIMESTAMP,ANO.ANAOP_OpEndTime))))/(SELECT COUNT(*) as thecount from SQLUser.OR_Anaesthesia AN INNER JOIN SQLUser.RB_OperatingRoom RB on AN.ANA_RBOperatingRoom_DR = RB.RBOP_RowId where AN.ANA_Date between :DateFrom and :DateTo and rb.RBOP_BookingType = 'EL' AND RB.RBOP_PAADM_DR->PAADM_Hospital_DR = :Hospital))) from SQLUser.OR_Anaesthesia AN inner join SQLUser.OR_Anaest_Operation ANO on ANO.ANAOP_Par_Ref = AN.ANA_RowId INNER JOIN SQLUser.RB_OperatingRoom RB on AN.ANA_RBOperatingRoom_DR = RB.RBOP_RowId where AN.ANA_Date between :DateFrom and :DateTo and rb.RBOP_BookingType = 'EL' AND RB.RBOP_PAADM_DR->PAADM_Hospital_DR = :Hospital) as ElectCancelCount,
+	(SELECT CONVERT(INT,((SUM(DATEDIFF(mi,CONVERT(TIMESTAMP,ANO.ANAOP_OpStartTime),CONVERT(TIMESTAMP,ANO.ANAOP_OpEndTime))))/(SELECT COUNT(*) as thecount from SQLUser.OR_Anaesthesia AN INNER JOIN SQLUser.RB_OperatingRoom RB on AN.ANA_RBOperatingRoom_DR = RB.RBOP_RowId LEFT JOIN SQLUser.PA_AdmInsurance C ON RB.RBOP_PAADM_DR = C.INS_ParRef where AN.ANA_Date between :DateFrom and :DateTo and C.INS_InsType_DR->INST_code not in('PUB','ACC') AND RB.RBOP_PAADM_DR->PAADM_Hospital_DR = :Hospital))) from SQLUser.OR_Anaesthesia AN inner join SQLUser.OR_Anaest_Operation ANO on ANO.ANAOP_Par_Ref = AN.ANA_RowId INNER JOIN SQLUser.RB_OperatingRoom RB on AN.ANA_RBOperatingRoom_DR = RB.RBOP_RowId LEFT JOIN SQLUser.PA_AdmInsurance C ON RB.RBOP_PAADM_DR = C.INS_ParRef where AN.ANA_Date between :DateFrom and :DateTo and C.INS_InsType_DR->INST_code not in('PUB','ACC') AND RB.RBOP_PAADM_DR->PAADM_Hospital_DR = :Hospital) as PrivateCancelCount,
+	(SELECT CONVERT(INT,((SUM(DATEDIFF(mi,CONVERT(TIMESTAMP,ANO.ANAOP_OpStartTime),CONVERT(TIMESTAMP,ANO.ANAOP_OpEndTime))))/(SELECT COUNT(*) as thecount from SQLUser.OR_Anaesthesia AN INNER JOIN SQLUser.RB_OperatingRoom RB on AN.ANA_RBOperatingRoom_DR = RB.RBOP_RowId LEFT JOIN SQLUser.PA_AdmInsurance C ON RB.RBOP_PAADM_DR = C.INS_ParRef where AN.ANA_Date between :DateFrom and :DateTo and C.INS_InsType_DR->INST_code = 'PUB' AND RB.RBOP_PAADM_DR->PAADM_Hospital_DR = :Hospital))) from SQLUser.OR_Anaesthesia AN inner join SQLUser.OR_Anaest_Operation ANO on ANO.ANAOP_Par_Ref = AN.ANA_RowId INNER JOIN SQLUser.RB_OperatingRoom RB on AN.ANA_RBOperatingRoom_DR = RB.RBOP_RowId LEFT JOIN SQLUser.PA_AdmInsurance C ON RB.RBOP_PAADM_DR = C.INS_ParRef where AN.ANA_Date between :DateFrom and :DateTo and C.INS_InsType_DR->INST_code = 'PUB' AND RB.RBOP_PAADM_DR->PAADM_Hospital_DR = :Hospital) as PublicCancelCount,
+	(select CONVERT(INT,(SUM(DATEDIFF(mi,CONVERT(TIMESTAMP,ANO.ANAOP_OpStartTime),CONVERT(TIMESTAMP,ANO.ANAOP_OpEndTime)))/(SELECT COUNT(*) as thecount from SQLUser.OR_Anaesthesia AN INNER JOIN SQLUser.RB_OperatingRoom RB on AN.ANA_RBOperatingRoom_DR = RB.RBOP_RowId where AN.ANA_Date > :YearDate)))from SQLUser.OR_Anaesthesia AN inner join SQLUser.OR_Anaest_Operation ANO on ANO.ANAOP_Par_Ref = AN.ANA_RowId where AN.ANA_Date > :YearDate AND RB.RBOP_PAADM_DR->PAADM_Hospital_DR = :Hospital) as YTotCancel,
+	(select CONVERT(INT,((SUM(DATEDIFF(mi,CONVERT(TIMESTAMP,ANO.ANAOP_OpStartTime),CONVERT(TIMESTAMP,ANO.ANAOP_OpEndTime))))/(SELECT COUNT(*) as thecount from SQLUser.OR_Anaesthesia AN INNER JOIN SQLUser.RB_OperatingRoom RB on AN.ANA_RBOperatingRoom_DR = RB.RBOP_RowId where AN.ANA_Date > :YearDate and rb.RBOP_BookingType = 'EM' AND RB.RBOP_PAADM_DR->PAADM_Hospital_DR = :Hospital))) from SQLUser.OR_Anaesthesia AN inner join SQLUser.OR_Anaest_Operation ANO on ANO.ANAOP_Par_Ref = AN.ANA_RowId INNER JOIN SQLUser.RB_OperatingRoom RB on AN.ANA_RBOperatingRoom_DR = RB.RBOP_RowId where AN.ANA_Date > :YearDate and rb.RBOP_BookingType = 'EM' AND RB.RBOP_PAADM_DR->PAADM_Hospital_DR = :Hospital) as YEmergCancelCount,
+	(select CONVERT(INT,((SUM(DATEDIFF(mi,CONVERT(TIMESTAMP,ANO.ANAOP_OpStartTime),CONVERT(TIMESTAMP,ANO.ANAOP_OpEndTime))))/(SELECT COUNT(*) as thecount from SQLUser.OR_Anaesthesia AN INNER JOIN SQLUser.RB_OperatingRoom RB on AN.ANA_RBOperatingRoom_DR = RB.RBOP_RowId where AN.ANA_Date > :YearDate and rb.RBOP_BookingType = 'EL' AND RB.RBOP_PAADM_DR->PAADM_Hospital_DR = :Hospital))) from SQLUser.OR_Anaesthesia AN inner join SQLUser.OR_Anaest_Operation ANO on ANO.ANAOP_Par_Ref = AN.ANA_RowId INNER JOIN SQLUser.RB_OperatingRoom RB on AN.ANA_RBOperatingRoom_DR = RB.RBOP_RowId where AN.ANA_Date > :YearDate and rb.RBOP_BookingType = 'EL' AND RB.RBOP_PAADM_DR->PAADM_Hospital_DR = :Hospital) as YElectCancelCount,
+	(SELECT CONVERT(INT,((SUM(DATEDIFF(mi,CONVERT(TIMESTAMP,ANO.ANAOP_OpStartTime),CONVERT(TIMESTAMP,ANO.ANAOP_OpEndTime))))/(SELECT COUNT(*) as thecount from SQLUser.OR_Anaesthesia AN INNER JOIN SQLUser.RB_OperatingRoom RB on AN.ANA_RBOperatingRoom_DR = RB.RBOP_RowId LEFT JOIN SQLUser.PA_AdmInsurance C ON RB.RBOP_PAADM_DR = C.INS_ParRef where AN.ANA_Date > :YearDate and C.INS_InsType_DR->INST_code not in('PUB','ACC') AND RB.RBOP_PAADM_DR->PAADM_Hospital_DR = :Hospital))) from SQLUser.OR_Anaesthesia AN inner join SQLUser.OR_Anaest_Operation ANO on ANO.ANAOP_Par_Ref = AN.ANA_RowId INNER JOIN SQLUser.RB_OperatingRoom RB on AN.ANA_RBOperatingRoom_DR = RB.RBOP_RowId LEFT JOIN SQLUser.PA_AdmInsurance C ON RB.RBOP_PAADM_DR = C.INS_ParRef where AN.ANA_Date > :YearDate and C.INS_InsType_DR->INST_code not in('PUB','ACC') AND RB.RBOP_PAADM_DR->PAADM_Hospital_DR = :Hospital) as YPrivateCancelCount,
+	(SELECT CONVERT(INT,((SUM(DATEDIFF(mi,CONVERT(TIMESTAMP,ANO.ANAOP_OpStartTime),CONVERT(TIMESTAMP,ANO.ANAOP_OpEndTime))))/(SELECT COUNT(*) as thecount from SQLUser.OR_Anaesthesia AN INNER JOIN SQLUser.RB_OperatingRoom RB on AN.ANA_RBOperatingRoom_DR = RB.RBOP_RowId LEFT JOIN SQLUser.PA_AdmInsurance C ON RB.RBOP_PAADM_DR = C.INS_ParRef where AN.ANA_Date > :YearDate and C.INS_InsType_DR->INST_code = 'PUB' AND RB.RBOP_PAADM_DR->PAADM_Hospital_DR = :Hospital))) from SQLUser.OR_Anaesthesia AN inner join SQLUser.OR_Anaest_Operation ANO on ANO.ANAOP_Par_Ref = AN.ANA_RowId INNER JOIN SQLUser.RB_OperatingRoom RB on AN.ANA_RBOperatingRoom_DR = RB.RBOP_RowId LEFT JOIN SQLUser.PA_AdmInsurance C ON RB.RBOP_PAADM_DR = C.INS_ParRef where AN.ANA_Date > :YearDate and C.INS_InsType_DR->INST_code = 'PUB' AND RB.RBOP_PAADM_DR->PAADM_Hospital_DR = :Hospital) as YPublicCancelCount
+from SQLUser.OR_Anaesthesia AN inner join SQLUser.OR_Anaest_Operation ANO on ANO.ANAOP_Par_Ref = AN.ANA_RowId
+INNER JOIN SQLUser.RB_OperatingRoom RB on AN.ANA_RBOperatingRoom_DR = RB.RBOP_RowId
+where AN.ANA_Date between :DateFrom and :DateTo
+AND RB.RBOP_PAADM_DR->PAADM_Hospital_DR = :Hospital
+
+union
+select 
+	'' AS RBOP_ReasonSuspend_DR,
+	'Total Weekday Sessions' AS SUSP_Desc,
+	count(*) as TotCancel,
+	(SELECT COUNT(*) as thecount from SQLUser.OR_Anaesthesia AN INNER JOIN SQLUser.RB_OperatingRoom RB on AN.ANA_RBOperatingRoom_DR = RB.RBOP_RowId where AN.ANA_Date between :DateFrom and :DateTo and rb.RBOP_BookingType = 'EM' and datepart(dw,AN.ANA_Date) not in (1,7) AND RB.RBOP_PAADM_DR->PAADM_Hospital_DR = :Hospital) as EmergCancelCount,
+	(SELECT COUNT(*) as thecount from SQLUser.OR_Anaesthesia AN INNER JOIN SQLUser.RB_OperatingRoom RB on AN.ANA_RBOperatingRoom_DR = RB.RBOP_RowId where AN.ANA_Date between :DateFrom and :DateTo and rb.RBOP_BookingType = 'EL' and datepart(dw,AN.ANA_Date) not in (1,7) AND RB.RBOP_PAADM_DR->PAADM_Hospital_DR = :Hospital) as ElectCancelCount,
+	(SELECT COUNT(*) as thecount from SQLUser.OR_Anaesthesia AN INNER JOIN SQLUser.RB_OperatingRoom RB on AN.ANA_RBOperatingRoom_DR = RB.RBOP_RowId LEFT JOIN SQLUser.PA_AdmInsurance C ON RB.RBOP_PAADM_DR = C.INS_ParRef where AN.ANA_Date between :DateFrom and :DateTo and C.INS_InsType_DR->INST_code not in('PUB','ACC') and datepart(dw,ANA_Date) not in (1,7) AND RB.RBOP_PAADM_DR->PAADM_Hospital_DR = :Hospital) as PrivateCancelCount,
+	(SELECT COUNT(*) as thecount from SQLUser.OR_Anaesthesia AN INNER JOIN SQLUser.RB_OperatingRoom RB on AN.ANA_RBOperatingRoom_DR = RB.RBOP_RowId LEFT JOIN SQLUser.PA_AdmInsurance C ON RB.RBOP_PAADM_DR = C.INS_ParRef where AN.ANA_Date between :DateFrom and :DateTo and C.INS_InsType_DR->INST_code = 'PUB' and datepart(dw,ANA_Date) not in (1,7) AND RB.RBOP_PAADM_DR->PAADM_Hospital_DR = :Hospital) as PublicCancelCount,
+	(SELECT	count(*) FROM SQLUser.OR_Anaesthesia AN INNER JOIN SQLUser.RB_OperatingRoom RB on AN.ANA_RBOperatingRoom_DR = RB.RBOP_RowId where AN.ANA_Date > :YearDate and datepart(dw,ANA_Date) not in (1,7) AND RB.RBOP_PAADM_DR->PAADM_Hospital_DR = :Hospital) as YTotCancel,
+	(SELECT COUNT(*) as thecount from SQLUser.OR_Anaesthesia AN INNER JOIN SQLUser.RB_OperatingRoom RB on AN.ANA_RBOperatingRoom_DR = RB.RBOP_RowId where AN.ANA_Date > :YearDate and rb.RBOP_BookingType = 'EM' and datepart(dw,ANA_Date) not in (1,7) AND RB.RBOP_PAADM_DR->PAADM_Hospital_DR = :Hospital) as YEmergCancelCount,
+	(SELECT COUNT(*) as thecount from SQLUser.OR_Anaesthesia AN INNER JOIN SQLUser.RB_OperatingRoom RB on AN.ANA_RBOperatingRoom_DR = RB.RBOP_RowId where AN.ANA_Date > :YearDate and rb.RBOP_BookingType = 'EL' and datepart(dw,ANA_Date) not in (1,7) AND RB.RBOP_PAADM_DR->PAADM_Hospital_DR = :Hospital) as YElectCancelCount,
+	(SELECT COUNT(*) as thecount from SQLUser.OR_Anaesthesia AN INNER JOIN SQLUser.RB_OperatingRoom RB on AN.ANA_RBOperatingRoom_DR = RB.RBOP_RowId LEFT JOIN SQLUser.PA_AdmInsurance C ON RB.RBOP_PAADM_DR = C.INS_ParRef where AN.ANA_Date > :YearDate and C.INS_InsType_DR->INST_code not in('PUB','ACC') and datepart(dw,ANA_Date) not in (1,7) AND RB.RBOP_PAADM_DR->PAADM_Hospital_DR = :Hospital) as YPrivateCancelCount,
+	(SELECT COUNT(*) as thecount from SQLUser.OR_Anaesthesia AN INNER JOIN SQLUser.RB_OperatingRoom RB on AN.ANA_RBOperatingRoom_DR = RB.RBOP_RowId LEFT JOIN SQLUser.PA_AdmInsurance C ON RB.RBOP_PAADM_DR = C.INS_ParRef where AN.ANA_Date > :YearDate and C.INS_InsType_DR->INST_code = 'PUB' and datepart(dw,ANA_Date) not in (1,7) AND RB.RBOP_PAADM_DR->PAADM_Hospital_DR = :Hospital) as YPublicCancelCount
+FROM SQLUser.OR_Anaesthesia AN
+INNER JOIN SQLUser.RB_OperatingRoom RB on AN.ANA_RBOperatingRoom_DR = RB.RBOP_RowId
+where AN.ANA_Date between :DateFrom and :DateTo and datepart(dw,ANA_Date) not in (1,7)
+AND RB.RBOP_PAADM_DR->PAADM_Hospital_DR = :Hospital
+
+union
+select 
+	'' AS RBOP_ReasonSuspend_DR,
+	'Total Weekend Sessions' AS SUSP_Desc,
+	count(*) as TotCancel,
+	(SELECT COUNT(*) as thecount from SQLUser.OR_Anaesthesia AN INNER JOIN SQLUser.RB_OperatingRoom RB on AN.ANA_RBOperatingRoom_DR = RB.RBOP_RowId where AN.ANA_Date between :DateFrom and :DateTo and rb.RBOP_BookingType = 'EM' and datepart(dw,ANA_Date) in (1,7) AND RB.RBOP_PAADM_DR->PAADM_Hospital_DR = :Hospital) as EmergCancelCount,
+	(SELECT COUNT(*) as thecount from SQLUser.OR_Anaesthesia AN INNER JOIN SQLUser.RB_OperatingRoom RB on AN.ANA_RBOperatingRoom_DR = RB.RBOP_RowId where AN.ANA_Date between :DateFrom and :DateTo and rb.RBOP_BookingType = 'EL' and datepart(dw,ANA_Date) in (1,7) AND RB.RBOP_PAADM_DR->PAADM_Hospital_DR = :Hospital) as ElectCancelCount,
+	(SELECT COUNT(*) as thecount from SQLUser.OR_Anaesthesia AN INNER JOIN SQLUser.RB_OperatingRoom RB on AN.ANA_RBOperatingRoom_DR = RB.RBOP_RowId LEFT JOIN SQLUser.PA_AdmInsurance C ON RB.RBOP_PAADM_DR = C.INS_ParRef where AN.ANA_Date between :DateFrom and :DateTo and C.INS_InsType_DR->INST_code not in('PUB','ACC') and datepart(dw,ANA_Date) in (1,7) AND RB.RBOP_PAADM_DR->PAADM_Hospital_DR = :Hospital) as PrivateCancelCount,
+	(SELECT COUNT(*) as thecount from SQLUser.OR_Anaesthesia AN INNER JOIN SQLUser.RB_OperatingRoom RB on AN.ANA_RBOperatingRoom_DR = RB.RBOP_RowId LEFT JOIN SQLUser.PA_AdmInsurance C ON RB.RBOP_PAADM_DR = C.INS_ParRef where AN.ANA_Date between :DateFrom and :DateTo and C.INS_InsType_DR->INST_code = 'PUB' and datepart(dw,ANA_Date) in (1,7) AND RB.RBOP_PAADM_DR->PAADM_Hospital_DR = :Hospital) as PublicCancelCount,
+	(SELECT	count(*) FROM SQLUser.OR_Anaesthesia AN INNER JOIN SQLUser.RB_OperatingRoom RB on AN.ANA_RBOperatingRoom_DR = RB.RBOP_RowId where AN.ANA_Date > :YearDate and datepart(dw,ANA_Date) in (1,7) AND RB.RBOP_PAADM_DR->PAADM_Hospital_DR = :Hospital) as YTotCancel,
+	(SELECT COUNT(*) as thecount from SQLUser.OR_Anaesthesia AN INNER JOIN SQLUser.RB_OperatingRoom RB on AN.ANA_RBOperatingRoom_DR = RB.RBOP_RowId where AN.ANA_Date > :YearDate and rb.RBOP_BookingType = 'EM' and datepart(dw,ANA_Date) in (1,7) AND RB.RBOP_PAADM_DR->PAADM_Hospital_DR = :Hospital) as YEmergCancelCount,
+	(SELECT COUNT(*) as thecount from SQLUser.OR_Anaesthesia AN INNER JOIN SQLUser.RB_OperatingRoom RB on AN.ANA_RBOperatingRoom_DR = RB.RBOP_RowId where AN.ANA_Date > :YearDate and rb.RBOP_BookingType = 'EL' and datepart(dw,ANA_Date) in (1,7) AND RB.RBOP_PAADM_DR->PAADM_Hospital_DR = :Hospital) as YElectCancelCount,
+	(SELECT COUNT(*) as thecount from SQLUser.OR_Anaesthesia AN INNER JOIN SQLUser.RB_OperatingRoom RB on AN.ANA_RBOperatingRoom_DR = RB.RBOP_RowId LEFT JOIN SQLUser.PA_AdmInsurance C ON RB.RBOP_PAADM_DR = C.INS_ParRef where AN.ANA_Date > :YearDate and C.INS_InsType_DR->INST_code not in('PUB','ACC') and datepart(dw,ANA_Date) in (1,7) AND RB.RBOP_PAADM_DR->PAADM_Hospital_DR = :Hospital) as YPrivateCancelCount,
+	(SELECT COUNT(*) as thecount from SQLUser.OR_Anaesthesia AN INNER JOIN SQLUser.RB_OperatingRoom RB on AN.ANA_RBOperatingRoom_DR = RB.RBOP_RowId LEFT JOIN SQLUser.PA_AdmInsurance C ON RB.RBOP_PAADM_DR = C.INS_ParRef where AN.ANA_Date > :YearDate and C.INS_InsType_DR->INST_code = 'PUB' and datepart(dw,ANA_Date) in (1,7) AND RB.RBOP_PAADM_DR->PAADM_Hospital_DR = :Hospital) as YPublicCancelCount
+FROM SQLUser.OR_Anaesthesia AN
+INNER JOIN SQLUser.RB_OperatingRoom RB on AN.ANA_RBOperatingRoom_DR = RB.RBOP_RowId
+where AN.ANA_Date between :DateFrom and :DateTo and datepart(dw,ANA_Date) in (1,7)
+AND RB.RBOP_PAADM_DR->PAADM_Hospital_DR = :Hospital
+
+
+union
+select 
+	'' AS RBOP_ReasonSuspend_DR,
+	'Total AM Sessions' AS SUSP_Desc,
+	count(*) as TotCancel,
+	(SELECT COUNT(*) as thecount from SQLUser.OR_Anaesthesia AN INNER JOIN SQLUser.RB_OperatingRoom RB on AN.ANA_RBOperatingRoom_DR = RB.RBOP_RowId where AN.ANA_Date between :DateFrom and :DateTo and rb.RBOP_BookingType = 'EM' and an.ANA_AnaStartTime between '00:00:00' and '12:00:00' AND RB.RBOP_PAADM_DR->PAADM_Hospital_DR = :Hospital) as EmergCancelCount,
+	(SELECT COUNT(*) as thecount from SQLUser.OR_Anaesthesia AN INNER JOIN SQLUser.RB_OperatingRoom RB on AN.ANA_RBOperatingRoom_DR = RB.RBOP_RowId where AN.ANA_Date between :DateFrom and :DateTo and rb.RBOP_BookingType = 'EL' and an.ANA_AnaStartTime between '00:00:00' and '12:00:00' AND RB.RBOP_PAADM_DR->PAADM_Hospital_DR = :Hospital) as ElectCancelCount,
+	(SELECT COUNT(*) as thecount from SQLUser.OR_Anaesthesia AN INNER JOIN SQLUser.RB_OperatingRoom RB on AN.ANA_RBOperatingRoom_DR = RB.RBOP_RowId LEFT JOIN SQLUser.PA_AdmInsurance C ON RB.RBOP_PAADM_DR = C.INS_ParRef where AN.ANA_Date between :DateFrom and :DateTo and C.INS_InsType_DR->INST_code not in('PUB','ACC') and an.ANA_AnaStartTime between '00:00:00' and '12:00:00' AND RB.RBOP_PAADM_DR->PAADM_Hospital_DR = :Hospital) as PrivateCancelCount,
+	(SELECT COUNT(*) as thecount from SQLUser.OR_Anaesthesia AN INNER JOIN SQLUser.RB_OperatingRoom RB on AN.ANA_RBOperatingRoom_DR = RB.RBOP_RowId LEFT JOIN SQLUser.PA_AdmInsurance C ON RB.RBOP_PAADM_DR = C.INS_ParRef where AN.ANA_Date between :DateFrom and :DateTo and C.INS_InsType_DR->INST_code = 'PUB' and an.ANA_AnaStartTime between '00:00:00' and '12:00:00' AND RB.RBOP_PAADM_DR->PAADM_Hospital_DR = :Hospital) as PublicCancelCount,
+	(SELECT	count(*) FROM SQLUser.OR_Anaesthesia AN INNER JOIN SQLUser.RB_OperatingRoom RB on AN.ANA_RBOperatingRoom_DR = RB.RBOP_RowId where AN.ANA_Date > :YearDate and an.ANA_AnaStartTime between '00:00:00' and '12:00:00' AND RB.RBOP_PAADM_DR->PAADM_Hospital_DR = :Hospital) as YTotCancel,
+	(SELECT COUNT(*) as thecount from SQLUser.OR_Anaesthesia AN INNER JOIN SQLUser.RB_OperatingRoom RB on AN.ANA_RBOperatingRoom_DR = RB.RBOP_RowId where AN.ANA_Date > :YearDate and rb.RBOP_BookingType = 'EM' and an.ANA_AnaStartTime between '00:00:00' and '12:00:00' AND RB.RBOP_PAADM_DR->PAADM_Hospital_DR = :Hospital) as YEmergCancelCount,
+	(SELECT COUNT(*) as thecount from SQLUser.OR_Anaesthesia AN INNER JOIN SQLUser.RB_OperatingRoom RB on AN.ANA_RBOperatingRoom_DR = RB.RBOP_RowId where AN.ANA_Date > :YearDate and rb.RBOP_BookingType = 'EL' and an.ANA_AnaStartTime between '00:00:00' and '12:00:00' AND RB.RBOP_PAADM_DR->PAADM_Hospital_DR = :Hospital) as YElectCancelCount,
+	(SELECT COUNT(*) as thecount from SQLUser.OR_Anaesthesia AN INNER JOIN SQLUser.RB_OperatingRoom RB on AN.ANA_RBOperatingRoom_DR = RB.RBOP_RowId LEFT JOIN SQLUser.PA_AdmInsurance C ON RB.RBOP_PAADM_DR = C.INS_ParRef where AN.ANA_Date > :YearDate and C.INS_InsType_DR->INST_code not in('PUB','ACC') and an.ANA_AnaStartTime between '00:00:00' and '12:00:00' AND RB.RBOP_PAADM_DR->PAADM_Hospital_DR = :Hospital) as YPrivateCancelCount,
+	(SELECT COUNT(*) as thecount from SQLUser.OR_Anaesthesia AN INNER JOIN SQLUser.RB_OperatingRoom RB on AN.ANA_RBOperatingRoom_DR = RB.RBOP_RowId LEFT JOIN SQLUser.PA_AdmInsurance C ON RB.RBOP_PAADM_DR = C.INS_ParRef where AN.ANA_Date > :YearDate and C.INS_InsType_DR->INST_code = 'PUB' and an.ANA_AnaStartTime between '00:00:00' and '12:00:00' AND RB.RBOP_PAADM_DR->PAADM_Hospital_DR = :Hospital) as YPublicCancelCount
+FROM SQLUser.OR_Anaesthesia AN
+INNER JOIN SQLUser.RB_OperatingRoom RB on AN.ANA_RBOperatingRoom_DR = RB.RBOP_RowId
+where AN.ANA_Date between :DateFrom and :DateTo and an.ANA_AnaStartTime between '00:00:00' and '12:00:00'
+AND RB.RBOP_PAADM_DR->PAADM_Hospital_DR = :Hospital
+
+ union
+ select 
+	'' AS RBOP_ReasonSuspend_DR,
+	'Total PM Sessions' AS SUSP_Desc,
+	count(*) as TotCancel,
+	(SELECT COUNT(*) as thecount from SQLUser.OR_Anaesthesia AN INNER JOIN SQLUser.RB_OperatingRoom RB on AN.ANA_RBOperatingRoom_DR = RB.RBOP_RowId where AN.ANA_Date between :DateFrom and :DateTo and rb.RBOP_BookingType = 'EM' and an.ANA_AnaStartTime between '12:00:00' and '23:59:00' AND RB.RBOP_PAADM_DR->PAADM_Hospital_DR = :Hospital) as EmergCancelCount,
+	(SELECT COUNT(*) as thecount from SQLUser.OR_Anaesthesia AN INNER JOIN SQLUser.RB_OperatingRoom RB on AN.ANA_RBOperatingRoom_DR = RB.RBOP_RowId where AN.ANA_Date between :DateFrom and :DateTo and rb.RBOP_BookingType = 'EL' and an.ANA_AnaStartTime between '12:00:00' and '23:59:00' AND RB.RBOP_PAADM_DR->PAADM_Hospital_DR = :Hospital) as ElectCancelCount,
+	(SELECT COUNT(*) as thecount from SQLUser.OR_Anaesthesia AN INNER JOIN SQLUser.RB_OperatingRoom RB on AN.ANA_RBOperatingRoom_DR = RB.RBOP_RowId LEFT JOIN SQLUser.PA_AdmInsurance C ON RB.RBOP_PAADM_DR = C.INS_ParRef where AN.ANA_Date between :DateFrom and :DateTo and C.INS_InsType_DR->INST_code not in('PUB','ACC') and an.ANA_AnaStartTime between '12:00:00' and '23:59:00' AND RB.RBOP_PAADM_DR->PAADM_Hospital_DR = :Hospital) as PrivateCancelCount,
+	(SELECT COUNT(*) as thecount from SQLUser.OR_Anaesthesia AN INNER JOIN SQLUser.RB_OperatingRoom RB on AN.ANA_RBOperatingRoom_DR = RB.RBOP_RowId LEFT JOIN SQLUser.PA_AdmInsurance C ON RB.RBOP_PAADM_DR = C.INS_ParRef where AN.ANA_Date between :DateFrom and :DateTo and C.INS_InsType_DR->INST_code = 'PUB' and an.ANA_AnaStartTime between '12:00:00' and '23:59:00' AND RB.RBOP_PAADM_DR->PAADM_Hospital_DR = :Hospital) as PublicCancelCount,
+	(SELECT	count(*) FROM SQLUser.OR_Anaesthesia AN INNER JOIN SQLUser.RB_OperatingRoom RB on AN.ANA_RBOperatingRoom_DR = RB.RBOP_RowId where AN.ANA_Date > :YearDate and an.ANA_AnaStartTime between '12:00:00' and '23:59:00' AND RB.RBOP_PAADM_DR->PAADM_Hospital_DR = :Hospital) as YTotCancel,
+	(SELECT COUNT(*) as thecount from SQLUser.OR_Anaesthesia AN INNER JOIN SQLUser.RB_OperatingRoom RB on AN.ANA_RBOperatingRoom_DR = RB.RBOP_RowId where AN.ANA_Date > :YearDate and rb.RBOP_BookingType = 'EM' and an.ANA_AnaStartTime between '12:00:00' and '23:59:00' AND RB.RBOP_PAADM_DR->PAADM_Hospital_DR = :Hospital) as YEmergCancelCount,
+	(SELECT COUNT(*) as thecount from SQLUser.OR_Anaesthesia AN INNER JOIN SQLUser.RB_OperatingRoom RB on AN.ANA_RBOperatingRoom_DR = RB.RBOP_RowId where AN.ANA_Date > :YearDate and rb.RBOP_BookingType = 'EL' and an.ANA_AnaStartTime between '12:00:00' and '23:59:00' AND RB.RBOP_PAADM_DR->PAADM_Hospital_DR = :Hospital) as YElectCancelCount,
+	(SELECT COUNT(*) as thecount from SQLUser.OR_Anaesthesia AN INNER JOIN SQLUser.RB_OperatingRoom RB on AN.ANA_RBOperatingRoom_DR = RB.RBOP_RowId LEFT JOIN SQLUser.PA_AdmInsurance C ON RB.RBOP_PAADM_DR = C.INS_ParRef where AN.ANA_Date > :YearDate and C.INS_InsType_DR->INST_code not in('PUB','ACC') and an.ANA_AnaStartTime between '12:00:00' and '23:59:00' AND RB.RBOP_PAADM_DR->PAADM_Hospital_DR = :Hospital) as YPrivateCancelCount,
+	(SELECT COUNT(*) as thecount from SQLUser.OR_Anaesthesia AN INNER JOIN SQLUser.RB_OperatingRoom RB on AN.ANA_RBOperatingRoom_DR = RB.RBOP_RowId LEFT JOIN SQLUser.PA_AdmInsurance C ON RB.RBOP_PAADM_DR = C.INS_ParRef where AN.ANA_Date > :YearDate and C.INS_InsType_DR->INST_code = 'PUB' and an.ANA_AnaStartTime between '12:00:00' and '23:59:00' AND RB.RBOP_PAADM_DR->PAADM_Hospital_DR = :Hospital) as YPublicCancelCount
+ FROM SQLUser.OR_Anaesthesia AN
+ INNER JOIN SQLUser.RB_OperatingRoom RB on AN.ANA_RBOperatingRoom_DR = RB.RBOP_RowId
+ where AN.ANA_Date between :DateFrom and :DateTo and an.ANA_AnaStartTime between '12:00:00' and '23:59:00'
+ AND RB.RBOP_PAADM_DR->PAADM_Hospital_DR = :Hospital
+		)
+ &SQL(OPEN SWARHRTHR1007Cursor)
+ 
+ //FETCH FIRST ROW
+ d FetchRow
+  
+ while END=0 {
+  
+	 //d FormatDates
+  	 //d FormatTimes
+  	 
+	 /* TEMPLATE MODIFY: Build the sort string here from column variables. Convert strings to uppercase ($ZCVT(<field>,"U") and separate with spaces */
+	 s sort = ind		// don't sort - uncomment this line if you've sorted in the query
+	 //s sort = $ZCVT(HOSPDesc,"U")_" "_$ZCVT(WARDDesc,"U")_" "_$ZCVT(ROOMCode,"U")_" "_$ZCVT(BEDCode,"U")_" "_$ZCVT(CTRLGDesc,"U")_" "_$ZCVT(PAPERName,"U")_" "_$ZCVT(PAPERName2,"U")_" "_$ZCVT(PAPERName3,"U")_ind
+ 
+	 /* TEMPLATE MODIFY: Build the list of fields by placing correct column variable names in the $LB() here. */
+	 s ^CacheTemp("TRAK",repid,sort)=$LB(RBOPReasonSuspendDR,SUSPDesc,TotCancel,EmergCancelCount,ElectCancelCount,PrivateCancelCount,PublicCancelCount,YTotCancel,YEmergCancelCount,YElectCancelCount,YPrivateCancelCount,YPublicCancelCount)
+	 s ind=ind+1
+ 
+	 //fetch rows
+	 d FetchRow
+ }
+
+ &SQL(CLOSE SWARHRTHR1007Cursor)
+ 
+ // Build QHandle (AtEnd,ReportID,Index)
+ Set QHandle=$lb(0,repid,0)
+
+ Quit $$$OK
+
+FetchRow
+ /* TEMPLATE MODIFY: Rename cursor to something moreChange fetch INTO parameter list to match column variable names */
+ &sql(fetch SWARHRTHR1007Cursor INTO :RBOPReasonSuspendDR,:SUSPDesc,:TotCancel,:EmergCancelCount,:ElectCancelCount,:PrivateCancelCount,:PublicCancelCount,:YTotCancel,:YEmergCancelCount,:YElectCancelCount,:YPrivateCancelCount,:YPublicCancelCount)
+ if SQLCODE '= 0 set END = 1
+ q
+ 
+FormatDates
+ /* TEMPLATE MODIFY: Add an entry to perform a date format for all date fields here */
+ //s PAADMAdmDate=..ConvertDateToODBC(PAADMAdmDate)
+ //s PAADMEstimDischargeDate=..ConvertDateToODBC(PAADMEstimDischargeDate)
+ q
+FormatTimes
+ /* TEMPLATE MODIFY: Add an entry to perform a time format for all time fields here */
+ //s PAADMAdmTime=..ConvertTimeToODBC(PAADMAdmTime)
+ q
+]]></Implementation>
+</Method>
+
+<Method name="SWARHRTHR1007QueryFetch">
+<Description>
+This is the Fetch component of the %Library.Query. 
+This should never have to change. It is designed to fetch the row for each subscript of the ^CacheTemp
+global and return this row to the Crystal Report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,&Row:%Library.List,&AtEnd:%Library.Integer=0]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // This fetch method should never have to change. 
+
+ // repid - Report ID
+ // ind   - sequence index which represents each row
+
+ New repid,ind
+
+ // Restore QHandle
+ Set AtEnd=$li(QHandle,1)
+ Set repid=$li(QHandle,2)
+ Set ind=$li(QHandle,3)
+
+ Set ind=$o(^CacheTemp("TRAK",repid,ind))
+ If ind="" {	// if there are no more rows, finish fetching
+	 Set AtEnd=1
+	 Set Row=""
+ }
+ Else      {	// fetch row
+ 	Set Row=^CacheTemp("TRAK",repid,ind)
+ }
+
+ // Save QHandle
+ s QHandle=$lb(AtEnd,repid,ind)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Query name="SWARHRTHR1007Query">
+<Type>%Library.Query</Type>
+<FormalSpec>Hospital:%Library.String,DateFrom:%Date,DateTo:%Date</FormalSpec>
+<SqlProc>1</SqlProc>
+<Parameter name="CONTAINID" value="0"/>
+<Parameter name="ROWSPEC" value="RBOPReasonSuspendDR:%Library.String,SUSPDesc:%Library.String,TotCancel:%Library.Integer,EmergCancelCount:%Library.Integer,ElectCancelCount:%Library.Integer,PrivateCancelCount:%Library.Integer,PublicCancelCount:%Library.Integer,YTotCancel:%Library.Integer,YEmergCancelCount:%Library.Integer,YElectCancelCount:%Library.Integer,YPrivateCancelCount:%Library.Integer,YPublicCancelCount:%Library.Integer"/>
+<Parameter name="SELECTMODE" value="ODBC"/>
+</Query>
+</Class>
+</Export>

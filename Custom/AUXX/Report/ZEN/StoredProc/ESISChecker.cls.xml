@@ -1,0 +1,568 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.AUXX.Report.ZEN.StoredProc.ESISChecker">
+<ProcedureBlock>0</ProcedureBlock>
+<Super>Report.Abstract</Super>
+<TimeCreated>63251,57685.544655</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/AUXX/Report/ZEN/StoredProc/ESISChecker.xml#1 $</Default>
+</Parameter>
+
+<UDLText name="T">
+<Content><![CDATA[
+// Report Name: Trak AUXX ESIS Checker Report <br>
+
+]]></Content>
+</UDLText>
+
+<UDLText name="T">
+<Content><![CDATA[
+// Report Code: Trak.AUXX.WLT0001 <br>
+
+]]></Content>
+</UDLText>
+
+<UDLText name="T">
+<Content><![CDATA[
+// TRC Number: 70182, I31633 <br>
+
+]]></Content>
+</UDLText>
+
+<Method name="GetRecordsClose">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>QHandle:%Library.Binary</FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Clean up by purging the temporary node in ^CacheTemp global
+ New repid
+ Set repid=$li(QHandle,2)
+ Kill ^CacheTemp("TRAK",repid)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="GetRecordsExecute">
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,DateFrom:%Date,DateTo:%Date,Hospital:%String]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+
+ // Get reportid i.e. use $INCREMENT to add another node to ^CacheTemp global. 
+ // We use ^CacheTemp global because it will always use memory before disk
+ New repid,ind
+
+ // Use $Increment to get the next node
+ Set repid=$I(^CacheTemp("TRAK"))
+
+  //Start Monitor (if configured to capture stats)
+ s mon=..MonitorBegin()
+ 
+ // Build data into ^CacheTemp(ReportID)
+ // e.g. Set ^CacheTemp(ReportID,Index)=$LB(f1,f2,f3)
+ New Number,String,Date,Time,c,n,StatusID,StatCode,StateProc,StateProcA
+ n WLRowID,WLDate,WLNo,WLDaysOnList,HOSPDesc,PAPMINo,PAPMIName,PAPMIName2,PAPMIDOB,WLSCode,CTSEXCode,WLPCode,SUBTCode,WLRowId,PAPMIRowId,INDSTCode,MEDSUFCode,WLAdmDateOtherHosp,WLDateofList,PAPMIMedicare,PAPMIMedicareCode,NPPPCode,DateListed,BirthDate,DateOther,DateRemove,ADMADMDate,ADMOperDate,Days,NPPPDup,WLRBOPDR,NADateTo,Type,TypeA,TypeSTDType,TypeASTDType,DaysOL
+ n Message1,Message2,Message3,Message4,Message5,Message6,Message7,Message8,Message9,Message10,Message11,Message12,Message13,Message14,Message15,Message,Status,ESAS,WLRBOPDR,ANOAPRowIdx1,ANOAPRowIdx2,Message18,C1Curr,Message19
+ s (WLRowID,StateProc,StateProcA,WLDate,WLNo,WLDaysOnList,HOSPDesc,PAPMINo,PAPMIName,PAPMIName2,PAPMIDOB,WLSCode,CTSEXCode,WLPCode,SUBTCode,WLRowId,PAPMIRowId,INDSTCode,MEDSUFCode,WLAdmDateOtherHosp,WLDateofList,PAPMIMedicare,PAPMIMedicareCode,NPPPCode,DateListed,BirthDate,DateOther,DateRemove,ADMADMDate,ADMOperDate,Days,NPPPDup,RBOPStatus,RBOPDateOper,Type,TypeA,TypeSTDType,TypeASTDType,DaysOL)=""
+ s (Message1,Message2,Message3,Message4,Message5,Message6,Message7,Message8,Message9,Message10,Message11,Message12,Message13,Message14,Message15,Message16,Message18,C1Curr,Message19,Message,Status,ESAS,RBOPStatus,RBOPDateOper,ANOAPRowIdx1,ANOAPRowIdx2)=""
+ s NADateTo=0
+ s ind=1
+
+ //Convert ODBC dates to cache format
+ s DateFrom=..ConvertDateToCache(DateFrom)
+ s DateTo=..ConvertDateToCache(DateTo)
+
+ // Strip white space/control chars from blank variables
+ i $g(Hospital)'="" s Hospital=$zstrip(Hospital,"*WC")
+ //		i (",I,S,OT,PRE,")[(","_$p($g(^PAC("WLS",StatusID)),"^",1)_",")
+
+ //^PAWLi("DLTypeStat",{WL_WaitListType_DR},{WL_WaitListStatus_DR},{WL_DaysOnList},{WL_RowId})
+ s Type=""
+ s Type=$o(^PAWLi("DLTypeStat",Type)) q:Type=""
+ s TypeSTDType=$p($g(^PAC("WLT",Type)),"^",3)
+ i TypeSTDType="I"
+ 	{ 
+ 	s StatusID=""
+  		f  
+ 		{s StatusID=$o(^PAWLi("DLTypeStat",Type,StatusID)) q:StatusID=""
+ 		 i (",I,S,OT,PRE,")[(","_$p($g(^PAC("WLS",StatusID)),"^",1)_",")
+			{
+  			s DaysOL=""
+  			f  
+ 				{s DaysOL=$o(^PAWLi("DLTypeStat",Type,StatusID,DaysOL)) q:DaysOL=""
+				s WLRowId=""
+				f {s WLRowId=$o(^PAWLi("DLTypeStat",Type,StatusID,DaysOL,WLRowId)) q:WLRowId=""
+	    		s StateProc=$p($g(^PAWL(WLRowId)),"^",78)
+	    		i StateProc'=""
+	    			{	
+	    			i $p($g(^PAC("SPPP",StateProc)),"^",6)="Y"	
+	    				{
+						d GetCurrent
+	    				}
+	    			}
+					}	
+	    		}
+ 	 		}
+ 		}
+ 	}
+
+ 
+ 	s Date=DateFrom
+ 	for Date=DateFrom:1:DateTo 
+ 	{
+ 	s WLRowID=0
+ 	f
+ 			{ 
+ 			s WLRowID=$o(^PAWLi("DateOffList",Date,WLRowID))  q:WLRowID=""
+ 			s TypeA=$p($g(^PAWL(WLRowID)),"^",1)
+ 			i TypeA'=""
+ 				{
+ 			s TypeASTDType=$p($g(^PAC("WLT",TypeA)),"^",3)
+ 				i TypeASTDType="I"
+ 					{
+ 				s StateProcA=$p($g(^PAWL(WLRowID)),"^",78)
+ 					i StateProcA'=""
+	    				{
+	    			i $p($g(^PAC("SPPP",StateProcA)),"^",6)="Y"	
+	    					{
+ 							d GetComplete
+	    					}
+	    				}
+ 					}
+	 			}
+ 			}
+ 	}
+ 	
+ 	
+  // Build QHandle (AtEnd,ReportID,Index)
+ Set QHandle=$lb(0,repid,0)
+
+ Quit $$$OK
+
+
+ 
+GetCurrent 	 
+ &sql(declare GetOpen cursor for
+SELECT
+WL_Date,
+WL_No, 
+WL_DaysOnList, 
+WL_Hospital_DR->HOSP_Desc,
+WL_PAPMI_DR->PAPMI_No, 
+WL_PAPMI_DR->PAPMI_Name, 
+WL_PAPMI_DR->PAPMI_Name2, 
+WL_PAPMI_DR->PAPMI_DOB, 
+WL_WaitListStatus_DR->WLS_Code, 
+WL_PAPMI_DR->PAPMI_PAPER_DR->PAPER_SEX_DR->CTSEX_Code, 
+WL_WaitListPrior_DR->WLP_Code, 
+WL_EpisSubType_DR->SUBT_Code, 
+WL_PAPMI_DR,
+WL_PAPMI_DR->PAPMI_PAPER_DR->PAPER_IndigStat_DR->INDST_Code,
+WL_PAPMI_DR->PAPMI_MedicareSuffix_DR->MEDSUF_Code,
+WL_AdmDateOtherHosp,
+WL_DateofList,
+WL_PAPMI_DR->PAPMI_Medicare,
+WL_PAPMI_DR->PAPMI_MedicareCode,
+WL_StateProc_DR->SPPP_NPPP_DR->NPPP_Code,
+WL_Date,
+WL_PAPMI_DR->PAPMI_DOB,
+WL_AdmDateOtherHosp,
+WL_DateofList,
+WL_RBOP_DR->RBOP_DateOper,
+WL_RBOP_dr->RBOP_Status
+ FROM   SQLUser.PA_WaitingList
+ WHERE 
+wl_rowid=:WLRowId AND (({fn CONCAT( ',', {fn CONCAT((:Hospital),',')})} [ {fn CONCAT( ',', {fn CONCAT((WL_Hospital_DR->HOSP_RowId),',')})}) OR (:Hospital IS NULL))
+)
+
+ &sql(open GetOpen)
+ 
+ &sql(fetch GetOpen into :WLDate,:WLNo,:WLDaysOnList,:HOSPDesc,:PAPMINo,:PAPMIName,:PAPMIName2,:PAPMIDOB,:WLSCode,:CTSEXCode,:WLPCode,:SUBTCode,:PAPMIRowId,:INDSTCode,:MEDSUFCode,:WLAdmDateOtherHosp,:WLDateofList,:PAPMIMedicare,:PAPMIMedicareCode,:NPPPCode,:DateListed,:BirthDate,:DateOther,:DateRemove,:RBOPDateOper,:RBOPStatus)
+
+ while 'SQLCODE{
+	 
+ set Status="Removed"
+ if DateRemove="" {set Status="Current"}
+ 
+ d GetNADateTo	 
+ d FormatDates
+ d GetNPPP
+ 
+ SET Days=($PIECE($HOROLOG,",",1)-DateListed)
+
+ s (Message,Message1,Message2,Message3,Message4,Message5,Message6,Message7,Message8,Message9,Message10,Message11,Message12,Message13,Message14,Message15,Message16,Message17,C1Curr,Message19)=""
+ 
+ i INDSTCode'="" s Message1= "" 
+ i INDSTCode="" s Message1= "Indigenous Status Blank"
+ 
+ i PAPMIMedicare="" s Message2=""
+ i PAPMIMedicare'="",PAPMIMedicareCode="" s Message2="Medicare Code Blank"
+ 
+ i PAPMIMedicareCode="" s Message3=""
+ i PAPMIMedicareCode="0",DateListed-BirthDate>180 s Message3="Medicare Code at 0 and age > 180 Days "
+
+ i CTSEXCode="" s Message4=""
+ i CTSEXCode'="U" s Message4=""
+ i CTSEXCode="U" s Message4="Unidentified Sex Code"
+ 
+
+ i WLPCode'="1" s Message6=""
+ i WLDaysOnList<=25 s Message6=""
+ i WLPCode="1",WLDaysOnList>25,Status="Current" s Message6="Category 1 case waiting over 25 days"
+
+
+ i Status="Removed" s Message9=""
+ i Days<=1825 s Message9=""
+ i Status="Current",Days>1825 s Message9="Wait equals 5 years or more -current record"
+
+
+ i WLSCode'="PRE" s Message11=""
+ i RBOPDateOper'="" s Message11=""
+ i WLSCode="PRE",RBOPDateOper="" s Message11="Date of Procedure blank"
+
+ i MEDSUFCode'="U" s Message12=""
+ i MEDSUFCode="U" s Message12="Medicare Suffix=U"
+
+ i ESAS="" s Message13=""
+ i WLPCode="" s Message13=""
+ i WLPCode="1" s Message13=""
+ i ESAS="38",WLPCode'=1 s Message13="Invalid Clinical Urgency category for ESAS Reason for Removal"
+
+ i NPPPCode="" s Message14=""
+ i Status="Removed" s Message14=""
+ i NPPPDup="No" s Message14=""
+ i NPPPDup="Yes",Status="Current" s Message14="Patient on waiting lists for the same PPP"
+ 
+
+ //i WLSCode="D",Message15="",ANOAPRowIdx1<1 s Message16="Theatre Returns not Completed"
+ //i WLSCode="D",Message15="",ANOAPRowIdx1>0,ANOAPRowIdx1'=ANOAPRowIdx2 s Message16="Theatre Returns not Completed"
+ 
+ i NADateTo="" s Message17=""
+ i NADateTo>DateTo s Message17=""
+ i NADateTo<DateFrom s Message17=""
+ i NADateTo>=DateFrom,NADateTo<=DateTo s Message17="WL returned to Ready for Surgery"
+ 
+ /*
+ i WLPCode'="01" s Message18=""
+ i WLDateofList="" s Message18=""
+ i WLPCode="01",WLDateofList'="" s Message18="Category 1 case Off Waiting List"
+ */
+ 
+ i WLPCode="01" s C1Curr=""
+ i WLDateofList'="" s C1Curr=""
+ i WLPCode="01",WLDateofList="" s C1Curr="Yes"
+ 
+ i C1Curr="" s Message19=""
+ i WLDaysOnList<20 s Message19=""
+ i C1Curr="Yes",WLDaysOnList>="20" s Message19="Category 1 Current 20+ Days"
+ 
+ ;s Message=Message1_$CHAR(10)_$CHAR(13)_Message2_$CHAR(10)_$CHAR(13)_Message3_$CHAR(10)_$CHAR(13)_Message4_$CHAR(10)_$CHAR(13)_Message5_$CHAR(10)_$CHAR(13)_Message6_$CHAR(10)_$CHAR(13)_Message7_$CHAR(10)_$CHAR(13)_Message8_$CHAR(10)_$CHAR(13)_Message9_$CHAR(10)_$CHAR(13)_Message10_$CHAR(10)_$CHAR(13)_Message11_$CHAR(10)_$CHAR(13)_Message12_$CHAR(10)_$CHAR(13)_Message13_$CHAR(10)_$CHAR(13)_Message14_$CHAR(10)_$CHAR(13)_Message15_$CHAR(10)_$CHAR(13)_Message16_$CHAR(10)_$CHAR(13)_Message17_$CHAR(10)_$CHAR(13)_Message18_$CHAR(10)_$CHAR(13)_Message19
+
+ i Message1'="" s Message=Message1
+ i Message2'="" s Message=Message_$s(Message'="":$c(13,10),1:"")_Message2
+ i Message3'="" s Message=Message_$s(Message'="":$c(13,10),1:"")_Message3
+ i Message4'="" s Message=Message_$s(Message'="":$c(13,10),1:"")_Message4
+ i Message5'="" s Message=Message_$s(Message'="":$c(13,10),1:"")_Message5
+ i Message6'="" s Message=Message_$s(Message'="":$c(13,10),1:"")_Message6
+ i Message7'="" s Message=Message_$s(Message'="":$c(13,10),1:"")_Message7
+ i Message8'="" s Message=Message_$s(Message'="":$c(13,10),1:"")_Message8
+ i Message9'="" s Message=Message_$s(Message'="":$c(13,10),1:"")_Message9
+ i Message10'="" s Message=Message_$s(Message'="":$c(13,10),1:"")_Message10
+ i Message11'="" s Message=Message_$s(Message'="":$c(13,10),1:"")_Message11
+ i Message12'="" s Message=Message_$s(Message'="":$c(13,10),1:"")_Message12
+ i Message13'="" s Message=Message_$s(Message'="":$c(13,10),1:"")_Message13
+ i Message14'="" s Message=Message_$s(Message'="":$c(13,10),1:"")_Message14
+ i Message15'="" s Message=Message_$s(Message'="":$c(13,10),1:"")_Message15
+ i Message16'="" s Message=Message_$s(Message'="":$c(13,10),1:"")_Message16
+ i Message17'="" s Message=Message_$s(Message'="":$c(13,10),1:"")_Message17
+ ;i Message18'="" s Message=Message_$s(Message'="":$c(13,10),1:"")_Message18
+ i Message19'="" s Message=Message_$s(Message'="":$c(13,10),1:"")_Message19
+
+ ; s x1=$TR(Message,$C(13,10))
+ ;i $G(x1)'="" 
+ i Message'="" Set ^CacheTemp("TRAK",repid,HOSPDesc_" "_PAPMINo_" "_WLDate_ind)=$LB(WLDate,WLNo,WLDaysOnList,HOSPDesc,PAPMINo,PAPMIName,PAPMIName2,PAPMIDOB,WLSCode,CTSEXCode,WLPCode,SUBTCode,PAPMIRowId,INDSTCode,MEDSUFCode,WLAdmDateOtherHosp,WLDateofList,PAPMIMedicare,PAPMIMedicareCode,NPPPCode,DateListed,BirthDate,DateOther,DateRemove,RBOPDateOper,RBOPStatus,NADateTo,Days,Message1,Message2,Message3,Message4,Message5,Message6,Message7,Message8,Message9,Message10,Message11,Message12,Message13,Message14,Message15,Message16,Message17,Message18,Message19,Message,Status,ESAS,NPPPDup)
+ s ind=ind+1 //fetch rows
+
+ &sql(fetch GetOpen into :WLDate,:WLNo,:WLDaysOnList,:HOSPDesc,:PAPMINo,:PAPMIName,:PAPMIName2,:PAPMIDOB,:WLSCode,:CTSEXCode,:WLPCode,:SUBTCode,:PAPMIRowId,:INDSTCode,:MEDSUFCode,:WLAdmDateOtherHosp,:WLDateofList,:PAPMIMedicare,:PAPMIMedicareCode,:NPPPCode,:DateListed,:BirthDate,:DateOther,:DateRemove,:RBOPDateOper,:RBOPStatus)
+ }
+
+ &sql(close GetOpen)
+ 
+
+GetComplete 	 
+ &sql(declare GetDone cursor for
+SELECT
+WL_Date, 
+WL_No,
+WL_DaysOnList, 
+WL_Hospital_DR->HOSP_Desc,
+WL_PAPMI_DR->PAPMI_No, 
+WL_PAPMI_DR->PAPMI_Name, 
+WL_PAPMI_DR->PAPMI_Name2, 
+WL_PAPMI_DR->PAPMI_DOB, 
+WL_WaitListStatus_DR->WLS_Code, 
+WL_PAPMI_DR->PAPMI_PAPER_DR->PAPER_SEX_DR->CTSEX_Code, 
+WL_WaitListPrior_DR->WLP_Code, 
+WL_EpisSubType_DR->SUBT_Code, 
+WL_PAPMI_DR,
+WL_PAPMI_DR->PAPMI_PAPER_DR->PAPER_IndigStat_DR->INDST_Code,
+WL_PAPMI_DR->PAPMI_MedicareSuffix_DR->MEDSUF_Code,
+WL_AdmDateOtherHosp,
+WL_DateofList,
+WL_PAPMI_DR->PAPMI_Medicare,
+WL_PAPMI_DR->PAPMI_MedicareCode,
+WL_StateProc_DR->SPPP_NPPP_DR->NPPP_Code,
+WL_Date,
+WL_PAPMI_DR->PAPMI_DOB,
+WL_AdmDateOtherHosp,
+WL_DateofList,
+WL_RBOP_DR->RBOP_DateOper,
+WL_RBOP_dr->RBOP_Status
+ FROM   SQLUser.PA_WaitingList
+ WHERE  
+WL_RowId=:WLRowID
+ AND (({fn CONCAT( ',', {fn CONCAT((:Hospital),',')})} [ {fn CONCAT( ',', {fn CONCAT((WL_Hospital_DR->HOSP_RowId),',')})}) OR (:Hospital IS NULL))
+
+ )
+ &sql(open GetDone)
+ //fetch first row
+ &sql(fetch GetDone into :WLDate,:WLNo,:WLDaysOnList,:HOSPDesc,:PAPMINo,:PAPMIName,:PAPMIName2,:PAPMIDOB,:WLSCode,:CTSEXCode,:WLPCode,:SUBTCode,:PAPMIRowId,:INDSTCode,:MEDSUFCode,:WLAdmDateOtherHosp,:WLDateofList,:PAPMIMedicare,:PAPMIMedicareCode,:NPPPCode,:DateListed,:BirthDate,:DateOther,:DateRemove,:RBOPDateOper,:RBOPStatus)
+
+ while 'SQLCODE{
+	 
+ set Status="Removed"
+ if DateRemove="" {set Status="Current"}
+ 
+ d GetNADateTo	 
+ d FormatDates
+ d GetESAS
+ d GetNPPP
+ 
+ SET Days=($PIECE($HOROLOG,",",1)-DateListed)
+
+ s (Message,Message1,Message2,Message3,Message4,Message5,Message6,Message7,Message8,Message9,Message10,Message11,Message12,Message13,Message14,Message15,Message16,Message17,Message18)=""
+ 
+ i INDSTCode'="" s Message1= "" 
+ i INDSTCode="" s Message1= "Indigenous Status Blank"
+ 
+ i PAPMIMedicare="" s Message2=""
+ i PAPMIMedicare'="",PAPMIMedicareCode="" s Message2="Medicare Code Blank"
+ 
+ i PAPMIMedicareCode="" s Message3=""
+ i PAPMIMedicareCode="0",DateListed-BirthDate>180 s Message3="Medicare Code at 0 and age > 180 Days "
+
+ i CTSEXCode="" s Message4=""
+ i CTSEXCode'="U" s Message4=""
+ i CTSEXCode="U" s Message4="Unidentified Sex Code"
+ 
+ i WLSCode'="R" s Message5=""
+ i DateOther="" s Message5=""
+ i WLSCode="R",DateOther>DateRemove s Message5="Admission Other Hospital date later than Removal Date"
+
+
+ i WLSCode'="D" s Message7=""
+ i RBOPDateOper'="" s Message7=""
+ i RBOPDateOper="",WLSCode="D" s Message7="Operation Date blank"
+
+ i SUBTCode'="1" s Message8=""
+ i WLSCode'="D" s Message8=""
+ i DateRemove>RBOPDateOper s Message8=""
+ i SUBTCode="1",WLSCode="D",RBOPDateOper>DateRemove s Message8="Operation date and Treated date differ for case classified 1 day"
+
+ i Status="Current" s Message10=""
+ i DateRemove-DateListed<=1825 s Message10=""
+ i Status="Removed",DateRemove-DateListed>1825 s Message10="Wait over 5 years - non-current record"
+
+ i MEDSUFCode'="U" s Message12=""
+ i MEDSUFCode="U" s Message12="Medicare Suffix=U"
+
+ i ESAS="" s Message13=""
+ i WLPCode="" s Message13=""
+ i WLPCode="1" s Message13=""
+ i ESAS="38",WLPCode'=1 s Message13="Invalid Clinical Urgency category for ESAS Reason for Removal"
+
+ i WLSCode'="D" s Message15=""
+ i WLSCode="D",RBOPStatus="X" s Message15="Patient Admitted and Elective Surgery Booking Status maybe Incorrect"
+ 
+ i WLSCode'="D" s Message16=""
+ i WLSCode="D",RBOPDateOper'=DateRemove s Message16="Patient Admitted and Elective Surgery Booking Date Maybe Incorrect"
+ 
+  i NADateTo="" s Message17=""
+ i NADateTo>DateTo s Message17=""
+ i NADateTo<DateFrom s Message17=""
+ i NADateTo>=DateFrom,NADateTo<=DateTo s Message17="WL returned to Ready for Care"
+  
+
+ i WLPCode'="01" s Message18=""
+ i Status="Current" s Message18=""
+ i WLPCode="01",Status="Removed" s Message18="Category 1 case Off Waiting List"
+ 
+
+ 
+  ;s Message=Message1_$CHAR(10)_$CHAR(13)_Message2_$CHAR(10)_$CHAR(13)_Message3_$CHAR(10)_$CHAR(13)_Message4_$CHAR(10)_$CHAR(13)_Message5_$CHAR(10)_$CHAR(13)_Message6_$CHAR(10)_$CHAR(13)_Message7_$CHAR(10)_$CHAR(13)_Message8_$CHAR(10)_$CHAR(13)_Message9_$CHAR(10)_$CHAR(13)_Message10_$CHAR(10)_$CHAR(13)_Message11_$CHAR(10)_$CHAR(13)_Message12_$CHAR(10)_$CHAR(13)_Message13_$CHAR(10)_$CHAR(13)_Message14_$CHAR(10)_$CHAR(13)_Message15_$CHAR(10)_$CHAR(13)_Message16_$CHAR(10)_$CHAR(13)_Message17_$CHAR(10)_$CHAR(13)_Message18_$CHAR(10)_$CHAR(13)_Message19
+ /*
+ i Message1'="" s Message=Message1
+ i Message2'="" s Message=Message_$c(13,10)_Message2
+ i Message3'="" s Message=Message_$c(13,10)_Message3
+ i Message4'="" s Message=Message_$c(13,10)_Message4
+ i Message5'="" s Message=Message_$c(13,10)_Message5
+ i Message6'="" s Message=Message_$c(13,10)_Message6
+ i Message7'="" s Message=Message_$c(13,10)_Message7
+ i Message8'="" s Message=Message_$c(13,10)_Message8
+ i Message9'="" s Message=Message_$c(13,10)_Message9
+ i Message10'="" s Message=Message_$c(13,10)_Message10
+ i Message11'="" s Message=Message_$c(13,10)_Message11
+ i Message12'="" s Message=Message_$c(13,10)_Message12
+ i Message13'="" s Message=Message_$c(13,10)_Message13
+ i Message14'="" s Message=Message_$c(13,10)_Message14
+ i Message15'="" s Message=Message_$c(13,10)_Message15
+ i Message16'="" s Message=Message_$c(13,10)_Message16
+ i Message17'="" s Message=Message_$c(13,10)_Message17
+ i Message18'="" s Message=Message_$c(13,10)_Message18
+ ;i Message19'="" s Message=Message_$c(13,10)_Message19
+ */
+
+ i Message1'="" s Message=Message1
+ i Message2'="" s Message=Message_$s(Message'="":$c(13,10),1:"")_Message2
+ i Message3'="" s Message=Message_$s(Message'="":$c(13,10),1:"")_Message3
+ i Message4'="" s Message=Message_$s(Message'="":$c(13,10),1:"")_Message4
+ i Message5'="" s Message=Message_$s(Message'="":$c(13,10),1:"")_Message5
+ i Message6'="" s Message=Message_$s(Message'="":$c(13,10),1:"")_Message6
+ i Message7'="" s Message=Message_$s(Message'="":$c(13,10),1:"")_Message7
+ i Message8'="" s Message=Message_$s(Message'="":$c(13,10),1:"")_Message8
+ i Message9'="" s Message=Message_$s(Message'="":$c(13,10),1:"")_Message9
+ i Message10'="" s Message=Message_$s(Message'="":$c(13,10),1:"")_Message10
+ i Message11'="" s Message=Message_$s(Message'="":$c(13,10),1:"")_Message11
+ i Message12'="" s Message=Message_$s(Message'="":$c(13,10),1:"")_Message12
+ i Message13'="" s Message=Message_$s(Message'="":$c(13,10),1:"")_Message13
+ i Message14'="" s Message=Message_$s(Message'="":$c(13,10),1:"")_Message14
+ i Message15'="" s Message=Message_$s(Message'="":$c(13,10),1:"")_Message15
+ i Message16'="" s Message=Message_$s(Message'="":$c(13,10),1:"")_Message16
+ i Message17'="" s Message=Message_$s(Message'="":$c(13,10),1:"")_Message17
+ i Message18'="" s Message=Message_$s(Message'="":$c(13,10),1:"")_Message18
+ ;i Message19'="" s Message=Message_$s(Message'="":$c(13,10),1:"")_Message19
+
+ ; s x1=$TR(Message,$C(13,10))
+ ;i $G(x1)'="" 
+ i Message'=""  Set ^CacheTemp("TRAK",repid,HOSPDesc_" "_PAPMINo_" "_WLDate_ind)=$LB(WLDate,WLNo,WLDaysOnList,HOSPDesc,PAPMINo,PAPMIName,PAPMIName2,PAPMIDOB,WLSCode,CTSEXCode,WLPCode,SUBTCode,PAPMIRowId,INDSTCode,MEDSUFCode,WLAdmDateOtherHosp,WLDateofList,PAPMIMedicare,PAPMIMedicareCode,NPPPCode,DateListed,BirthDate,DateOther,DateRemove,RBOPDateOper,RBOPStatus,NADateTo,Days,Message1,Message2,Message3,Message4,Message5,Message6,Message7,Message8,Message9,Message10,Message11,Message12,Message13,Message14,Message15,Message16,Message17,Message18,Message19,Message,Status,ESAS,NPPPDup)
+ s ind=ind+1
+ //fetch rows
+ &sql(fetch GetDone into :WLDate,:WLNo,:WLDaysOnList,:HOSPDesc,:PAPMINo,:PAPMIName,:PAPMIName2,:PAPMIDOB,:WLSCode,:CTSEXCode,:WLPCode,:SUBTCode,:PAPMIRowId,:INDSTCode,:MEDSUFCode,:WLAdmDateOtherHosp,:WLDateofList,:PAPMIMedicare,:PAPMIMedicareCode,:NPPPCode,:DateListed,:BirthDate,:DateOther,:DateRemove,:RBOPDateOper,:RBOPStatus)
+ }
+
+ &sql(close GetDone)
+ q
+
+GetNADateTo
+ Set NADateTo=0
+
+ &sql(SELECT
+ NA_DateTo
+	INTO :NADateTo
+	FROM SQLUser.PA_WaitingListNotavailable
+	WHERE	NA_ParRef->wl_no=:WLNo AND NA_DateTo between :DateFrom and :DateTo
+	 	  	      			
+)
+ Quit
+
+FormatDates
+ // Convert the dates to ODBC date format
+ If WLDate Set WLDate=..ConvertDateToODBC(WLDate)
+ If WLDateofList Set WLDateofList=..ConvertDateToODBC(WLDateofList)
+ if WLAdmDateOtherHosp set WLAdmDateOtherHosp=..ConvertDateToODBC(WLAdmDateOtherHosp)
+ If PAPMIDOB Set PAPMIDOB=..ConvertDateToODBC(PAPMIDOB)
+ Quit
+
+ //use the patient id and the proc code we get -- see if count > 1
+ // then flag CurrentlyOnList
+ 
+GetNPPP
+ // set temp x1 to zero because on removed entries x1 will not get set and would otherwise
+ // cause an undef below
+ set x1=0
+ 
+ // only execute the query for counts if dealing with a Current entry
+ if Status="Current" { 	&sql(SELECT COUNT(DISTINCT WL_RowId)
+                             INTO :x1
+                             FROM SQLUser.PA_WaitingList
+                             WHERE   WL_PAPMI_dR=:PAPMIRowId and WL_WaitListStatus_DR->WLS_Code in ('I', 'PRE', 'S', 'OT', 'OTX')
+                             and WL_StateProc_DR->SPPP_NPPP_DR->NPPP_Code=:NPPPCode and WL_StateProc_DR->SPPP_ESIS_Reportable='Y' and
+                             (WL_StateProc_DR->SPPP_wlentrycapacity is null or  not WL_StateProc_DR->SPPP_wlentrycapacity='M')
+                              AND (({fn CONCAT( ',', {fn CONCAT((:Hospital),',')})} [ {fn CONCAT( ',', {fn CONCAT((WL_Hospital_DR->HOSP_RowId),',')})}) OR (:Hospital IS NULL))
+
+                             )
+                     }
+ 
+ set NPPPDup="No"
+ if x1>1 {set NPPPDup="Yes"}
+ Quit
+ 
+GetESAS
+ s ESAS=##class(Custom.AUXX.Report.ZEN.StoredProc.ESISChecker).GetESAS(WLRowID)
+]]></Implementation>
+</Method>
+
+<Method name="GetRecordsFetch">
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,&Row:%Library.List,&AtEnd:%Library.Integer=0]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // This fetch method should never have to change. 
+
+ // repid - Report ID
+ // ind   - sequence index which represents each row
+
+ New repid,ind
+
+ // Restore QHandle
+ Set AtEnd=$li(QHandle,1)
+ Set repid=$li(QHandle,2)
+ Set ind=$li(QHandle,3)
+
+ Set ind=$o(^CacheTemp("TRAK",repid,ind))
+ If ind="" {	// if there are no more rows, finish fetching
+ Set AtEnd=1
+ Set Row=""
+ }
+ Else      {	// fetch row
+ Set Row=^CacheTemp("TRAK",repid,ind)
+ }
+
+ // Save QHandle
+ s QHandle=$lb(AtEnd,repid,ind)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Query name="GetRecords">
+<Type>%Library.Query</Type>
+<FormalSpec>DateFrom:%Date,DateTo:%Date,Hospital:%String</FormalSpec>
+<SqlProc>1</SqlProc>
+<Parameter name="CONTAINID" value="0"/>
+<Parameter name="ROWSPEC" value="WLDate:%Date,WLNo:%String,WLDaysOnList:%String(MAXLEN=255),HOSPDesc:%String(MAXLEN=255),PAPMINo:%String(MAXLEN=255),PAPMIName:%String(MAXLEN=255),PAPMIName2:%String(MAXLEN=255),PAPMIDOB:%Date,WLSCode:%String(MAXLEN=255),CTSEXCode:%String(MAXLEN=255),WLPCode:%String(MAXLEN=255),SUBTCode:%String(MAXLEN=255),PAPMIRowId:%String,INDSTCode:%String(MAXLEN=255),MEDSUFCode:%String(MAXLEN=255),WLAdmDateOtherHosp:%Date,WLDateofList:%Date,PAPMIMedicare:%String(MAXLEN=255),PAPMIMedicareCode:%String,NPPPCode:%String,DateListed:%String,BirthDate:%String,DateOther:%String,DateRemove:%String,RBOPDateOper:%String,RBOPStatus:%String,NADateTo:%Integer,Days:%String,Message1:%String(MAXLEN=255),Message2:%String(MAXLEN=255),Message3:%String(MAXLEN=255),Message4:%String(MAXLEN=255),Message5:%String(MAXLEN=255),Message6:%String(MAXLEN=255),Message7:%String(MAXLEN=255),Message8:%String(MAXLEN=255),Message9:%String(MAXLEN=255),Message10:%String(MAXLEN=255),Message11:%String(MAXLEN=255),Message12:%String(MAXLEN=255),Message13:%String(MAXLEN=255),Message14:%String(MAXLEN=255),Message15:%String(MAXLEN=255),Message16:%String(MAXLEN=255),Message17:%String(MAXLEN=255),Message18:%String(MAXLEN=255),Message19:%String(MAXLEN=255),Message:%String(MAXLEN=9999),Status:%String,ESAS:%String,NPPPDup:%String"/>
+</Query>
+
+<Method name="GetESAS">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>WLRowID:%Integer</FormalSpec>
+<ReturnType>%Integer</ReturnType>
+<Implementation><![CDATA[
+	New ESAS
+	Set ESAS=""
+	
+	&sql(SELECT
+	TRANS_REasonNotAvail_DR->REA_Code
+	INTO :ESAS
+	FROM SQLUser.PA_WaitingListTransaction
+	WHERE	TRANS_ParRef=:WLRowID AND
+    TRANS_REasonNotAvail_DR->REA_Code='38')
+	quit ESAS
+]]></Implementation>
+</Method>
+</Class>
+</Export>

@@ -1,0 +1,153 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.AUXX.Report.ZEN.CurrentAdmissions">
+<Super>Custom.AUXX.Report.ZEN.Abstract</Super>
+<TimeCreated>61543,54550.041409</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/AUXX/Report/ZEN/CurrentAdmissions.xml#1 $</Default>
+</Parameter>
+
+<UDLText name="T">
+<Content><![CDATA[
+//Parameter CSPURL = "/auxxcare/reports/app/web/Custom.AUXX.Report.ZEN.CurrentAdmissionsUnit.cls";
+
+]]></Content>
+</UDLText>
+
+<UDLText name="T">
+<Content><![CDATA[
+//Parameter XSLTMODE = "server";
+
+]]></Content>
+</UDLText>
+
+<Property name="Facility">
+<Type>%String</Type>
+<Parameter name="ZENURL" value="P1"/>
+</Property>
+
+<Property name="Unit">
+<Type>%String</Type>
+<Parameter name="ZENURL" value="P2"/>
+</Property>
+
+<Property name="Ward">
+<Type>%String</Type>
+<Parameter name="ZENURL" value="P3"/>
+</Property>
+
+<Property name="Clinician">
+<Type>%String</Type>
+<Parameter name="ZENURL" value="P4"/>
+</Property>
+
+<XData name="ReportDefinition">
+<XMLNamespace>http://www.intersystems.com/zen/report/definition</XMLNamespace>
+<Data><![CDATA[
+<report xmlns='http://www.intersystems.com/zen/report/definition'
+   queryClass='Custom.AUXX.Report.ZEN.StoredProc.CurrentAdmissionsUnit' queryName='GetAdmsUnit' name='CurrentAdmissionsUnit'>
+  <parameter expression='..Facility'/>
+  <parameter expression='..Unit'/>
+  <parameter expression='..Ward'/>
+  <parameter expression='..Clinician'/>
+  <attribute name='ReportTitle' expression='$$$Text("@CurrentAdmissionsReport@Current Admissions Report")'/>
+  <attribute name='timestamp' expression='$ZDATETIME($H, 2, 2)'/>
+  <attribute name='username' expression='..Username'/>
+  <attribute name='Facility' expression="..GetHospListDesc(..Facility)"/>
+  <attribute name="Unit" expression="..GetSpecialtyListDesc(..Unit)"/>
+  <attribute name="Ward" expression="..GetWardListDesc(..Ward)"/>
+  <attribute name="Clinician" expression="..GetCareProvListDesc(..Clinician)"/>
+  
+  <group name="Facility" breakOnField="HospitalDesc">
+  <attribute name="description" field="HospitalDesc" />
+   <group name="Unit" breakOnField="LocationDesc">
+  <attribute name="description" field="LocationDesc" />
+   <group name="Ward" breakOnField="WardCode">
+  <attribute name="description" field="WardCode" />
+   <group name="Clinician" breakOnField="DoctorDesc">
+  <attribute name="description" field="DoctorDesc" />
+       <aggregate name='TotalEpisodes' type='CUSTOM' field='PAADMRowId' class='%ZEN.Report.Aggregate.CountDistinct'/>
+           <group name='Detail'>
+            <attribute field='AdmDate' name='AdmDate' expression='..DisplayDate(%val)'/>
+            <attribute field='AdmTime' name='AdmTime'/>
+            <attribute field='PatNo' name='PatNo'/> 
+            <attribute field='AdmNo' name='AdmNo'/>           
+	        <attribute fields='PatName,PatName2' name='PatientName' expression='..DisplayName(%val("PatName"),%val("PatName2"))'/>
+            <attribute field='Age' name='Age'/>
+            <attribute field='Sex' name='Sex'/>
+            <attribute field='BedCode' name='BedCode'/>
+            <attribute field='WardCode' name='WardCode'/>
+            <attribute field='DoctorDesc' name='DoctorDesc'/>
+            <attribute field='INSTCode' name='INSTCode'/>
+            <attribute field='ADSOUCode' name='ADSOUCode'/>
+            <attribute field='CARETYPCode' name='CARETYPCode'/>
+            </group>
+           </group>
+           </group>
+          </group> 
+          </group>             
+        </report>
+]]></Data>
+</XData>
+
+<XData name="ReportDisplay">
+<XMLNamespace>http://www.intersystems.com/zen/report/display</XMLNamespace>
+<Data><![CDATA[
+<report xmlns='http://www.intersystems.com/zen/report/display'
+xmlns:auxxstyle='http://www.intersystems.com/zen/report/display/auxx/style'
+xmlns:auxx='http://www.intersystems.com/zen/report/display/auxx'
+  name='CurrentAdmissionsUnit'>
+<document width="297mm" height="210mm" marginLeft="10mm" marginRight="10mm" marginTop="10mm" marginBottom="15mm" footerHeight="0mm" headerHeight="20mm"  >
+<auxxstyle:auxxgroupheader/>
+<auxxstyle:auxxgroupsummary/>
+<auxxstyle:auxxhospitalheader/>
+<auxxstyle:auxxpageheader/>
+<auxxstyle:auxxparameterheader/>
+<auxxstyle:auxxreporttitle/>
+<auxxstyle:auxxtablecolumn/>
+</document>
+<auxx:PageHeader pagetitle='@ReportTitle'/>
+<auxx:ReportFooter username='@username' timestamp='@timestamp'/>
+
+<body>
+<!-- REPORT HEADER -->
+<auxx:ReportHeader reporttitle='@ReportTitle'/>
+<auxx:ReportParameterHeader label='@Facility:@Facility:' field='@Facility' class="auxxparameterheader" xcondition="string-length(@Facility)>0"/>
+<auxx:ReportParameterHeader label='@Specialty:@Specialty:' field='@Unit' class="auxxparameterheader" xcondition="string-length(@Unit)>0"/>
+<line pattern="solid" width="100%"/>
+<line pattern="empty" width="100%"></line> 
+
+<group name='Facility'>
+<auxx:ReportParameterHeader label="@Facility:@Facility:" field="@description" />
+<group name='Unit'>
+<auxx:ReportParameterHeader label="@Unit:@Unit:" field="@description" />
+<line pattern="empty" lineHeight="1mm" />
+      <table class='data' orient='col' group='Detail' foHeaderStyle="border-after-style='solid' border-after-color='black' border-after-width='1.5pt'" >
+        <item field='@AdmDate' width="10%" caption='@AdmitDate@Admit Date'/> 
+        <item field='@AdmTime' width="10%" caption='@AdmitTime@Admit Time'/> 
+        <item field='@PatNo' width="7%" caption='@URN@URN'/>
+        <item field='@AdmNo' width="7%" caption='@EpisodeNo@Episode No'/>
+        <item field='@PatientName' width="18%" caption="@PatientName@Patient Name" />
+        <item field='@Age' width="5%" caption='@Age@Age'/>
+        <item field='@Sex' width="8%" caption='@Sex@Sex'/>
+        <item field='@BedCode' width="12%" caption='@Bed@Bed'/>
+        <item field='@WardCode' width='4%' caption='@Ward@Ward'/>
+        <item field='@DoctorDesc' width="16%" caption='@Clinician@Clinician'/>
+        <item field='@INSTCode' width="12%" caption='@AccClass@Acc Class'/>
+        <item field='@ADSOUCode' width="8%" caption='@AdmSrc@Adm Src'/>
+        <item field='@CARETYPCode' width="8%" caption='@CareType@Care Type'/>
+     </table>
+<line pattern="empty" width="100%"></line> 
+	<auxx:GroupSummary label="@TotalEpisodesfor@Total Episodes for" group="@description" summaryvalue="TotalEpisodes" />
+	<line pattern="empty" lineHeight="4mm" />
+   </group>
+</group>
+</body>
+</report>
+]]></Data>
+</XData>
+</Class>
+</Export>

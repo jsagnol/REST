@@ -1,0 +1,344 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.SWARH.Extracts.StoredProc.SWARHEPICQ1001m">
+<Description><![CDATA[
+<pre>
+* Extract Name: PICQ manual extract 
+* Report Code: SWARHEPICQ1001
+* SWARH Developer: Phuong-Dung HOANG 
+* --------------------------------------------
+* This is the stored procedure for the manual extract which is based on separation date
+</pre>]]></Description>
+<ProcedureBlock>0</ProcedureBlock>
+<Super>Custom.SWARH.Extracts.StoredProc.Abstract</Super>
+<TimeCreated>62573,38042.57414</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/SWARH/Extracts/StoredProc/SWARHEPICQ1001m.xml#1 $</Default>
+</Parameter>
+
+<UDLText name="T">
+<Content><![CDATA[
+/*
+ * SWARH Developer: Phuong-Dung HOANG <br>
+ */
+]]></Content>
+</UDLText>
+
+<Method name="SWARHEPICQ1001mQueryClose">
+<Description>
+This is the Close component of the %Library.Query.
+This is standard code and should never have to change.
+This is where all the cleanup is performed, i.e. the purging of the temporary storage global ^CacheTemp.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>QHandle:%Library.Binary</FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Clean up by purging the temporary node in ^CacheTemp global
+ New repid,ind
+ Set repid=$li(QHandle,2)
+
+ //Start Monitor (if configured to capture stats)
+ i mon Do ..MonitorEnd(mon)
+
+ Kill ^CacheTemp("TRAK",repid)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="SWARHEPICQ1001mQueryExecute">
+<Description>
+This is the Execute section for the %Library.Query. 
+All of the logic will be performed here.
+A new node for the ^CacheTemp global will be created and each subscript of this global will contain
+a row for the report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,DateFrom:%Date,DateTo:%Date,HospID:%Library.Integer]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Get reportid i.e. use $INCREMENT to add another node to ^CacheTemp global. 
+ // We use ^CacheTemp global because it will always use memory before disk
+ New repid,ind
+
+  // Use $Increment to get the next node
+ Set repid=$I(^CacheTemp("TRAK"))
+ 
+ /* TEMPLATE MODIFY: Define and initialise appropriate column variables to describe output rowset columns */
+ New isCoded,MRADMROWID,PAADMROWID,UEID,HOSPITAL,MRN,URNO,DOA,DOS,PAPMIROWID,DOB,AGEDAYSATADM,SEX,DIAG,PROC,PLAN,CARETYPECODE,CARETYPE,SEPMODE,DRG,ICUHOURS,ICUDAYS,ILOS,WEIGHT,VENT,LEAVE,MSTATUS,CODERINITIALS,CODERNAME,CODERID
+ Set (isCoded,MRADMROWID,PAADMROWID,PAPMIROWID)=0
+ Set (UEID,HOSPITAL,MRN,DOA,DOS,DOB,SEX,DIAG,PROC,PLAN,CARETYPECODE,CARETYPE,SEPMODE,DRG,ILOS,MSTATUS,CODERINITIALS,CODERID,CODINGUPDATEDATE,ICUHOURS,ICUDAYS,WEIGHT,VENT,LEAVE)=""
+
+
+ s ind=1, END=0
+
+ //Start Monitor (if configured to capture stats)
+ s mon=..MonitorBegin()
+ 
+ /* TEMPLATE MODIFY: Clean up parameter variables - $zstrip(<variable>,"*CW") strips all control characters and whitespace, "<>W" just strips leading/trailing whitespace
+  * NOTE: DO NOT DO "*W" ZSTRIP FROM DATES AS IT REMOVES THE WHITESPACE BETWEEN THE DATE AND TIME AND THIS BREAKS THE QUERY! */
+ 
+ //Convert ODBC dates to cache format
+ s DateFrom=..ConvertDateToCache(DateFrom)
+ s DateTo=..ConvertDateToCache(DateTo)
+ 
+ &SQL(DECLARE SWARHEPICQ1001mCursor CURSOR FOR 
+	 SELECT
+	 MRADM_ROWID, 
+	 MRADM_ADM_DR,
+	 MRADM_ADM_DR->PAADM_AdmNo,
+	 MRADM_ADM_DR->PAADM_Hospital_DR->HOSP_Code,
+	 MRADM_ADM_DR->PAADM_PAPMI_DR->PAPMI_No,
+	 MRADM_ADM_DR->PAADM_AdmDate,
+	 MRADM_ADM_DR->PAADM_DischgDate,
+	 MRADM_ADM_DR->PAADM_PAPMI_DR,
+	 MRADM_ADM_DR->PAADM_PAPMI_DR->PAPMI_DOB,
+	 DATEDIFF(day, MRADM_ADM_DR->PAADM_PAPMI_DR->PAPMI_DOB,MRADM_ADM_DR->PAADM_AdmDate),
+     MRADM_ADM_DR->PAADM_PAPMI_DR->PAPMI_Sex_DR->CTSEX_Code,
+     MRADM_CareType_DR->CARETYP_Code,
+     TRIM(LEADING '0' FROM MRADM_DischType_DR->CTDSP_GrouperCode),
+     MRADM_DRG_DR->DRG_Code,
+     MRADM_ICUHours,
+     MRADM_ADM_DR->PAADM_AdmCateg_DR->ADMCAT_Code,
+     MRADM_Weight,
+     MRADM_DurationMechVent,
+     MRADM_MentHealthStat_DR->MHLS_NationalCode,
+     MRADM_CodingUpdateUser_DR->SSUSR_Initials,
+     MRADM_CodingUpdateUser_DR->SSUSR_Name,
+     MRADM_CodingUpdateDate
+FROM SQLUser.PA_Adm paadm inner join SQLUser.MR_Adm mradm ON paadm.PAADM_MainMRADM_DR=mradm.MRADM_RowId
+WHERE PAADM_DischgDate between :DateFrom and :DateTo
+AND MRADM_CodingUpdateDate IS NOT NULL
+AND PAADM_Type='I'
+AND PAADM_Hospital_DR=:HospID
+---AND (({fn CONCAT( ',', {fn CONCAT((:HospIdList),',')})} [ {fn CONCAT( ',', {fn CONCAT((PAADM_Hospital_DR),',')})}) OR (:HospIdList IS NULL) )
+ )
+ &SQL(OPEN SWARHEPICQ1001mCursor)
+ 
+ //FETCH FIRST ROW
+ d FetchRow
+  
+ while END=0 {
+  
+	 d FormatDates
+  	 
+  	 s isCoded=..isCoded(MRADMROWID)
+  	 s LEAVE=..GetLeaveDaysForEpisode(PAADMROWID)
+  	 s DIAG=..GetPICQDiagProcList(MRADMROWID,"DIAG")
+  	 s PROC=..GetPICQDiagProcList(MRADMROWID,"PROC")
+  	 s PLAN=..GetPlanForEpisode(PAADMROWID)
+  	 if ((ICUHOURS'="") && (ICUHOURS>0)) { s ICUDAYS=ICUHOURS\24+1}
+  	 
+  	 d MapToNHDDCodes
+  	 
+	 /* TEMPLATE MODIFY: Build the sort string here from column variables. Convert strings to uppercase ($ZCVT(<field>,"U") and separate with spaces */
+	 s sort = ind		// don't sort - uncomment this line if you've sorted in the query
+	 //s sort = $ZCVT(HOSPDesc,"U")_" "_$ZCVT(WARDDesc,"U")_" "_$ZCVT(ROOMCode,"U")_" "_$ZCVT(BEDCode,"U")_" "_$ZCVT(CTRLGDesc,"U")_" "_$ZCVT(PAPERName,"U")_" "_$ZCVT(PAPERName2,"U")_" "_$ZCVT(PAPERName3,"U")_ind
+ 	 if (isCoded=1) {
+	 	s ^CacheTemp("TRAK",repid,sort)=$LB(UEID,HOSPITAL,MRN,DOA,DOS,DOB,SEX,DIAG,PROC,CARETYPE,SEPMODE,DRG,ICUDAYS,ILOS,WEIGHT,VENT,LEAVE,MSTATUS,CODERID,CODINGUPDATEDATE)
+	 	s ind=ind+1
+ 	 }
+	 //fetch rows
+	 d FetchRow
+	 s isCoded=0
+	 s LEAVE=""
+	 s DIAG=""
+	 s PROC=""
+	 s PLAN=""
+	 s ICUDAYS=""
+ }
+
+ &SQL(CLOSE SWARHEPICQ1001mCursor)
+ 
+ // Build QHandle (AtEnd,ReportID,Index)
+ Set QHandle=$lb(0,repid,0)
+
+ Quit $$$OK
+
+FetchRow
+ &sql(FETCH SWARHEPICQ1001mCursor INTO :MRADMROWID,:PAADMROWID,:UEID,:HOSPITAL,:MRN,:DOA,:DOS,:PAPMIROWID,:DOB,:AGEDAYSATADM,:SEX,:CARETYPECODE,:SEPMODE,:DRG,:ICUHOURS,:ILOS,:WEIGHT,:VENT,:MSTATUS,:CODERINITIALS,:CODERID,:CODINGUPDATEDATE)
+ if SQLCODE '= 0 set END = 1
+ q
+ 
+FormatDates
+ //s DOA=..ConvertDateToODBC(DOA)
+ //s DOS=..ConvertDateToODBC(DOS)
+ //s DOB=..ConvertDateToODBC(DOB)
+ s DOA=$ZDATE(DOA,4,,4)
+ s DOS=$ZDATE(DOS,4,,4)
+ s DOB=$ZDATE(DOB,4,,4)
+ s CODINGUPDATEDATE=$ZDATE(CODINGUPDATEDATE,4,,4)
+ q
+ 
+MapToNHDDCodes 
+ // ILOS
+ if (ILOS="4") {
+	 s ILOS="2"
+ }
+ else {
+	 s ILOS="1"
+ }
+ //if (MSTATUS="9") s MSTATUS="2" - no need to map mental health status anymore value of 9 will be accepted by PICQ
+ do MapCareType
+ q
+ 
+MapCareType
+ s CARETYPE=CARETYPECODE
+ s PlanCodes = """MN"",""M5"",""PS"",""PT"",""PU"",""PV"",""VN"",""V5"",""WN"",""TN"",""AN"",""SN"",""CN"",""ON"",""JN"""
+ if (CARETYPECODE="1") s CARETYPE="8.0"
+ if (CARETYPECODE="2") s CARETYPE="2.0"
+ if (CARETYPECODE="8") s CARETYPE="3.0"
+ if (CARETYPECODE="9") s CARETYPE="4.0"
+ if (CARETYPECODE="0") s CARETYPE="8.0"
+ if (CARETYPECODE="U") s CARETYPE="7.0"
+ if (CARETYPECODE="6") s CARETYPE="2.0"
+ if (CARETYPECODE="10") s CARETYPE="9.0"
+ if (CARETYPECODE="P") s CARETYPE="2.0"
+ if (CARETYPECODE="4") {
+	IF (AGEDAYSATADM>9) {s CARETYPE="1.0"}
+	 	ELSE {s CARETYPE="7.0"}
+ }
+ if ($E(CARETYPECODE,1,1)="5") {
+	 if ((","_PlanCodes_",") [ (","_PLAN_",")) {
+		 s CARETYPE="5.0"
+	 }
+	 else {
+		 s CARETYPE="8.0"
+	 }
+ }
+ q
+ 
+GetMRNForPatient
+ s (MRROWID,MRN) = ""
+ s MRROWID = $o(^RT(0,"PAT",PAPMIROWID,MRROWID))
+ s MRN = $p(^RT(MRROWID),"^",1)
+ q
+]]></Implementation>
+</Method>
+
+<Method name="GetPlanForEpisode">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>PAADMRowId:%Integer</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	Set (INSChildsub, AUXITRowId, AUXITCode) = ""
+	Set INSChildsub = ..GetPrimaryInsChildsubForEpisode(PAADMRowId)
+	If (INSChildsub'="") {
+		Set AUXITRowId = $P(^PAADM(PAADMRowId,"INS",INSChildsub),"^",10) // PA_AdmInsurance Piece 10: INS_AuxInsType_DR
+	}
+	Set:(AUXITRowId'="") AUXITCode = $P($G(^ARC("AUXIT",AUXITRowId)),"^",1) // ARC_AuxilInsurType Piece 1: AUXIT_Code
+	q AUXITCode
+]]></Implementation>
+</Method>
+
+<Method name="isCoded">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>mrid:%String</FormalSpec>
+<ReturnType>%Boolean</ReturnType>
+<Implementation><![CDATA[
+	if $g(mrid)="" {q 0}
+	else {
+		s sub=$o(^MR(mrid,"DIA",0))
+		if (sub="") {q 0}
+		else {q 1}
+	}
+]]></Implementation>
+</Method>
+
+<Method name="GetPICQDiagProcList">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>mrid:%String,type:%String</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	s list=",,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,"
+	s COFlist=",,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,," //only for DIAG
+	s x=0
+	i $g(mrid)'="" d
+	. i type="DIAG" d
+	. . s list=list_","_COFlist
+	. . ; Get Diagnosis List
+	. . s sub=0 f  s sub=$o(^MR(mrid,"DIA",sub)) q:sub=""  d
+	. . . s diag=##class(User.MRDiagnos).%OpenId(mrid_"||"_sub)
+	. . . i diag d
+	. . . . ; Limit the list to the top 99 x 2 for COF
+	. . . . i x<=198 d
+	. . . . . s x=$i(x)
+	. . . . . s $p(list,",",x)=$$FormatPICQDiagProc(diag.MRDIAICDCodeDR.MRCIDCode)
+	. . . . . s x=$i(x)
+	. . . . . s $p(list,",",x)=$$MapPrefixToCOF(diag.MRDIAPrefix)
+	
+	. i type="PROC" d
+	. . ; Get Procedure List
+	. . s sub=0 f  s sub=$o(^MR(mrid,"PROC",sub)) q:sub=""  d
+	. . . s proc=##class(User.MRProcedures).%OpenId(mrid_"||"_sub)
+	. . . i proc d
+	. . . . ; Limit the list to the top 99
+	. . . . i x<=99 d
+	. . . . . s x=$i(x)
+	. . . . . s $p(list,",",x)=$$FormatPICQDiagProc(proc.PROCOperationDR.OPERCode)
+
+	q list
+	
+FormatPICQDiagProc(Code)
+	s Code=$replace(Code,"-","")
+	s Code=$replace(Code,"/","")
+	s Code=$replace(Code,"\","")
+	s Code=$replace(Code,"*","")
+	s Code=$replace(Code,".","")
+	q Code
+	
+MapPrefixToCOF(Prefix)
+	if (Prefix="C") {set COF="1"}
+	elseif ((Prefix="A")||(Prefix="P")) {set COF="2"}
+	else {set COF=""}
+	q COF
+]]></Implementation>
+</Method>
+
+<Method name="SWARHEPICQ1001mQueryFetch">
+<Description>
+This is the Fetch component of the %Library.Query. 
+This should never have to change. It is designed to fetch the row for each subscript of the ^CacheTemp
+global and return this row to the Crystal Report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,&Row:%Library.List,&AtEnd:%Library.Integer=0]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // This fetch method should never have to change. 
+
+ // repid - Report ID
+ // ind   - sequence index which represents each row
+
+ New repid,ind
+
+ // Restore QHandle
+ Set AtEnd=$li(QHandle,1)
+ Set repid=$li(QHandle,2)
+ Set ind=$li(QHandle,3)
+
+ Set ind=$o(^CacheTemp("TRAK",repid,ind))
+ If ind="" {	// if there are no more rows, finish fetching
+	 Set AtEnd=1
+	 Set Row=""
+ }
+ Else      {	// fetch row
+ 	Set Row=^CacheTemp("TRAK",repid,ind)
+ }
+
+ // Save QHandle
+ s QHandle=$lb(AtEnd,repid,ind)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Query name="SWARHEPICQ1001mQuery">
+<Type>%Library.Query</Type>
+<FormalSpec>DateFrom:%Date,DateTo:%Date,HospID:%Library.Integer</FormalSpec>
+<SqlProc>1</SqlProc>
+<Parameter name="CONTAINID" value="0"/>
+<Parameter name="ROWSPEC" value="UEID:%String,HOSPITAL:%String,MRN:%String,DOA:%Date,DOS:%Date,DOB:%Date,SEX:%String,DIAG:%String,PROC:%String,CARETYPE:%String,SEPMODE:%String,DRG:%String,ICUDAYS:%Integer,ILOS:%String,WEIGHT:%Integer,VENT:%Integer,LEAVE:%Integer,MSTATUS:%String,CODERID:%String,CODINGUPDATEDATE:%Date"/>
+<Parameter name="SELECTMODE" value="ODBC"/>
+</Query>
+</Class>
+</Export>

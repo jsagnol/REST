@@ -1,0 +1,213 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.AUXX.Report.ZEN.StoredProc.CurrentAdmissionsUnit">
+<ProcedureBlock>0</ProcedureBlock>
+<Super>Report.Abstract</Super>
+<TimeCreated>62306,42329.540361</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/AUXX/Report/ZEN/StoredProc/CurrentAdmissionsUnit.xml#1 $</Default>
+</Parameter>
+
+<UDLText name="T">
+<Content><![CDATA[
+// Report Name: Current Admissions <br>
+
+]]></Content>
+</UDLText>
+
+<UDLText name="T">
+<Content><![CDATA[
+// Report Code: Trak.ADM0005 <br>
+
+]]></Content>
+</UDLText>
+
+<UDLText name="T">
+<Content><![CDATA[
+// Logtrak Number: 72135 <br>
+
+]]></Content>
+</UDLText>
+
+<Method name="GetAdmsUnitClose">
+<Description>
+This is the Close component of the %Library.Query.
+This is standard code and should never have to change.
+This is where all the cleanup is performed, i.e. the purging of the temporary storage global ^CacheTemp.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>QHandle:%Library.Binary</FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Clean up by purging the temporary node in ^CacheTemp global
+ New repid
+ Set repid=$li(QHandle,2)
+  
+ //Close Monitor (if configured to capture stats)
+           i mon Do ..MonitorEnd(mon)
+
+  Kill ^CacheTemp("TRAK",repid)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="GetAdmsUnitExecute">
+<Description>
+This is the Execute section for the %Library.Query. 
+All of the logic will be performed here.
+A new node for the ^CacheTemp global will be created and each subscript of this global will contain
+a row for the report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,Hospital:%String,Location:%String,Ward:%String,Clinician:%String]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+	
+ //Start Monitor (if configured to capture stats)
+   s mon=..MonitorBegin()
+   	
+ // Get reportid i.e. use $INCREMENT to add another node to ^CacheTemp global. 
+ // We use ^CacheTemp global because it will always use memory before disk
+ New repid,ind
+
+ // Use $Increment to get the next node
+ Set repid=$I(^CacheTemp("TRAK"))
+
+ // Build data into ^CacheTemp(ReportID)
+ // e.g. Set ^CacheTemp(ReportID,Index)=$LB(f1,f2,f3)
+ New Number,String,Date,Time,c,n
+ n PAADMRowId,HospitalID,HospitalDesc,LocationID,LocationDesc,WardID,WardCode,DoctorID,DoctorDesc,AdmDate,AdmTime,PatNo,AdmNo,PAPMIName,PAPMIName2,PAPMIName3,Age,Sex,BedCode,ADSOUCode,CARETYPCode,INSTCode,AdmDate
+ s (PAADMRowId,HospitalID,LocationID,WardID)=0
+ s (HospitalDesc,LocationDesc,WardCode,DoctorID,DoctorDesc,AdmDate,AdmTime,PatNo,AdmNo,PAPMIName,PAPMIName2,PAPMIName3,Age,Sex,BedCode,ADSOUCode,CARETYPCode,INSTCode,AdmDate)=""
+ s ind=1
+
+ s Hospital=$zstrip(Hospital,"*CW")
+ s Location=$zstrip(Location,"*CW")
+ s Ward=$zstrip(Ward,"*CW")
+ s Clinician=$zstrip(Clinician,"*CW")
+
+ &sql(declare GetAdmsUnit cursor for
+select
+PAADM_rowid,
+PAADM_CurrentWard_dr->WARD_LocationDR->ctloc_hospital_Dr,
+PAADM_CurrentWard_dr->WARD_LocationDR->ctloc_hospital_Dr->HOSP_Desc,
+PAADM_DepCode_DR,
+PAADM_DepCode_DR->ctloc_desc,
+PAADM_CurrentWard_dr,
+PAADM_CurrentWard_dr->WARD_Code,
+PAADM_Admdoccodedr,
+PAADM_Admdoccodedr->CTPCP_Desc,
+PAADM_AdmDate,
+PAADM_AdmTime,
+PAADM_PAPMI_DR->PAPMI_NO,
+PAADM_AdmNo,
+PAADM_PAPMI_DR->PAPMI_Name,
+PAADM_PAPMI_DR->PAPMI_Name2,
+PAADM_PAPMI_DR->PAPMI_Name3,
+PAADM_PAPMI_DR->PAPMI_PAPER_DR->PAPER_AgeyR,
+PAADM_PAPMI_DR->PAPMI_Sex_DR->CTSEX_Code,
+paadm_currentbed_dr->Bed_Code,
+PAADM_AdmSrc_DR->ADSOU_Code,
+PAADM_MAINMRADM_DR->MRADM_CareType_DR->CARETYP_Code
+FROM	sqluser.PA_Adm
+WHERE	PAADM_Type='I' and PAADM_VisitStatus='A'
+	AND (({fn CONCAT( ',', {fn CONCAT((:Hospital),',')})} [ {fn CONCAT( ',', {fn CONCAT((paadm_CURRENTWARD_DR->WARD_LocationDR->CTLOC_hospital_dr->HOSP_RowId),',')})}) OR (:Hospital IS NULL))
+ 	AND (({fn CONCAT( ',', {fn CONCAT((:Location),',')})} [ {fn CONCAT( ',', {fn CONCAT((PAADM_DepCode_DR->CTLOC_RowId),',')})}) OR (:Location IS NULL))
+	AND (({fn CONCAT( ',', {fn CONCAT((:Ward),',')})} [ {fn CONCAT( ',', {fn CONCAT((PAADM_CURRENTWARD_DR->WARD_RowId),',')})}) OR (:Ward IS NULL))
+ 	AND (({fn CONCAT( ',', {fn CONCAT((:Clinician),',')})} [ {fn CONCAT( ',', {fn CONCAT((PAADM_AdmDocCodeDR->CTPCP_RowId),',')})}) OR (:Clinician IS NULL)) )
+ &sql(open GetAdmsUnit)
+
+
+ //fetch first row
+ &sql(fetch GetAdmsUnit into :PAADMRowId,:HospitalID,:HospitalDesc,:LocationID,:LocationDesc,:WardID,:WardCode,:DoctorID,:DoctorDesc,:AdmDate,:AdmTime,:PatNo,:AdmNo,:PAPMIName,:PAPMIName2,:PAPMIName3,:Age,:Sex,:BedCode,:ADSOUCode,:CARETYPCode)
+
+ while 'SQLCODE{
+	 
+ d GetCurrentPayor
+ d FormatDates
+ d FormatTimes
+ 
+ 
+  // build the row
+ Set ^CacheTemp("TRAK",repid,$ZCVT(HospitalDesc,"U")_" "_$ZCVT(LocationDesc,"U")_" "_$ZCVT(WardCode,"U")_" "_AdmDate_" "_AdmTime_" "_$ZCVT(BedCode,"U")_ind)=$LB(PAADMRowId,HospitalID,HospitalDesc,LocationID,LocationDesc,WardID,WardCode,DoctorID,DoctorDesc,AdmDate,AdmTime,PatNo,AdmNo,PAPMIName,PAPMIName2,PAPMIName3,Age,Sex,BedCode,ADSOUCode,CARETYPCode,INSTCode)
+ s ind=ind+1
+ //fetch rows
+ &sql(fetch GetAdmsUnit into :PAADMRowId,:HospitalID,:HospitalDesc,:LocationID,:LocationDesc,:WardID,:WardCode,:DoctorID,:DoctorDesc,:AdmDate,:AdmTime,:PatNo,:AdmNo,:PAPMIName,:PAPMIName2,:PAPMIName3,:Age,:Sex,:BedCode,:ADSOUCode,:CARETYPCode)
+ }
+
+ &sql(close GetAdmsUnit)
+
+ // Build QHandle (AtEnd,ReportID,Index)
+ Set QHandle=$lb(0,repid,0)
+
+ Quit $$$OK
+
+FormatDates
+ // Convert the dates to ODBC date format
+ If AdmDate Set AdmDate=..ConvertDateToODBC(AdmDate)
+ Quit
+
+FormatTimes
+ // Convert the dates to ODBC date format
+ If AdmTime Set AdmTime=..ConvertTimeToODBC(AdmTime)
+ Quit
+
+GetCurrentPayor
+ set (INSTCode,PayorData)=""
+ set AdmIns=0
+ i $g(PAADMRowId)="" q
+ s AdmDate=$p(^PAADM(PAADMRowId),"^",6)
+            
+ f  s AdmIns=$o(^PAADM(PAADMRowId,"INS",AdmIns)) q:AdmIns=""  s PayorData=^(AdmIns) d  q:INSTCode'=""
+ .i $p(PayorData,"^",3)=AdmDate s payor=$p(PayorData,"^",1)
+ .i $p(PayorData,"^",3)="" s INSTCode=$p(PayorData,"^",1)
+            
+ i INSTCode'="" s INSTCode=$p($g(^ARC("INST",INSTCode)),"^",2)
+ quit
+]]></Implementation>
+</Method>
+
+<Method name="GetAdmsUnitFetch">
+<Description>
+This is the Fetch component of the %Library.Query. 
+This should never have to change. It is designed to fetch the row for each subscript of the ^CacheTemp
+global and return this row to the Crystal Report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,&Row:%Library.List,&AtEnd:%Library.Integer=0]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // This fetch method should never have to change. 
+
+
+ New repid,ind
+
+ // Restore QHandle
+ Set AtEnd=$li(QHandle,1)
+ Set repid=$li(QHandle,2)
+ Set ind=$li(QHandle,3)
+
+ Set ind=$o(^CacheTemp("TRAK",repid,ind))
+ If ind="" {	// if there are no more rows, finish fetching
+ Set AtEnd=1
+ Set Row=""
+ }
+ Else      {	// fetch row
+ Set Row=^CacheTemp("TRAK",repid,ind)
+ }
+
+ // Save QHandle
+ s QHandle=$lb(AtEnd,repid,ind)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Query name="GetAdmsUnit">
+<Type>%Library.Query</Type>
+<FormalSpec>Hospital:%String,Location:%String,Ward:%String,Clinician:%String</FormalSpec>
+<SqlProc>1</SqlProc>
+<Parameter name="CONTAINID" value="0"/>
+<Parameter name="ROWSPEC" value="PAADMRowId:%Integer,HospitalID:%Integer,HospitalDesc:%String,LocationID:%Integer,LocationDesc:%String,WardID:%Integer,WardCode:%String,DoctorID:%String,DoctorDesc:%String,AdmDate:%Date,AdmTime:%String,PatNo:%String,AdmNo:%String,PAPMIName:%String,PAPMIName2:%String,PAPMIName3:%String,Age:%String,Sex:%String,BedCode:%String,ADSOUCode:%String,CARETYPCode:%String,INSTCode:%String"/>
+</Query>
+</Class>
+</Export>

@@ -1,0 +1,265 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.AUXX.Report.ZEN.StoredProc.BrokerageSummary">
+<ProcedureBlock>0</ProcedureBlock>
+<Super>Report.Abstract</Super>
+<TimeCreated>61093,56478.893328</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/AUXX/Report/ZEN/StoredProc/BrokerageSummary.xml#1 $</Default>
+</Parameter>
+
+<UDLText name="T">
+<Content><![CDATA[
+// Report Name: Brokerage Summary <br>
+
+]]></Content>
+</UDLText>
+
+<UDLText name="T">
+<Content><![CDATA[
+// Report Code: AUXX.BRO0007 <br>
+
+]]></Content>
+</UDLText>
+
+<UDLText name="T">
+<Content><![CDATA[
+// TRC Number: 99235 <br>
+
+]]></Content>
+</UDLText>
+
+<Method name="GetPlanDetailsClose">
+<Final>0</Final>
+<ClassMethod>1</ClassMethod>
+<CodeMode>code</CodeMode>
+<FormalSpec>QHandle:%Library.Binary</FormalSpec>
+<Private>0</Private>
+<ReturnType>%Library.Status</ReturnType>
+<SqlProc>0</SqlProc>
+<Implementation><![CDATA[
+ // Clean up by purging the temporary node in ^CacheTemp global
+ New repid 
+ Set repid=$li(QHandle,2)
+ 
+ //Start Monitor (if configured to capture stats)
+ i mon Do ..MonitorEnd(mon)
+ 
+ Kill ^CacheTemp("TRAK",repid)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="GetPlanDetailsExecute">
+<ClassMethod>1</ClassMethod>
+<CodeMode>code</CodeMode>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,MRClinicalPathwaysID:%String]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+	 // Get reportid i.e. use $INCREMENT to add another node to ^CacheTemp global. 
+ // We use ^CacheTemp global because it will always use memory before disk
+ New repid,ind
+
+ // Use $Increment to get the next node
+ Set repid=$I(^CacheTemp("TRAK"))
+ 
+ //Start Monitor (if configured to capture stats)
+ s mon=..MonitorBegin()
+
+ // Build data into ^CacheTemp(ReportID)
+ // e.g. Set ^CacheTemp(ReportID,Index)=$LB(f1,f2,f3)
+ New Number,String,Date,Time,c,n
+ n CPWDesc,CPWGoalText,DAYSDesc,CPWDate,PAPMIName2,PAPMIName,PAADMRowId,OEORIRowId,LinkOrder,NGODesc,ItmID,arcimdesc,OEORISttdat,CPWProblemEndDate,OSTATCode,OEORIPhQtyOrd,PHCDUDesc1,OEORIPrice,OEORINumberperWeek,OEORIApplyTimeFrame,VendorID,VendorRate,IsAdHoc,Scheduled,SchedA,SchedB,SchedD,BaseUnit,ActualUnits,ORRate,Program,Group
+ s (CPWDesc,CPWGoalText,DAYSDesc,CPWDate,PAPMIName2,PAPMIName,OEORIRowId,LinkOrder,NGODesc,ItmID,arcimdesc,OEORISttdat,CPWProblemEndDate,OSTATCode,PHCDUDesc1,OEORIApplyTimeFrame,VendorID,IsAdHoc,Scheduled,Program,Group)=""
+ s (PAADMRowId,OEORIPhQtyOrd,OEORIPrice,OEORINumberperWeek,VendorRate,BaseUnit,SchedA,SchedB,SchedD,ActualUnits,ORRate,SchedCost)=0
+ 
+ 
+ n LinkToOrder,CostUOM,WeeklyCost,PriceTotalCost,Goal,Sched,EstUOM,Sort,ActLinkOrd,ActQty,SchedANumeric,AdHocUOM,TotUOM,SumTotal,LinkToDep,SchedCost
+ s (LinkToOrder,Goal,Sched,ActLinkOrd,Sort,LinkToDep)=""
+ s (CostUOM,WeeklyCost,PriceTotalCost,EstUOM,ActQty,SchedANumeric,AdHocUOM,TotUOM,SumTotalUOM)=0
+ 
+ s ind=1
+
+ &sql(declare GetPlanDetails cursor for
+	select
+	cpw_pathway_Dr->CPW_Desc,
+	cpw_governdepart_DR->dep_desc,
+	CPW_GoalText,
+	CPW_Pathways_DR->DAYS_Desc,
+	CPW_ProblemStartDate,
+	OEORD_Adm_DR->PAADM_PAPMI_dR->PAPMI_Name2,
+	OEORD_Adm_DR->PAADM_PAPMI_dR->PAPMI_Name,
+	OEORD_Adm_DR,
+	OEORI_RowId,
+		OEORI_OEORI_dr,
+	OEORI_BrokerageVendor_DR->vend_ngo_Dr->NGO_Desc,
+	oeori_itmmast_Dr,
+	oeori_itmmast_Dr->arcim_desc,
+	OEORI_Sttdat,
+	OEORI_EndDate,
+	OEORI_ItemStat_DR->OSTAT_Code,
+	OEORI_PhQtyOrd,
+	OEORI_DURAT_dR->PHCDU_Desc1,
+	OEORI_Price,
+	OEORI_NumberperWeek,
+	OEORI_ApplyTimeFrame,
+	OEORI_BrokerageVendor_DR,
+	OEORI_BrokerageVendorRate_DR->RATE_Cost,
+	OEORI_IsAdHoc,
+	OEORI_LinkToOrder
+	from SQLUSER.oe_order, SQLUSER.oe_orditem, SQLUSER.mr_clinicalpathways
+	where cpw_Rowid=:MRClinicalPathwaysID and 
+	oeori_clinpathways_dr=cpw_Rowid and 
+	oeord_Rowid=oeori_oeord_parref and
+	OEORI_ItemStat_DR->OSTAT_Code IN ('I','V','E')and OEORI_IsBrokerage='Y'
+ 
+)
+
+ &sql(open GetPlanDetails)
+
+ //fetch first row
+ &sql(fetch GetPlanDetails into :CPWDesc,:Program,:CPWGoalText,:DAYSDesc,:CPWDate,:PAPMIName2,:PAPMIName,:PAADMRowId,:OEORIRowId,:LinkOrder,:NGODesc,:ItmID,:arcimdesc,:OEORISttdat,:CPWProblemEndDate,:OSTATCode,:OEORIPhQtyOrd,:PHCDUDesc1,:OEORIPrice,:OEORINumberperWeek,:OEORIApplyTimeFrame,:VendorID,:VendorRate,:IsAdHoc,:LinkToDep)
+
+ while 'SQLCODE{
+ d GetBaseUnit
+ ;d GetEndDate	 
+ d FormatDates
+ s ORRate=$$vendorrate^COEOrdItem18(OEORIRowId)
+ s CPWGoalText=##class(websys.Conversions).ListLogicalToHtml(CPWGoalText,$char(10,13))
+ s Scheduled=##Class(web.MRClinicalPathWays).GetTotalNumberOfSchedule(OEORIRowId)
+ s OEORIApplyTimeFrame=##class(websys.StandardTypeItem).GetExactDescription("VenAppTimFrame",OEORIApplyTimeFrame)
+
+ s SchedA=$p(Scheduled,"/") 
+ s SchedB=$p(Scheduled,"/",2)
+ s SchedD=$p(Scheduled,"/",4)
+ s SchedANumeric=SchedA
+ s SchedA=SchedA_"/"
+ i LinkOrder'="" s LinkToOrder=LinkOrder
+ i LinkOrder="" s LinkToOrder=OEORIRowId
+ i OEORIPrice'="" s CostUOM=OEORIPrice
+ i OEORIPrice="" s CostUOM=VendorRate
+ s WeeklyCost=(OEORINumberperWeek*CostUOM*OEORIPhQtyOrd)
+ s PriceTotalCost=(VendorRate*OEORIPhQtyOrd*SchedANumeric)
+ s SchedCost=(CostUOM*SchedB)
+ i DAYSDesc'="" s Goal=DAYSDesc
+ i DAYSDesc="" s Goal=CPWGoalText
+ s Sched=SchedA_($CHAR(10)_$CHAR(13))_SchedB
+ i SchedD'=0 s Sched=Sched_" +"_SchedD_" ad hoc"
+ i OEORIPrice="" s OEORIPrice=0
+ i VendorRate="" s VendorRate=0
+ ;i CostUOM="" s CostUOM=0
+ ;i OSTATCode'="I" s EstUOM=0
+ s EstUOM=SchedB*BaseUnit
+ i IsAdHoc="" s AdHocUOM=0
+ i IsAdHoc="Y" s AdHocUOM=BaseUnit
+ i OSTATCode'="I" s TotUOM=0
+ i OSTATCode="I" s TotUOM=SchedANumeric*BaseUnit
+ s SumTotalUOM=BaseUnit*SchedANumeric
+ i OSTATCode="I" s Group="Care Plan Schedule"
+ i OSTATCode'="I" s Group="Associated orders"
+ i OSTATCode'="I" s Sched=""
+ i IsAdHoc="Y" s IsAdHoc="*"
+
+  
+ // build the row
+ Set ^CacheTemp("TRAK",repid,LinkOrder_" "_OEORIRowId_ind)=$LB(CPWDesc,Program,CPWGoalText,DAYSDesc,CPWDate,PAPMIName2,PAPMIName,PAADMRowId,OEORIRowId,LinkOrder,NGODesc,ItmID,arcimdesc,OEORISttdat,CPWProblemEndDate,OSTATCode,OEORIPhQtyOrd,PHCDUDesc1,OEORIPrice,OEORINumberperWeek,OEORIApplyTimeFrame,VendorID,VendorRate,IsAdHoc,LinkToDep,Scheduled,SchedA,SchedB,SchedD,BaseUnit,ActualUnits,ORRate,LinkToOrder,CostUOM,WeeklyCost,PriceTotalCost,Goal,Sched,EstUOM,ActLinkOrd,ActQty,SchedANumeric,AdHocUOM,TotUOM,SumTotalUOM,SchedCost,Group)
+ s ind=ind+1
+ //fetch rows
+ &sql(fetch GetPlanDetails into :CPWDesc,:Program,:CPWGoalText,:DAYSDesc,:CPWDate,:PAPMIName2,:PAPMIName,:PAADMRowId,:OEORIRowId,:LinkOrder,:NGODesc,:ItmID,:arcimdesc,:OEORISttdat,:CPWProblemEndDate,:OSTATCode,:OEORIPhQtyOrd,:PHCDUDesc1,:OEORIPrice,:OEORINumberperWeek,:OEORIApplyTimeFrame,:VendorID,:VendorRate,:IsAdHoc,:LinkToDep)}
+
+ &sql(close GetPlanDetails)
+
+ // Build QHandle (AtEnd,ReportID,Index)
+ Set QHandle=$lb(0,repid,0)
+
+ Quit $$$OK
+
+
+
+GetBaseUnit
+ Set (BaseUnit) = 0
+
+ &sql(SELECT
+	ITM_BaseUnit
+	INTO :BaseUnit
+	FROM SQLUser.MRC_VendorItem
+	WHERE	ITM_ParRef=:VendorID and
+	ITM_ARCIM_dR=:ItmID	 	  	      			
+)
+ Quit 
+
+ /* 
+GetProgram
+ Set (Program)=""
+ &sql(declare prg cursor for
+select enq_governdepart_DR->dep_Desc
+  from sqluser.oe_orditem, sqluser.pa_enquirycontact
+  where oeori_Rowid=enq_oeorditem_Dr and oeori_oeori_Dr=:OEORIRowId		
+)
+ &SQL(OPEN prg)
+ &SQL(fetch prg INTO :Program)
+ &SQL(close prg)
+
+ Quit 
+*/
+FormatDates
+ // Convert the dates to ODBC date format
+ If CPWDate Set CPWDate=..ConvertDateToODBC(CPWDate)
+ If OEORISttdat Set OEORISttdat=..ConvertDateToODBC(OEORISttdat)
+ If CPWProblemEndDate Set CPWProblemEndDate=..ConvertDateToODBC(CPWProblemEndDate)
+ Quit
+]]></Implementation>
+</Method>
+
+<Method name="GetPlanDetailsFetch">
+<Description>
+This is the Fetch component of the %Library.Query. 
+This should never have to change. It is designed to fetch the row for each subscript of the ^CacheTemp
+global and return this row to the Crystal Report.</Description>
+<Final>0</Final>
+<ClassMethod>1</ClassMethod>
+<CodeMode>code</CodeMode>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,&Row:%Library.List,&AtEnd:%Library.Integer=0]]></FormalSpec>
+<Private>0</Private>
+<ReturnType>%Library.Status</ReturnType>
+<SqlProc>0</SqlProc>
+<Implementation><![CDATA[
+ // This fetch method should never have to change. 
+
+ // repid - Report ID
+ // ind   - sequence index which represents each row
+
+ New repid,ind
+
+ // Restore QHandle
+ Set AtEnd=$li(QHandle,1)
+ Set repid=$li(QHandle,2)
+ Set ind=$li(QHandle,3)
+
+ Set ind=$o(^CacheTemp("TRAK",repid,ind))
+ If ind="" {	// if there are no more rows, finish fetching
+ Set AtEnd=1
+ Set Row=""
+ }
+ Else      {	// fetch row
+ Set Row=^CacheTemp("TRAK",repid,ind)
+ }
+
+ // Save QHandle
+ s QHandle=$lb(AtEnd,repid,ind)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Query name="GetPlanDetails">
+<Type>%Library.Query</Type>
+<FormalSpec>MRClinicalPathwaysID:%String</FormalSpec>
+<SqlProc>1</SqlProc>
+<Parameter name="CONTAINID" value="0"/>
+<Parameter name="ROWSPEC" value="CPWDesc:%String(MAXLEN=999),Program:%String,CPWGoalText:%String(MAXLEN=999),DAYSDesc:%String(MAXLEN=999),CPWDate:%Date,PAPMIName2:%String(MAXLEN=999),PAPMIName:%String(MAXLEN=999),PAADMRowId:%Integer,OEORIRowId:%String,LinkOrder:%String,NGODesc:%String(MAXLEN=999),ItmID:%String,arcimdesc:%String(MAXLEN=999),OEORISttdat:%Date,CPWProblemEndDate:%Date,OSTATCode:%String,OEORIPhQtyOrd:%Integer,PHCDUDesc1:%String(MAXLEN=999),OEORIPrice:%Float,OEORINumberperWeek:%Integer,OEORIApplyTimeFrame:%String(MAXLEN=999),VendorID:%String,VendorRate:%Float,IsAdHoc:%String,LinkToDep:%String,Scheduled:%String,SchedA:%Integer,SchedB:%Integer,SchedD:%String,BaseUnit:%Integer,ActualUnits:%Integer,ORRate:%Float,LinkToOrder:%String,CostUOM:%Float,WeeklyCost:%Float,PriceTotalCost:%Float,Goal:%String,Sched:%String,EstUOM:%Float,ActLinkOrd:%String,ActQty:%Float,SchedANumeric:%Integer,AdHocUOM:%Float,TotUOM:%Float,SumTotalUOM:%Float,SchedCost:%Float,Group:%String"/>
+</Query>
+</Class>
+</Export>

@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.SWARH.JS.OEOrder.Entry.Submit">
+<Super>websys.AbstractJavaScript</Super>
+<TimeCreated>63960,36052.755855</TimeCreated>
+
+<Parameter name="SrcVer">
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/SWARH/JS/OEOrder/Entry/Submit.xml#1 $</Default>
+</Parameter>
+
+<Method name="JSContent">
+<Description>
+JavaScript Content</Description>
+<Language>javascript</Language>
+<ClientMethod>1</ClientMethod>
+<ForceGenerate>1</ForceGenerate>
+<Implementation><![CDATA[
+
+	function SiteBodyLoadHandler()
+	{
+		OEOrderEntry_Submit_BodyLoadHandler();
+		var obj = document.getElementById('Update');
+		if (obj) obj.onclick=SiteUpdateClick;
+	}
+
+	function SiteUpdateClick() 
+	{	
+		var msg='';
+		var items = GetAllItemIDs();
+		var usercode = document.getElementById('UserCode');
+		if ((usercode)&&(usercode.value)&&(usercode.value!='')) {
+			var submit_usercode=usercode.value;
+			var rc = tkMakeServerCall("Custom.SWARH.JS.OEOrder.SummaryScreen","ValidatePrescribingDoctor",items,submit_usercode)
+			if (rc != 1) {
+				msg+="Unable to save as care provider on order items \ndoes not match saving care provider. Please rectify.\n";
+			}
+		}
+		if (msg!='') {
+			alert(msg);
+			return false;
+		} else {
+			OEOrderEntry_Submit_UpdateHandler();
+		}
+	}
+	
+	// Return a list of all order items to be submitted.
+	function GetAllItemIDs() {
+			var ordString="";
+			var tbl=document.getElementById('tOEOrder_Entry_List');
+			if (tbl) 
+			{
+				var tableRows=websys_getListRows(tbl,true);
+				for (var i=1;i<tableRows.length+1;i++) 
+				{
+					var id=document.getElementById("IDz"+i);
+					var lineType = ""
+					var lineTypeObj = document.getElementById("lineTypez"+i)
+					if (lineTypeObj) lineType=lineTypeObj.value;
+					if (id && (lineType=="")) 
+					{
+						ordString+=id.value+"^";
+					}
+				}
+			}
+			return ordString
+	}
+	
+	websys_removeListener("load","onload",OEOrderEntry_Submit_BodyLoadHandler);
+	websys_addListener("load","onload",SiteBodyLoadHandler);
+]]></Implementation>
+</Method>
+</Class>
+</Export>

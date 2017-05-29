@@ -1,0 +1,164 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.SWARH.JS.PAAdm.List">
+<Description>
+Component JavaScript for: PAAdm.List</Description>
+<Modified>0</Modified>
+<Super>websys.AbstractJavaScript</Super>
+<TimeCreated>63537,10517.643854</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+This Parameter is updated by Perforce</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/SWARH/JS/PAAdm/List.xml#1 $</Default>
+</Parameter>
+
+<Method name="JSContent">
+<Description>
+ </Description>
+<Language>javascript</Language>
+<ClientMethod>1</ClientMethod>
+<Implementation><![CDATA[
+//// SWARH Phuong-Dung HOANG 13/06/2012
+///Update 24072014
+
+///Workflow SWARH.SNAP.Appt
+
+// Load SNAP.js script
+SWARH.loadSNAP();
+
+var logonUserId=session['LOGON.USERID'];
+var logonLocId=session['LOGON.CTLOCID'];
+
+function GetEpisodeID() {
+	var frm = window.top.frames['eprmenu'].document.forms["fEPRMENU"];
+	var EID=frm.EpisodeID.value;
+	return EID;
+}
+
+function createButton(name,label) {
+	var obj=document.createElement('input>');	// 2016-10-05 (RG) - Changed from '<input type="text" />' to 'input' 
+	obj.setAttribute('type','button');
+	obj.setAttribute('name',name);
+	obj.setAttribute('id',name);
+	obj.setAttribute('value',label);
+	obj.setAttribute('title',name);
+	obj.className = 'clsButton';
+	return obj;
+}
+
+websys_removeListener("load","onload",body_onload);
+websys_addListener("load","onload",custom_body_onload);
+
+function custom_body_onload() {
+	var tPAADMList=document.getElementById('tPAAdm_List');
+	var oWKFL = document.getElementById('WKFL');
+	if (oWKFL !== null && oWKFL.value == 'SWARH.SNAP.Appt') {	//// SNAP appointment workflow
+		//// Create and insert refresh button after New button
+		var newBtn=document.getElementById('new');
+		var refreshBtn=createButton('RefreshBtn','Refresh');
+		var newApptBtn=createButton('NewApptBtn','Appointments');
+		
+		newBtn.parentElement.appendChild(refreshBtn,newBtn);
+		newBtn.parentElement.appendChild(document.createTextNode(" "),newBtn);
+		refreshBtn.onclick=function() {
+			window.parent.frames['TRAK_main'].location.reload();
+		};
+		
+		var objTable=document.getElementById('tPAAdm_List');
+		if (objTable) {
+			objTable.parentElement.insertBefore(newApptBtn,objTable);
+			objTable.parentElement.insertBefore(document.createTextNode(" "),objTable);
+		}
+		
+		newApptBtn.onclick=function() {
+			if (GetEpisodeID()=="") {
+				alert("Please select an episode");
+			}
+			else if (tPAADMList) {
+				var rows=tPAADMList.getElementsByTagName('tr');
+				if (rows.length>0) {
+					for (i=1;i<rows.length;i++) {
+						if (rows[i].className == "clsRowSelected") {
+							TRAKListIndex=rows[i].getAttribute("TRAKListIndex");
+							break;
+						}
+					}
+					EpisodeNo=document.getElementById("PAADMADMNoHIDDENz"+TRAKListIndex).value;
+					VisitStatus=document.getElementById("HidPAADMVisitStatusz"+TRAKListIndex).value;
+					if (EpisodeNo.substring(0,3)!="SNA") {
+						alert('Appointments only exist for episodes with a prefix of "SNA"')
+					}
+					else if (VisitStatus=='C') {
+						alert('No appointments for cancelled episodes');
+					}
+					else {
+						SNAP.openSWARHSNAP('ClientAppointmentList.aspx?'+'LogonUserId='+logonUserId+'&LogonLocId='+logonLocId+'&PatientID='+PatientID+'&EpisodeNo='+EpisodeNo,'AppointmentList');
+					}
+				}
+			}
+			// if (GetEpisodeID()!="") {
+			// var url=snapserver+'ClientAppointmentList.aspx?'+'LogonUserId='+logonUserId+'&LogonLocId='+logonLocId+'&PatientID='+PatientID+'&EpisodeID='+GetEpisodeID();
+			// window.open(url,'AppointmentList',options);
+			// }
+			// else {
+				// alert("Please select an episode");
+			// }
+		}
+		
+		//// Override onclick event for "New" button to open SNAP to create new episode
+		var newButton=document.getElementById('New');
+		var PatientID=document.getElementById('PatientID').value;
+		newButton.onclick=function() {
+			SNAP.openSWARHSNAP('Episode.aspx?'+'LogonUserId='+logonUserId+'&LogonLocId='+logonLocId+'&PatientID='+PatientID,'createEpisode');
+		};
+		
+		//// Find list of episodes for patient selected
+		if (tPAADMList) {
+			var rows=tPAADMList.getElementsByTagName('tr');
+			if (rows.length>0) {
+				//// iterate through each episode listed and override onclick event for each episode number hyperlink
+				//// iterate through each episode listed and override href link for each episode date link
+				for (i=1;i<rows.length;i++) {
+					var episodeLink=document.getElementById('PAADMADMNoz'+i);
+					if (episodeLink) {
+						var episodeNo=episodeLink.innerText;
+						if (episodeNo.substring(0,3)=="SNA") {
+							episodeLink.onclick=function(e) {	
+								e = e || window.event;
+								var target = e.srcElement || e.target;
+								SNAP.openSWARHSNAP('Episode.aspx?'+'LogonUserId='+logonUserId+'&LogonLocId='+logonLocId+'&EpisodeNo='+target.innerText,'editEpisode');
+							};
+						}
+					
+					var dateLink=document.getElementById('PAADMAdmDateLinkz'+i);
+					if (dateLink) {	
+						dateLink.href='#';
+						if (episodeNo.substring(0,3)=="SNA") {
+
+							dateLink.onclick=function(e) {
+								e = e || window.event;
+								var target = e.srcElement || e.target;
+								var targetNo = target.id.split("z")[1];
+								SNAP.openSWARHSNAP('ClientAppointmentList.aspx?'+'LogonUserId='+logonUserId+'&LogonLocId='+logonLocId+'&PatientID='+PatientID+'&EpisodeNo='+document.getElementById('PAADMADMNoz'+targetNo).innerText,'appointmentList');
+							};
+						}
+						else {
+							dateLink.onclick=function(e) {
+							alert('Appointments only exist for episodes with a prefix of "SNA"');
+							}
+						}
+					}
+					}
+				}
+			}
+		}
+	}
+	body_onload();
+}
+
+//// END SWARH Phuong-Dung HOANG 13/06/2012
+]]></Implementation>
+</Method>
+</Class>
+</Export>

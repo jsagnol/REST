@@ -1,0 +1,226 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.SWARH.Extracts.StoredProc.SWARHERTBL1002b">
+<Description><![CDATA[
+<pre>
+**************************************************************************************************************************************
+* Report Code: SWARHERTBL1002b
+* Report Description: Procedure Data - Roundtable
+* Menu Caption: Health Rountable IP Procedure
+* Initial release:February 2015 
+* Developer: David Cottrill/Sharon Rees
+* Report shows: The Health Roundtable Inpatient Procedure Code Data Spec
+* 
+**************************************************************************************************************************************
+</pre>
+Class for SWARHERTBL1002b Report]]></Description>
+<ProcedureBlock>0</ProcedureBlock>
+<Super>Custom.SWARH.Report.ZEN.StoredProc.Abstract</Super>
+<TimeCreated>60905,54849</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/SWARH/Extracts/StoredProc/SWARHERTBL1002b.xml#1 $</Default>
+</Parameter>
+
+<Method name="SWARHERTBL1002bClose">
+<Description>
+This is the Close component of the %Library.Query.
+This is standard code and should never have to change.
+This is where all the cleanup is performed, i.e. the purging of the temporary storage global ^CacheTemp.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>QHandle:%Library.Binary</FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Clean up by purging the temporary node in ^CacheTemp global
+ New repid
+ Set repid=$li(QHandle,2)
+ Kill ^CacheTemp(repid)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="SWARHERTBL1002bExecute">
+<Description>
+This is the Execute section for the %Library.Query. 
+All of the logic will be performed here.
+A new node for the ^CacheTemp global will be created and each subscript of this global will contain
+a row for the report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,Hospital:%Integer,DateFrom:%Date,DateTo:%Date]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+	
+ k ^zbernard	
+ // Get reportid i.e. use $INCREMENT to add another node to ^CacheTemp global. 
+ // We use ^CacheTemp global because it will always use memory before disk
+ New repid,ind
+
+ // Use $Increment to get the next node
+ Set repid=$I(^CacheTemp)
+ s ^zBernard("1")=(1)
+
+ // Build data into ^CacheTemp(ReportID)
+ // e.g. Set ^CacheTemp(ReportID,Index)=$LB(f1,f2,f3)
+ New Number,String,Date,Time,c,n,PAADMRowID,MRADMRowID,UnitRecordNumber,EpisodeNumber,UnitRecordNumber,HospitalIdentifier,PROCParRef,ProcedurePositionNumber,ProcedureCode,ProcedureDate,ProcedureStartTime,ProcedureEndTime,ProcedureElapsedTime
+
+ s PAADMRowID=0
+ s (MRADMRowID,UnitRecordNumber,EpisodeNumber,UnitRecordNumber,HospitalIdentifier,PROCParRef,ProcedurePositionNumber,ProcedureCode,ProcedureDate,ProcedureStartTime,ProcedureEndTime,ProcedureElapsedTime)="" 
+ s ind=1
+
+ //Convert ODBC dates to cache format
+ s DateFrom=$$intdate^SSUTIL4(DateFrom)
+ s DateTo=$$intdate^SSUTIL4(DateTo)
+ 
+ 
+ 	&sql(declare SWARHERTBL1002b cursor for
+ 	SELECT
+ 	
+        distinct PAADM_RowID,
+        PAPMI_No AS UnitRecordNumber,
+        PAADM_ADMNo AS EpisodeNumber,
+        PAADM_Hospital_DR AS HospitalIdentifier,
+        D.PROC_ParRef,
+        D.PROC_DRGRank AS ProcedurePositionNumber,
+        D.PROC_Operation_DR->OPER_Code AS ProcedureCode,
+        (CASE   WHEN D.PROC_DRGRank = 1 THEN
+                        CONVERT(varchar,ANO.ANAOP_OpStartDate,103)
+                ELSE ''
+        END)
+        AS ProcedureDate,
+        (CASE   WHEN D.PROC_DRGRank = 1 THEN
+                        CONVERT(varchar(5),ANO.ANAOP_OpStartTime,108)
+                ELSE ''
+        END)
+        AS ProcedureStartTime,
+        (CASE   WHEN D.PROC_DRGRank = 1 THEN
+                        CONVERT(varchar(5),ANO.ANAOP_OpEndTime,108)
+                ELSE ''
+        END)
+        AS OutTime,
+        (CASE   WHEN D.PROC_DRGRank = 1 THEN
+                        (CASE WHEN DATEDIFF(mi,CONVERT(TIMESTAMP,ANO.ANAOP_OpStartTime, 103),CONVERT(TIMESTAMP,ANO.ANAOP_OpEndTime, 103)) < 0
+                                THEN DATEDIFF(mi,CONVERT(TIMESTAMP,ANO.ANAOP_OpStartTime, 103),CONVERT(TIMESTAMP,ANO.ANAOP_OpEndTime, 103))+1440
+                                ELSE DATEDIFF(mi,CONVERT(TIMESTAMP,ANO.ANAOP_OpStartTime, 103),CONVERT(TIMESTAMP,ANO.ANAOP_OpEndTime, 103))
+                        END)
+                ELSE ''
+        END)
+        As ProcedureElapsedTime
+       INTO
+       		:PAADMRowID,:UnitRecordNumber,:EpisodeNumber,:HospitalIdentifier,:PROCParRef,:ProcedurePositionNumber,:ProcedureCode,:ProcedureDate,:ProcedureStartTime,:ProcedureEndTime,:ProcedureElapsedTime
+       FROM SQLUser.PA_Adm A
+                LEFT OUTER JOIN SQLUser.MR_Adm MRADM ON A.PAADM_MainMRADM_DR = MRADM.MRADM_RowId
+                INNER JOIN SQLUser.MR_Procedures D on MRADM.MRADM_RowId = D.PROC_ParRef
+                LEFT OUTER JOIN SQLUser.OR_Anaesthesia AN  on AN.ANA_PAADM_ParRef = A.PAADM_RowID
+                LEFT OUTER JOIN SQLUser.OR_Anaest_Operation ANO ON ANO.ANAOP_Par_Ref = AN.ANA_RowId
+                LEFT OUTER JOIN SQLUser.PA_PatMas B ON A.PAADM_PAPMI_DR = B.PAPMI_RowId
+         WHERE 
+     		PAADM_Hospital_DR = :Hospital
+     		AND PAADM_DischgDate >= :DateFrom
+     		AND PAADM_DischgDate <= :DateTo	
+     		AND PAADM_VisitStatus <> 'C'
+     		AND PAADM_Type = 'I'
+     		AND NOT(PAADM_CurrentWard_DR->WARD_LocationDR->CTLOC_NATIONCODE IS NULL)
+ 		order by PAADM_RowId,D.PROC_DRGRank,ANO.ANAOP_OpStartDate
+ 	)
+ 
+ 	&sql(open SWARHERTBL1002b)
+ 
+  	//fetch first row
+ 
+	new PrevEpisodeNo, PrevProcedurePositionNo
+	set PrevEpisodeNo = ""
+	set PrevProcedurePositionNo = ""
+	
+ 	while 1=1 /* Forever, until QUIT */ {
+ 		&sql(fetch SWARHERTBL1002b)
+ 		
+ 		// Quit from loop after end of records
+ 		quit:SQLCODE'=0
+	 	//d FormatDates
+	 	//d FormatTimes
+	 
+	 	if ((PrevEpisodeNo = EpisodeNumber) && (PrevProcedurePositionNo = ProcedurePositionNumber)) {
+		 	// Throw away multiple procedures for the same episode & rank - only get the earliest dated procedure 
+	 	 	continue
+	 	}
+	 	
+	 	s ProcedureCode=$zstrip(ProcedureCode,"*P")
+	 		
+	 	// build the row
+	 	Set ^CacheTemp(repid,ind)=$LB(PAADMRowID,UnitRecordNumber,EpisodeNumber,HospitalIdentifier,PROCParRef,ProcedurePositionNumber,ProcedureCode,ProcedureDate,ProcedureStartTime,ProcedureEndTime,ProcedureElapsedTime)
+	 	s ind=ind+1
+	 	
+	 	set PrevEpisodeNo = EpisodeNumber
+		set PrevProcedurePositionNo = ProcedurePositionNumber
+
+ 	}	
+ 	&sql(close SWARHERTBL1002b)
+ 
+ // Build QHandle (AtEnd,ReportID,Index)
+ Set QHandle=$lb(0,repid,0)
+
+ Quit $$$OK
+
+FormatDates
+ // Convert the dates to ODBC date format
+ If ProcedureDate Set ProcedureDate=$ZD(ProcedureDate,3)
+ 
+ Quit
+
+FormatTimes
+ // Convert the times to ODBC time format
+ If ProcedureStartTime Set ProcedureStartTime=$ZT(ProcedureStartTime,1)
+ 
+ Quit
+]]></Implementation>
+</Method>
+
+<Method name="SWARHERTBL1002bFetch">
+<Description>
+This is the Fetch component of the %Library.Query. 
+This should never have to change. It is designed to fetch the row for each subscript of the ^CacheTemp
+global and return this row to the Crystal Report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,&Row:%Library.List,&AtEnd:%Library.Integer=0]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // This fetch method should never have to change. 
+
+ // repid - Report ID
+ // ind   - sequence index which represents each row
+
+ New repid,ind
+
+ // Restore QHandle
+ Set AtEnd=$li(QHandle,1)
+ Set repid=$li(QHandle,2)
+ Set ind=$li(QHandle,3)
+
+ Set ind=$o(^CacheTemp(repid,ind))
+ If ind="" {	// if there are no more rows, finish fetching
+ Set AtEnd=1
+ Set Row=""
+ }
+ Else      {	// fetch row
+ Set Row=^CacheTemp(repid,ind)
+ }
+
+ // Save QHandle
+ s QHandle=$lb(AtEnd,repid,ind)
+
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Query name="SWARHERTBL1002b">
+<Type>%Library.Query</Type>
+<FormalSpec>Hospital:%Integer,DateFrom:%Date,DateTo:%Date</FormalSpec>
+<SqlProc>1</SqlProc>
+<Parameter name="CONTAINID" value="0"/>
+<Parameter name="ROWSPEC" value="PAADMRowID:%String,UnitRecordNumber:%String,EpisodeNumber:%String,HospitalIdentifier:%String,PROCParRef:%String,ProcedurePositionNumber:%String,ProcedureCode:%String,ProcedureDate:%String,ProcedureStartTime:%String,ProcedureEndTime:%String,ProcedureElapsedTime:%String"/>
+<Parameter name="SELECTMODE" value="ODBC"/>
+</Query>
+</Class>
+</Export>

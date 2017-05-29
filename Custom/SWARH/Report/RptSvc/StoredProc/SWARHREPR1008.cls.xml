@@ -1,0 +1,218 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.SWARH.Report.RptSvc.StoredProc.SWARHREPR1008">
+<Description><![CDATA[
+<pre>
+***************************************************************************************************************************************
+* Report Code: SWARHREPR1008
+* Report Description: Report returns Patient Pathology & Radiology Results either for all episodes for the report period selected 
+* 	or for a particular episode if selected.
+* Menu Caption:Patient Episode Pathology / Radiology Results
+* Initial Release: 23/06/2016	Developer: Michael Welsh
+* Modified:
+***************************************************************************************************************************************
+</pre>]]></Description>
+<ProcedureBlock>0</ProcedureBlock>
+<Super>Custom.SWARH.Report.RptSvc.StoredProc.Abstract</Super>
+<TimeCreated>62067,51199.999007</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/SWARH/Report/RptSvc/StoredProc/SWARHREPR1008.xml#1 $</Default>
+</Parameter>
+
+<Method name="SWARHREPR1008Execute">
+<Description>
+This is the Execute section for the %Library.Query. 
+All of the logic will be performed here.
+A new node for the ^CacheTemp global will be created and each subscript of this global will contain
+a row for the report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,Hospital:%Integer,PatientUR:%String,ReportType:%String,DateFrom:%Date,DateTo:%Date,EpisodeID:%Integer]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Get reportid i.e. use $INCREMENT to add another node to ^CacheTemp global. 
+ // We use ^CacheTemp global because it will always use memory before disk
+ New repid,ind
+
+ // Use $Increment to get the next node
+ Set repid=$INCREMENT(^CacheTemp(..#CACHETEMPSUBSCRIPT))
+
+ New PAADMRowID,URNo,Surname,GivenName,OtherGivenName,DOB,EpisodeNo,OrderDate,TextResultDate,TextResultData,SECRowId
+ Set (PAADMRowID,URNo,Surname,GivenName,OtherGivenName,DOB,EpisodeNo,OrderDate,TextResultDate,TextResultData,SECRowId)=""
+ 
+ Set ind=1, END=0
+ 
+ //Start Monitor (if configured to capture stats)
+ Set mon=..MonitorBegin()
+ 
+ //Convert ODBC dates to cache format
+ Set DateFrom=..ConvertDateToCache(DateFrom)
+ Set DateTo=..ConvertDateToCache(DateTo)
+ 
+ &SQL(DECLARE SWARHREPR1008 CURSOR FOR
+ 	SELECT
+ 		trs.SEC_Rowid AS SECRowId
+        ,adm.PAADM_RowID AS PAADMRowID
+        ,patMas.PAPMI_No AS URNo
+        ,patMas.PAPMI_Name AS Surname
+        ,patMas.PAPMI_Name2 AS GivenName
+        ,patMas.PAPMI_Name3 AS OtherGivenName
+        ,patMas.PAPMI_DOB AS DOB
+        ,adm.PAADM_AdmNo AS EpisodeNo
+        ,ord.OEORD_Date AS OrderDate
+        ,tr.TR_DateCreated AS TextResultDate
+        ,trs.SEC_Text AS TextResultData
+             
+	FROM
+        SQLUser.PA_Adm adm
+                LEFT JOIN SQLUser.PA_PatMas patMas ON (adm.PAADM_PAPMI_DR = patMas.PAPMI_RowId)
+                LEFT JOIN SQLUser.OE_Order ord ON (ord.OEORD_Adm_DR = adm.PAADM_RowId)
+                LEFT JOIN SQLUser.OE_TextResult tr ON (tr.TR_OEORD_DR = ord.OEORD_RowId)
+                LEFT JOIN SQLUser.OE_TextResultSection trs ON (trs.SEC_ParRef = tr.TR_RowId)
+    WHERE
+        (adm.PAADM_Hospital_DR = :Hospital)
+    AND
+        (patMas.PAPMI_No = :PatientUR)
+	AND
+        (adm.PAADM_AdmDate >= :DateFrom OR (:DateFrom IS NULL))
+    AND
+        (adm.PAADM_AdmDate <= :DateTo OR (:DateTo IS NULL))
+	AND
+    	(adm.PAADM_RowID = :EpisodeID  OR (:EpisodeID IS NULL))
+	AND
+        (tr.TR_RowId IS NOT NULL))
+		
+ &SQL(OPEN SWARHREPR1008)
+
+ //fetch first row
+ Do FetchRow
+ 
+ While END=0 {
+	 
+	Do FormatDates, FormatTimes, FormatStrings
+  	 
+  	Set sort = ind
+  	  
+  	// build the row
+  	Set ^CacheTemp(..#CACHETEMPSUBSCRIPT,repid,sort)=$LISTBUILD(SECRowId,PAADMRowID,URNo,Surname,GivenName,OtherGivenName,DOB,EpisodeNo,OrderDate,TextResultDate,
+  		TextResultData)
+ 	Set ind=ind+1
+ 
+	//fetch rows
+	Do FetchRow
+ }
+
+ &SQL(CLOSE SWARHREPR1008)
+
+ // Build QHandle (AtEnd,ReportID,Index)
+ Set QHandle=$listbuild(0,repid,0)
+
+ Quit $$$OK
+
+FetchRow
+ &sql(FETCH SWARHREPR1008 INTO :SECRowId,:PAADMRowID,:URNo,:Surname,:GivenName,:OtherGivenName,:DOB,:EpisodeNo,:OrderDate,:TextResultDate,:TextResultData)
+ If SQLCODE '= 0 Set END = 1
+ Quit
+ 
+FormatDates
+ // Convert the dates to ODBC date format
+ Set OrderDate=..ConvertDateToODBC(OrderDate)
+ Set TextResultDate=..ConvertDateToODBC(TextResultDate)
+ Set DOB=..ConvertDateToODBC(DOB)
+ Quit
+ 
+FormatTimes
+ //Set AdmTime=..ConvertTimeToHHMM(AdmTime) 
+ Quit
+ 
+FormatStrings 
+ Set TextResultData = $LISTTOSTRING(TextResultData,$CHAR(10))
+ 
+ 
+ //Set TextResultData = $LISTTOSTRING(TextResultData,",")
+ //Set TextResultData = $REPLACE(TextResultData, ",",$C(13,10))
+ //Set TextResultData = $ZSTRIP(TextResultData,"*C") //Removes control characters (0-31,127-159)
+ //Set TextResultData = $ZSTRIP(TextResultData,"*",$CHAR(34,35,39,44,46)) //Removes 34-Quotes,35-Hash,39-Single quote,44-Comma,46-Period
+ /*
+ New SECChildsub,count,SECID,i
+ //reset working variables
+ Set (SECChildsub,count,SECID,i)=0
+
+ Set SECChildsub=$p($g(SECRowId),"||",2)
+ Set SECID=$p($g(SECRowId),"||",1)
+ s count=$g(^OETR(SECID,"SEC",SECChildsub,"REM",0))
+ 
+ //loop through each line appending the text into a single string
+ f i=1:1:count  d
+ .i i>1 s TextResultData = TextResultData_$char(13)_$g(^OETR(SECID,"SEC",SECChildsub,"REM",i))
+ .i i'>1 s TextResultData = $g(^OETR(SECID,"SEC",SECChildsub,"REM",i))
+ */
+ Quit
+]]></Implementation>
+</Method>
+
+<Method name="SWARHREPR1008Fetch">
+<Description>
+This is the Fetch component of the %Library.Query. 
+This should never have to change. It is designed to fetch the row for each subscript of the ^CacheTemp
+global and return this row to the Crystal Report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,&Row:%Library.List,&AtEnd:%Library.Integer=0]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // This fetch method should never have to change. 
+ // repid - Report ID
+ // ind   - sequence index which represents each row
+
+ New repid,ind
+
+ // Restore QHandle
+ Set AtEnd=$LIST(QHandle,1)
+ Set repid=$LIST(QHandle,2)
+ Set ind=$LIST(QHandle,3)
+
+ Set ind=$ORDER(^CacheTemp(..#CACHETEMPSUBSCRIPT,repid,ind))
+ If ind="" {	// if there are no more rows, finish fetching
+	 Set AtEnd=1
+	 Set Row=""
+ }
+ Else      {	// fetch row
+ 	Set Row=^CacheTemp(..#CACHETEMPSUBSCRIPT,repid,ind)
+ }
+
+ // Save QHandle
+ Set QHandle=$LISTBUILD(AtEnd,repid,ind)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="SWARHREPR1008Close">
+<Description>
+This is the Close component of the %Library.Query.
+This is standard code and should never have to change.
+This is where all the cleanup is performed, i.e. the purging of the temporary storage global ^CacheTemp.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>QHandle:%Library.Binary</FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+  // Clean up by purging the temporary node in ^CacheTemp global
+ New repid,ind
+ Set repid=$LIST(QHandle,2)
+
+ Kill ^CacheTemp(..#CACHETEMPSUBSCRIPT,repid)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Query name="SWARHREPR1008">
+<Type>%Library.Query</Type>
+<FormalSpec>Hospital:%Integer,PatientUR:%String,ReportType:%String,DateFrom:%Date,DateTo:%Date,EpisodeID:%Integer</FormalSpec>
+<SqlProc>1</SqlProc>
+<Parameter name="CONTAINID" value="0"/>
+<Parameter name="ROWSPEC" value="SECRowId:%String,PAADMRowID:%Integer,URNo:%String,Surname:%String,GivenName:%String,OtherGivenName:%String,DOB:%Date,EpisodeNo:%String,OrderDate:%Date,TextResultDate:%Date,TextResultData:%String(MAXLEN=32749)"/>
+<Parameter name="SELECTMODE" value="ODBC"/>
+</Query>
+</Class>
+</Export>

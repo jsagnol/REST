@@ -1,0 +1,177 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.AUXX.Report.ZEN.AdmissionListMedicalRecords">
+<Super>Custom.AUXX.Report.ZEN.Abstract</Super>
+<TimeCreated>61543,54550.041409</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/AUXX/Report/ZEN/AdmissionListMedicalRecords.xml#1 $</Default>
+</Parameter>
+
+<UDLText name="T">
+<Content><![CDATA[
+// Report Name: Trak Admission List Medical Records <br>
+
+]]></Content>
+</UDLText>
+
+<UDLText name="T">
+<Content><![CDATA[
+// Report Code: Trak.MED0008 <br>
+
+]]></Content>
+</UDLText>
+
+<UDLText name="T">
+<Content><![CDATA[
+// Logtrak Number: 80221 <br>
+
+]]></Content>
+</UDLText>
+
+<Property name="DateFrom">
+<Type>%String</Type>
+<Parameter name="ZENURL" value="P1"/>
+</Property>
+
+<Property name="DateTo">
+<Type>%String</Type>
+<Parameter name="ZENURL" value="P2"/>
+</Property>
+
+<Property name="Facility">
+<Type>%String</Type>
+<Parameter name="ZENURL" value="P3"/>
+</Property>
+
+<Property name="Specialty">
+<Type>%String</Type>
+<Parameter name="ZENURL" value="P4"/>
+</Property>
+
+<XData name="ReportDefinition">
+<XMLNamespace>http://www.intersystems.com/zen/report/definition</XMLNamespace>
+<Data><![CDATA[
+<report xmlns='http://www.intersystems.com/zen/report/definition'
+   queryClass='Custom.AUXX.Report.ZEN.StoredProc.AdmissionListMedicalRecords' queryName='GetPreadmissions' name='AdmissionListMedicalRecords' >
+  <parameter expression='..DateFrom'/>
+  <parameter expression='..DateTo'/>
+  <parameter expression='..Facility'/>
+  <parameter expression='..Specialty'/>
+  <attribute name='ReportTitle' expression='$$$Text("@AdmissionListMedicalRecords@Admission List Medical Records")'/>
+  <attribute name='timestamp' expression='$ZDATETIME($H, 2, 2)'/>
+  <attribute name='username' expression='..Username'/>
+  <attribute name='facility' expression="..GetHospListDesc(..Facility)"/>
+  <attribute name='specialty' expression="..GetSpecialtyListDesc(..Specialty)"/>
+  <attribute name="datefrom" expression="..DisplayDate(..DateFrom)"/>
+  <attribute name="dateto" expression="..DisplayDate(..DateTo)"/>
+  
+  <group name="facility" breakOnField="hospdesc">
+  <attribute name="description" field="hospdesc" />     
+       <aggregate name='TotalEpisodes' type='CUSTOM' field='paadmrowId' class='%ZEN.Report.Aggregate.CountDistinct'/>
+
+
+ <group name="specialty" breakOnField="HomeLoc">
+  <attribute name="description" field="HomeLoc" />     
+       <aggregate name='TotalLoc' type='CUSTOM' field='paadmrowId' class='%ZEN.Report.Aggregate.CountDistinct'/>
+          <element name='CaptionOne' expression='"MR"_$C(13,10)_"Volume"' />
+
+           <group name='Detail'>
+            <attribute field='PAADM2ExpAdmTime' name='PAADM2ExpAdmTime' expression='..DisplayTime(%val)'/>
+            <attribute field='PAADMADMNo' name='PAADMADMNo'/>
+            <attribute field='papmino' name='papmino'/>
+            <attribute fields='papername,papername2' name='PatientName' expression='..DisplayName(%val("papername"),%val("papername2"))'/>
+            <attribute field='PAADMAdmDate' name='PAADMAdmDate' expression='..DisplayDate(%val)'/>
+            <attribute field='paperdob' name='paperdob' expression='..DisplayDate(%val)'/>
+            <attribute field='CTPCPDesc' name='CTPCPDesc'/>
+            <attribute field='CTSEXCode' name='CTSEXCode'/>
+            <attribute field='caretypdesc' name='caretypdesc'/>
+            <attribute field='VOLDesc' name='VOLDesc'/>
+            <attribute field='CurrentLoc' name='CurrentLoc'/>
+            <attribute field='WARDCode' name='WARDCode'/>
+            <attribute field='PREVAdmDate' name='PREVAdmDate' expression='..DisplayDate(%val)'/>
+            <attribute field='PREVDisDate' name='PREVDisDate' expression='..DisplayDate(%val)'/>
+           </group>
+           </group>
+            </group>
+        </report>
+]]></Data>
+</XData>
+
+<XData name="ReportDisplay">
+<XMLNamespace>http://www.intersystems.com/zen/report/display</XMLNamespace>
+<Data><![CDATA[
+<report xmlns='http://www.intersystems.com/zen/report/display'
+xmlns:auxxstyle='http://www.intersystems.com/zen/report/display/auxx/style'
+xmlns:auxx='http://www.intersystems.com/zen/report/display/auxx'
+  name='AdmissionListMedicalRecords'>
+<document width= "#(..ReportWidth)#" height="#(..ReportHeight)#" marginLeft="#(..DocMarginLeft)#" marginRight="#(..DocMarginRight)#" 
+marginTop="#(..DocMarginTop)#" marginBottom="#(..DocMarginBottom)#" footerHeight="#(..DocFooterHeight)#" headerHeight="#(..DocHeaderHeight)#" 
+regionBeforeExtent="#(..DocHeaderHeight)#" regionAfterExtent="#(..DocFooterHeight)#">
+<auxxstyle:auxxgroupheader/>
+<auxxstyle:auxxgroupsummary/>
+<auxxstyle:auxxhospitalheader/>
+<auxxstyle:auxxpagefooter/>
+<auxxstyle:auxxpageheader/>
+<auxxstyle:auxxparameterheader/>
+<auxxstyle:auxxreporttitle/>
+<auxxstyle:auxxtablecolumn/>
+</document>
+<auxx:PageHeader pagetitle='@ReportTitle'/>
+<auxx:ReportFooter username='@username' timestamp='@timestamp'/>
+
+<body>
+<!-- REPORT HEADER -->
+<auxx:ReportHeader reporttitle='@ReportTitle'/>
+<auxx:ReportParameterHeader label='@Facility:@Facility:' field='@facility' xcondition="string-length(@facility)>0"/>
+<auxx:ReportParameterHeader label='@HomeLocation@Home Specialty:' field='@specialty' xcondition="string-length(@specialty)>0"/>
+
+<auxx:ReportDateHeader datefrom="@datefrom" dateto="@dateto"/>
+<line pattern="solid" width="100%"/>
+<line pattern="empty" width="100%"></line> 
+<auxx:NoResults xcondition="not(facility)" />
+<group name='facility' pagebreak="true">
+<auxx:GroupHospitalHeader label="@Facility:@Facility:" field="@description" />
+<line pattern="empty" width="100%"></line> 
+
+<group name='specialty' >
+<line pattern="empty" width="100%"></line> 
+
+<auxx:GroupHeader label="@HomeLocation@Home Specialty:" field="@description" />
+<line pattern="empty" lineHeight="2mm" />
+     <table class='auxxtablecolumn' group='Detail'  >
+        <item field='@papmino' width="10%" caption='@URN@URN'/>
+        <item field='@PatientName' width="14%" caption="@PatientName@Patient Name" />
+        <item field='@paperdob' width="8%" caption='@DateofBirth@Date of Birth'/>
+        <item field='@CTSEXCode' width="4%" caption='@Sex@Sex' style='text-align:center'/>
+        <item field='@CTPCPDesc' width="9%" caption='@Clinician@Clinician'/>
+        <item field='@PAADMAdmDate' width="8%" caption='@ExpAdmDate@Admission Date'/>
+        <item field='@PAADM2ExpAdmTime' width="5%" caption='@Time@Time'/>
+        <item field='@ctlocdesc' width="7%" caption='@AdmissionLocation@Admission Specialty'/>
+        <item field='@VOLDesc' width="7%" displayCaption="true">
+        <caption field='CaptionOne' breakOnLineFeed="true" />
+         </item>
+        <item field='@PREVAdmDate' width="8%" caption='@LastAdmissionDate@Last Admission Date'/>
+        <item field='@PREVDisDate' width="8%" caption='@LastDischargeDate@Last Discharge Date'/>
+         <item field='@CurrentLoc' width="6%" caption='@CurrentMRLocation@Current MR Specialty'/>
+        <item field='@WARDCode' width="6%" caption='@BookedWard@Booked Ward'/>
+     
+     </table>
+<line pattern="empty" width="100%"></line>  
+
+<auxx:GroupSummary label="@Total number of episodesfor@Total number of episodes for" group="@description" summaryvalue="TotalLoc" />	
+ </group>
+<line pattern="empty" width="100%"></line> 
+
+<auxx:GroupSummary label="@Total number of episodesfor@Total number of episodes for" group="@description" summaryvalue="TotalEpisodes" />	
+ 
+   </group>
+   
+</body>
+</report>
+]]></Data>
+</XData>
+</Class>
+</Export>

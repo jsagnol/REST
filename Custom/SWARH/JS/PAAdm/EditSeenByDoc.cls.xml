@@ -1,0 +1,350 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.SWARH.JS.PAAdm.EditSeenByDoc">
+<Description>
+Component JavaScript for: PAAdm.EditSeenByDoc</Description>
+<Modified>0</Modified>
+<Super>websys.AbstractJavaScript</Super>
+<TimeCreated>63537,10517.5705</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+This Parameter is updated by Perforce</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/SWARH/JS/PAAdm/EditSeenByDoc.xml#1 $</Default>
+</Parameter>
+
+<Method name="JSContent">
+<Description>
+ </Description>
+<Language>javascript</Language>
+<ClientMethod>1</ClientMethod>
+<Implementation><![CDATA[
+// for SWARH
+
+// ab 24.05.05 52437 - using onblur instead of onchange events, now only using one event handler
+
+
+// CODE AND DESCRIPTIONS USED FOR ONLINE EDITING AND CHECKING MANDATORY FIELDS.
+// DESCRIPTIONS USED ARE AS APPEARS IN CODETABLE DEFINITIONS.
+
+// Triage Category Codes
+var CAT2 = "2"
+var CAT3 = "3"
+var CAT4 = "4"
+var CAT5 = "5"
+var CAT6 = "6"
+
+function InitCustom() {
+	BodyLoadHandler()
+			
+	var obj=document.getElementById('CTACUCode');
+	if (obj) SetDateTimeFields(obj.value)
+
+	obj=document.getElementById('CTPCPDesc');
+	if (obj) obj.onblur=MandatoryChangeHandler;	
+
+	obj=document.getElementById('PAADMSeenDate');
+	if (obj) obj.onblur=MandatoryChangeHandler;
+	
+	obj=document.getElementById('PAADMSeenTime');
+	if (obj) obj.onblur=MandatoryChangeHandler;
+
+	obj=document.getElementById('update1');
+	if (obj) obj.onclick=UpdateCustom;
+	if (tsc['update1']) websys_sckeys[tsc['update1']]=UpdateCustom;	
+}
+
+function UpdateCustom() {
+	if (!checkMandatoryFields()) { return false; }
+	if (!checkSeenDateTime()) { return false; }
+	return UpdateAll();
+}
+
+function CTACUDescLookUpSelect(str) {
+	var lu = str.split("^");
+	var obj=document.getElementById('CTACUCode');
+	if (obj) obj.value=lu[1];
+
+	SetDateTimeFields(lu[1]);
+
+}
+
+function SetDateTimeFields(code) {
+	var objCat=document.getElementById('CTACUCode');
+	var objTDate=document.getElementById('hiddenTriageDate');
+	var objSDate=document.getElementById('PAADMSeenDate');
+	var objTTime=document.getElementById('hiddenTriageTime');
+	var objSTime=document.getElementById('PAADMSeenTime');
+	var objTransTbl=document.getElementById('tPAAdmTransaction_List');
+
+	if ((code == "1")&&(objTransTbl.rows.length==1)) {
+		objSDate.value = objTDate.value;
+		objSTime.value = objTTime.value;
+	}
+}
+
+
+
+function CareProvLookUpSelect(str) {
+	var obj
+	obj=document.getElementById('CTPCPDesc');
+	window.focus();
+	ClinicianChangeHandler(null);
+	//if (obj) obj.value = lu[0];
+	websys_nextfocus(obj.sourceIndex);	
+}
+
+function MandatoryChangeHandler(e) {
+	var obj=document.getElementById('CTPCPDesc');
+	var objDate=document.getElementById('PAADMSeenDate');
+	var objTime=document.getElementById('PAADMSeenTime');
+	var eSrc = websys_getSrcElement(e);
+    if ((eSrc)&&(eSrc.id=="PAADMSeenDate")) PAADMSeenDate_changehandler(eSrc);
+    if ((eSrc)&&(eSrc.id=="PAADMSeenTime")) PAADMSeenTime_changehandler(eSrc);
+	
+	if ((objDate)&&(objTime)&&(obj)) {
+        if ((obj.value!="")||(objTime.value!="")||(objDate.value!="")) {
+            labelMandatory('CTPCPDesc');
+            labelMandatory('PAADMSeenDate');
+            labelMandatory('PAADMSeenTime');
+        } else {
+            labelNormal('CTPCPDesc');
+            labelNormal('PAADMSeenDate');
+            labelNormal('PAADMSeenTime');
+        }
+    }
+}
+
+/*
+
+function ClinicianChangeHandler(e) {
+	var obj=document.getElementById('CTPCPDesc');
+	var objDate=document.getElementById('PAADMSeenDate');
+	var objTime=document.getElementById('PAADMSeenTime');
+	
+	
+	if ((obj)&&(obj.value!="")) {
+		labelMandatory('CTPCPDesc');
+		labelMandatory('PAADMSeenDate');
+		labelMandatory('PAADMSeenTime');
+	} 
+	if ((obj)&&(obj.value=="")) {
+		if ((objDate)&&(objDate.value=="")&&(objTime)&&(objTime.value=="")) {
+		labelNormal('CTPCPDesc');
+		labelNormal('PAADMSeenDate');
+		labelNormal('PAADMSeenTime');
+		}
+	}
+}
+
+function SeenDateChangeHandler(e) {
+	var obj=document.getElementById('CTPCPDesc');
+	var objDate=document.getElementById('PAADMSeenDate');
+	var objTime=document.getElementById('PAADMSeenTime');
+	var eSrc = websys_getSrcElement(e);
+    alert(eSrc.id);
+	PAADMSeenDate_changehandler(eSrc)
+	
+	
+	if ((objDate)&&(objDate.value!="")) {
+		labelMandatory('CTPCPDesc')	
+		labelMandatory('PAADMSeenDate')
+		labelMandatory('PAADMSeenTime')
+	} 
+	if ((objDate)&&(objDate.value=="")) {
+		if ((obj)&&(obj.value=="")&&(objTime)&&(objTime.value=="")) {
+		labelNormal('CTPCPDesc')
+		labelNormal('PAADMSeenDate')
+		labelNormal('PAADMSeenTime')
+		}
+	}
+}
+
+
+function SeenTimeChangeHandler(e) {
+	var obj=document.getElementById('CTPCPDesc');
+	var objDate=document.getElementById('PAADMSeenDate');
+	var objTime=document.getElementById('PAADMSeenTime');
+	var eSrc = websys_getSrcElement(e);
+	PAADMSeenTime_changehandler(eSrc)
+	
+	
+	if ((objTime)&&(objTime.value!="")) {
+		labelMandatory('CTPCPDesc')
+		labelMandatory('PAADMSeenDate')
+		labelMandatory('PAADMSeenTime')
+	} 
+	if ((objTime)&&(objTime.value=="")) {
+		if ((objDate)&&(objDate.value=="")&&(obj)&&(obj.value=="")) {
+		labelNormal('CTPCPDesc')
+		labelNormal('PAADMSeenDate')
+		labelNormal('PAADMSeenTime')
+		}
+	}
+}
+*/
+
+function checkMandatoryFields() {
+	
+	var msg="";
+	var obj=document.getElementById('CTPCPDesc');
+	var objDate=document.getElementById('PAADMSeenDate');
+	var objTime=document.getElementById('PAADMSeenTime');
+	
+	if (((obj)&&(obj.value!=""))||((objDate)&&(objDate.value!=""))) {
+		if ((objTime)&&(objTime.value=="")) {
+		msg += "\'" + t['PAADMSeenTime'] + "\' " + t['XMISSING'] + "\n";
+		}
+	}
+	if (((obj)&&(obj.value!=""))||((objTime)&&(objTime.value!=""))) {
+		if ((objDate)&&(objDate.value=="")) {
+		msg += "\'" + t['PAADMSeenDate'] + "\' " + t['XMISSING'] + "\n";
+		}
+	}
+	if (((objDate)&&(objDate.value!=""))||((objTime)&&(objTime.value!=""))) {
+		if ((obj)&&(obj.value=="")) {
+		msg += "\'" + t['CTPCPDesc'] + "\' " + t['XMISSING'] + "\n";
+		}
+	}
+	
+	if (msg != "") {
+		alert(msg)
+		return false;
+		} else {
+		return true;
+	}
+
+}
+
+function SplitDateStr(strDate) {
+ 	var arrDateComponents = new Array(3);
+ 	var arrDate = strDate.split(dtseparator);
+ 	switch (dtformat) {
+  	case "YMD":
+   	arrDateComponents["yr"] = arrDate[0];
+   	arrDateComponents["mn"] = arrDate[1];
+   	arrDateComponents["dy"] = arrDate[2];
+   	break;
+  	case "MDY":
+   	arrDateComponents["yr"] = arrDate[2];
+   	arrDateComponents["mn"] = arrDate[0];
+   	arrDateComponents["dy"] = arrDate[1];
+   	break;
+  	default:
+   	arrDateComponents["yr"] = arrDate[2];
+   	arrDateComponents["mn"] = arrDate[1];
+   	arrDateComponents["dy"] = arrDate[0];
+   	break;
+ 	}
+ return arrDateComponents;
+}
+
+// HP: Split time of hh:mm format into hours and minutes
+function SplitTimeStr(strTime) {
+	
+	var timeArrayComponents = new Array(2);
+	var timeArray = strTime.split(":");
+
+	timeArrayComponents["hr"] = timeArray[0];
+	timeArrayComponents["min"] = timeArray[1];
+
+	return timeArrayComponents;
+}
+
+// 7/8/02 Log#25937 HP: Compare seen date and time with those of triage and confirm entry
+function checkSeenDateTime() {
+
+	var MINUTE = 60 * 1000;
+	var seenDate="";
+	var seenTime="";
+	var triDate="";
+	var triTime="";
+	var objCat=document.getElementById('CTACUCode');
+	var objSDate=document.getElementById('PAADMSeenDate');
+	var objSTime=document.getElementById('PAADMSeenTime');
+
+	var objTDate=document.getElementById('hiddenTriageDate');
+	var objTTime=document.getElementById('hiddenTriageTime');
+	// ab 23.09.02 - only show this warning message if its the first seen by care provider (check on transaction list rows)
+	var tblTrans=document.getElementById("tPAAdmTransaction_List");
+	var CareProvRows=0;
+	if ((tblTrans)&&(tblTrans.rows)) CareProvRows=tblTrans.rows.length;
+
+	if ((objCat)&&(objCat.value!="")&&(CareProvRows<2)) {
+		if ((objSDate)&&(objSDate.value!="")) { seenDate=SplitDateStr(objSDate.value); }
+		if ((objSTime)&&(objSTime.value!="")) { seenTime=SplitTimeStr(objSTime.value); }
+		if ((seenDate!="")&&(seenTime!="")) { var SDate = new Date(seenDate["yr"], seenDate["mn"]-1, seenDate["dy"], seenTime["hr"], seenTime["min"]); }
+
+		//TRC 63111 - Replace Traige Date/Time with Arrival Date/Time
+		var objID=document.getElementById('EpisodeID');
+		var datetime=tkMakeServerCall("Custom.PAAdm","GetArrivalDateTime",objID.value);
+		var admDate= new Array(3);
+		var admTime= new Array(2);
+		var ArrDate=mPiece(datetime,"^",0);
+		var ArrTime=mPiece(datetime,"^",1);
+		if (ArrTime) { 
+			var admtimeArray = ArrTime.split(":");
+			admTime["hr"]=admtimeArray[0];
+			admTime["min"]=admtimeArray[1];
+			//alert(admTime["hr"] +","+ admTime["min"]);
+		}
+		if (ArrDate) { 
+			var admdateArray = ArrDate.split("/");
+			admDate["dy"]=admdateArray[0];
+			admDate["mn"]=admdateArray[1];
+			admDate["yr"]=admdateArray[2];
+			//alert(admDate["dy"] +","+ admDate["mn"] +","+ admDate["yr"]);
+		}
+		if ((admDate!="")&&(admTime!="")) { var ADate = new Date(admDate["yr"], admDate["mn"]-1, admDate["dy"], admTime["hr"], admTime["min"]); }
+		
+		var timeDiff = (SDate-ADate) * 1 / MINUTE;
+		//alert("timeDiff="+timeDiff);
+		//if (((objCat.value==CAT2)&&(timeDiff>10)) || ((objCat.value==CAT3)&&(timeDiff>30))) {
+		if (((objCat.value==CAT2)&&(timeDiff>10)) || ((objCat.value==CAT3)&&(timeDiff>30))  || ((objCat.value==CAT4)&&(timeDiff>90))  || ((objCat.value==CAT5)&&(timeDiff>120)) || ((objCat.value==CAT6)&&(timeDiff>360))) {
+			//if(confirm(t["TriageCat"])) {
+			if(confirm("The Clinician Seen By Date and Time (calculated from patient Arrival Date/Time) is greater than the Triage category target range.\n\nArrival Date & Time: " + ArrDate + " @ " + ArrTime + " \n\nCategory 2: 10 mins\nCategory 3: 30 mins\nCategory 4: 60 mins\nCategory 5: 120 mins\nCategory 6: 360mins\n\nDo you want to change the seen by time?")) {
+				objSDate.value="";
+				objSTime.value="";
+				objSDate.focus();
+				return false;
+			} 
+		}
+	}
+	return true;	
+}
+
+//document.body.onload = InitCustom;
+websys_removeListener("load","onload",BodyLoadHandler); 
+websys_addListener("load","onload",InitCustom);
+
+//tknoll-miller (SWARH) 2009-09-16 Load authorise script
+var authcfg = {
+   'buttons': [
+      'update1'
+   ],
+   'fields': {
+      'username': 'UserCode',
+      'password': 'PIN'
+   }
+};
+
+//tknoll-miller (SWARH) 2009-09-16 Load authorise script
+// Scope variables
+(function() {
+   var loadScript = function(type, src) {
+      var head = document.getElementsByTagName('head')[0];
+      var script = document.createElement('script');
+      script.type = type;
+      script.src = src;
+      head.appendChild(script);
+      websys_addListener('load', 'onload', function(){document.isLoaded=true});
+      return script;
+   };
+
+   loadScript('text/javascript', '../custom/SWARH/scripts/authorise4.js');
+})();
+//end tknoll-miller (SWARH) 2009-09-16 Load authorise script
+]]></Implementation>
+</Method>
+</Class>
+</Export>

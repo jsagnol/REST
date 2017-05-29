@@ -1,0 +1,416 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.SWARH.JS.OEOrdExec.Multiple.Edit">
+<Description>
+Component JavaScript for: OEOrdExec.Multiple.Edit</Description>
+<Modified>0</Modified>
+<Super>websys.AbstractJavaScript</Super>
+<TimeCreated>63537,10516.554284</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+This Parameter is updated by Perforce</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/SWARH/JS/OEOrdExec/Multiple/Edit.xml#1 $</Default>
+</Parameter>
+
+<Method name="JSContent">
+<Description>
+ </Description>
+<Language>javascript</Language>
+<ClientMethod>1</ClientMethod>
+<Implementation><![CDATA[
+// SWARH - TRC 40828
+/*****************************************************************************
+ *  CREATED: 2010-02-17
+ *  DESCRIPTION:
+ *  This javascript implements the functionality to support the requirement for
+ *  the following TRCs:
+ *   > 40828: Dual/overseer signatures for student nurses when prescribing &
+ *     administering medication.
+ *     This restricted Security Group is _hardcoded_ directly under these comments.
+ *
+ *   > 41184: Medication Expiry user reminder message.
+ *   +>  Other functionality required for the implementation of this feature:
+ *   +-->  Custom class: {namespace}.Custom.SWARHOEOrdExec
+ *
+ *   > 54755: SWARH Mandatory Quantity Administered.
+ *   +>  Other functionality required for the implementation of this feature:
+ *   +-->  Custom class: {namespace}.Custom.SWARHOEOrdExec
+ *
+ *	IF		07/06/2011		TRC74964 Added check for objects OEORIYesNo1 and OEOREQtyAdmin
+ *									remove call to BodyOnLoadHandler
+ *
+ *  This javascript has been written for use on the OEOrdExec.Multiple.Edit component
+ *****************************************************************************/
+
+/* Restricted Security Group  is identified by the variable:  rsg */
+/*
+var rsg  = "Student Nurse";
+
+function makeRequired(fldName) {
+	var fld = document.getElementById(fldName);
+	var lbl = document.getElementById('c'+fldName);
+	if (fld) {
+		fld.disabled = false;
+		fld.className = "clsRequired";
+		if (lbl) lbl = lbl.className = "clsRequired";
+	}
+}
+*/
+function MedicationExpiryMessage() {
+	var oirows = document.getElementById("OEORIRowIds").value.split("^");
+	var usermsg;
+	var reviewed;
+	var oidesc;
+	//alert(oirows);
+	for (var i=0;i < oirows.length;i++) {
+		usermsg="";
+		reviewed="";
+		oidesc = "";
+		row=0;
+		if (oirows[i]=="") break;
+		row=i+1 //increment by 1 as array starts at 0
+		oidesc = document.getElementById("OEORIRowIdz"+row).value;
+		
+		usermsg = tkMakeServerCall("Custom.SWARHOEOrdExec","GetMedExpiryMessage",oirows[i]);
+	                               //alert(usermsg+":"+oidesc+":"+row);
+		if (usermsg == "NOARGS") {
+			alert("There was an error. The Reviewed Flag was not set for " + oidesc);
+			return false;
+		}
+		else if (usermsg == "NODUR") {
+			alert("There was an error. No Duration for " + oidesc);
+			return false;
+		}
+		else {
+			if (usermsg != "NOMSG" && usermsg != "ERR") {
+				var response=confirm(usermsg);
+				if (response) {
+					reviewed = tkMakeServerCall("Custom.SWARHOEOrdExec","SetMedExpReviewedFlag",oirows[i]);
+				}
+			}
+		}
+	}
+	return true;
+}
+/*
+function CustomUpdateClick() {
+	var uc   = document.getElementById("UserCode");
+	var osu  = document.getElementById("OverseerUser");
+	var pin  = document.getElementById("PIN");
+	var uop  = document.getElementById("OverseerPassword");
+	var lsgi = session['LOGON.GROUPID'];
+	var tbl=document.getElementById("tOEOrdExec_Multiple_Edit");
+	if (tbl) {
+		for (i=1;i<tbl.rows.length ;i++ ) {
+			var OEORIYesNo1=document.getElementById("OEORIYesNo1z"+i);
+			var OEOREQtyAdmin=document.getElementById("QuantityToAdministerz"+i);
+			//TRC74964
+			if ((OEORIYesNo1)&&(OEOREQtyAdmin)) {
+				if ((OEORIYesNo1.value=="on")&&(OEOREQtyAdmin.value=="")) {
+					alert("Please ensure that all Quantity to Administer fields are filled out before updating this record. Record not saved");
+					return false;
+				}
+			}
+		}
+	}
+	
+	if(uc&&(uc.className=="clsRequired")&&(uc.value=="")) {
+		alert(t['UserCode'] + " " + t['XINVALID']);
+		return false;
+	}
+	if(pin&&(pin.className=="clsRequired")&&(pin.value=="")) {
+		alert(t['PIN'] + " " + t['XMISSING']);
+		return false;
+	}	
+	if(osu&&(osu.className=="clsRequired")&&(osu.value=="")) {
+		alert(t['OverseerUser'] + " " + t['XMISSING']);
+		return false;
+	}
+	if(uop&&(uop.className=="clsRequired")&&(uop.value=="")) {
+		alert(t['OverseerPassword'] + " " + t['XMISSING']);
+		return false;
+	}
+	
+	if (osu.value != "" && uc.value != "")
+		user = osu.value;
+	else
+		user = uc.value;
+	
+	validlist3  = tkMakeServerCall("Custom.SWARHOEOrdExec","ValidateList3", uc.value);
+	if (validlist3 == "0") {
+		validlist2 = tkMakeServerCall("Custom.SWARHOEOrdExec","ValidateList2", uc.value);
+		if (validlist2 == "1") {
+			if (osu.value!="") {
+				validlist3 = tkMakeServerCall("Custom.SWARHOEOrdExec","ValidateList3", osu.value);
+				if (validlist3 == "0") {
+					msg3 = "The administration status has not been updated.";
+					msg1 = "User " + uc.value + " is not authorised to update administration statuses without a second signatory with the appropriate security access.";
+					msg = msg3 + "\n" + msg1;
+					alert(msg);
+					return false;
+				}
+			} else {
+				msg3 = "The administration status has not been updated.";
+				msg1 = "User " + uc.value + " is not authorised to update administration statuses without a second signatory with the appropriate security access.";
+				msg = msg3 + "\n" + msg1;
+				alert(msg);
+				return false;
+			}
+		} else {
+			msg3 = "The administration status has not been updated.";
+			msg2 = "User " + uc.value + " is not authorised to update medication administration statuses."
+			msg = msg3 + "\n" + msg2
+			alert(msg)
+			return false;
+		}
+	}
+
+	// Regardless of the result returned by the scripts_gen to core logic of updateClick(),
+	// run the Expiry Messages customisation anyway.
+	//document.getElementById("TestVar").value="Clicked";
+	
+	// Disabled for Jody MIMS Testing
+	//MedicationExpiryMessage();
+	updatehandler();
+
+}
+
+function makeNotRequired(str){
+	var Obj=document.getElementById(str);
+	var cObj=document.getElementById("c"+str);
+	if (Obj) Obj.className="";
+	if (cObj) cObj.className="";
+	return;
+
+}
+
+function DisableMandatoryField(fldName) {
+	//alert(fldName);
+	var fld = document.getElementById(fldName);
+	var lbl = document.getElementById('c'+fldName);
+	if (fld) {
+		fld.disabled = false;
+		fld.className = "";
+		if (lbl) lbl = lbl.className = "";
+	}
+}
+
+function makeRequired(str){
+	var Obj=document.getElementById(str);
+	var cObj=document.getElementById("c"+str);
+	if (Obj) Obj.className="clsRequired";
+	if (cObj) cObj.className="clsRequired";
+	return;
+
+}
+
+function EnableMandatoryField(fldName) {
+	var fld = document.getElementById(fldName);
+	var lbl = document.getElementById('c'+fldName);
+	if (fld) {
+		fld.disabled = false;
+		fld.className = "";
+		if (lbl) lbl = lbl.className = "clsRequired";
+	}
+}
+
+function ValidateFirstSignature() {
+	var uc  = document.getElementById("UserCode");
+	isAuthorised = tkMakeServerCall("Custom.SWARHOEOrdExec","ValidateList2", uc.value);
+	if (isAuthorised == "0") {
+		DisableMandatoryField("OverseerUser");
+		makeNotRequired("OverseerUser");
+		DisableMandatoryField("OverseerPassword");
+		makeNotRequired("OverseerPassword");
+	} else {
+		EnableMandatoryField("OverseerUser");
+		makeRequired("OverseerUser");
+		EnableMandatoryField("OverseerPassword");
+		makeRequired("OverseerPassword");
+	}
+}
+
+function CustomOnBodyLoadHandler() {
+	//alert(document.getElementById("TestVar").value);
+	//TRC74964
+	BodyLoadHandler();
+
+	var lsg  = session['LOGON.GROUPDESC'];
+	var uc   = document.getElementById("UserCode");
+	if (uc) {uc.onblur=ValidateFirstSignature;}
+	ValidateFirstSignature();
+	var osu  = document.getElementById("OverseerUser");
+	var pin  = document.getElementById("PIN");
+	var uop  = document.getElementById("OverseerPassword");
+
+	if (!lsg) {
+		alert("Cannot determine the Login User's Security Group.");
+		return false;
+	}
+	if (lsg == rsg) {
+		if ((!uc) || (!osu) || (!pin) || (!uop)) {
+			alert("Overseer fields are required for use.");
+			return false;
+		}
+		makeRequired("UserCode");
+		makeRequired("OverseerUser");
+		makeRequired("PIN");
+		makeRequired("OverseerPassword");
+	}
+	makeRequired("UserCode");
+	makeRequired("PIN");
+	ClearAmount();
+	var updateobj=document.getElementById("update1");
+	if (updateobj) updateobj.onclick=CustomUpdateClick;
+}
+
+function ClearAmount() {
+	var obj=document.getElementById("STATDesc");
+	if (obj) {
+		if (obj.value=="") {
+			var tbl=document.getElementById("tOEOrdExec_Multiple_Edit");
+			if (tbl) {
+				for (i=1;i<tbl.rows.length ;i++ ) {
+					var check=document.getElementById("OEORIYesNo1z"+i);
+					if (check) {
+						if (check.checked) {
+							document.getElementById("QuantityToAdministerz"+i).value="";
+						}
+					}
+				}
+			}
+		}
+	}
+}
+*/
+
+function CustomUpdateClick() {
+	var uc   = document.getElementById("UserCode");
+	var osu  = document.getElementById("OverseerUser");
+	var pin  = document.getElementById("PIN");
+	var uop  = document.getElementById("OverseerPassword");
+	var lsgi = session['LOGON.GROUPID'];
+	
+	if(uc&&(uc.className=="clsRequired")&&(uc.value=="")) {
+		alert(t['UserCode'] + " " + t['XINVALID']);
+		return false;
+	}
+	if(pin&&(pin.className=="clsRequired")&&(pin.value=="")) {
+		alert(t['PIN'] + " " + t['XMISSING']);
+		return false;
+	}	
+	if(osu&&(osu.className=="clsRequired")&&(osu.value=="")) {
+		alert(t['OverseerUser'] + " " + t['XMISSING']);
+		return false;
+	}
+	if(uop&&(uop.className=="clsRequired")&&(uop.value=="")) {
+		alert(t['OverseerPassword'] + " " + t['XMISSING']);
+		return false;
+	}
+	
+	var oirows="";
+	var tbl=document.getElementById("tOEOrdExec_Multiple_Edit");
+	if (tbl) {
+		var tblRows=websys_getListRows(tbl);
+		for (i=1;i<tblRows.length ;i++ ) {
+			var SObj=document.getElementById("selz"+i);
+			if ((SObj)&&(SObj.checked)) {
+				var oirows=oirows+document.getElementById("OEORIRowIdz"+i).value+"^"
+			}
+		}
+	}
+	//if schedule drug but single signature than fails
+	isScheduleDrug=tkMakeServerCall("Custom.SWARHOEOrdExec","FindScheduleDrug",oirows);
+	if ((isScheduleDrug=="Y")&&(osu.value=="")) {
+		ScheduleDrugName=tkMakeServerCall("Custom.SWARHOEOrdExec","FindScheduleDrugName",oirows);
+		msg1="The administration status has not been updated.";
+		msg2="The schedule drug "+ScheduleDrugName+" is/are required dual signature";
+		msg=msg1+"\n"+msg2;
+		alert(msg);
+		return false;
+	}
+	
+	validate=tkMakeServerCall("Custom.SWARHOEOrdExec","AuthorizeUserValidate",uc.value,osu.value,oirows);
+	if (validate==0) {
+		msg1 = "The administration status has not been updated.";
+		if (osu.value=="") msg2 = "User " + uc.value + " is not authorised to update medication administration statuses.";
+		if (osu.value!='') msg2 = "User " + uc.value + " or " + osu.value + " is not authorised to update medication administration statuses.";
+		msg = msg1 + "\n" + msg2;
+		alert(msg);
+		osu.value="";
+		return false;
+	}
+	//check if both schedule and none schedule drug are selected then fails
+	if (validate==2) {
+		ScheduleDrugName=tkMakeServerCall("Custom.SWARHOEOrdExec","FindScheduleDrugName",oirows);
+		msg1="The administration status has not been updated.";
+		msg2="The schedule drug "+ScheduleDrugName+" and none schedule drug cannot administration together";
+		msg=msg1+"\n"+msg2;
+		alert(msg);
+		osu.value="";
+		return false;
+	}
+	if (validate=='DUAL') {
+		msg = "There is a schedule drug. Dual signature is required.";
+		alert(msg);
+		return false;
+	}
+	MedicationExpiryMessage();
+	updatehandler();
+}
+
+function CustomOnBodyLoadHandler() {
+	BodyLoadHandler();
+	var tbl=document.getElementById("tOEOrdExec_Multiple_Edit");
+	if (tbl) {
+		var tblRows=websys_getListRows(tbl);
+		for (i=1;i<tblRows.length ;i++ ) {
+			var SObj=document.getElementById("selz"+i);
+			if(SObj) SObj.checked=false;
+		}
+	}
+	var updateobj=document.getElementById("update1");
+	if (updateobj) updateobj.onclick=CustomUpdateClick;
+}
+
+websys_removeListener("load","onload",BodyLoadHandler); 
+websys_addListener("load","onload",CustomOnBodyLoadHandler);
+
+/* // Authorisation overlay removed 2017-04-26 as per eMMAG/Mary
+// DO NOT ADD ANY NEW CODE AFTER THIS LINE, ADD ALL NEW CODE BEFORE THIS BIOMETRICS POPUP CODE
+//tknoll-miller (SWARH) 2009-09-16 Load authorise popup script
+var authcfg = {
+	'version':4,
+	'buttons':{
+      'update1':[{'title':'Update Single','popups':'default'},{'title':'Update Dual','popups':['firstuser','seconduser']}]
+	},
+	'popups':{
+		'default':{'username':'UserCode','password':'PIN'},
+		'firstuser':{'title':'First User','username':'UserCode','password':'PIN'},
+		'seconduser':{'title':'Second User','username':'OverseerUser','password':'OverseerPassword'}
+	}
+};
+
+//tknoll-miller (SWARH) 2009-09-16 Load authorise script
+// Scope variables
+(function() {
+   var loadScript = function(type, src) {
+      var head = document.getElementsByTagName('head')[0];
+      var script = document.createElement('script');
+      script.type = type;
+      script.src = src;
+      head.appendChild(script);
+      websys_addListener('load', 'onload', function(){document.isLoaded=true});
+      return script;
+   };
+
+   loadScript('text/javascript', '../custom/SWARH/scripts/authorise4.js');
+})();
+//end tknoll-miller (SWARH) 2009-09-16 Load authorise script
+// DO NOT ADD ANY CODE BELOW THIS BIOMETRICS POPUP SCRIPT, PLEASE ADD IT BEFORE THE COMMENT ABOVE THE PREVIOUS SECTION
+*/
+]]></Implementation>
+</Method>
+</Class>
+</Export>

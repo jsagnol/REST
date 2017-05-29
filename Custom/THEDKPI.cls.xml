@@ -1,0 +1,199 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.THEDKPI">
+<Description>
+ED KPI Reports Stored Proc</Description>
+<ClassType/>
+<ProcedureBlock>0</ProcedureBlock>
+<Super>%Library.RegisteredObject</Super>
+<TimeCreated>60858,47967.434443</TimeCreated>
+
+<Method name="THEDKPIClose">
+<Description>
+This is the Close component of the %Library.Query.
+This is standard code and should never have to change.
+This is where all the cleanup is performed, i.e. the purging of the temporary storage global ^CacheTemp.</Description>
+<Final>0</Final>
+<ClassMethod>1</ClassMethod>
+<CodeMode>code</CodeMode>
+<FormalSpec>QHandle:%Library.Binary</FormalSpec>
+<Private>0</Private>
+<ReturnType>%Library.Status</ReturnType>
+<SqlProc>0</SqlProc>
+<Implementation><![CDATA[
+ // Clean up by purging the temporary node in ^CacheTemp global
+ New repid
+ Set repid=$li(QHandle,2)
+ Kill ^CacheTemp(repid)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="THEDKPIExecute">
+<Description>
+This is the Execute section for the %Library.Query. 
+All of the logic will be performed here.
+A new node for the ^CacheTemp global will be created and each subscript of this global will contain
+a row for the report.</Description>
+<ClassMethod>1</ClassMethod>
+<CodeMode>code</CodeMode>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,DateFrom:%Date,DateTo:%Date,Hospital:%Integer]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+	
+ k ^zbernard	
+ // Get reportid i.e. use $INCREMENT to add another node to ^CacheTemp global. 
+ // We use ^CacheTemp global because it will always use memory before disk
+ New repid,ind
+
+ // Use $Increment to get the next node
+ Set repid=$I(^CacheTemp)
+ s ^zBernard("1")=(1)
+
+ // Build data into ^CacheTemp(ReportID)
+ // e.g. Set ^CacheTemp(ReportID,Index)=$LB(f1,f2,f3)
+ New Number,String,Date,Time,c,n
+ n PAADMAdmDate,PAADMAdmTime,PAADMTriageDate,PAADMTriageTime,PAADMSeenDate,PAADMSeenTime,PAADMDischgDate,PAADMDischgTime,PAADMADMNo,PAPMINo,PAPMIName,PAPMIName2,CTRFCDesc,CTACUCode,CTACUDesc,HOSPRowId,HOSPDesc,DSCLCode,DSCLDesc,VSTCode,VSTDesc
+ s (HOSPRowId)=0
+ s (PAADMAdmDate,PAADMAdmTime,PAADMTriageDate,PAADMTriageTime,PAADMSeenDate,PAADMSeenTime,PAADMDischgDate,PAADMDischgTime,PAADMADMNo,PAPMINo,PAPMIName,PAPMIName2,CTRFCDesc,CTACUCode,CTACUDesc,HOSPDesc,DSCLCode,DSCLDesc,VSTCode,VSTDesc)=""
+
+ s ind=1
+
+ //Convert ODBC dates to cache format
+ s DateFrom=$$intdate^SSUTIL4(DateFrom)
+ s DateTo=$$intdate^SSUTIL4(DateTo)
+
+ //s ^bernard("2")=(2)
+
+ &sql(declare THEDKPI cursor for
+ SELECT 
+ PAADM_AdmDate,
+ PAADM_AdmTime,
+ PAADM_TriageDate,
+ PAADM_TriageTime,
+ PAADM_SeenDate,
+ PAADM_SeenTime,
+ PAADM_DischgDate,
+ PAADM_DischgTime,
+ PAADM_ADMNo,   
+ PAADM_PAPMI_DR->PAPMI_No,
+ PAADM_PAPMI_DR->PAPMI_Name,
+ PAADM_PAPMI_DR->PAPMI_Name2,
+ PAADM_RefClinic_DR->CTRFC_Desc,
+ PAADM_Priority_DR->CTACU_Code,
+ PAADM_Priority_DR->CTACU_Desc,
+ PAADM_CurrentWard_DR->WARD_LocationDR->CTLOC_HOspital_DR->HOSP_RowId,
+ PAADM_CurrentWard_DR->WARD_LocationDR->CTLOC_HOspital_DR->HOSP_Desc,
+ PAADM_MainMRADM_DR->MRADM_DischClassif_DR->DSCL_Code,
+ PAADM_MainMRADM_DR->MRADM_DischClassif_DR->DSCL_Desc,
+ PAADM_MainMRADM_DR->MRADM_VisitType_DR->VST_Code,
+ PAADM_MainMRADM_DR->MRADM_VisitType_DR->VST_Desc
+ FROM    SQLUser . PA_Adm
+ WHERE  
+ PAADM_DischgDate between :DateFrom and :DateTo and 
+ PAADM_CurrentWard_DR->WARD_LocationDR->CTLOC_HOspital_DR=:Hospital and
+ PAADM_Type='E' and PAADM_VisitStatus='D')
+ &sql(open THEDKPI)
+
+
+ //fetch first row
+ &sql(fetch THEDKPI into :PAADMAdmDate,:PAADMAdmTime,:PAADMTriageDate,:PAADMTriageTime,:PAADMSeenDate,:PAADMSeenTime,:PAADMDischgDate,:PAADMDischgTime,:PAADMADMNo,:PAPMINo,:PAPMIName,:PAPMIName2,:CTRFCDesc,:CTACUCode,:CTACUDesc,:HOSPRowId,:HOSPDesc,:DSCLCode,:DSCLDesc,:VSTCode,:VSTDesc)
+
+ while 'SQLCODE{
+ d FormatDates
+ d FormatTimes
+
+ // build the row
+ Set ^CacheTemp(repid,ind)=$LB(PAADMAdmDate,PAADMAdmTime,PAADMTriageDate,PAADMTriageTime,PAADMSeenDate,PAADMSeenTime,PAADMDischgDate,PAADMDischgTime,PAADMADMNo,PAPMINo,PAPMIName,PAPMIName2,CTRFCDesc,CTACUCode,CTACUDesc,HOSPRowId,HOSPDesc,DSCLCode,DSCLDesc,VSTCode,VSTDesc)
+ s ind=ind+1
+ //fetch rows
+ &sql(fetch THEDKPI into :PAADMAdmDate,:PAADMAdmTime,:PAADMTriageDate,:PAADMTriageTime,:PAADMSeenDate,:PAADMSeenTime,:PAADMDischgDate,:PAADMDischgTime,:PAADMADMNo,:PAPMINo,:PAPMIName,:PAPMIName2,:CTRFCDesc,:CTACUCode,:CTACUDesc,:HOSPRowId,:HOSPDesc,:DSCLCode,:DSCLDesc,:VSTCode,:VSTDesc)
+ }
+
+ //s ^zBernard("3")=(3)
+ &sql(close THEDKPI)
+
+ // Build QHandle (AtEnd,ReportID,Index)
+ Set QHandle=$lb(0,repid,0)
+
+ //s ^zBernard("4")=(4)
+ Quit $$$OK
+
+
+FormatDates
+ // Convert the dates to ODBC date format
+ If PAADMAdmDate Set PAADMAdmDate=$ZD(PAADMAdmDate,3)
+ If PAADMTriageDate Set PAADMTriageDate=$ZD(PAADMTriageDate,3)
+ If PAADMSeenDate Set PAADMSeenDate=$ZD(PAADMSeenDate,3)
+ If PAADMDischgDate Set PAADMDischgDate=$ZD(PAADMDischgDate,3)
+
+ //s ^zBernard("5")=(5)
+ Quit
+
+FormatTimes
+ // Convert the times to ODBC time format
+ If PAADMAdmTime Set PAADMAdmTime=$ZT(PAADMAdmTime,2)
+ If PAADMTriageTime Set PAADMTriageTime=$ZT(PAADMTriageTime,2)
+ If PAADMSeenTime Set PAADMSeenTime=$ZT(PAADMSeenTime,2)
+ If PAADMDischgTime Set PAADMDischgTime=$ZT(PAADMDischgTime,2)
+ Quit
+]]></Implementation>
+</Method>
+
+<Method name="THEDKPIFetch">
+<Description>
+This is the Fetch component of the %Library.Query. 
+This should never have to change. It is designed to fetch the row for each subscript of the ^CacheTemp
+global and return this row to the Crystal Report.</Description>
+<Final>0</Final>
+<ClassMethod>1</ClassMethod>
+<CodeMode>code</CodeMode>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,&Row:%Library.List,&AtEnd:%Library.Integer=0]]></FormalSpec>
+<Private>0</Private>
+<ReturnType>%Library.Status</ReturnType>
+<SqlProc>0</SqlProc>
+<Implementation><![CDATA[
+ // This fetch method should never have to change. 
+
+ // repid - Report ID
+ // ind   - sequence index which represents each row
+
+ New repid,ind
+
+ // Restore QHandle
+ Set AtEnd=$li(QHandle,1)
+ Set repid=$li(QHandle,2)
+ Set ind=$li(QHandle,3)
+
+ Set ind=$o(^CacheTemp(repid,ind))
+ If ind="" {	// if there are no more rows, finish fetching
+ Set AtEnd=1
+ Set Row=""
+ }
+ Else      {	// fetch row
+ Set Row=^CacheTemp(repid,ind)
+ }
+
+ // Save QHandle
+ s QHandle=$lb(AtEnd,repid,ind)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Query name="THEDKPI">
+<Description>
+GHA Adm reports Stored Procedure
+It expects 2 parameter of type ADMIT date and will return a list of records:
+Field1 - Integer
+Field2 - String(MAXLEN=255)
+Field3 - Date
+Field4 - Time</Description>
+<Type>%Library.Query</Type>
+<FormalSpec>DateFrom:%Date,DateTo:%Date,Hospital:%Integer</FormalSpec>
+<SqlProc>1</SqlProc>
+<Parameter name="CONTAINID" value="0"/>
+<Parameter name="ROWSPEC" value="PAADMAdmDate:%Date,PAADMAdmTime:%String(MAXLEN=255),PAADMTriageDate:%Date,PAADMTriageTime:%String(MAXLEN=255),PAADMSeenDate:%Date,PAADMSeenTime:%String(MAXLEN=255),PAADMDischgDate:%Date,PAADMDischgTime:%String(MAXLEN=255),PAADMADMNo:%String(MAXLEN=255),PAPMINo:%String(MAXLEN=255),PAPMIName:%String(MAXLEN=255),PAPMIName2:%String(MAXLEN=255),CTRFCDesc:%String(MAXLEN=255),CTACUCode:%String(MAXLEN=255),CTACUDesc:%String(MAXLEN=255),HOSPRowId:%Integer,HOSPDesc:%String(MAXLEN=255),DSCLCode:%String(MAXLEN=255),DSCLDesc:%String(MAXLEN=255),VSTCode:%String(MAXLEN=255),VSTDesc:%String(MAXLEN=255)"/>
+<Parameter name="SELECTMODE" value="ODBC"/>
+</Query>
+</Class>
+</Export>

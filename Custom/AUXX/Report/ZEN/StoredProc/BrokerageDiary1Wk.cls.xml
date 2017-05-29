@@ -1,0 +1,437 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.AUXX.Report.ZEN.StoredProc.BrokerageDiary1Wk">
+<ProcedureBlock>0</ProcedureBlock>
+<Super>Report.Abstract</Super>
+<TimeCreated>61093,56478.893328</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/AUXX/Report/ZEN/StoredProc/BrokerageDiary1Wk.xml#1 $</Default>
+</Parameter>
+
+<UDLText name="T">
+<Content><![CDATA[
+// Report Name: Brokerage Diary Wk1 <br>
+
+]]></Content>
+</UDLText>
+
+<UDLText name="T">
+<Content><![CDATA[
+// Report Code: AUXX.BRO0011 <br>
+
+]]></Content>
+</UDLText>
+
+<UDLText name="T">
+<Content><![CDATA[
+// TRC Number: 99240 <br>
+
+]]></Content>
+</UDLText>
+
+<Method name="GetDiaryRecordsClose">
+<Final>0</Final>
+<ClassMethod>1</ClassMethod>
+<CodeMode>code</CodeMode>
+<FormalSpec>QHandle:%Library.Binary</FormalSpec>
+<Private>0</Private>
+<ReturnType>%Library.Status</ReturnType>
+<SqlProc>0</SqlProc>
+<Implementation><![CDATA[
+ // Clean up by purging the temporary node in ^CacheTemp global
+ New repid 
+ Set repid=$li(QHandle,2)
+ 
+ //Start Monitor (if configured to capture stats)
+ i mon Do ..MonitorEnd(mon)
+ 
+ Kill ^CacheTemp("TRAK",repid)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="GetDiaryRecordsExecute">
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,URN:%String,DateTo:%String]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+	
+  // Get reportid i.e. use $INCREMENT to add another node to ^CacheTemp global. 
+ // We use ^CacheTemp global because it will always use memory before disk
+ New repid,ind,END
+ s (ind,END)=0
+
+ // Use $Increment to get the next node
+ Set repid=$I(^CacheTemp("TRAK"))
+ 
+ //Start Monitor (if configured to capture stats)
+ s mon=..MonitorBegin()
+ 
+ // Build data into ^CacheTemp(ReportID)
+ // e.g. Set ^CacheTemp(ReportID,Index)=$LB(f1,f2,f3)
+ New Number,String,Date,Time,c,n
+ n admid,CTPCPDesc,PAPMIRowId,PAPMINo,PAPMIName2,PAPMIName,OEORIRowId,NGODesc,ItmID,arcimdesc,OEORISttdat,OEORISttTim,HOSPPhone,VendorID,NoSlots,OEORIPhQtyOrd,BaseUnit,ActualURN,SttTimeNum,TimeAddBase
+ s (admid,CTPCPDesc,PAPMIRowId,PAPMINo,PAPMIName2,PAPMIName,OEORIRowId,NGODesc,ItmID,arcimdesc,OEORISttdat,OEORISttTim,HOSPPhone,VendorID,BaseUnit,ActualURN,TimeAddBase)=""
+ s (NoSlots,OEORIPhQtyOrd,SttTimeNum)=0
+ 
+ n Date,CurrentDate,CurrentDate1,CurrentDate2,CurrentDate3,CurrentDate4,CurrentDate5,CurrentDate6,OEORDRowId,OEORIChildSub,StatID,StatCode,PAADMRowId,Period
+ s (Date,CurrentDate,CurrentDate1,CurrentDate2,CurrentDate3,CurrentDate4,CurrentDate5,CurrentDate6,OEORDRowId,OEORIChildSub,StatID,StatCode,PAADMRowId,Period)=""
+ s ind=1
+ 
+ n Contact
+ s (Contact)=""
+ 
+ 
+ s DateFrom=+$h
+ s DateTo=..ConvertDateToCache(DateTo)
+ 
+ ; Test Dates
+ ;s DateFrom=$zdh("2012-04-15",3)
+ ;s DateTo=DateFrom + 12
+ 
+ k ^||CacheTemp("Diary"),^||CacheTemp("Patient")
+ s statuslist=$o(^OEC("OSTAT",0,"Code","V",""))
+ s statuslist=$g(statuslist)_","_$o(^OEC("OSTAT",0,"Code","S",""))
+ s (adm,pat)=""
+ 
+ ; Generate Blank Diary
+ d ..GenerateDiary(DateFrom,DateTo)
+ 
+ f date=DateFrom:1:DateTo {
+	 s oe=0
+	 f {
+		 s oe=$o(^OEORDi(0,"StDt",date,oe))
+		 q:oe=""
+		 s oei=0
+		 f {
+			 s oei=$o(^OEORDi(0,"StDt",date,oe,oei))
+			 q:oei=""
+			 i (","_statuslist_",")[(","_$p($g(^OEORD(oe,"I",oei,1)),"^",13)_",") {
+				 s adm=$p($g(^OEORD(oe)),"^",1)
+				 i adm s pat=$p($g(^PAADM(adm)),"^",1)
+				 i pat=URN {
+					 s obj=##class(User.OEOrdItem).%OpenId(oe_"||"_oei)
+					 i obj {
+						 s BaseUOM=0
+						 s item=obj.OEORIItmMastDR.ARCIMDesc
+						 s startdate=obj.OEORISttDat
+						 s starttime=obj.OEORISttTim
+						 i obj.OEORIBrokerageVendorDR,obj.OEORIItmMastDR s BaseUOM=..GetBaseUOM(obj.OEORIBrokerageVendorDR.%Id(),obj.OEORIItmMastDR.%Id())
+						 s endtime=obj.OEORISttTim+(BaseUOM*60)
+						 i starttime=endtime,obj.OEORIAPPTDR {
+							 s endtime=starttime+(obj.OEORIAPPTDR.APPTDuration*60)
+						 }
+						 s endtime=endtime#86400
+						 s NGODesc=obj.OEORIBrokerageVendorDR.VENDNGODR.NGODesc
+						 s HOSPPhone=obj.OEORIOEORDParRef.OEORDAdmDR.PAADMHospitalDR.HOSPPhone
+						 s CTPCPDesc=obj.OEORIClinPathwaysDR.CPWCareProviderDR.CTPCPDesc
+						 s PAPMINo=obj.OEORIOEORDParRef.OEORDAdmDR.PAADMPAPMIDR.PAPMINo
+						 s PAPMIName2=obj.OEORIOEORDParRef.OEORDAdmDR.PAADMPAPMIDR.PAPMIName2
+						 s PAPMIName=obj.OEORIOEORDParRef.OEORDAdmDR.PAADMPAPMIDR.PAPMIName
+						 
+						 i starttime>$zth("00:00",2),starttime<=$zth("06:00",2) s type="Evening"
+						 i starttime>$zth("18:00",2),starttime<=$zth("23:59",2) s type="Evening"
+						 i starttime>$zth("06:00",2),starttime<$zth("12:00",2) s type="Morning"
+						 i starttime>=$zth("12:00",2),starttime<=$zth("18:00",2) s type="Afternoon"
+						 
+						 s ^||CacheTemp("Patient")=PAPMINo_"^"_PAPMIName2_" "_PAPMIName_"^"_CTPCPDesc_"^"_NGODesc_"^"_HOSPPhone
+						 i $g(^||CacheTemp("Diary",startdate,starttime,type))'="" s ^||CacheTemp("Diary",startdate,starttime,type)=^||CacheTemp("Diary",startdate,starttime,type)_$c(13,10)_$zt(starttime,4)_" - "_$zt(endtime,4)_$c(13,10)_NGODesc_$c(13,10)_item
+						 i $g(^||CacheTemp("Diary",startdate,starttime,type))="" s ^||CacheTemp("Diary",startdate,starttime,type)=$zt(starttime,4)_" - "_$zt(endtime,4)_$c(13,10)_NGODesc_$c(13,10)_item
+						 d obj.%Close()
+					 }
+				 }
+			 }
+		 }
+	 }
+ }
+ i $g(^||CacheTemp("Patient"))="" {
+	 s pat=##class(User.PAPatMas).%OpenId(URN)
+	 i pat {
+		 s PAPMINo=pat.PAPMINo
+		 s PAPMIName2=pat.PAPMIName2
+		 s PAPMIName=pat.PAPMIName
+		 d pat.%Close()
+		 s ^||CacheTemp("Patient")=PAPMINo_"^"_PAPMIName2_" "_PAPMIName_"^^^"
+	 }
+ }
+
+ d ..GetUnavailable(URN,DateFrom,DateTo)
+ 
+ k days,header
+ s page=1,cnt=0
+ 
+ s date=0
+ f {
+	 s date=$o(^||CacheTemp("Diary",date))
+	 q:date=""
+
+	 s cnt=$i(cnt)
+	 s header(page,cnt)=$zd(date,12)_$c(13,10)_$zd(date,2)
+	 
+	 s time=0
+	 f {
+		 s time=$o(^||CacheTemp("Diary",date,time))
+		 q:time=""
+		 
+		 s type=0
+		 f {
+			 s type=$o(^||CacheTemp("Diary",date,time,type))
+			 q:type=""
+			 
+			 i $d(days(page,cnt,type)) {
+				 s days(page,cnt,type)=$g(days(page,cnt,type))_$c(13,10)_$g(^||CacheTemp("Diary",date,time,type))
+			 } else {
+				 s days(page,cnt,type)=$g(^||CacheTemp("Diary",date,time,type))
+			 }			 
+		 }
+	 }
+	 i cnt>=7 {
+		 s cnt=0,page=$i(page)
+	 }
+ }
+ 
+ s page=0
+ f {
+	 s page=$o(days(page))
+	 q:page=""
+	 s ind=$i(ind)
+	 s ^CacheTemp("TRAK",repid,ind)=$lb($p($g(^||CacheTemp("Patient")),"^",1),$p($g(^||CacheTemp("Patient")),"^",2),$p($g(^||CacheTemp("Patient")),"^",3),$p($g(^||CacheTemp("Patient")),"^",4),$p($g(^||CacheTemp("Patient")),"^",5),"",page,header(page,1),header(page,2),header(page,3),header(page,4),header(page,5),header(page,6),header(page,7))
+
+	 s type="Morning,Afternoon,Evening"
+	 f t=1:1:$l(type,",") {
+		 s period=$p(type,",",t)
+		 s ind=$i(ind)
+		 s ^CacheTemp("TRAK",repid,ind)=$lb($p($g(^||CacheTemp("Patient")),"^",1),$p($g(^||CacheTemp("Patient")),"^",2),$p($g(^||CacheTemp("Patient")),"^",3),$p($g(^||CacheTemp("Patient")),"^",4),$p($g(^||CacheTemp("Patient")),"^",5),period,page,days(page,1,period),days(page,2,period),days(page,3,period),days(page,4,period),days(page,5,period),days(page,6,period),days(page,7,period))
+	 }
+ }
+ 
+ // Build QHandle (AtEnd,ReportID,Index)
+ Set QHandle=$lb(0,repid,0)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="GetDiaryRecordsFetch">
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,&Row:%Library.List,&AtEnd:%Library.Integer=0]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // This fetch method should never have to change. 
+
+ // repid - Report ID
+ // ind   - sequence index which represents each row
+
+ New repid,ind
+
+ // Restore QHandle
+ Set AtEnd=$li(QHandle,1)
+ Set repid=$li(QHandle,2)
+ Set ind=$li(QHandle,3)
+
+ Set ind=$o(^CacheTemp("TRAK",repid,ind))
+ If ind="" {	// if there are no more rows, finish fetching
+ Set AtEnd=1
+ Set Row=""
+ }
+ Else      {	// fetch row
+ Set Row=^CacheTemp("TRAK",repid,ind)
+ }
+
+ // Save QHandle
+ s QHandle=$lb(AtEnd,repid,ind)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Query name="GetDiaryRecords">
+<Type>%Library.Query</Type>
+<FormalSpec>URN:%String,DateTo:%String</FormalSpec>
+<SqlProc>1</SqlProc>
+<Parameter name="CONTAINID" value="0"/>
+<Parameter name="ROWSPEC" value="PAPMINo:%String,Patient:%String(MAXLEN=999),CTPCPDesc:%String(MAXLEN=999),NGODesc:%String(MAXLEN=999),HOSPPhone:%String(MAXLEN=999),period:%String(MAXLEN=999),page:%Integer,Day1:%String(MAXLEN=999),Day2:%String(MAXLEN=999),Day3:%String(MAXLEN=999),Day4:%String(MAXLEN=999),Day5:%String(MAXLEN=999),Day6:%String(MAXLEN=999),Day7:%String(MAXLEN=999)"/>
+</Query>
+
+<Method name="GenerateDiary">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>DateFrom:%String,DateTo:%String</FormalSpec>
+<Implementation><![CDATA[
+	s type="Morning,Afternoon,Evening"
+	f stdate=DateFrom:1:DateTo {
+		f t=1:1:$l(type,",") {
+			s ^||CacheTemp("Diary",stdate,$p(type,",",t))=""
+		}
+	}
+	q
+]]></Implementation>
+</Method>
+
+<Method name="GetBaseUOM">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>vendorid:%String,itemid:%String</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	s BaseUnit=0
+	q:'vendorid BaseUnit
+	q:'itemid BaseUnit
+	
+	&SQL(SELECT ITM_BaseUnit INTO :BaseUnit FROM SQLUser.MRC_VendorItem WHERE ITM_ParRef=:vendorid AND ITM_ARCIM_dR=:itemid)
+	i BaseUnit="" s BaseUnit=0
+	
+	q BaseUnit
+]]></Implementation>
+</Method>
+
+<Method name="GetUnavailable">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>patid:%String,DateFrom:%String,DateTo:%String</FormalSpec>
+<Implementation><![CDATA[
+	s types="Morning,Afternoon,Evening"
+	s admid=0
+	f {
+		s admid=$o(^PAPERdr(patid,"ADM","O",admid))
+		q:admid=""
+		s unid=0
+		f {
+			s unid=$o(^PAADM(admid,"UNAV",unid))
+			q:unid=""
+			s dfrom=$p($g(^PAADM(admid,"UNAV",unid)),"^",1)
+			i dfrom>=DateFrom,dfrom<=DateTo {
+				s dto=$p($g(^PAADM(admid,"UNAV",unid)),"^",2)
+				s dto=$s(dto="":+$h+13,1:dto)
+				s tfrom=$p($g(^PAADM(admid,"UNAV",unid)),"^",9)
+				i tfrom="" s tfrom=$zth("00:01",2)
+				s tto=$p($g(^PAADM(admid,"UNAV",unid)),"^",10)
+				i tto="" s tto=$zth("23:59",2)
+				
+				i $p($g(^PAADM(admid,"UNAV",unid)),"^",9)'="" {
+					i tfrom>$zth("00:00",2),tfrom<=$zth("06:00",2) s type="Evening"
+					i tfrom>$zth("18:00",2),tfrom<=$zth("23:59",2) s type="Evening"
+					i tfrom>$zth("06:00",2),tfrom<=$zth("12:00",2) s type="Morning"
+					i tfrom>$zth("12:00",2),tfrom<=$zth("18:00",2) s type="Afternoon"
+					
+					f d1=dfrom:1:dto {
+						i $g(^||CacheTemp("Diary",d1,tfrom,$p(types,",",t)))'="" s ^||CacheTemp("Diary",d1,tfrom,$p(types,",",t))=^||CacheTemp("Diary",d1,tfrom,$p(types,",",t))_$c(13,10)_$zt(tfrom,4)_" - "_$zt(tto,4)_$c(13,10)_"Client Unavailable"
+						i $g(^||CacheTemp("Diary",d1,tfrom,$p(types,",",t)))="" s ^||CacheTemp("Diary",d1,tfrom,$p(types,",",t))=$zt(tfrom,4)_" - "_$zt(tto,4)_$c(13,10)_"Client Unavailable"
+					}
+				} else {
+					f d1=dfrom:1:dto {
+						f t=1:1:$l(types,",") {
+							i $g(^||CacheTemp("Diary",d1,tfrom,$p(types,",",t)))'="" s ^||CacheTemp("Diary",d1,tfrom,$p(types,",",t))=^||CacheTemp("Diary",d1,tfrom,$p(types,",",t))_$c(13,10)_"Client Unavailable"
+							i $g(^||CacheTemp("Diary",d1,tfrom,$p(types,",",t)))="" s ^||CacheTemp("Diary",d1,tfrom,$p(types,",",t))="Client Unavailable"
+						}
+					}
+				}
+			}
+		}
+	}
+	q
+]]></Implementation>
+</Method>
+
+<Method name="LookUpURNClose">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>QHandle:%Library.Binary</FormalSpec>
+<PlaceAfter>LookUpURNFetch</PlaceAfter>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ n repid
+ s repid=$li(QHandle,2)
+ k ^CacheTemp("TRAK",repid)
+ q $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="LookUpURNExecute">
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,var:%Library.String=""]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+	n repid,ind
+	s repid=$i(^CacheTemp("TRAK"))
+	k ^CacheTemp("TRAK",repid)
+	
+	s var=$zcvt(var,"U")
+	
+	; Get Surnames
+	i $l(var)>3 d
+	. s surname=0 f  s surname=$o(^PAPERi("PAPER_PatName",surname)) q:surname=""  d
+	. . ; If match save id
+	. . i surname[var d
+	. . . s id=0 f  s id=$o(^PAPERi("PAPER_PatName",surname,id)) q:id=""  d
+	. . . . s ind=$i(ind)
+	. . . . s ^CacheTemp("TRAK",repid,ind)=$lb($p($g(^PAPER(id,"PAT",1)),"^",1),id,$p($g(^PAPER(id,"ALL")),"^",1)_", "_$p($g(^PAPER(id,"ALL")),"^",2))
+	. 
+	. ; Get URN
+	. 
+	. s urn=0 f  s urn=$o(^PAPERi("PAPMI_PatNo",urn)) q:urn=""  d
+	. . ; If match save id
+	. . i urn[var d
+	. . . s id=0 f  s id=$o(^PAPERi("PAPMI_PatNo",urn,id)) q:id=""  d
+	. . . . s ind=$i(ind)
+	. . . . s ^CacheTemp("TRAK",repid,ind)=$lb($p($g(^PAPER(id,"PAT",1)),"^",1),id,$p($g(^PAPER(id,"ALL")),"^",1)_", "_$p($g(^PAPER(id,"ALL")),"^",2))
+	
+	
+	Set QHandle=$LISTBUILD(0,repid,0)
+	Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="LookUpURNFetch">
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,&Row:%Library.List,&AtEnd:%Library.Integer=0]]></FormalSpec>
+<PlaceAfter>LookUpURNExecute</PlaceAfter>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ New repid,ind
+
+ // Restore QHandle
+ Set AtEnd=$LI(QHandle,1)
+ Set repid=$LI(QHandle,2)
+ Set ind=$LI(QHandle,3)
+
+ Set ind=$order(^CacheTemp("TRAK",repid,ind))
+ If ind="" {	// if there are no more rows, finish fetching
+ 	Set AtEnd=1
+ 	Set Row=""
+ }  Else  {	// fetch row
+ 	Set Row=^CacheTemp("TRAK",repid,ind)
+ }
+
+ // Save QHandle
+ Set QHandle=$lb(AtEnd,repid,ind)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Query name="LookUpURN">
+<Type>%Library.Query</Type>
+<FormalSpec>var:%Library.String</FormalSpec>
+<Parameter name="CONTAINID" value="2"/>
+<Parameter name="ROWSPEC" value="URN:%String,HIDDEN:%String,Name:%String"/>
+</Query>
+
+<Method name="LookUpBrokerURN">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>itmjs:%Library.String="",itmjsex:%Library.String="",URN:%Library.String=""</FormalSpec>
+<Implementation><![CDATA[
+ n id,code,desc,activedate
+
+ s (id,code,desc)=""
+ 
+ s id=$o(^PAPERi("PAPMI_PatNo",$zcvt(URN,"U"),0))
+ i id="" s desc=URN q 0
+ i id'="" d
+ . s desc=$p($g(^PAPER(id,"PAT",1)),"^",1)
+ . s code=$p($g(^PAPER(id,"ALL")),"^",1)_", "_$p($g(^PAPER(id,"ALL")),"^",2)
+ . s retval=itmjs_"('"_$ZCVT(desc,"O","JS")_"');"
+ . i itmjsex'="""" s retval=retval_itmjsex_"('"_$ZCVT(desc,"O","JS")_"^"_id_"^"_$ZCVT(code,"O","JS")_"');"
+ . &javascript<#(retval)#>
+ 
+ q 1
+]]></Implementation>
+</Method>
+</Class>
+</Export>

@@ -1,0 +1,195 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.AUXX.Report.ZEN.TrialBalance">
+<Super>Custom.AUXX.Report.ZEN.Abstract</Super>
+<TimeCreated>61543,54550.041409</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/AUXX/Report/ZEN/TrialBalance.xml#1 $</Default>
+</Parameter>
+
+<UDLText name="T">
+<Content><![CDATA[
+// Report Name: Trak Trial Balance <br>
+
+]]></Content>
+</UDLText>
+
+<UDLText name="T">
+<Content><![CDATA[
+// Report Code: AUXX.FIN0009 <br>
+
+]]></Content>
+</UDLText>
+
+<UDLText name="T">
+<Content><![CDATA[
+// LOGTRAK Number: 72214 <br>
+
+]]></Content>
+</UDLText>
+
+<Property name="Facility">
+<Type>%String</Type>
+<Parameter name="ZENURL" value="P1"/>
+</Property>
+
+<Property name="Payors">
+<Type>%String</Type>
+<Parameter name="ZENURL" value="P2"/>
+</Property>
+
+<Property name="Detailed">
+<Type>%String</Type>
+<Parameter name="ZENURL" value="P3"/>
+</Property>
+
+<XData name="ReportDefinition">
+<XMLNamespace>http://www.intersystems.com/zen/report/definition</XMLNamespace>
+<Data><![CDATA[
+<report xmlns='http://www.intersystems.com/zen/report/definition'
+   queryClass='Custom.AUXX.Report.ZEN.StoredProc.TrialBalance' queryName='GetBalances' name='TrialBalance'>
+  <parameter expression='..Facility'/>
+  <parameter expression='..Payors'/>
+  <attribute name='ReportTitle' expression='$$$Text("@TrialBalance@Trial Balance")'/>
+  <attribute name='ReportTitleD' expression='$$$Text("@TrialBalanceD@Detailed Trial Balance")'/>
+  <attribute name='ReportTitleS' expression='$$$Text("@TrialBalanceS@Summary Trial Balance")'/>
+  <attribute name='timestamp' expression='$ZDATETIME($H, 2, 2)'/>
+  <attribute name='username' expression='..Username'/>
+  <attribute name='Facility' expression="..GetHospListDesc(..Facility)"/>
+  <attribute name='Payors' expression="..GetPayorListDesc(..Payors)"/>
+  <attribute name='Detailed' expression="..Detailed"/>
+    
+  <group name="Facility" breakOnField="HOSPDesc">
+  <attribute name="description" field="HOSPDesc" />     
+  	  <aggregate name='Currentp' type='SUM' field='Currentp'/>
+      <aggregate name='HospCurrentp' type='SUM' field='Currentp'/>
+      <aggregate name='HospThirty' type='SUM' field='Thirty'/> 
+      <aggregate name='HospSixty' type='SUM' field='Sixty'/> 
+      <aggregate name='HospNinety' type='SUM' field='Ninety'/>
+      <aggregate name='HospOneTwenty' type='SUM' field='OneTwenty'/>       
+      <aggregate name='HospAmountToPay' type='SUM' field='AmountToPay'/>
+  <group name="Payors" breakOnField="INSTDesc">
+  <attribute name="description" field="INSTDesc" />
+      <aggregate name='PayorCurrentp' type='SUM' field='Currentp'/>
+      <aggregate name='PayorThirty' type='SUM' field='Thirty'/> 
+      <aggregate name='PayorSixty' type='SUM' field='Sixty'/> 
+      <aggregate name='PayorNinety' type='SUM' field='Ninety'/>
+      <aggregate name='PayorOneTwenty' type='SUM' field='OneTwenty'/>       
+      <aggregate name='PayorAmountToPay' type='SUM' field='AmountToPay'/>
+      <group name='Detail'>           
+	 <attribute field='PAPMINo' name='PAPMINo'/>
+	 <attribute field='PAADMAdmNo' name='PAADMAdmNo'/>
+  	 <attribute fields='PAPMIName,PAPMIName2,PAPMIName3' name='PatientName' expression='..DisplayName(%val("PAPMIName"),%val("PAPMIName2"),%val("PAPMIName3"))'/>
+     <attribute field='PAADMAdmDate' name='PAADMAdmDate' expression='..DisplayDate(%val)'/>
+     <attribute field='PAADMDischgDate' name='PAADMDischgDate' expression='..DisplayDate(%val)'/>
+	 <attribute field='INSTCode' name='INSTCode'/>
+     <attribute field='Currentp' name='Currentp'/>
+     <attribute field='Thirty' name='Thirty'/>
+     <attribute field='Sixty' name='Sixty'/>
+     <attribute field='Ninety' name='Ninety'/>
+     <attribute field='OneTwenty' name='OneTwenty'/>
+     <attribute field='AmountToPay' name='AmountToPay'/>
+          </group>
+          </group>
+           </group>
+        </report>
+]]></Data>
+</XData>
+
+<XData name="ReportDisplay">
+<XMLNamespace>http://www.intersystems.com/zen/report/display</XMLNamespace>
+<Data><![CDATA[
+<report xmlns='http://www.intersystems.com/zen/report/display'
+xmlns:auxxstyle='http://www.intersystems.com/zen/report/display/auxx/style'
+xmlns:auxx='http://www.intersystems.com/zen/report/display/auxx'
+  name='TrialBalance'>
+<document width= "#(..ReportWidth)#" height="#(..ReportHeight)#" marginLeft="#(..DocMarginLeft)#" marginRight="#(..DocMarginRight)#" 
+	marginTop="#(..DocMarginTop)#" marginBottom="#(..DocMarginBottom)#" footerHeight="#(..DocFooterHeight)#" headerHeight="#(..DocHeaderHeight)#" 
+	regionBeforeExtent="#(..DocHeaderHeight)#" regionAfterExtent="#(..DocFooterHeight)#">
+<auxxstyle:auxxgroupheader/>
+<auxxstyle:auxxgroupsummary/>
+<auxxstyle:auxxhospitalheader/>
+<auxxstyle:auxxpageheader/>
+<auxxstyle:auxxparameterheader/>
+<auxxstyle:auxxreporttitle/>
+<auxxstyle:auxxtablecolumn/>
+</document>
+<auxx:PageHeader pagetitle='@ReportTitle'/>
+<auxx:ReportFooter username='@username' timestamp='@timestamp'/>
+
+<body>
+<!-- REPORT HEADER -->
+<auxx:ReportHeader reporttitle='@ReportTitleD' ifxpath='/TrialBalance/@Detailed="Y"'/>
+<auxx:ReportHeader reporttitle='@ReportTitleS' ifxpath='/TrialBalance/@Detailed!="Y"'/>
+<auxx:ReportParameterHeader label='@Facility:@Facility:' field='@Facility' class="auxxparameterheader" xcondition="string-length(@Facility)>0"/>
+<auxx:ReportParameterHeader label='@Payor:@Payor:' field='@Payors' class="auxxparameterheader" xcondition="string-length(@Payors)>0"/>
+<auxx:ReportParameterHeader label='@AsAt:@As At:' field='@timestamp' class="auxxparameterheader" />
+<line pattern="solid" width="100%"/>
+<line pattern="empty" width="100%"></line> 
+<auxx:NoResults xcondition="not(Facility)" />
+<group name='Facility' pagebreak="true">
+<auxx:ReportParameterHeader label="@Facility:@Facility:" field="@description" class="auxxgroupheader" />
+<line pattern="empty" lineHeight="1mm" />
+<group name='Payors' ifxpath='/TrialBalance/@Detailed="Y"'>
+<auxx:ReportParameterHeader label="@Payor:@Payor:" field="@description" class="auxxgroupheader" ifxpath='/TrialBalance/@Detailed="Y"'/>
+<line pattern="empty" lineHeight="1mm"/>
+     <table class='auxxtablecolumn' group='Detail' ifxpath='/TrialBalance/@Detailed="Y"' >
+        <item field='@PAPMINo' width="10%" caption='@URN@URN'/>
+        <item field='@PAADMAdmNo' width="10%" caption="@EpisodeNo@Episode No" />
+        <item field='@PatientName' width="17%" caption="@Name@Name" too-long-text="wrap" />
+        <item field='@PAADMAdmDate' width="8%" caption="@AdmitDate@Admit Date" />
+        <item field='@PAADMDischgDate' width="8%" caption="@DischDate@Disch Date" />
+        <item field='@INSTCode' width="4%" caption='@Payor@Payor'/> 
+        <item field='@Currentp' width="7%" formatNumber="###,##0.00" style="text-align:right" caption='@Current@Current'/>
+        <item field='@Thirty' width="7%" formatNumber="###,##0.00" style="text-align:right" caption='@30Days@30 Days'/>
+        <item field='@Sixty' width="7%" formatNumber="###,##0.00" style="text-align:right" caption='@60Days@60 Days'/>
+        <item field='@Ninety' width="7%" formatNumber="###,##0.00" style="text-align:right" caption='@90Days@90 Days'/>
+        <item field='@OneTwenty' width="7%" formatNumber="###,##0.00" style="text-align:right" caption='@120+Days@120+ Days'/>
+        <item field='@AmountToPay' width="8%" formatNumber="###,##0.00" style="text-align:right" caption='@TotalOwing@Total Owing'/>
+        </table>
+<!--<line pattern="empty" width="100%" ></line> -->
+ 	 <table class='auxxtablecolumn' ifxpath='/TrialBalance/@Detailed="Y"'>
+	  <item value='@TotalOwingfor:@Total Owing for : ' width="31%" style='font-weight:bold;text-align:right'/>
+	  <item value='' width="2%" style='font-weight:bold;text-align:right' />
+	  <item field='@description' width="24%" style='font-weight:bold;text-align:left' />
+      <item field='PayorCurrentp' width="7%" formatNumber="###,##0.00" style='font-weight:bold;text-align:right' />
+      <item field='PayorThirty' width="7%" formatNumber="###,##0.00" style='font-weight:bold;text-align:right' />
+      <item field='PayorSixty' width="7%" formatNumber="###,##0.00" style='font-weight:bold;text-align:right'/>
+      <item field='PayorNinety' width="7%" formatNumber="###,##0.00" style='font-weight:bold;text-align:right' />
+      <item field='PayorOneTwenty' width="7%" formatNumber="###,##0.00" style='font-weight:bold;text-align:right' />
+      <item field='PayorAmountToPay' width="8%" formatNumber="###,##0.00" style='font-weight:bold;text-align:right'/>
+	  </table>
+<line pattern="empty" width="100%" ></line> 
+</group>
+	<table class='auxxtablecolumn' group="Payors" ifxpath='/TrialBalance/@Detailed!="Y"' >
+	  <item field='@description' width="57%" caption='@Payor@Payor' style='font-weight:bold;text-align:left' />
+      <item field='PayorCurrentp' width="7%" caption='@Current@Current' formatNumber="###,##0.00" style='font-weight:bold;text-align:right' />
+      <item field='PayorThirty' width="7%" caption='@30Days@30 Days' formatNumber="###,##0.00" style='font-weight:bold;text-align:right' />
+      <item field='PayorSixty' width="7%"  caption='@60Days@60 Days' formatNumber="###,##0.00" style='font-weight:bold;text-align:right'/>
+      <item field='PayorNinety' width="7%" caption='@90Days@90 Days' formatNumber="###,##0.00" style='font-weight:bold;text-align:right' />
+      <item field='PayorOneTwenty' width="7%" caption='@120+Days@120+ Days' formatNumber="###,##0.00" style='font-weight:bold;text-align:right' />
+      <item field='PayorAmountToPay' width="8%" caption='@TotalOwing@Total Owing' formatNumber="###,##0.00" style='font-weight:bold;text-align:right'/>
+	  </table>
+	  <line pattern="solid" width="100%"/>
+ 	 <table class='auxxtablecolumn' >
+	  <item value='@GrandTotalOwingfor:@Grand Total Owing for : ' width="31%" style='font-weight:bold;text-align:right'/>
+	  <item value='' width="2%" style='font-weight:bold;text-align:right' />
+	  <item field='@description' width="24%" style='font-weight:bold;text-align:left' />
+      <item field='HospCurrentp' width="7%" formatNumber="###,##0.00" style='font-weight:bold;text-align:right' />
+      <item field='HospThirty' width="7%" formatNumber="###,##0.00" style='font-weight:bold;text-align:right' />
+      <item field='HospSixty' width="7%" formatNumber="###,##0.00" style='font-weight:bold;text-align:right'/>
+      <item field='HospNinety' width="7%" formatNumber="###,##0.00" style='font-weight:bold;text-align:right' />
+      <item field='HospOneTwenty' width="7%" formatNumber="###,##0.00" style='font-weight:bold;text-align:right' />
+      <item field='HospAmountToPay' width="8%" formatNumber="###,##0.00" style='font-weight:bold;text-align:right'/>
+	  </table>
+	<line pattern="solid" width="100%"/>
+ </group>
+</body>
+</report>
+]]></Data>
+</XData>
+</Class>
+</Export>

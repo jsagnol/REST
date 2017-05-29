@@ -1,0 +1,278 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.AUXX.Report.ZEN.StoredProc.ReturnLeave">
+<ProcedureBlock>0</ProcedureBlock>
+<Super>Report.Abstract</Super>
+<TimeCreated>61017,51205.675224</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/AUXX/Report/ZEN/StoredProc/ReturnLeave.xml#1 $</Default>
+</Parameter>
+
+<UDLText name="T">
+<Content><![CDATA[
+// Report Name: Patients Returning From Leave <br>
+
+]]></Content>
+</UDLText>
+
+<UDLText name="T">
+<Content><![CDATA[
+// Report Code: AUXX.ATD0017 <br>
+
+]]></Content>
+</UDLText>
+
+<Method name="ReturnLeaveClose">
+<Description>
+This is the Close component of the %Library.Query.
+This is standard code and should never have to change.
+This is where all the cleanup is performed, i.e. the purging of the temporary storage global ^CacheTemp.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>QHandle:%Library.Binary</FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Clean up by purging the temporary node in ^CacheTemp global
+ New repid
+ Set repid=$li(QHandle,2)
+ 
+  //Close Monitor (if configured to capture stats)
+ 	i mon Do ..MonitorEnd(mon)
+
+ 
+ Kill ^CacheTemp("TRAK",repid)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="ReturnLeaveExecute">
+<Description>
+This is the Execute section for the %Library.Query. 
+All of the logic will be performed here.
+A new node for the ^CacheTemp global will be created and each subscript of this global will contain
+a row for the report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,DateFrom:%Date,DateTo:%Date,Hospital:%String,Location:%String,Ward:%String]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+	
+ // Get reportid i.e. use $INCREMENT to add another node to ^CacheTemp global. 
+ // We use ^CacheTemp global because it will always use memory before disk
+ New repid,ind
+
+ // Use $Increment to get the next node
+ Set repid=$I(^CacheTemp,"TRAK")
+
+ //Start Monitor (if configured to capture stats)
+ 	s mon=..MonitorBegin()
+ 
+ // Build data into ^CacheTemp(ReportID)
+ // e.g. Set ^CacheTemp(ReportID,Index)=$LB(f1,f2,f3)
+ New Number,String,Date,Time,c,n
+ new PAADMRowId,RFLCode,RFLDesc,LEATYPCode,LEATYPDesc,LEACATCode,LEACATDesc,ADMLGoingOutDate,ADMLGoingOutTime,ADMLExpectedDateReturn,ADMLExpectedTimeReturn,ADMLActualDateReturn,ADMLActualTimeReturn,PAPMIName,PAPMIName2,PAPMIName3,PAPMINO,PAADMAdmNo,PAADMAdmDate,WARDRowId,WARDCode,WARDDesc,CTLOCCode,CTLOCRowID,CTLOCHospitalDR,HOSPCode,HOSPDesc,CTDSPCode,CTDSPDesc,CTRLGCode,CTRLGDesc,CTSEXCode
+ set (CTLOCRowID,CTLOCHospitalDR,PAADMRowId,WARDRowId)=0
+ set (RFLCode,RFLDesc,LEATYPCode,LEATYPDesc,LEACATCode,LEACATDesc,ADMLGoingOutDate,ADMLGoingOutTime,ADMLExpectedDateReturn,ADMLExpectedTimeReturn,ADMLActualDateReturn,ADMLActualTimeReturn,PAPMIName,PAPMIName2,PAPMIName3,PAPMINO,PAADMAdmNo,PAADMAdmDate,WARDCode,WARDDesc,CTLOCCode,HOSPCode,HOSPDesc,CTDSPCode,CTDSPDesc,CTRLGCode,CTRLGDesc,CTSEXCode)=""
+ new CurrentPayor,PayorData,AdmDate,AdmIns
+ set (CurrentPayor,PayorData,AdmDate)=""
+ set AdmIns=0
+ new DaysOnLeave
+ set (DaysOnLeave)=0 
+
+ set ind=1
+
+ //Convert ODBC dates to cache format
+ s DateFrom=..ConvertDateToCache(DateFrom)
+ s DateTo=..ConvertDateToCache(DateTo)
+ /*
+ f status="A","D" {
+	 s admid=0
+	 f {
+		 s admid=$o(^PAADMi("PAADM_VisitStatus",status,admid))
+		 q:admid=""
+		 i (","_Hospital_",")[(","_$p($g(^PAADM(admid,2)),"^",85)_","),$d(^PAADMi("AdmTypeCurr","I",admid)) {
+			 s lea=0
+			 f {
+				 s lea=$o(^PAADM(admid,"LEA",lea))
+				 q:lea=""
+				 i $p($g(^PAADM(admid,"LEA",lea)),"^",5)>=DateFrom,$p($g(^PAADM(admid,"LEA",lea)),"^",5)<=DateTo {
+					 s ADMLRowId=admid_"||"_lea
+					 do Leave
+				 }
+			 }
+		 }
+	 }
+ }
+*/
+ s date=0
+ f {
+	 s date=$o(^PAADMi("LeaveDateFrom",date))
+	 q:date=""
+	 s admid=0
+	 f {
+		 s admid=$o(^PAADMi("LeaveDateFrom",date,admid))
+		 q:admid=""
+		 i (","_Hospital_",")[(","_$p($g(^PAADM(admid,2)),"^",85)_","),$d(^PAADMi("PAADM_Type","I",admid)) {
+			 s lea=0
+			 f {
+				 s lea=$o(^PAADMi("LeaveDateFrom",date,admid,lea))
+				 q:lea=""
+				 i $p($g(^PAADM(admid,"LEA",lea)),"^",5)>=DateFrom,$p($g(^PAADM(admid,"LEA",lea)),"^",5)<=DateTo {
+					 s ADMLRowId=admid_"||"_lea
+					 do Leave
+				 }
+			 }
+		 }
+	 }
+ }
+ // Build QHandle (AtEnd,ReportID,Index)
+ Set QHandle=$lb(0,repid,0)
+
+ Quit $$$OK
+
+Leave
+ &sql(declare ReturnLeave cursor for
+ SELECT
+	ADML_ParRef,
+	ADML_Reason_DR->RFL_Code,
+	ADML_Reason_DR->RFL_Desc,
+	ADML_LeaveType_DR->LEATYP_Code,
+	ADML_LeaveType_DR->LEATYP_Desc,
+	ADML_LeaveCategory_DR->LEACAT_Code,
+	ADML_LeaveCategory_DR->LEACAT_Desc,
+	ADML_GoingOutDate,
+	ADML_GoingOutTime,
+	ADML_ExpectedDateReturn,
+	ADML_ExpectedTimeReturn,
+	ADML_ActualDateReturn,
+	ADML_ActualTimeReturn,
+	ADML_ParRef->PAADM_PAPMI_DR->PAPMI_Name,
+	ADML_ParRef->PAADM_PAPMI_DR->PAPMI_Name2,
+	ADML_ParRef->PAADM_PAPMI_DR->PAPMI_Name3,
+	ADML_ParRef->PAADM_PAPMI_DR->PAPMI_NO,
+	ADML_ParRef->PAADM_AdmNo,
+	ADML_ParRef->PAADM_AdmDate,
+	ADML_ParRef->PAADM_CurrentWard_DR->WARD_RowId,
+	ADML_ParRef->PAADM_CurrentWard_DR->WARD_Code,
+    ADML_ParRef->PAADM_CurrentWard_DR->WARD_Desc,
+	ADML_ParRef->PAADM_DepCode_DR->CTLOC_Code,
+	ADML_ParRef->PAADM_DepCode_DR->CTLOC_RowId, 
+	ADML_ParRef->PAADM_CurrentWard_DR->WARD_LocationDR->CTLOC_Hospital_DR->HOSP_RowId,
+    ADML_ParRef->PAADM_CurrentWard_DR->WARD_LocationDR->CTLOC_Hospital_DR->HOSP_Code,
+    ADML_ParRef->PAADM_CurrentWard_DR->WARD_LocationDR->CTLOC_Hospital_DR->HOSP_Desc,
+	ADML_ParRef->PAADM_MainMRADM_DR->MRADM_DischType_DR->CTDSP_Code,
+	ADML_ParRef->PAADM_MainMRADM_DR->MRADM_DischType_DR->CTDSP_Desc,
+	ADML_ParRef->PAADM_PAPMI_DR->PAPMI_PAPER_DR->PAPER_Religion_DR->CTRLG_Code,	
+	ADML_ParRef->PAADM_PAPMI_DR->PAPMI_PAPER_DR->PAPER_Religion_DR->CTRLG_Desc,
+	ADML_ParRef->PAADM_PAPMI_DR->PAPMI_PAPER_DR->PAPER_SEX_DR->CTSEX_Code		
+ FROM SQLUser.PA_AdmLeave
+ WHERE ADML_ParRef=:ADMLRowId
+ AND (({fn CONCAT( ',', {fn CONCAT((:Location),',')})} [ {fn CONCAT( ',', {fn CONCAT((ADML_ParRef->PAADM_DepCode_DR->CTLOC_RowId),',')})}) OR (:Location IS NULL))
+ AND (({fn CONCAT( ',', {fn CONCAT((:Ward),',')})} [ {fn CONCAT( ',', {fn CONCAT((ADML_ParRef->PAADM_CurrentWard_DR->Ward_RowId),',')})}) OR (:Ward IS NULL))
+ )
+ &sql(open ReturnLeave)
+
+ //fetch first row
+ &sql(fetch ReturnLeave into :PAADMRowId,:RFLCode,:RFLDesc,:LEATYPCode,:LEATYPDesc,
+ 		:LEACATCode,:LEACATDesc,:ADMLGoingOutDate,:ADMLGoingOutTime,:ADMLExpectedDateReturn,
+ 		:ADMLExpectedTimeReturn,:ADMLActualDateReturn,:ADMLActualTimeReturn,:PAPMIName,:PAPMIName2,:PAPMIName3,
+ 		:PAPMINO,:PAADMAdmNo,:PAADMAdmDate,:WARDRowId,:WARDCode,:WARDDesc,:CTLOCCode,:CTLOCRowID,
+ 		:CTLOCHospitalDR,:HOSPCode,:HOSPDesc,:CTDSPCode,:CTDSPDesc,:CTRLGCode,:CTRLGDesc,:CTSEXCode)
+
+ while 'SQLCODE{	 
+ do CalcDaysOnLeave	 
+ do FormatDates
+ do FormatTimes
+ do GetCurrentPayor
+
+ // build the row
+ Set ^CacheTemp("TRAK",repid,$ZCVT(HOSPDesc,"U")_" "_$ZCVT(WARDDesc,"U")_" "_$ZCVT(PAPMIName,"U")_" "_$ZCVT(PAPMIName2,"U")_" "_$ZCVT(PAPMIName3,"U")_ADMLGoingOutDate_ADMLGoingOutTime_ind)=$LB(PAADMRowId,RFLCode,RFLDesc,LEATYPCode,LEATYPDesc,LEACATCode,LEACATDesc,ADMLGoingOutDate,ADMLGoingOutTime,ADMLExpectedDateReturn,ADMLExpectedTimeReturn,ADMLActualDateReturn,ADMLActualTimeReturn,PAPMIName,PAPMIName2,PAPMIName3,PAPMINO,PAADMAdmNo,PAADMAdmDate,WARDRowId,WARDCode,WARDDesc,CTLOCCode,CTLOCRowID,CTLOCHospitalDR,HOSPCode,HOSPDesc,CTDSPCode,CTDSPDesc,CTRLGCode,CTRLGDesc,CTSEXCode,CurrentPayor,DaysOnLeave)
+ s ind=ind+1
+ //fetch rows
+ &sql(fetch ReturnLeave into :PAADMRowId,:RFLCode,:RFLDesc,:LEATYPCode,:LEATYPDesc,
+ 		:LEACATCode,:LEACATDesc,:ADMLGoingOutDate,:ADMLGoingOutTime,:ADMLExpectedDateReturn,
+ 		:ADMLExpectedTimeReturn,:ADMLActualDateReturn,:ADMLActualTimeReturn,:PAPMIName,:PAPMIName2,:PAPMIName3,
+ 		:PAPMINO,:PAADMAdmNo,:PAADMAdmDate,:WARDRowId,:WARDCode,:WARDDesc,:CTLOCCode,:CTLOCRowID,
+ 		:CTLOCHospitalDR,:HOSPCode,:HOSPDesc,:CTDSPCode,:CTDSPDesc,:CTRLGCode,:CTRLGDesc,:CTSEXCode)
+ }
+
+ &sql(close ReturnLeave)
+ q
+ 
+CalcDaysOnLeave 
+ set DaysOnLeave=ADMLExpectedDateReturn-ADMLGoingOutDate
+ Quit
+
+FormatDates
+ // Convert the dates to ODBC date format
+ If PAADMAdmDate Set PAADMAdmDate=..ConvertDateToODBC(PAADMAdmDate)
+ If ADMLGoingOutDate Set ADMLGoingOutDate=..ConvertDateToODBC(ADMLGoingOutDate)
+ If ADMLExpectedDateReturn Set ADMLExpectedDateReturn=..ConvertDateToODBC(ADMLExpectedDateReturn)
+ If ADMLActualDateReturn Set ADMLActualDateReturn=..ConvertDateToODBC(ADMLActualDateReturn)
+
+ Quit
+
+FormatTimes
+ // Convert the times to ODBC time format
+ If ADMLExpectedTimeReturn Set ADMLExpectedTimeReturn=..ConvertTimeToODBC(ADMLExpectedTimeReturn)
+ If ADMLGoingOutTime Set ADMLGoingOutTime=..ConvertTimeToODBC(ADMLGoingOutTime)
+ If ADMLActualTimeReturn Set ADMLActualTimeReturn=..ConvertTimeToODBC(ADMLActualTimeReturn)
+ Quit
+
+GetCurrentPayor	 
+ set (CurrentPayor,PayorData)=""
+ set AdmIns=0
+ i $g(PAADMRowId)="" q
+ s AdmDate=$p(^PAADM(PAADMRowId),"^",6)
+            
+ f  s AdmIns=$o(^PAADM(PAADMRowId,"INS",AdmIns)) q:AdmIns=""  s PayorData=^(AdmIns) d  q:CurrentPayor'=""
+ .i $p(PayorData,"^",3)=AdmDate s payor=$p(PayorData,"^",1)
+ .i $p(PayorData,"^",3)="" s CurrentPayor=$p(PayorData,"^",1)
+            
+ i CurrentPayor'="" s CurrentPayor=$p($g(^ARC("INST",CurrentPayor)),"^",2)
+ quit
+]]></Implementation>
+</Method>
+
+<Method name="ReturnLeaveFetch">
+<Description>
+This is the Fetch component of the %Library.Query. 
+This should never have to change. It is designed to fetch the row for each subscript of the ^CacheTemp</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,&Row:%Library.List,&AtEnd:%Library.Integer=0]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // This fetch method should never have to change. 
+
+ New repid,ind
+
+ // Restore QHandle
+ Set AtEnd=$li(QHandle,1)
+ Set repid=$li(QHandle,2)
+ Set ind=$li(QHandle,3)
+
+ Set ind=$o(^CacheTemp("TRAK",repid,ind))
+ If ind="" {	// if there are no more rows, finish fetching
+ Set AtEnd=1
+ Set Row=""
+ }
+ Else      {	// fetch row
+ Set Row=^CacheTemp("TRAK",repid,ind)
+ }
+
+ // Save QHandle
+ s QHandle=$lb(AtEnd,repid,ind)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Query name="ReturnLeave">
+<Type>%Library.Query</Type>
+<FormalSpec>DateFrom:%Date,DateTo:%Date,Hospital:%String,Location:%String,Ward:%String</FormalSpec>
+<SqlProc>1</SqlProc>
+<Parameter name="CONTAINID" value="0"/>
+<Parameter name="ROWSPEC" value="PAADMRowId:%Integer,RFLCode:%String(MAXLEN=255),RFLDesc:%String(MAXLEN=255),LEATYPCode:%String(MAXLEN=255),LEATYPDesc:%String(MAXLEN=255),LEACATCode:%String(MAXLEN=255),LEACATDesc:%String(MAXLEN=255),ADMLGoingOutDate:%Date,ADMLGoingOutTime:%String(MAXLEN=255),ADMLExpectedDateReturn:%Date,ADMLExpectedTimeReturn:%String(MAXLEN=255),ADMLActualDateReturn:%Date,ADMLActualTimeReturn:%String(MAXLEN=255),PAPMIName:%String(MAXLEN=255),PAPMIName2:%String(MAXLEN=255),PAPMIName3:%String(MAXLEN=255),PAPMINO:%String(MAXLEN=255),PAADMAdmNo:%String(MAXLEN=255),PAADMAdmDate:%Date,WARDRowId:%Integer,WARDCode:%String(MAXLEN=255),WARDDesc:%String,CTLOCCode:%String(MAXLEN=255),CTLOCRowID:%Integer,CTLOCHospitalDR:%Integer,HOSPCode:%String(MAXLEN=255),HOSPDesc:%String(MAXLEN=255),CTDSPCode:%String(MAXLEN=255),CTDSPDesc:%String(MAXLEN=255),CTRLGCode:%String(MAXLEN=255),CTRLGDesc:%String(MAXLEN=255),CTSEXCode:%String(MAXLEN=255),CurrentPayor:%String(MAXLEN=255),DaysOnLeave:%Integer"/>
+</Query>
+</Class>
+</Export>

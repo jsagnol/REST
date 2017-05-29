@@ -1,0 +1,414 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.AUXX.Report.ZEN.StoredProc.WardTransfers">
+<ProcedureBlock>0</ProcedureBlock>
+<Super>Report.Abstract</Super>
+<TimeCreated>60955,60556</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/AUXX/Report/ZEN/StoredProc/WardTransfers.xml#1 $</Default>
+</Parameter>
+
+<UDLText name="T">
+<Content><![CDATA[
+// Report Name: Trak Ward Transfers <br>
+
+]]></Content>
+</UDLText>
+
+<UDLText name="T">
+<Content><![CDATA[
+// Report Code: Trak.ATD0021 <br>
+
+]]></Content>
+</UDLText>
+
+<UDLText name="T">
+<Content><![CDATA[
+// Logtrak Number: 72205 <br>
+
+]]></Content>
+</UDLText>
+
+<Method name="WardTransfersClose">
+<Description>
+This is the Close component of the %Library.Query.
+This is standard code and should never have to change.
+This is where all the cleanup is performed, i.e. the purging of the temporary storage global ^CacheTemp.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>QHandle:%Library.Binary</FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Clean up by purging the temporary node in ^CacheTemp global
+ New repid
+ Set repid=$li(QHandle,2)
+ 
+ //Start Monitor (if configured to capture stats)
+ i mon Do ..MonitorEnd(mon)
+ 
+ Kill ^CacheTemp("TRAK",repid)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="WardTransfersExecute">
+<Description>
+This is the Execute section for the %Library.Query. 
+All of the logic will be performed here.
+A new node for the ^CacheTemp global will be created and each subscript of this global will contain
+a row for the report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,DateFrom:%Date,DateTo:%Date,Hospital:%String,Ward:%String]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+	
+ // Get reportid i.e. use $INCREMENT to add another node to ^CacheTemp global. 
+ // We use ^CacheTemp global because it will always use memory before disk
+ New repid,ind
+
+ // Use $Increment to get the next node
+ Set repid=$I(^CacheTemp("TRAK"))
+ Kill ^CacheTemp("TRAK",repid)
+ 
+ //Start Monitor (if configured to capture stats)
+  s mon=..MonitorBegin()
+  
+ Set ind=1
+
+ // Build data into ^CacheTemp("TRAK",ReportID)
+	N PAADMRowId,TransChildSub,END,TransferIn,TransferOut,dateloop
+	S (PAADMRowId,TransChildSub,END,TransferIn,TransferOut)=0
+	N WARDDesc,WARDCode,TransRow,TRANSStartDate,TRANSStartTime,TRANSEndDate,TRANSEndTime,WardRowId,RoomRowId,BedRowId,TransWardCode,TransRowId
+	S (WARDDesc,WARDCode,TransRow,TRANSStartDate,TRANSStartTime,TRANSEndDate,TRANSEndTime,TransWardCode,TransRowId)=""
+	S (WardRowId,BedRowId,RoomRowId)=0
+	
+	N AdmRow,PAADMADMNo,PAPMIRowId,PAADMCurrentWardRowId,PAADMCurrentRoomRowId,PAADMCurrentBedRowId,PAADMVisitStatus,PAADMType
+	S (AdmRow,PAADMADMNo,PAADMVisitStatus,PAADMType)=""
+	S (PAPMIRowId,PAADMCurrentWardRowId,PAADMCurrentRoomRowId,PAADMCurrentBedRowId)=0	
+	
+	N PAADMRowIdX,TRANSStartDateX,TRANSStartTimeX,TRANSEndDateX,TRANSEndTimeX,WardRowIdX,RoomRowIdX,BedRowIdX
+	S (TRANSStartDateX,TRANSStartTimeX,TRANSEndDateX,TRANSEndTimeX)=""
+	S (WardRowIdX,RoomRowIdX,BedRowIdX)=0
+	S PAADMRowIdX=-1
+	
+	N PAPMINo,PAPMIName,PAPMIName2,PAPMIName3,CTSEXCode,PAPMIDOB
+	S (PAPMINo,PAPMIName,PAPMIName2,PAPMIName3,CTSEXCode,PAPMIDOB)=""
+	
+	N WardRow,WardFromId,WardFromCode,WardToId,WardToCode,PAADMCurrentWardCode,PAADMCurrentRoomCode,PAADMCurrentRoomDesc,PAADMCurrentBedCode,PAADMCurrentWardLocationDR,WardFromLocationDR,CTRow,HospRow,HOSPRowId,HOSPCode,HOSPDesc
+	S (WardRow,WardFromCode,WardToCode,PAADMCurrentWardCode,PAADMCurrentRoomCode,PAADMCurrentRoomDesc,PAADMCurrentBedCode,CTRow,HospRow,HOSPCode,HOSPDesc)=""
+	S (WardFromId,WardToId,PAADMCurrentWardLocationDR,WardFromLocationDR,HOSPRowId)=0
+	N RoomRow,AdmDate	
+	S (RoomRow,AdmDate)=""
+
+ //Convert ODBC dates to cache format
+ s DateFrom=..ConvertDateToCache(DateFrom)
+ s DateTo=..ConvertDateToCache(DateTo)
+ 
+ // Strip white space/control chars from blank variables
+ i $g(Hospital)'="" s Hospital=$ZSTRIP(Hospital,"*WC")
+ i $g(Ward)'="" s Ward=$ZSTRIP(Ward,"*WC")
+ 
+ k ^||CacheTemp("EXISTS"),^||CacheTemp($j)
+ f date=DateFrom:1:DateTo {
+	 s time=0
+	 f {
+		 s time=$o(^PAADMi("TransDateTime",date,time))
+		 q:time=""
+		 s adm=0
+		 f {
+			 s adm=$o(^PAADMi("TransDateTime",date,time,adm))
+			 q:adm=""
+			 s cld=0
+			 f {
+				 s cld=$o(^PAADMi("TransDateTime",date,time,adm,cld))
+				 q:cld=""
+				 s pass=..CheckValidTransaction(adm_"||"_cld,Hospital,Ward,DateFrom,DateTo,1)
+				 i pass {
+					 s prevTransId=..PrevWardTransfer(adm,cld,Hospital,Ward,DateFrom,DateTo)
+					 s ^||CacheTemp($j,"TRANSIN",adm_"||"_cld)=prevTransId
+				 }
+			 }
+		 }
+	 }
+	 
+	 s adm=0
+	 f {
+		 s adm=$o(^PAADMi("TransEndDate",date,adm))
+		 q:adm=""
+		 s cld=0
+		 f {
+			 s cld=$o(^PAADMi("TransEndDate",date,adm,cld))
+			 q:cld=""
+			 s pass=..CheckValidTransaction(adm_"||"_cld,Hospital,Ward,DateFrom,DateTo,0)
+			 i pass {
+				 s nextTransId=..NextWardTransfer(adm,cld,Hospital,Ward,DateFrom,DateTo)
+				 s ^||CacheTemp($j,"TRANSOUT",adm_"||"_cld)=nextTransId
+			 }
+		 }
+	 }
+ }
+ 
+ s id=0
+ f {
+	 s id=$o(^||CacheTemp($j,"TRANSIN",id))
+	 q:id=""
+	 s ind=..GetLineData(id,$g(^||CacheTemp($j,"TRANSIN",id)),Hospital,Ward,DateFrom,DateTo,"TRANSIN",ind)
+ }
+ s id=0
+ f {
+	 s id=$o(^||CacheTemp($j,"TRANSOUT",id))
+	 q:id=""
+	 s ind=..GetLineData(id,$g(^||CacheTemp($j,"TRANSOUT",id)),Hospital,Ward,DateFrom,DateTo,"TRANSOUT",ind)
+ }
+
+ // Build QHandle (AtEnd,ReportID,Index)
+ Set QHandle=$lb(0,repid,0)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="WardTransfersFetch">
+<Description>
+This is the Fetch component of the %Library.Query. 
+This should never have to change. It is designed to fetch the row for each subscript of the ^CacheTemp
+global and return this row to the Crystal Report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,&Row:%Library.List,&AtEnd:%Library.Integer=0]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // This fetch method should never have to change. 
+
+ New repid,ind
+
+ // Restore QHandle
+ Set AtEnd=$li(QHandle,1)
+ Set repid=$li(QHandle,2)
+ Set ind=$li(QHandle,3)
+
+ Set ind=$o(^CacheTemp("TRAK",repid,ind))
+ If ind="" {	// if there are no more rows, finish fetching
+ Set AtEnd=1
+ Set Row=""
+ }
+ Else      {	// fetch row
+ Set Row=^CacheTemp("TRAK",repid,ind)
+ }
+
+ // Save QHandle
+ s QHandle=$lb(AtEnd,repid,ind)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Query name="WardTransfers">
+<Type>%Library.Query</Type>
+<FormalSpec>DateFrom:%Date,DateTo:%Date,Hospital:%String,Ward:%String</FormalSpec>
+<SqlProc>1</SqlProc>
+<Parameter name="CONTAINID" value="0"/>
+<Parameter name="ROWSPEC" value="PAADMRowId:%Integer,PAADMADMNo:%String(MAXLEN=255),PAPMIRowId:%Integer,PAPMINo:%String(MAXLEN=255),PAPMIName:%String(MAXLEN=255),PAPMIName2:%String(MAXLEN=255),PAPMIName3:%String(MAXLEN=255),CTSEXCode:%String(MAXLEN=255),PAPMIDOB:%Date,TRANSStartDate:%Date,TRANSStartTime:%String(MAXLEN=255),TRANSEndDate:%Date,TRANSEndTime:%String(MAXLEN=255),WardFromId:%Integer,WardFromCode:%String(MAXLEN=255),WardToId:%Integer,WardToCode:%String(MAXLEN=255),PAADMCurrentWardRowId:%Integer,PAADMCurrentWardCode:%String(MAXLEN=255),HOSPRowId:%Integer,HOSPCode:%String(MAXLEN=255),HOSPDesc:%String(MAXLEN=255),INSTCode:%String(MAXLEN=255),PAADMCurrentRoomCode:%String,PAADMCurrentRoomDesc:%String,PAADMCurrentBedCode:%String,TransWardCode:%String,TransRowId:%String,ind:%Integer,WARDDesc:%String,TransferIn:%Integer,TransferOut:%Integer"/>
+</Query>
+
+<Method name="CheckValidTransaction">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>TRANSRowId:%String,Hospital:%String,Ward:%String,DateFrom:%String,DateTo:%String,ToFlag:%String</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	q:TRANSRowId="" 0
+	s check=1
+	s tobj=##class(User.PAAdmTransaction).%OpenId(TRANSRowId)
+	i tobj {
+		i tobj.TRANSWardDR.WARDCode="" s check=0
+		i tobj.TRANSTransTypeDR.TRANSTYPCode'="M" s check=0
+		i tobj.TRANSStatusDR.REQSTCode="J" s check=0
+		i tobj.TRANSWardDR.WARDLocationDR.CTLOCType'="W" s check=0
+		i tobj.TRANSParRef.PAADMType'="I" s check=0
+		i "AD"'[tobj.TRANSParRef.PAADMVisitStatus s check=0
+		i tobj.TRANSWardDR,tobj.TRANSWardDR.WARDLocationDR,tobj.TRANSWardDR.WARDLocationDR.CTLOCHospitalDR.%Id()'=Hospital s check=0
+		
+		;i Ward'="",ToFlag,tobj.TRANSWardDR {
+		;	i Ward'[tobj.TRANSWardDR.%Id() s check=0
+		;}
+		;i Ward'="",'ToFlag,tobj.TRANSWardDR {
+		;	i Ward'[tobj.TRANSWardDR.%Id() s check=0
+		;	i ((tobj.TRANSStartDate<DateFrom)||(tobj.TRANSStartDate>DateTo)) s check=0
+		;}
+		;i 'ToFlag {
+		;	;i ((tobj.TRANSStartDate<DateFrom)||(tobj.TRANSStartDate>DateTo)) s check=0
+		;}
+		
+		i check {
+			;i $d(^||CacheTemp("EXISTS",ToFlag,tobj.TRANSWardDR.WARDCode,+TRANSRowId)) s check=0
+			;i '$d(^||CacheTemp("EXISTS",ToFlag,tobj.TRANSWardDR.WARDCode,+TRANSRowId)) s ^||CacheTemp("EXISTS",ToFlag,tobj.TRANSWardDR.WARDCode,+TRANSRowId)=""
+		}
+		d tobj.%Close()
+	}
+	q check
+]]></Implementation>
+</Method>
+
+<Method name="NextWardTransfer">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>PAADMRowId:%String,TRANSChildSub:%String,Hospital:%String,Ward:%String,DateFrom:%String,DateTo:%String</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	s nextTrans=TRANSChildSub,pass1=0,nextTransId=""
+	f {
+		s nextTrans=$o(^PAADM(PAADMRowId,"TRANS",nextTrans))
+		q:nextTrans=""
+		i 'pass1 {
+			s pass1=..CheckValidTransaction(PAADMRowId_"||"_nextTrans,Hospital,Ward,DateFrom,DateTo,0)
+			i pass1 {
+				s nextTransId=PAADMRowId_"||"_nextTrans
+			}
+		}
+	}
+	q nextTransId
+]]></Implementation>
+</Method>
+
+<Method name="PrevWardTransfer">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>PAADMRowId:%String,TRANSChildSub:%String,Hospital:%String,Ward:%String,DateFrom:%String,DateTo:%String</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	s prevTrans=TRANSChildSub,pass1=0,nextTransId=""
+	f {
+		s prevTrans=$o(^PAADM(PAADMRowId,"TRANS",prevTrans),-1)
+		q:prevTrans=""
+		i 'pass1 {
+			s pass1=..CheckValidTransaction(PAADMRowId_"||"_prevTrans,Hospital,Ward,DateFrom,DateTo,1)
+			i pass1 {
+				s prevTransId=PAADMRowId_"||"_prevTrans
+			}
+		}
+	}
+	q prevTransId
+]]></Implementation>
+</Method>
+
+<Method name="GetLineData">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>TRANSRowId:%String,nextTRANSRowId:%String,Hospital:%String,Ward:%String,DateFrom:%String,DateTo:%String,type:%String,ind:%Integer</FormalSpec>
+<Implementation><![CDATA[
+	s (PAADMRowId,PAADMADMNo,PAPMIRowId,PAPMINo,PAPMIName,PAPMIName2,PAPMIName3,CTSEXCode,PAPMIDOB,TRANSStartDate,TRANSStartTime,TRANSEndDate,TRANSEndTime,WardFromId,WardFromCode,WardToId,WardToCode,PAADMCurrentWardLocationDR,PAADMCurrentWardCode,HOSPRowId,HOSPCode,HOSPDesc,INSTCode,PAADMCurrentRoomCode,PAADMCurrentRoomDesc,PAADMCurrentBedCode,WardFromCode,TransRowId,ind,WARDDesc,TransferIn,TransferOut)=""
+	
+	s tobj=##class(User.PAAdmTransaction).%OpenId(TRANSRowId)
+	i tobj {
+		s HOSPRowId=tobj.TRANSWardDR.WARDLocationDR.CTLOCHospitalDR.%Id()
+		s HOSPCode=tobj.TRANSWardDR.WARDLocationDR.CTLOCHospitalDR.HOSPCode
+		s HOSPDesc=tobj.TRANSWardDR.WARDLocationDR.CTLOCHospitalDR.HOSPDesc
+		s WARDDesc=tobj.TRANSWardDR.WARDDesc
+		s PAPMIName=tobj.TRANSParRef.PAADMPAPMIDR.PAPMIName
+		s PAPMIName2=tobj.TRANSParRef.PAADMPAPMIDR.PAPMIName2
+		s PAPMIName3=tobj.TRANSParRef.PAADMPAPMIDR.PAPMIName3
+		s PAADMRowId=+TRANSRowId
+		s PAADMADMNo=tobj.TRANSParRef.PAADMADMNo
+		s PAPMIRowId=tobj.TRANSParRef.PAADMPAPMIDR.%Id()
+		s PAPMINo=tobj.TRANSParRef.PAADMPAPMIDR.PAPMINo
+		s CTSEXCode=tobj.TRANSParRef.PAADMPAPMIDR.PAPMISexDR.CTSEXCode
+		s PAPMIDOB=tobj.TRANSParRef.PAADMPAPMIDR.PAPMIDOB
+		s TRANSEndDate=tobj.TRANSEndDate
+		s TRANSEndTime=tobj.TRANSEndTime
+		s WardFromId=tobj.TRANSWardDR.%Id()
+		;s WardFromId=TRANSRowId
+		s WardFromCode=tobj.TRANSWardDR.WARDCode
+		s INSTCode=..GetCurrentPayor(PAADMRowId)
+		s TransRowId=TRANSRowId
+		
+		i $p($g(nextTRANSRowId),"||",2)>$p($g(TRANSRowId),"||",2) {
+			s TransferOut=1,TransferIn=0
+			s TRANSStartDate=tobj.TRANSEndDate
+			s TRANSStartTime=tobj.TRANSEndTime
+		} else {
+			s TransferOut=0,TransferIn=1
+			s TRANSStartDate=tobj.TRANSStartDate
+			s TRANSStartTime=tobj.TRANSStartTime
+		}
+		i nextTRANSRowId'="" {
+			s ttobj=##class(User.PAAdmTransaction).%OpenId(nextTRANSRowId)
+			i ttobj {
+				i TransferIn {
+					s WardFromId=ttobj.TRANSWardDR.%Id()
+					s WardFromCode=ttobj.TRANSWardDR.WARDCode
+					s WardToId=tobj.TRANSWardDR.%Id()
+					s WardToCode=tobj.TRANSWardDR.WARDCode
+				} else {
+					s WardToId=ttobj.TRANSWardDR.%Id()
+					s WardToCode=ttobj.TRANSWardDR.WARDCode
+					s PAADMCurrentWardLocationDR=ttobj.TRANSWardDR.WARDLocationDR.%Id()
+					s PAADMCurrentWardCode=ttobj.TRANSWardDR.WARDCode
+					s PAADMCurrentRoomCode=ttobj.TRANSRoomDR.ROOMCode
+					s PAADMCurrentRoomDesc=ttobj.TRANSRoomDR.ROOMDesc
+					s PAADMCurrentBedCode=ttobj.TRANSBedDR.BEDCode
+				}
+				d ttobj.%Close()
+			}
+		}
+
+
+		// Convert the dates to ODBC date format
+		Set TRANSStartDate=..ConvertDateToODBC(TRANSStartDate)
+		Set TRANSEndDate=..ConvertDateToODBC(TRANSEndDate)
+		Set PAPMIDOB=..ConvertDateToODBC(PAPMIDOB)
+		// Convert the times to ODBC time format
+		If TRANSStartTime Set TRANSStartTime=..ConvertTimeToODBC(TRANSStartTime)
+		If TRANSEndTime Set TRANSEndTime=..ConvertTimeToODBC(TRANSEndTime)
+		
+		i WardFromCode'="",WardToCode'="" {
+			i WardFromCode'=WardToCode {
+				
+				i $g(Ward)="" {
+			 		s ^CacheTemp("TRAK",repid,$ZCVT(HOSPDesc,"U")_" "_$ZCVT(WARDDesc,"U")_" "_TRANSStartDate_" "_TRANSStartTime_" "_$ZCVT(PAPMIName,"U")_" "_$ZCVT(PAPMIName2,"U")_""_$ZCVT(PAPMIName3,"U")_""_ind)=$LB(PAADMRowId,PAADMADMNo,PAPMIRowId,PAPMINo,PAPMIName,PAPMIName2,PAPMIName3,CTSEXCode,PAPMIDOB,TRANSStartDate,TRANSStartTime,TRANSEndDate,TRANSEndTime,WardFromId,WardFromCode,WardToId,WardToCode,PAADMCurrentWardLocationDR,PAADMCurrentWardCode,HOSPRowId,HOSPCode,HOSPDesc,INSTCode,PAADMCurrentRoomCode,PAADMCurrentRoomDesc,PAADMCurrentBedCode,WardFromCode,TransRowId,ind,WARDDesc,TransferIn,TransferOut)
+			 		s ind=ind+1
+				}
+				i (($g(Ward)[WardFromId)||($g(Ward)[WardToId)) {
+			 		s ^CacheTemp("TRAK",repid,$ZCVT(HOSPDesc,"U")_" "_$ZCVT(WARDDesc,"U")_" "_TRANSStartDate_" "_TRANSStartTime_" "_$ZCVT(PAPMIName,"U")_" "_$ZCVT(PAPMIName2,"U")_""_$ZCVT(PAPMIName3,"U")_""_ind)=$LB(PAADMRowId,PAADMADMNo,PAPMIRowId,PAPMINo,PAPMIName,PAPMIName2,PAPMIName3,CTSEXCode,PAPMIDOB,TRANSStartDate,TRANSStartTime,TRANSEndDate,TRANSEndTime,WardFromId,WardFromCode,WardToId,WardToCode,PAADMCurrentWardLocationDR,PAADMCurrentWardCode,HOSPRowId,HOSPCode,HOSPDesc,INSTCode,PAADMCurrentRoomCode,PAADMCurrentRoomDesc,PAADMCurrentBedCode,WardFromCode,TransRowId,ind,WARDDesc,TransferIn,TransferOut)
+			 		s ind=ind+1
+				}
+			}
+		}
+ 		d tobj.%Close()
+	}
+	q ind
+]]></Implementation>
+</Method>
+
+<Method name="GetCurrentPayor">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>PAADMRowId:%String</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	set (INSTCode,PayorData)=""
+	set AdmIns=0
+	i $g(PAADMRowId)="" q
+	s AdmDate=$p(^PAADM(PAADMRowId),"^",6)
+	
+	f  s AdmIns=$o(^PAADM(PAADMRowId,"INS",AdmIns)) q:AdmIns=""  s PayorData=^(AdmIns) d  q:INSTCode'=""
+	. i $p(PayorData,"^",3)=AdmDate s payor=$p(PayorData,"^",1)
+	. i $p(PayorData,"^",3)="" s INSTCode=$p(PayorData,"^",1)
+	i INSTCode'="" s INSTCode=$p($g(^ARC("INST",INSTCode)),"^",1)
+	q INSTCode
+]]></Implementation>
+</Method>
+
+<Method name="GetBedCode">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>BedRowId:%String</FormalSpec>
+<Implementation><![CDATA[
+	New BedCode
+	Set BedCode=""
+		
+	&sql(SELECT
+		Bed_Code
+	INTO :BedCode 
+	FROM SQLUser.PAC_BED
+	WHERE BED_RowID=:BedRowId
+	AND BED_WARD_ParRef =:WardRowId)
+
+	Quit BedCode
+]]></Implementation>
+</Method>
+</Class>
+</Export>

@@ -1,0 +1,238 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.SWARH.Report.RptSvc.StoredProc.SWARHRNAP1008">
+<Description><![CDATA[
+<pre>
+**************************************************************************************************************************************
+* Report Code: SWARHRNAP1008
+* Report Description:
+* Menu Caption:
+* Initial release:
+* Developer: Tim Beilby
+* Modified:
+* 
+**************************************************************************************************************************************
+</pre>]]></Description>
+<ProcedureBlock>0</ProcedureBlock>
+<Super>Custom.SWARH.Report.RptSvc.StoredProc.Abstract</Super>
+<TimeCreated>60905,54849</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/SWARH/Report/RptSvc/StoredProc/SWARHRNAP1008.xml#1 $</Default>
+</Parameter>
+
+<UDLText name="T">
+<Content><![CDATA[
+/*
+ * Report Name: SWARHRNAP1008 <br>
+ * Report Code: SWARH.R.NAP1008 <br>
+ * SWARH Developer: Tim Beilby <br>
+ */
+]]></Content>
+</UDLText>
+
+<Method name="SWARHRNAP1008Close">
+<Description>
+This is the Close component of the %Library.Query.
+This is standard code and should never have to change.
+This is where all the cleanup is performed, i.e. the purging of the temporary storage global ^CacheTemp.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>QHandle:%Library.Binary</FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Clean up by purging the temporary node in ^CacheTemp global
+ New repid,ind
+ Set repid=$li(QHandle,2)
+
+ //Start Monitor (if configured to capture stats)
+ i mon Do ..MonitorEnd(mon)
+
+ Kill ^CacheTemp("TRAK",repid)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="SWARHRNAP1008Execute">
+<Description>
+This is the Execute section for the %Library.Query. 
+All of the logic will be performed here.
+A new node for the ^CacheTemp global will be created and each subscript of this global will contain
+a row for the report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,Hospital:%Library.String,DateFrom:%Date,DateTo:%Date,Specialty:%Library.String]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Get reportid i.e. use $INCREMENT to add another node to ^CacheTemp global. 
+ // We use ^CacheTemp global because it will always use memory before disk
+ New repid,ind
+
+  // Use $Increment to get the next node
+ Set repid=$I(^CacheTemp("TRAK"))
+ 
+ New HospitalID,DISStatus,DISUpdateDate,DSTDesc,ATTENDDesc,CTLOCDESC,NGRowID,NGOCode,NGODesc,NGOAddress
+ Set (HospitalID)=0
+ Set (DISStatus,DISUpdateDate,DSTDesc,ATTENDDesc,CTLOCDESC,NGRowID,NGOCode,NGODesc,NGOAddress)=""
+
+ s ind=1, END=0
+
+ //Start Monitor (if configured to capture stats)
+ s mon=..MonitorBegin()
+ 
+ s Hospital=$zstrip(Hospital,"*CW")
+ s Specialty=$zstrip(Specialty,"*CW")
+
+ //Convert ODBC dates to cache format
+ s DateFrom=..ConvertDateToCache(DateFrom)
+ s DateTo=..ConvertDateToCache(DateTo)
+ 
+ s DISStatusThing = "A"
+ s ReferralName = "SCTT Referral"
+ 
+ &SQL(DECLARE SWARHRNAP1008Cursor CURSOR FOR 
+    SELECT
+        DIS.DIS_ParRef->PAADM2_PAADM_DR->PAADM_HOSPITAL_DR As Hospital,
+        DIS.DIS_PADischargeSummary_DR->DIS_Status,
+        DIS.DIS_PADischargeSummary_DR->DIS_UpdateDate,
+        DIS.DIS_PADischargeSummary_DR->DIS_DischargeSummaryType_DR->DSTDesc,
+        DIS.DIS_ParRef->PAADM2_PAADM_DR->PAADM_DEPCODE_DR->CTLOC_DESC AS Source,
+        DIS.DIS_ParRef->PAADM2_PAADM_DR->PAADM_SourceOfAttend_DR->ATTEND_Desc As Destination,
+        NG.NG_RowID,
+        NG.NG_NonGovOrg_DR->NGO_Code,
+        NG.NG_NonGovOrg_DR->NGO_Desc,
+        NG.NG_NonGovOrg_DR->NGO_Address
+    FROM
+            SQLUser.PA_Adm2DischargeSummary DIS
+    LEFT JOIN
+            SQLUser.PA_DischargeSummaryNonGov NG ON DIS.DIS_PADischargeSummary_DR LIKE NG.NG_ParRef
+	WHERE
+	        DIS.DIS_ParRef->PAADM2_PAADM_DR->PAADM_HOSPITAL_DR = :Hospital
+	AND
+	        (DIS.DIS_ParRef->PAADM2_PAADM_DR->PAADM_DEPCODE_DR->CTLOC_RowID = :Specialty OR (:Specialty IS NULL))
+	AND
+	        DIS.DIS_PADischargeSummary_DR->DIS_UpdateDate BETWEEN :DateFrom AND :DateTo
+	AND
+	        DIS.DIS_PADischargeSummary_DR->DIS_Status = :DISStatusThing
+	AND
+	        DIS.DIS_PADischargeSummary_DR->DIS_DischargeSummaryType_DR->DSTDesc = :ReferralName
+)
+ &SQL(OPEN SWARHRNAP1008Cursor)
+ 
+ //FETCH FIRST ROW
+ d FetchRow
+  
+ while END=0 {
+	 
+	 d buildrow
+  	 ;d LoopThroughRefs
+	
+	 //fetch rows
+	 d FetchRow
+ }
+
+ &SQL(CLOSE SWARHRNAP1008Cursor)
+ 
+ // Build QHandle (AtEnd,ReportID,Index)
+ Set QHandle=$lb(0,repid,0)
+
+ Quit $$$OK
+
+FetchRow
+ &sql(FETCH SWARHRNAP1008Cursor INTO :HospitalID,:DISStatus,:DISUpdateDate,:DSTDesc,:CTLOCDESC,:ATTENDDesc,:NGRowID,:NGOCode,:NGODesc,:NGOAddress)
+ if SQLCODE '= 0 set END = 1
+ q
+
+buildrow
+  d FormatDates
+  d FormatBlanks
+  d FormatAddress
+  	 i NGRowID="" {s NGODesc = "No NGO Specified"}
+	 s sort = ind		// don't sort - uncomment this line if you've sorted in the query
+
+	 s ^CacheTemp("TRAK",repid,sort)=$LB(HospitalID,DISStatus,DISUpdateDate,DSTDesc,CTLOCDESC,ATTENDDesc,NGRowID,NGOCode,NGODesc,NGOAddress)
+	 s ind=ind+1
+ q
+  
+FormatDates
+ s DISUpdateDate=..ConvertDateToODBC(DISUpdateDate)
+ q
+ 
+FormatBlanks
+ if ATTENDDesc = "" set ATTENDDesc = "No Referral Source Specified"
+ q
+ 
+FormatAddress
+ s NGOAddress=$ZSTRIP(NGOAddress,"*C")
+ q
+
+
+ ;LoopThroughRefs
+
+	;s refsub=0
+	;f{
+		;S refsub=$o(^PA("DISSUM",DISRowID,"REF",refsub)) q:refsub=""
+		;s refdocclinic=$P($G(^PA("DISSUM",DISRowID,"REF",refsub)),"^",2) 
+		;S doc=$P(refdocclinic,"||",1)
+		;S clinic=$P(refdocclinic,"||",2)
+		;if clinic{ s clindr=$P($G(^PAC("REFD",doc,"CLN",clinic)),"^",16)}
+		;if clinic{ S clincode = $P($G(^PAC("CLN",clindr)),"^",1)}
+		;if clinic{ S clindesc=$P($G(^PAC("CLN",clindr)),"^",2)}
+		;if doc { S doccode=$P($G(^PAC("REFD",doc)),"^",1)}
+		;if doc { S docdesc=$P($G(^PAC("REFD",doc)),"^",3)_" "_$P($G(^PAC("REFD",doc)),"^",49)_" "_$P($G(^PAC("REFD",doc)),"^",2)}
+		;S ^refarray(refsub,1)=clincode
+		;S ^refarray(refsub,2)=clindesc
+		;S ^refarray(refsub,3)=doccode
+		;S ^refarray(refsub,4)=docdesc
+	;}
+
+	;q
+]]></Implementation>
+</Method>
+
+<Method name="SWARHRNAP1008Fetch">
+<Description>
+This is the Fetch component of the %Library.Query. 
+This should never have to change. It is designed to fetch the row for each subscript of the ^CacheTemp
+global and return this row to the Crystal Report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,&Row:%Library.List,&AtEnd:%Library.Integer=0]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // This fetch method should never have to change. 
+
+ // repid - Report ID
+ // ind   - sequence index which represents each row
+
+ New repid,ind
+
+ // Restore QHandle
+ Set AtEnd=$li(QHandle,1)
+ Set repid=$li(QHandle,2)
+ Set ind=$li(QHandle,3)
+
+ Set ind=$o(^CacheTemp("TRAK",repid,ind))
+ If ind="" {	// if there are no more rows, finish fetching
+	 Set AtEnd=1
+	 Set Row=""
+ }
+ Else      {	// fetch row
+ 	Set Row=^CacheTemp("TRAK",repid,ind)
+ }
+
+ // Save QHandle
+ s QHandle=$lb(AtEnd,repid,ind)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Query name="SWARHRNAP1008">
+<Type>%Library.Query</Type>
+<FormalSpec>Hospital:%Library.String,DateFrom:%Date,DateTo:%Date,Specialty:%Library.String</FormalSpec>
+<SqlProc>1</SqlProc>
+<Parameter name="CONTAINID" value="0"/>
+<Parameter name="ROWSPEC" value="HospitalID:%Library.Integer,DISStatus:%Library.String,DISUpdateDate:%Library.Date,DSTDesc:%Library.String,CTLOCDESC:%Library.String,ATTENDDesc:%Library.String,NGRowID:%Library.String,NGOCode:%Library.String,NGODesc:%Library.String,NGOAddress:%Library.String"/>
+<Parameter name="SELECTMODE" value="ODBC"/>
+</Query>
+</Class>
+</Export>

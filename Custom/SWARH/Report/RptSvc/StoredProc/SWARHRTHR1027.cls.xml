@@ -1,0 +1,224 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.SWARH.Report.RptSvc.StoredProc.SWARHRTHR1027">
+<Description><![CDATA[
+<pre>
+**************************************************************************************************************************************
+* Report Code: SWARHRTHR1027
+* Report Description: Booking Cancellations Excel Format	
+* Menu Caption: Booking Cancellations Excel Format
+* Initial release: 05/11/2013
+* Developer: Michael Welsh
+* Report is a copy of Custom.AUXX.Report.ZEN.StoredProc.WLBookingsCancellation modified for RS and formated for Excel.
+* Modified: 06/11/2013 - MW - Added ESIS code to report.
+**************************************************************************************************************************************
+</pre>]]></Description>
+<ProcedureBlock>0</ProcedureBlock>
+<Super>Custom.SWARH.Report.ZEN.StoredProc.Abstract</Super>
+<TimeCreated>59388,55236.125</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/SWARH/Report/RptSvc/StoredProc/SWARHRTHR1027.xml#1 $</Default>
+</Parameter>
+
+<Method name="SWARHRTHR1027QueryClose">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>QHandle:%Library.Binary</FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Clean up by purging the temporary node in ^CacheTemp global
+ New repid
+ Set repid=$LIST(QHandle,2)
+ 
+ //Start Monitor (if configured to capture stats)
+ i mon Do ..MonitorEnd(mon)
+
+ Kill ^CacheTemp("TRAK",repid)
+ 
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="SWARHRTHR1027QueryExecute">
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,Hospital:%String,DateFrom:%Date,DateTo:%Date,Location:%String,CareProvider:%String,CancReason:%String,Priority:%String]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Get reportid i.e. use $INCREMENT to add another node to ^CacheTemp("TRAK") global. 
+ // We use ^CacheTemp global because CACHETEMP is a memory resident database
+ New repid,ind
+
+ // Use $Increment to get the next node and clean up
+ Set repid=$Increment(^CacheTemp("TRAK"))
+ Kill ^CacheTemp("TRAK",repid)
+ 
+ //Start Monitor (if configured to capture stats)
+ s mon=..MonitorBegin()
+   
+ s DateFrom=..ConvertDateToCache(DateFrom)
+ s DateTo=..ConvertDateToCache(DateTo)
+ 
+ n WLRowId,WLPRowID,WLDate,ADMOperDate,HOSPCode,HOSPDesc,WLOperativeEpisode,ADMBookingNumber,WLPCode,WLSCode,READesc,REARowId,TimesCancel,CTLOCRowID,CTLOCCode,CTPCPRowId,CTPCPDesc,CTPCPSurname,WLRGDesc,HOSPRowId,PAPMIName,PAPMIName2,PAPMIName3,SEXCode,PAPERAge,PAPERAgeYr,PAPERAgeMth,PAPERAgeDay,ADMCancelDate,PAPERTelH,PAPMIRowId,CTLOCDesc,WLNO,REACode,ADMOperTime,WLProcedureFreeText,PAPMINo,PreAdmitDate,ADMCancelDate,ADMCancelTime,ADMOperTimeCache,ADMCancelTimeCache,ADMOperDateCache,ADMCancelDateCache,CountCxl,URNDetails,OPERDateTime
+ n ADMRowId,PAPERDOB,ADMPAADMDR,APPTStatus,ADMChildSub,ESISCode
+ n WLPindex, WLPcounter
+ s (WLRowId,WLPRowID,REARowId,CTLOCRowID,HOSPRowID,PAPMIRowId,ADMOperTimeCache,ADMCancelTimeCache,ADMOperDateCache,ADMCancelDateCache,CountCxl)=0
+ s (WLDate,ADMOperDate,HOSPCode,HOSPDesc,WLOperativeEpisode,ADMBookingNumber,WLPCode,WLSCode,READesc,TimesCancel,CTLOCCode,CTPCPRowId,CTPCPDesc,CTPCPSurname,WLRGDesc,PAPMIName,PAPMIName2,PAPMIName3,SEXCode,PAPERAge,PAPERAgeYr,PAPERAgeMth,PAPERAgeDay,ADMCancelDate,PAPERTelH,CTLOCDesc,WLNO,REACode,ADMOperTime,WLProcedureFreeText,PAPMINo,PAADMPreAdmitDate,ADMCancelDate,ADMCancelTime,ASDate,URNDetails,OPERDateTime)=""
+ s (ADMRowId,PAPERDOB,ADMPAADMDR,APPTStatus,ADMChildSub,ESISCode)=""
+ s (WLPindex, WLPcounter)=0
+ s (ADMOperDate,ADMBookingNumber,READesc,REARowId,TimesCancel,WLRGDesc,ADMCancelDate,REACode,ADMOperTime,ADMCancelTime,ADMPAADMDR,OPERDesc)=""
+
+ i $g(Hospital)'="" s Hospital=$zstrip(Hospital,"*C")
+ i $g(Location)'="" s Location=$zstrip(Location,"*C")
+ i $g(CareProvider)'="" s CareProvider=$zstrip(CareProvider,"*C")
+ i $g(CancReason)'="" s CancReason=$zstrip(CancReason,"*C")
+ i $g(Priority)'="" s Priority=$zstrip(Priority,"*C")
+ 
+ &SQL(DECLARE WLBookingCancellation CURSOR FOR
+ SELECT DISTINCT
+ ADM_ParRef->WL_RowId, 
+ ADM_ParRef->WL_Date, 
+ ADM_ParRef->WL_Hospital_DR->HOSP_Code,
+ ADM_ParRef->WL_Hospital_DR->HOSP_Desc,
+ ADM_ParRef->WL_OperativeEpisode, 
+ ADM_ParRef->WL_WaitListPrior_DR->WLP_RowID,
+ ADM_ParRef->WL_WaitListPrior_DR->WLP_Code, 
+ ADM_ParRef->WL_WaitListStatus_DR->WLS_Code,
+ ADM_ParRef->WL_ctloc_dr->CTLOC_RowId,
+ ADM_ParRef->WL_ctloc_dr->CTLOC_Code,
+ ADM_ParRef->WL_Doctor_dr->CTPCP_RowId,
+ ADM_ParRef->WL_Doctor_dr->CTPCP_Desc,
+ ADM_ParRef->WL_Doctor_dr->CTPCP_Surname,
+ ADM_ParRef->WL_Hospital_DR->HOSP_RowId,
+ ADM_ParRef->WL_PAPMI_DR->PAPMI_Name,
+ ADM_ParRef->WL_PAPMI_DR->PAPMI_Name2,
+ ADM_ParRef->WL_PAPMI_DR->PAPMI_Name3,
+ ADM_ParRef->WL_PAPMI_DR->PAPMI_PAPER_DR->PAPER_Sex_DR->CTSEX_Code,
+ ADM_ParRef->WL_PAPMI_DR->PAPMI_PAPER_DR->PAPER_AgeYr,
+ ADM_ParRef->WL_PAPMI_DR->PAPMI_PAPER_DR->PAPER_AgeMth, 
+ ADM_ParRef->WL_PAPMI_DR->PAPMI_PAPER_DR->PAPER_AgeDay,
+ ADM_RowId,
+ ADM_ParRef->WL_PAPMI_DR->PAPMI_PAPER_DR->PAPER_DOB,
+ ADM_ParRef->WL_PAPMI_DR->PAPMI_PAPER_DR->PAPER_TelH,
+ ADM_ParRef->WL_PAPMI_DR->PAPMI_RowId,
+ ADM_ParRef->WL_ctloc_dr->CTLOC_Desc,
+ ADM_ParRef->WL_NO,
+ ADM_ParRef->WL_PAPMI_DR->PAPMI_No,
+ ADM_OperDate, 
+ ADM_BookingNumber,
+ %EXACT(ADM_CancelReason_DR->REA_Desc),
+ ADM_CancelReason_DR->REA_RowId,
+ ADM_BookingNumber,
+ ADM_CancelReason_DR->REA_ReasonGroup_DR->WLRG_Desc,
+ ADM_CancelDate,
+ ADM_CancelReason_DR->REA_Code,
+ ADM_OperTime,
+ ADM_CancelTime,
+ ADM_PAADM_DR,
+ ADM_ParRef->WL_Operation_DR->OPER_Desc,
+ ADM_VisitStatus,
+ ADM_ParRef->WL_PreAdmission_DR->PAADM_AdmDate,
+ ADM_ParRef->WL_StateProc_DR->SPPP_NPPP_DR->NPPP_Code AS ESIS_Code 
+   INTO :WLRowId,:WLDate,:HOSPCode,:HOSPDesc,:WLOperativeEpisode,:WLPRowID,:WLPCode,:WLSCode,:CTLOCRowID,:CTLOCCode,:CTPCPRowId,:CTPCPDesc,:CTPCPSurname,:HOSPRowId,:PAPMIName,:PAPMIName2,:PAPMIName3,:SEXCode,:PAPERAgeYr,:PAPERAgeMth,:PAPERAgeDay,:ADMRowId,:PAPERDOB,:PAPERTelH,:PAPMIRowId,:CTLOCDesc,:WLNO,:PAPMINo,:ADMOperDate,:ADMBookingNumber,:READesc,:REARowId,:TimesCancel,:WLRGDesc,:ADMCancelDate,:REACode,:ADMOperTime,:ADMCancelTime,:ADMPAADMDR,:OPERDesc,:TCIStatus,:PreAdmitDate,:ESISCode
+ FROM SQLUser.PA_WaitingListAdm
+ WHERE ADM_VisitStatus='C'   
+ AND (ADM_CancelDate BETWEEN :DateFrom AND :DateTo)  
+ AND (({fn CONCAT( ',', {fn CONCAT((:Hospital),',')})} [ {fn CONCAT( ',', {fn CONCAT((ADM_ParRef->WL_Hospital_DR->HOSP_RowId),',')})}) OR (:Hospital IS NULL))
+ AND (({fn CONCAT( ',', {fn CONCAT((:Location),',')})} [ {fn CONCAT( ',', {fn CONCAT((ADM_ParRef->WL_CTLOC_DR->CTLOC_RowId),',')})}) OR (:Location IS NULL))
+ AND (({fn CONCAT( ',', {fn CONCAT((:CareProvider),',')})} [ {fn CONCAT( ',', {fn CONCAT((ADM_ParRef->WL_Doctor_dr->CTPCP_RowId),',')})}) OR (:CareProvider IS NULL))
+ AND (({fn CONCAT( ',', {fn CONCAT((:Priority),',')})} [ {fn CONCAT( ',', {fn CONCAT((ADM_ParRef->WL_WaitListPrior_DR->WLP_RowId),',')})}) OR (:Priority IS NULL))
+ AND (({fn CONCAT( ',', {fn CONCAT((:CancReason),',')})} [ {fn CONCAT( ',', {fn CONCAT((ADM_CancelReason_DR->REA_RowId),',')})}) OR (:CancReason IS NULL)))
+
+ &SQL(OPEN WLBookingCancellation)
+ 
+ f  &SQL(FETCH WLBookingCancellation) q:SQLCODE'=0  d 
+ . d GetTimesCancelled	 
+ . d GetWLProcedureFreeText
+ . d FormatDates 
+ . d FormatTimes
+ . s OPERDateTime=(ADMOperDate_" "_ADMOperTime)
+ . d BuildRow
+ &SQL(CLOSE WLBookingCancellation)
+ 
+  // Build QHandle (AtEnd,ReportID,Index)
+ Set QHandle=$LISTBUILD(0,repid,0)
+ Quit $$$OK
+
+GetTimesCancelled
+ if WLOperativeEpisode >=1 s WLOperativeEpisode=WLOperativeEpisode-1 else  s WLOperativeEpisode=0 
+ q
+
+GetWLProcedureFreeText
+ set WLPindex=1,WLPcounter=0
+ set WLProcedureFreeText=""
+ set WLPcounter = $g(^PAWL(WLRowId,"PROC",0))
+ f WLPindex=1:1:WLPcounter  d
+ . s WLProcedureFreeText = WLProcedureFreeText_$g(^PAWL(WLRowId,"PROC",WLPindex))_" "
+ s WLProcedureFreeText=$zstrip(WLProcedureFreeText,"*C")
+ q
+ 
+FormatDates
+ s WLDate=..ConvertDateToODBC(WLDate)
+ s ADMOperDateCache=ADMOperDate
+ s ADMOperDate=..ConvertDateToODBC(ADMOperDate)
+ s ADMCancelDateCache=ADMCancelDate
+ s ADMCancelDate=..ConvertDateToODBC(ADMCancelDate)
+ s PreAdmitDate=..ConvertDateToODBC(PreAdmitDate)
+ s PAPERDOB=..ConvertDateToODBC(PAPERDOB)
+ q
+ 
+FormatTimes
+ s ADMOperTimeCache=ADMOperTime
+ s ADMOperTime=..ConvertTimeToODBC(ADMOperTime)
+ s ADMCancelTimeCache=ADMCancelTime
+ s ADMCancelTime=..ConvertTimeToODBC(ADMCancelTime)
+ q
+
+BuildRow
+ s Listing=""
+ s Listing=$ZCVT(HOSPDesc,"U")_" "_$ZCVT(READesc,"U")_" "_$ZCVT(CTLOCCode,"U")_" "_$ZCVT(CTPCPDesc,"U")_" "_$ZCVT(WLPCode,"U")_" "_ADMCancelDate_PAPMINo_" "
+ s ind=$i(ind)
+ s ^CacheTemp("TRAK",repid,Listing_ind)=$LISTBUILD(WLRowId,WLDate,ADMOperDate,HOSPCode,HOSPDesc,CountCxl,ADMBookingNumber,WLPRowID,WLPCode,WLSCode,READesc,REARowId,TimesCancel,CTLOCRowID,CTLOCCode,CTPCPRowId,CTPCPDesc,CTPCPSurname,WLRGDesc,HOSPRowId,PAPMIName,PAPMIName2,PAPMIName3,SEXCode,PAPERAgeYr,ADMRowId,PAPERDOB,ADMCancelDate,PAPERTelH,PAPMIRowId,CTLOCDesc,WLNO,REACode,ADMOperTime,WLProcedureFreeText,PAPMINo,PreAdmitDate,ESISCode,OPERDateTime,ADMCancelTime,ADMOperTimeCache,ADMCancelTimeCache,ADMOperDateCache,ADMCancelDateCache,OPERDesc)
+ q
+]]></Implementation>
+</Method>
+
+<Method name="SWARHRTHR1027QueryFetch">
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,&Row:%Library.List,&AtEnd:%Library.Integer=0]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // This fetch method should never have to change. 
+
+ New repid,ind
+
+ // Restore QHandle
+ Set AtEnd=$LI(QHandle,1)
+ Set repid=$LI(QHandle,2)
+ Set ind=$LI(QHandle,3)
+
+ Set ind=$order(^CacheTemp("TRAK",repid,ind))
+ If ind="" {	// if there are no more rows, finish fetching
+ 	Set AtEnd=1
+ 	Set Row=""
+ }  Else  {	// fetch row
+ 	Set Row=^CacheTemp("TRAK",repid,ind)
+ }
+
+ // Save QHandle
+ Set QHandle=$lb(AtEnd,repid,ind)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Query name="SWARHRTHR1027Query">
+<Type>%Library.Query</Type>
+<FormalSpec>Hospital:%String,DateFrom:%Date,DateTo:%Date,Location:%String,CareProvider:%String,CancReason:%String,Priority:%String</FormalSpec>
+<SqlProc>1</SqlProc>
+<Parameter name="CONTAINID" value="0"/>
+<Parameter name="ROWSPEC" value="WLRowId:%String(MAXLEN=255),WLDate:%Date,ADMOperDate:%Date,HOSPCode:%String(MAXLEN=255),HOSPDesc:%String(MAXLEN=255),WLOperativeEpisode:%String(MAXLEN=255),ADMBookingNumber:%String(MAXLEN=255),WLPRowID:%String(MAXLEN=255),WLPCode:%String(MAXLEN=255),WLSCode:%String(MAXLEN=255),READesc:%String(MAXLEN=255),REARowId:%String(MAXLEN=255),TimesCancel:%String(MAXLEN=255),CTLOCRowId:%String(MAXLEN=255),CTLOCCode:%String(MAXLEN=255),CTPCPRowId:%String(MAXLEN=255),CTPCPDesc:%String(MAXLEN=255),CTPCPSurname:%String(MAXLEN=255),WLRGDesc:%String(MAXLEN=255),HOSPRowId:%String(MAXLEN=255),PAPMIName:%String(MAXLEN=255),PAPMIName2:%String(MAXLEN=255),PAPMIName3:%String(MAXLEN=255),SEXCode:%String(MAXLEN=255),PAPERAgeYr:%String(MAXLEN=255),ADMRowId:%String(MAXLEN=255),PAPERDOB:%Date,ADMCancelDate:%Date,PAPERTelH:%String(MAXLEN=255),PAPMIRowId:%String(MAXLEN=255),CTLOCDesc:%String(MAXLEN=255),WLNO:%String(MAXLEN=255),REACode:%String(MAXLEN=255),ADMOperTime:%String,WLProcedureFreeText:%String(MAXLEN=255),PAPMINo:%String(MAXLEN=255),PreAdmitDate:%Library.Date,ESISCode:%Library.String,OPERDateTime:%Library.String,ADMCancelTime:%String,ADMOperTimeCache:%Library.Integer,ADMCancelTimeCache:%Library.Integer,ADMOperDateCache:%Library.Integer,ADMCancelDateCache:%Library.Integer,OPERDesc:%String"/>
+<Parameter name="SELECTMODE" value="ODBC"/>
+</Query>
+</Class>
+</Export>

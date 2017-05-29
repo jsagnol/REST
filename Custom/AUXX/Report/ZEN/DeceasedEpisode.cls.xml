@@ -1,0 +1,140 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.AUXX.Report.ZEN.DeceasedEpisode">
+<Super>Custom.AUXX.Report.ZEN.Abstract</Super>
+<TimeCreated>61572,63326.584416</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/AUXX/Report/ZEN/DeceasedEpisode.xml#1 $</Default>
+</Parameter>
+
+<UDLText name="T">
+<Content><![CDATA[
+// Report Name: Deceased Patients with Current Episodes <br>
+
+]]></Content>
+</UDLText>
+
+<UDLText name="T">
+<Content><![CDATA[
+// Report Code: AUXX.ATD0008 <br>
+
+]]></Content>
+</UDLText>
+
+<UDLText name="T">
+<Content><![CDATA[
+// LOGTRAK Number: 72142 <br>
+
+]]></Content>
+</UDLText>
+
+<Property name="Facility">
+<Type>%String</Type>
+<Parameter name="ZENURL" value="P1"/>
+</Property>
+
+<Property name="Specialty">
+<Type>%String</Type>
+<Parameter name="ZENURL" value="P2"/>
+</Property>
+
+<Property name="Ward">
+<Type>%String</Type>
+<Parameter name="ZENURL" value="P3"/>
+</Property>
+
+<XData name="ReportDefinition">
+<XMLNamespace>http://www.intersystems.com/zen/report/definition</XMLNamespace>
+<Data><![CDATA[
+<report xmlns='http://www.intersystems.com/zen/report/definition'
+   queryClass='Custom.AUXX.Report.ZEN.StoredProc.DeceasedEpisode' queryName='DeceasedEpisode' name='DeceasedEpisode' >
+  <parameter expression='..Facility'/>
+  <parameter expression='..Specialty'/>
+  <parameter expression='..Ward'/>
+  <attribute name='facility' expression='..GetHospListDesc(..Facility)'/>
+  <attribute name='specialty' expression='..GetSpecialtyListDesc(..Specialty)'/>
+  <attribute name='ward' expression='..GetWardListDesc(..Ward)'/>
+  <attribute name='ReportTitle' expression='$$$Text("@DeceasedPatientswithCurrentEpisodes@Deceased Patients with Current Episodes")'/>
+  <attribute name='timestamp' expression='$ZDATETIME($H, 2, 2)'/>  
+  <attribute name='username' expression='..Username'/>
+  
+  <group name="facility" breakOnField="HOSPDesc">
+ <attribute name="description" field="HOSPDesc" />
+   <aggregate name='TotalEpisodes' type='CUSTOM' field='PAADMADMNo' class='%ZEN.Report.Aggregate.CountDistinct'/>
+      <group name='Detail'>
+       <attribute fields='PAPMIName,PAPMIName2,PAPMIName3' name='PatientName' expression='..DisplayName(%val("PAPMIName"),%val("PAPMIName2"),%val("PAPMIName3"))'/>
+       <attribute field='PAPMINo' name='PAPMINo'/>
+       <attribute field='PAADMADMNo' name='PAADMADMNo'/>
+       <attribute field='PAPMIDOB' name='PAPMIDOB' expression='..DisplayDate(%val)'/>
+       <attribute field='PAPERDeceasedDate' name='PAPERDeceasedDate' expression='..DisplayDate(%val)'/>
+       <attribute field='PAPERDeceasedTime' name='PAPERDeceasedTime' expression='..DisplayTime(%val)'/>
+       <attribute field='wardcode' name='wardcode'/> 
+       <attribute field='CTPCPDesc' name='CTPCPDesc'/>
+       <attribute field='ctloccode' name='ctloccode'/>
+       <attribute field='PAADMType' name='PAADMType'/>
+       <attribute field='PAADMSubType' name='PAADMSubType'/>
+      </group> 
+ </group>
+ </report>
+]]></Data>
+</XData>
+
+<XData name="ReportDisplay">
+<XMLNamespace>http://www.intersystems.com/zen/report/display</XMLNamespace>
+<Data><![CDATA[
+<report xmlns='http://www.intersystems.com/zen/report/display'
+xmlns:auxxstyle='http://www.intersystems.com/zen/report/display/auxx/style'
+xmlns:auxx='http://www.intersystems.com/zen/report/display/auxx'
+  name='DeceasedEpisode'>
+  <document width= "#(..ReportWidth)#" height="#(..ReportHeight)#" marginLeft="#(..DocMarginLeft)#" marginRight="#(..DocMarginRight)#" 
+marginTop="#(..DocMarginTop)#" marginBottom="#(..DocMarginBottom)#" footerHeight="#(..DocFooterHeight)#" headerHeight="#(..DocHeaderHeight)#" 
+regionBeforeExtent="#(..DocHeaderHeight)#" regionAfterExtent="#(..DocFooterHeight)#">
+<auxxstyle:auxxgroupheader/>
+<auxxstyle:auxxgroupsummary/>
+<auxxstyle:auxxhospitalheader/>
+<auxxstyle:auxxpageheader/>
+<auxxstyle:auxxpagefooter/>
+<auxxstyle:auxxparameterheader/>
+<auxxstyle:auxxreporttitle/>
+<auxxstyle:auxxtablecolumn/>
+</document>
+<auxx:PageHeader pagetitle='@ReportTitle'/>
+<auxx:ReportFooter username='@username' timestamp='@timestamp'/>
+
+<body>
+<!-- REPORT HEADER -->
+<auxx:ReportHeader reporttitle='@ReportTitle'/>
+<auxx:ReportParameterHeader label='@Facility:@Facility:' field='@facility' xcondition="string-length(@facility)>0"/>
+<auxx:ReportParameterHeader label='@Specialty:@Specialty:' field='@specialty' xcondition="string-length(@specialty)>0"/>
+<auxx:ReportParameterHeader label='@Ward:@Ward:' field='@ward' xcondition="string-length(@ward)>0"/>
+
+<line pattern="solid" width="100%"/>
+<line pattern="empty" width="100%"></line> 
+<auxx:NoResults xcondition="not(facility)" />
+<group name='facility' pagebreak="true">
+<auxx:GroupHospitalHeader label="@Facility:@Facility:" field="@description" />
+<line pattern="empty" lineHeight="1mm" />
+     <table class='auxxtablecolumn' group='Detail'>
+        <item field='@PatientName' width="21%" caption="@PatientName@Patient Name" />
+        <item field='@PAPMINo' width="11%" caption='@URN@URN'/>
+        <item field='@PAADMADMNo' width="10%" caption='@EpisodeNo@Episode No'/>
+        <item field='@PAADMSubType' width="10%" caption='@EpisodeSubType@Episode SubType'/>
+        <item field='@PAPMIDOB' width="10%" caption="@DOB@DOB" />
+        <item field='@PAPERDeceasedDate' width="10%" caption='@DeceasedDate@Deceased Date'/>
+        
+        <item field='@wardcode' width="5%" caption='@Ward@Ward'/> 
+        <item field='@CTPCPDesc' width="17%" caption='@Clinician@Clinician'/> 
+        <item field='@ctloccode' width="6%" caption='@Specialty@Specialty'/>  
+     </table>
+<line pattern="empty" width="100%"></line> 
+	<auxx:GroupSummary label="@Totalnumberofepisodesfor@Total number of episodes for" group="@description" summaryvalue="TotalEpisodes" />
+</group>
+</body>
+</report>
+]]></Data>
+</XData>
+</Class>
+</Export>

@@ -1,0 +1,245 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.AUXX.Report.ZEN.StoredProc.AdmsBySource">
+<ProcedureBlock>0</ProcedureBlock>
+<Super>Report.Abstract</Super>
+<TimeCreated>60803,55644.843617</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/AUXX/Report/ZEN/StoredProc/AdmsBySource.xml#1 $</Default>
+</Parameter>
+
+<Method name="GetAdmissionsClose">
+<Final>0</Final>
+<ClassMethod>1</ClassMethod>
+<CodeMode>code</CodeMode>
+<FormalSpec>QHandle:%Library.Binary</FormalSpec>
+<Private>0</Private>
+<ReturnType>%Library.Status</ReturnType>
+<SqlProc>0</SqlProc>
+<Implementation><![CDATA[
+ // Clean up by purging the temporary node in ^CacheTemp global
+ New repid
+ Set repid=$li(QHandle,2)
+ 
+ //Start Monitor (if configured to capture stats)
+ i mon Do ..MonitorEnd(mon)
+ 
+ Kill ^CacheTemp("TRAK",repid)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="GetAdmissionsExecute">
+<ClassMethod>1</ClassMethod>
+<CodeMode>code</CodeMode>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,DateFrom:%Date,DateTo:%Date,Hospital:%String,AdmSource:%String]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+	
+ // Get reportid i.e. use $INCREMENT to add another node to ^CacheTemp global. 
+ // We use ^CacheTemp global because it will always use memory before disk
+ New repid,ind
+
+ // Use $Increment to get the next node
+ Set repid=$I(^CacheTemp("TRAK"))
+
+  //Start Monitor (if configured to capture stats)
+ s mon=..MonitorBegin()
+ 
+ // Build data into ^CacheTemp(ReportID)
+ // e.g. Set ^CacheTemp(ReportID,Index)=$LB(f1,f2,f3)
+ New Number,String,Date,Time,c,n
+ n PAADMRowId,PAADMADMNo,PAADMAdmDate,PAADMDischgDate,ADSOURowId,ADSOUCode,ADSOUDesc,IPATRowId,IPATCode,IPATDesc,HospRowId,HospCode,HOSPDesc,CTLOCRowId,CTLOCCode,CTLOCDesc,PAPMIDOB,PAPMIName,PAPMIName2,CTSEXCode,TRDCode,PAPMINo,PAADMAdmNo,CurrentWARD,AgeAdm,TRANSWARD,TRANSLOC
+ s (PAADMRowId,PAADMAdmNo,ADSOURowId,IPATRowId,HospRowId,CTLOCRowId)=0
+ s (PAADMADMNo,PAADMAdmDate,PAADMDischgDate,ADSOUCode,PAADMAdmNo,ADSOUDesc,IPATCode,IPATDesc,HospCode,HOSPDesc,CTLOCCode,CTLOCDesc,PAPMIDOB,PAPMIName,PAPMIName2,CTSEXCode,TRDCode,PAPMINo,CurrentWARD,AgeAdm,TRANSWARD,TRANSLOC)=""
+ s ind=1
+
+ // Strip white space/control chars from blank variables
+ i $g(Hospital)'="" s Hospital=$zstrip(Hospital,"*C")
+ i $g(AdmSource)'="" s AdmSource=$zstrip(AdmSource,"*C")
+
+ //Convert ODBC dates to cache format
+ s DateFrom=$$intdate^SSUTIL4(DateFrom)
+ s DateTo=$$intdate^SSUTIL4(DateTo)
+
+ &sql(declare GetAdmissions cursor for
+select
+		PAADM_RowId,
+		PAADM_ADMNo,
+		PAADM_AdmDate,
+		PAADM_DischgDate,
+		PAADM_AdmSrc_DR->ADSOU_RowId,
+		PAADM_AdmSrc_DR->ADSOU_Code,
+		PAADM_AdmSrc_DR->ADSOU_Desc,
+		PAADM_InPatAdmType_DR->IPAT_RowId,
+		PAADM_InPatAdmType_DR->IPAT_Code,
+		PAADM_InPatAdmType_DR->IPAT_Desc,
+		PAADM_CurrentWard_DR->WARD_LocationDR->CTLOC_Hospital_DR->Hosp_RowId,
+		PAADM_CurrentWard_DR->WARD_LocationDR->CTLOC_Hospital_DR->Hosp_Code,
+		PAADM_CurrentWard_DR->WARD_LocationDR->CTLOC_Hospital_DR->Hosp_Desc,
+		PAADM_DepCode_DR->CTLOC_RowId,
+		PAADM_DepCode_DR->CTLOC_Code,
+		PAADM_DepCode_DR->CTLOC_Desc,
+		PAPMI_DOB,
+		PAPMI_Name, 
+		PAPMI_Name2,
+		PAPMI_SEX_dR->CTSEX_Code, 
+		PAADM_MainMRADM_DR->MRADM_TransDest2_DR->TRD_Code,
+		PAPMI_No,
+		PAADM_AdmNo,
+		PAADM_CurrentWard_DR->WARD_Code AS CurrentWARD,
+		ROUND((paadm_admdate-papmi_dob)/365.04,0,1)
+		FROM	sqluser.PA_Adm, sqluser.PA_PatMas
+ WHERE	PAADM_PAPMI_DR=PAPMI_RowId
+and  paadm_type = 'I' 
+and  paadm_visitstatus in ('A', 'D')
+and PAADM_AdmDate between :DateFrom and :DateTo
+ AND (({fn CONCAT( ',', {fn CONCAT((:Hospital),',')})} [ {fn CONCAT( ',', {fn CONCAT((PAADM_CurrentWard_DR->WARD_LocationDR->CTLOC_Hospital_DR->HOSP_RowId),',')})}) OR (:Hospital IS NULL))
+ AND (({fn CONCAT( ',', {fn CONCAT((:AdmSource),',')})} [ {fn CONCAT( ',', {fn CONCAT((paadm_admsrc_dr->ADSOU_RowId),',')})}) OR (:AdmSource IS NULL))
+)
+ &sql(open GetAdmissions)
+
+
+ //fetch first row
+ &sql(fetch GetAdmissions into :PAADMRowId,:PAADMADMNo,:PAADMAdmDate,:PAADMDischgDate,:ADSOURowId,:ADSOUCode,:ADSOUDesc,:IPATRowId,:IPATCode,:IPATDesc,:HospRowId,:HospCode,:HOSPDesc,:CTLOCRowId,:CTLOCCode,:CTLOCDesc,:PAPMIDOB,:PAPMIName,:PAPMIName2,:CTSEXCode,:TRDCode,:PAPMINo,:PAADMAdmNo,:CurrentWARD,:AgeAdm)
+
+ while 'SQLCODE{
+ d GetAdmWard
+ d GetAdmLoc 
+ d FormatDates
+ i ADSOUDesc="" s ADSOUDesc="Not Recorded"
+ 
+  // build the row
+ Set ^CacheTemp("TRAK",repid,HOSPDesc_" "_ADSOUDesc_" "_PAADMAdmDate_" "_PAPMINo_ind)=$LB(PAADMRowId,PAADMADMNo,PAADMAdmDate,PAADMDischgDate,ADSOURowId,ADSOUCode,ADSOUDesc,IPATRowId,IPATCode,IPATDesc,HospRowId,HospCode,HOSPDesc,CTLOCRowId,CTLOCCode,CTLOCDesc,PAPMIDOB,PAPMIName,PAPMIName2,CTSEXCode,TRDCode,PAPMINo,PAADMAdmNo,CurrentWARD,AgeAdm,TRANSWARD,TRANSLOC)
+ s ind=ind+1
+ //fetch rows
+ &sql(fetch GetAdmissions into :PAADMRowId,:PAADMADMNo,:PAADMAdmDate,:PAADMDischgDate,:ADSOURowId,:ADSOUCode,:ADSOUDesc,:IPATRowId,:IPATCode,:IPATDesc,:HospRowId,:HospCode,:HOSPDesc,:CTLOCRowId,:CTLOCCode,:CTLOCDesc,:PAPMIDOB,:PAPMIName,:PAPMIName2,:CTSEXCode,:TRDCode,:PAPMINo,:PAADMAdmNo,:CurrentWARD,:AgeAdm)
+ }
+
+ //s ^zBernard("3")=(3)
+ &sql(close GetAdmissions)
+
+ // Build QHandle (AtEnd,ReportID,Index)
+ Set QHandle=$lb(0,repid,0)
+
+ Quit $$$OK
+ 
+GetAdmWard
+ Set (TRANSWARD) = ""
+
+ &sql(SELECT
+	TRANS_WARD_dr->WARD_Code
+	INTO :TRANSWARD
+	FROM SQLUser.PA_AdmTransaction
+	WHERE	TRANS_ParRef=:PAADMRowId and TRANS_TransType_DR->TRANSTYP_Code='M' and
+	TRANS_Ward_DR is not null
+	order by TRANS_StartDate, TRANS_StartTime	 	  	      			
+)
+ Quit
+
+GetAdmLoc
+ Set (TRANSLOC) = ""
+
+ &sql(SELECT
+	TRANS_CTLOC_dr->CTLOC_Code
+	INTO :TRANSLOC
+	FROM SQLUser.PA_AdmTransaction
+	WHERE	TRANS_ParRef=:PAADMRowId and TRANS_TransType_DR->TRANSTYP_Code='T' and
+	TRANS_CTLOC_DR is not null
+	order by TRANS_StartDate, TRANS_StartTime	 	  	      			
+)
+ Quit
+
+FormatDates
+ // Convert the dates to ODBC date format
+ If PAADMAdmDate Set PAADMAdmDate=..ConvertDateToODBC(PAADMAdmDate)
+ If PAADMDischgDate Set PAADMDischgDate=..ConvertDateToODBC(PAADMDischgDate)
+ If PAPMIDOB Set PAPMIDOB=..ConvertDateToODBC(PAPMIDOB)
+ Quit
+]]></Implementation>
+</Method>
+
+<Method name="GetAdmissionsFetch">
+<Final>0</Final>
+<ClassMethod>1</ClassMethod>
+<CodeMode>code</CodeMode>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,&Row:%Library.List,&AtEnd:%Library.Integer=0]]></FormalSpec>
+<Private>0</Private>
+<ReturnType>%Library.Status</ReturnType>
+<SqlProc>0</SqlProc>
+<Implementation><![CDATA[
+ // This fetch method should never have to change. 
+
+ // repid - Report ID
+ // ind   - sequence index which represents each row
+
+ New repid,ind
+
+ // Restore QHandle
+ Set AtEnd=$li(QHandle,1)
+ Set repid=$li(QHandle,2)
+ Set ind=$li(QHandle,3)
+
+ Set ind=$o(^CacheTemp("TRAK",repid,ind))
+ If ind="" {	// if there are no more rows, finish fetching
+ Set AtEnd=1
+ Set Row=""
+ }
+ Else      {	// fetch row
+ Set Row=^CacheTemp("TRAK",repid,ind)
+ }
+
+ // Save QHandle
+ s QHandle=$lb(AtEnd,repid,ind)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Query name="GetAdmissions">
+<Type>%Library.Query</Type>
+<FormalSpec>DateFrom:%Date,DateTo:%Date,Hospital:%String,AdmSource:%String</FormalSpec>
+<SqlProc>1</SqlProc>
+<Parameter name="CONTAINID" value="0"/>
+<Parameter name="ROWSPEC" value="PAADMRowId:%String,PAADMADMNo:%String(MAXLEN=255),PAADMAdmDate:%Date,PAADMDischgDate:%Date,ADSOURowId:%Integer,ADSOUCode:%String(MAXLEN=255),ADSOUDesc:%String(MAXLEN=255),IPATRowId:%Integer,IPATCode:%String(MAXLEN=255),IPATDesc:%String(MAXLEN=255),HospRowId:%Integer,HospCode:%String(MAXLEN=255),HOSPDesc:%String(MAXLEN=255),CTLOCRowId:%Integer,CTLOCCode:%String(MAXLEN=255),CTLOCDesc:%String(MAXLEN=255),PAPMIDOB:%Date,PAPMIName:%String(MAXLEN=255),PAPMIName2:%String(MAXLEN=255),CTSEXCode:%String,TRDCode:%String(MAXLEN=255),PAPMINo:%String(MAXLEN=255),PAADMAdmNo:%String,CurrentWARD:%String(MAXLEN=255),AgeAdm:%String,TRANSWARD:%String(MAXLEN=255),TRANSLOC:%String(MAXLEN=255)"/>
+</Query>
+
+<Query name="LookUpADSOU">
+<Type>%Library.SQLQuery</Type>
+<FormalSpec>var:%String</FormalSpec>
+<SqlQuery><![CDATA[SELECT ADSOU_Desc,ADSOU_RowId,ADSOU_Code
+FROM SQLUser.PAC_AdmSource
+WHERE ((%UPPER ADSOU_Desc %STARTSWITH %UPPER :var) OR (%UPPER ADSOU_Code %STARTSWITH %UPPER :var))
+AND ((ADSOU_DateFrom <= current_Date) OR (ADSOU_DateFrom IS NULL))
+AND ((ADSOU_DateTo >= current_date) OR (aDSOU_DateTo IS NULL)
+)]]></SqlQuery>
+<Parameter name="CONTAINID" value="2"/>
+<Parameter name="ROWSPEC" value="Description:%String,HIDDEN:%String,Code:%String"/>
+</Query>
+
+<Method name="LookUpADSOUBroker">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>itmjs:%Library.String="",itmjsex:%Library.String="",var:%Library.String=""</FormalSpec>
+<Implementation><![CDATA[
+ n id,code,desc
+ s (id,code,desc)=""
+ &SQL(SELECT DISTINCT
+ ADSOU_Desc,ADSOU_RowId,ADSOU_Code
+ INTO :desc,:id,:code
+ FROM  SQLUser.PAC_AdmSource
+ WHERE ((%ALPHAUP ADSOU_Desc = %ALPHAUP :var) OR (%ALPHAUP ADSOU_Code = %ALPHAUP :var))
+ AND ((ADSOU_DateFrom <= current_Date) OR (ADSOU_DateFrom IS NULL))
+ AND ((ADSOU_DateTo >= current_date) OR (ADSOU_DateTo IS NULL))
+ )
+ ;
+ i SQLCODE s desc=var q 0
+ s retval=itmjs_"('"_$ZCVT(desc,"O","JS")_"');"
+ i itmjsex'="""" s retval=retval_itmjsex_"('"_$ZCVT(desc,"O","JS")_"^"_id_"^"_$ZCVT(code,"O","JS")_"');"
+ &javascript<#(retval)#>
+ q 1
+]]></Implementation>
+</Method>
+</Class>
+</Export>

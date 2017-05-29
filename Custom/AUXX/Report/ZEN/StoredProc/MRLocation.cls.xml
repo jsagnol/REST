@@ -1,0 +1,195 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.AUXX.Report.ZEN.StoredProc.MRLocation">
+<ProcedureBlock>0</ProcedureBlock>
+<Super>Report.Abstract</Super>
+<TimeCreated>61017,51204.964063</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/AUXX/Report/ZEN/StoredProc/MRLocation.xml#1 $</Default>
+</Parameter>
+
+<UDLText name="T">
+<Content><![CDATA[
+// Report Name: AUXX Medical Records by Location <br>
+
+]]></Content>
+</UDLText>
+
+<UDLText name="T">
+<Content><![CDATA[
+// Report Code: AUXX.MED0005
+
+]]></Content>
+</UDLText>
+
+<Method name="MRLocationClose">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>QHandle:%Library.Binary</FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Clean up by purging the temporary node in ^CacheTemp global
+ New repid
+ Set repid=$li(QHandle,2)
+ 
+ //Close Monitor (if configured to capture stats)
+ i mon Do ..MonitorEnd(mon)
+ 
+ Kill ^CacheTemp("TRAK",repid)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="MRLocationExecute">
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,DateFrom:%Date,DateTo:%Date,Hospital:%String,Location:%String]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+	
+ // Get reportid i.e. use $INCREMENT to add another node to ^CacheTemp global. 
+ // We use ^CacheTemp global because it will always use memory before disk
+ New repid,ind
+
+ // Use $Increment to get the next node
+ Set repid=$I(^CacheTemp("TRAK"))
+
+ //Start Monitor (if configured to capture stats)
+ s mon=..MonitorBegin()
+ 
+ // Build data into ^CacheTemp(ReportID)
+ // e.g. Set ^CacheTemp(ReportID,Index)=$LB(f1,f2,f3)
+ New Number,String,Date,Time,c,n
+ n PAPMINo,TerminalDigit,PAPMIName,PAPMIName2,PAPMIName3,CTLOCDesc,CTLOCCode,RTMAVDateArrived,HOSPDesc,HOSPRowId,CTLOCRowID,RTMAVVolDesc,RTMVTDate,RTMVTTime,RTMVTComments,RTMASMRNO,TYPDesc,TYPRowId,TYPCode,RTMAVRowId,DateTime
+ s (HOSPRowId,CTLOCRowID,TYPRowId)=0
+ s (PAPMINo,TerminalDigit,PAPMIName,PAPMIName2,PAPMIName3,CTLOCDesc,CTLOCCode,RTMAVDateArrived,HOSPDesc,RTMAVVolDesc,RTMVTDate,RTMVTTime,RTMVTComments,RTMASMRNO,TYPDesc,TYPCode,RTMAVRowId,DateTime)=""
+
+ s ind=1
+ 
+ // Strip white space/control chars from blank variables
+ i $g(Hospital)'="" s Hospital=$ZSTRIP(Hospital,"*WC")
+ i $g(Location)'="" s Location=$ZSTRIP(Location,"*WC")
+
+  //Convert ODBC dates to cache format
+ s DateFrom=..ConvertDateToCache(DateFrom)
+ s DateTo=..ConvertDateToCache(DateTo)
+
+ &sql(declare MRLocation cursor for
+ SELECT
+	RTMVT_RTMAV_ParRef->RTMAV_RTMAS_ParRef->RTMAS_PatNo_DR->PAPMI_No, 
+	{fn RIGHT(RTMVT_RTMAV_ParRef->RTMAV_RTMAS_ParRef->RTMAS_PatNo_DR->PAPMI_No,2)},
+	RTMVT_RTMAV_ParRef->RTMAV_RTMAS_ParRef->RTMAS_PatNo_DR->PAPMI_Name, 
+	RTMVT_RTMAV_ParRef->RTMAV_RTMAS_ParRef->RTMAS_PatNo_DR->PAPMI_Name2, 
+	RTMVT_RTMAV_ParRef->RTMAV_RTMAS_ParRef->RTMAS_PatNo_DR->PAPMI_Name3, 
+	RTMVT_RTMAV_ParRef->RTMAV_CurrentLoc_DR->CTLOC_Desc, 
+	RTMVT_RTMAV_ParRef->RTMAV_CurrentLoc_DR->CTLOC_Code, 
+	RTMVT_RTMAV_ParRef->RTMAV_DateArrived, 
+	RTMVT_RTMAV_ParRef->RTMAV_CurrentLoc_DR->CTLOC_Hospital_DR->HOSP_Desc, 
+	RTMVT_RTMAV_ParRef->RTMAV_CurrentLoc_DR->CTLOC_Hospital_DR, 
+	RTMVT_RTMAV_ParRef->RTMAV_CurrentLoc_DR->CTLOC_RowID, 
+	RTMVT_RTMAV_ParRef->RTMAV_VolDesc, 
+	RTMVT_Date,
+	RTMVT_Time,
+	RTMVT_Comments,
+	RTMVT_RTMAV_ParRef->RTMAV_RTMAS_ParRef->RTMAS_MRNo,
+	RTMVT_RTMAV_ParRef->RTMAV_RTMAS_ParRef->RTMAS_MRType_DR->TYP_Desc,
+	RTMVT_RTMAV_ParRef->RTMAV_RTMAS_ParRef->RTMAS_MRType_DR->TYP_RowId,
+	RTMVT_RTMAV_ParRef->RTMAV_RTMAS_ParRef->RTMAS_MRType_DR->TYP_Code,	
+	RTMVT_RTMAV_ParRef->RTMAV_RowId,
+	RTMVT_LocFrom_DR->CTLOC_Desc,
+	RTMVT_LocTo_DR->CTLOC_Desc 
+ FROM SQLUser.RT_MVTrans
+ WHERE 
+ RTMVT_Date BETWEEN :DateFrom and :DateTo 
+ AND RTMVT_RTMAV_ParRef->RTMAV_ActiveFlag='Y' 
+ AND (({fn CONCAT( ',', {fn CONCAT((:Hospital),',')})} [ {fn CONCAT( ',', {fn CONCAT((RTMVT_RTMAV_ParRef->RTMAV_CurrentLoc_DR->CTLOC_Hospital_DR->HOSP_RowId),',')})}) OR (:Hospital IS NULL))
+ AND (({fn CONCAT( ',', {fn CONCAT((:Location),',')})} [ {fn CONCAT( ',', {fn CONCAT((RTMVT_RTMAV_ParRef->RTMAV_CurrentLoc_DR->CTLOC_RowId),',')})}) OR (:Location IS NULL)))
+ 
+ &sql(open MRLocation)
+
+ //fetch first row
+ &sql(fetch MRLocation into :PAPMINo,:TerminalDigit,:PAPMIName,:PAPMIName2,:PAPMIName3,:CTLOCDesc,:CTLOCCode,:RTMAVDateArrived,:HOSPDesc,:HOSPRowId,:CTLOCRowID,:RTMAVVolDesc,:RTMVTDate,:RTMVTTime,:RTMVTComments,:RTMASMRNO,:TYPDesc,:TYPRowId,:TYPCode,:RTMAVRowId,:FromLoc, :ToLoc)
+
+ while 'SQLCODE{
+ d FormatDates
+ d FormatTimes
+ s DateTime=(RTMVTDate_" "_RTMVTTime)
+ 
+ //strip ctrl characters
+  ;s RTMVTComments=$zstrip(RTMVTComments,"*C")
+ set RTMVTComments=##class(websys.Conversions).ListLogicalToHtml(RTMVTComments) 
+
+ // build the row
+ Set ^CacheTemp("TRAK",repid,$ZCVT(HOSPDesc,"U")_" "_$ZCVT(CTLOCDesc,"U")_" "_TerminalDigit_" "_PAPMINo_" "_$ZCVT(RTMAVVolDesc,"U")_" "_ind)=$LB(PAPMINo,TerminalDigit,PAPMIName,PAPMIName2,PAPMIName3,CTLOCDesc,CTLOCCode,RTMAVDateArrived,HOSPDesc,HOSPRowId,CTLOCRowID,RTMAVVolDesc,RTMVTDate,RTMVTTime,RTMVTComments,RTMASMRNO,TYPDesc,TYPRowId,TYPCode,RTMAVRowId,DateTime,FromLoc,ToLoc)
+ s ind=ind+1
+ //fetch rows
+ &sql(fetch MRLocation into :PAPMINo,:TerminalDigit,:PAPMIName,:PAPMIName2,:PAPMIName3,:CTLOCDesc,:CTLOCCode,:RTMAVDateArrived,:HOSPDesc,:HOSPRowId,:CTLOCRowID,:RTMAVVolDesc,:RTMVTDate,:RTMVTTime,:RTMVTComments,:RTMASMRNO,:TYPDesc,:TYPRowId,:TYPCode,:RTMAVRowId,:FromLoc,:ToLoc)
+ }
+
+ &sql(close MRLocation)
+
+ // Build QHandle (AtEnd,ReportID,Index)
+ Set QHandle=$lb(0,repid,0)
+
+ Quit $$$OK
+
+
+FormatDates
+ // Convert the dates to ODBC date format
+ If RTMAVDateArrived Set RTMAVDateArrived=..ConvertDateToODBC(RTMAVDateArrived)
+ If RTMVTDate Set RTMVTDate=..ConvertDateToODBC(RTMVTDate)
+ Quit
+
+FormatTimes
+ // Convert the times to ODBC time format
+ If RTMVTTime Set RTMVTTime=..ConvertTimeToODBC(RTMVTTime)
+ Quit
+]]></Implementation>
+</Method>
+
+<Method name="MRLocationFetch">
+<Description>
+This is the Fetch component of the %Library.Query. 
+This should never have to change. It is designed to fetch the row for each subscript of the ^CacheTemp
+global and return this row to the Crystal Report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,&Row:%Library.List,&AtEnd:%Library.Integer=0]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // This fetch method should never have to change. 
+
+ // repid - Report ID
+ // ind   - sequence index which represents each row
+
+ New repid,ind
+
+ // Restore QHandle
+ Set AtEnd=$li(QHandle,1)
+ Set repid=$li(QHandle,2)
+ Set ind=$li(QHandle,3)
+
+ Set ind=$o(^CacheTemp("TRAK",repid,ind))
+ If ind="" {	// if there are no more rows, finish fetching
+ Set AtEnd=1
+ Set Row=""
+ }
+ Else      {	// fetch row
+ Set Row=^CacheTemp("TRAK",repid,ind)
+ }
+
+ // Save QHandle
+ s QHandle=$lb(AtEnd,repid,ind)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Query name="MRLocation">
+<Type>%Library.Query</Type>
+<FormalSpec>DateFrom:%Date,DateTo:%Date,Hospital:%String,Location:%String</FormalSpec>
+<SqlProc>1</SqlProc>
+<Parameter name="CONTAINID" value="0"/>
+<Parameter name="ROWSPEC" value="PAPMINo:%String(MAXLEN=255),TerminalDigit:%String(MAXLEN=255),PAPMIName:%String(MAXLEN=255),PAPMIName2:%String(MAXLEN=255),PAPMIName3:%String(MAXLEN=255),CTLOCDesc:%String(MAXLEN=255),CTLOCCode:%String(MAXLEN=255),RTMAVDateArrived:%Date,HOSPDesc:%String(MAXLEN=255),HOSPRowId:%Integer,CTLOCRowID:%Integer,RTMAVVolDesc:%String(MAXLEN=255),RTMVTDate:%Date,RTMVTTime:%String(MAXLEN=255),RTMVTComments:%String(MAXLEN=255),RTMASMRNO:%String,TYPDesc:%String,TYPRowId:%Integer,TYPCode:%String,RTMAVRowId:%Integer,DateTime:%String,FromLoc:%String,ToLoc:%String"/>
+</Query>
+</Class>
+</Export>

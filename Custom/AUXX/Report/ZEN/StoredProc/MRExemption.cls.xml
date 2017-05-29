@@ -1,0 +1,250 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.AUXX.Report.ZEN.StoredProc.MRExemption">
+<ProcedureBlock>0</ProcedureBlock>
+<Super>Report.Abstract</Super>
+<TimeCreated>61017,52907.544935</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/AUXX/Report/ZEN/StoredProc/MRExemption.xml#1 $</Default>
+</Parameter>
+
+<UDLText name="T">
+<Content><![CDATA[
+// Report Name: AUXX Medical Records Location Exemption <br>
+
+]]></Content>
+</UDLText>
+
+<UDLText name="T">
+<Content><![CDATA[
+// Report Code: AUXX.MED0001 <br>
+
+]]></Content>
+</UDLText>
+
+<Method name="MRExemptionClose">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>QHandle:%Library.Binary</FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Clean up by purging the temporary node in ^CacheTemp global
+ New repid
+ Set repid=$li(QHandle,2)
+ 
+ //Close Monitor (if configured to capture stats)
+ i mon Do ..MonitorEnd(mon)
+ 
+ Kill ^CacheTemp("TRAK",repid)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="MRExemptionExecute">
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,DateFrom:%Date,DateTo:%Date,Hospital:%String,Location:%String]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+	
+ // Get reportid i.e. use $INCREMENT to add another node to ^CacheTemp global. 
+ // We use ^CacheTemp global because it will always use memory before disk
+ New repid,ind
+
+ // Use $Increment to get the next node
+ Set repid=$I(^CacheTemp("TRAK"))
+ 
+ //Start Monitor (if configured to capture stats)
+ set mon=..MonitorBegin()
+ 
+ i $g(Hospital)'="" s Hospital=$zstrip(Hospital,"*WC")
+ i $g(Location)'="" s Location=$zstrip(Location,"*WC")
+
+ // Build data into ^CacheTemp(ReportID)
+ // e.g. Set ^CacheTemp(ReportID,Index)=$LB(f1,f2,f3)
+ new Number,String,Date,Time,c,n,END,NEXT
+ new SESSDesc,RESCTLOCCode,RESDesc,RTREQDate,PAPMIName,PAPMINo,PAPMIName2,PAPMIName3,RTREQRowId,RTMAVDateArrived,CurrentLocCode,RESCTLOCId,RESCTLOCDesc,CurrentLocDesc,ReqLocCode,ReqLocDesc,APPTStatus,HOSPRowId,HOSPDesc,RTMAVVolDesc,PAPMIRowId,WARDCode,TerminalDigit,SESSTypeDesc,ClinicLoc,Room
+ new ReqLocDR,MRNoDR,ApptDR,APPTASParRef
+ set (RESCTLOCId,HOSPRowId,PAPMIRowId)=0
+ set (SESSDesc,RESCTLOCCode,RESDesc,RTREQDate,PAPMIName,PAPMINo,PAPMIName2,PAPMIName3,RTREQRowId,RTMAVDateArrived,CurrentLocCode,RESCTLOCDesc,CurrentLocDesc,ReqLocCode,ReqLocDesc,APPTStatus,HOSPDesc,RTMAVVolDesc,WARDCode,TerminalDigit,SESSTypeDesc,ClinicLoc,Room)=""
+ set (ReqLocDR,MRNoDR,ApptDR,APPTASParRef)=""
+ set (END,NEXT)=0
+ set ind=1
+
+  //Convert ODBC dates to cache format
+ s DateFrom=..ConvertDateToCache(DateFrom)
+ s DateTo=..ConvertDateToCache(DateTo)
+  
+ &sql(declare RTReq cursor for
+ SELECT 
+ 	RTREQ_RowId,
+ 	RTREQ_Date,
+ 	RTREQ_Appt_DR->APPT_Status,
+	RTREQ_Appt_DR->APPT_AS_ParRef,  	
+	RTREQ_MRNo_DR, 
+	RTREQ_ReqLoc_DR,  
+  	RTREQ_ReqLoc_DR->CTLOC_Code, 
+  	RTREQ_ReqLoc_DR->CTLOC_Desc, 
+  	RTREQ_ReqLoc_DR->CTLOC_Hospital_DR->HOSP_RowId,
+  	RTREQ_ReqLoc_DR->CTLOC_Hospital_DR->HOSP_Desc
+ FROM SQLUser.RT_Request 
+ WHERE RTREQ_Appt_DR->APPT_Status='P'
+ AND RTREQ_Date between :DateFrom and :DateTo 
+ AND (({fn CONCAT( ',', {fn CONCAT((:Hospital),',')})} [ {fn CONCAT( ',', {fn CONCAT((RTREQ_ReqLoc_DR->CTLOC_Hospital_DR->HOSP_RowId),',')})}) OR (:Hospital IS NULL))
+)
+ &sql(open RTReq)
+
+ //fetch first row
+ &sql(fetch RTReq into :RTREQRowId,:RTREQDate,:APPTStatus,:APPTASParRef,:MRNoDR,:ReqLocDR,:ReqLocCode,:ReqLocDesc,:HOSPRowId,:HOSPDesc)
+ if SQLCODE set END=1
+ if 'END do GetRec
+
+ while 'END{	
+	if 'NEXT {
+		 // build the row
+		 do FormatDates		 
+		 ;do GetCurrentWard
+		 do GetSessionInfo
+		 Set ^CacheTemp("TRAK",repid,$ZCVT(HOSPDesc,"U")_" "_$ZCVT(RESCTLOCDesc,"U")_" "_$ZCVT(Clinic2,"U")_" "_$ZCVT(RESDesc,"U")_" "_$ZCVT(CurrentLocDesc,"U")_" "_TerminalDigit_" "_PAPMINo_ind)=$LB(SESSDesc,RESCTLOCCode,RESDesc,RTREQDate,PAPMIName,PAPMINo,PAPMIName2,PAPMIName3,RTREQRowId,RTMAVDateArrived,CurrentLocCode,RESCTLOCId,RESCTLOCDesc,CurrentLocDesc,ReqLocCode,ReqLocDesc,APPTStatus,HOSPRowId,HOSPDesc,RTMAVVolDesc,PAPMIRowId,WARDCode,TerminalDigit,Clinic2,PAPMIRowId)
+		 s ind=ind+1
+	} 
+	set NEXT=0 	
+ 	//fetch rows
+ 	&sql(fetch RTReq into :RTREQRowId,:RTREQDate,:APPTStatus,:APPTASParRef,:MRNoDR,:ReqLocDR,:ReqLocCode,:ReqLocDesc,:HOSPRowId,:HOSPDesc)
+ 	if SQLCODE set END=1
+	do GetRec
+ }
+
+ &sql(close RTReq)
+
+ // Build QHandle (AtEnd,ReportID,Index)
+ Set QHandle=$lb(0,repid,0)
+
+ Quit $$$OK
+
+GetRec
+ set NEXT=0
+  &sql(SELECT 
+ 	AS_RBEffDateSession_DR->SESS_Desc,
+	RES_CTLOC_DR->CTLOC_Code,
+ 	RES_Desc,
+ 	PAPMI_Name,
+ 	PAPMI_No,
+ 	PAPMI_Name2,
+ 	PAPMI_Name3,
+ 	RTREV_MasVol_DR->RTMAV_DateArrived,
+ 	RTREV_MasVol_DR->RTMAV_CurrentLoc_DR->CTLOC_Code,
+ 	RES_CTLOC_DR->CTLOC_RowId,
+ 	RES_CTLOC_DR->CTLOC_Desc,
+ 	RTREV_MasVol_DR->RTMAV_CurrentLoc_DR->CTLOC_Desc,
+ 	RTREV_MasVol_DR->RTMAV_VolDesc,
+ 	PAPMI_RowId,
+ 	{fn RIGHT(PAPMI_No,2)},
+ 	AS_RBEffDateSession_DR->SESS_SessionType_DR->SESS_Desc,
+	AS_RBEffDateSession_DR->SESS_Clinic_DR->CTLOC_Desc,
+	AS_RBEffDateSession_DR->SESS_Room_DR->CTLOC_Desc
+ INTO :SESSDesc,:RESCTLOCCode,:RESDesc,:PAPMIName,:PAPMINo,:PAPMIName2,:PAPMIName3,
+ 		:RTMAVDateArrived,:CurrentLocCode,:RESCTLOCId,:RESCTLOCDesc,:CurrentLocDesc,
+ 		:RTMAVVolDesc,:PAPMIRowId,:TerminalDigit,:SESSTypeDesc, :ClinicLoc, :Room
+ FROM SQLUser.RT_ReqVol, SQLUser.RB_Resource, 
+ 		SQLUser.RB_ApptSchedule, SQLUser.PA_Patmas, SQLUser.RT_Master
+ WHERE RTREV_RTREQ_ParRef=:RTREQRowId
+ AND (({fn CONCAT( ',', {fn CONCAT((:Location),',')})} [ {fn CONCAT( ',', {fn CONCAT((RES_CTLOC_DR->CTLOC_RowId),',')})}) OR (:Location IS NULL))
+ AND RTREV_RTREQ_ParRef=RTREV_RTREQ_ParRef  
+ AND RTMAS_RowId=:MRNoDR 
+ AND RTMAS_PatNo_DR=PAPMI_RowId  
+ AND RES_RowId=AS_RES_ParRef  
+ AND AS_RowId = :APPTASParRef 
+ AND RTREV_MasVol_DR->RTMAV_CurrentLoc_DR != :ReqLocDR  
+ AND RTREV_MasVol_DR->RTMAV_ActiveFlag='Y')
+ 
+ if SQLCODE set NEXT=1
+ quit
+
+FormatDates
+ // Convert the dates to ODBC date format
+ If RTREQDate Set RTREQDate=..ConvertDateToODBC(RTREQDate)
+ If RTMAVDateArrived Set RTMAVDateArrived=..ConvertDateToODBC(RTMAVDateArrived)
+ Quit
+
+GetCurrentWard
+ s WARDCode=##class(Report.MRExemption).GetCurrentWard(PAPMIRowId) 
+ Quit
+ 
+GetSessionInfo
+ set Clinic=SESSTypeDesc 
+ if Clinic '="" {
+	 if SESSDesc '="" {set Clinic=Clinic_" / "_SESSDesc}}
+	else  {set Clinic=SESSDesc} 
+ set Clinic1=ClinicLoc 
+ if Clinic1 '="" {
+	 if Room '="" {set Clinic1=Clinic1_" / "_Room}}
+ 	else  {set Clinic1=Room}
+ set Clinic2=Clinic
+ if Clinic2 '="" {if Clinic1 '="" {set Clinic2=Clinic2_" / "_Clinic1}}
+	else  {set Clinic2=Clinic1}
+]]></Implementation>
+</Method>
+
+<Method name="MRExemptionFetch">
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,&Row:%Library.List,&AtEnd:%Library.Integer=0]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // This fetch method should never have to change. 
+
+ // repid - Report ID
+ // ind   - sequence index which represents each row
+
+ New repid,ind
+
+ // Restore QHandle
+ Set AtEnd=$li(QHandle,1)
+ Set repid=$li(QHandle,2)
+ Set ind=$li(QHandle,3)
+
+ Set ind=$o(^CacheTemp("TRAK",repid,ind))
+ If ind="" {	// if there are no more rows, finish fetching
+ Set AtEnd=1
+ Set Row=""
+ }
+ Else      {	// fetch row
+ Set Row=^CacheTemp("TRAK",repid,ind)
+ }
+
+ // Save QHandle
+ s QHandle=$lb(AtEnd,repid,ind)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Query name="MRExemption">
+<Type>%Library.Query</Type>
+<FormalSpec>DateFrom:%Date,DateTo:%Date,Hospital:%String,Location:%String</FormalSpec>
+<SqlProc>1</SqlProc>
+<Parameter name="CONTAINID" value="0"/>
+<Parameter name="ROWSPEC" value="SESSDesc:%String(MAXLEN=255),RESCTLOCCode:%String(MAXLEN=255),RESDesc:%String(MAXLEN=255),RTREQDate:%Date,PAPMIName:%String(MAXLEN=255),PAPMINo:%String(MAXLEN=255),PAPMIName2:%String(MAXLEN=255),PAPMIName3:%String(MAXLEN=255),RTREQRowId:%String(MAXLEN=255),RTMAVDateArrived:%Date,CurrentLocCode:%String(MAXLEN=255),RESCTLOCId:%Integer,RESCTLOCDesc:%String(MAXLEN=255),CurrentLocDesc:%String(MAXLEN=255),ReqLocCode:%String(MAXLEN=255),ReqLocDesc:%String(MAXLEN=255),APPTStatus:%String(MAXLEN=255),HOSPRowId:%Integer,HOSPDesc:%String(MAXLEN=255),RTMAVVolDesc:%String(MAXLEN=255),PAPMIRowId:%Integer,WARDCode:%String,TerminalDigit:%String,Clinic2:%String,PAPMIRowId:%String"/>
+</Query>
+
+<Method name="GetCurrentWard">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>PAPMIRowId:%Integer</FormalSpec>
+<ReturnType>%Integer</ReturnType>
+<Implementation><![CDATA[
+	New CurrentWard
+	Set CurrentWard=""
+	
+	&sql(SELECT
+	PAADM_CurrentWard_DR->WARD_Code
+	INTO :CurrentWard
+	FROM SQLUser.PA_Adm
+	WHERE PAADM_PAPMI_DR=:PAPMIRowId 
+	AND PAADM_Type='I'  
+	AND PAADM_visitstatus='A')
+	
+	quit CurrentWard
+]]></Implementation>
+</Method>
+</Class>
+</Export>

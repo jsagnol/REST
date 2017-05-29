@@ -1,0 +1,198 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.SWARH.Report.RptSvc.StoredProc.SWARHRATD1065">
+<Description><![CDATA[
+<pre>
+***************************************************************************************************************************************
+* Report Code:(SWARH Std report naming convention)
+* Report Description:(Detailed report description)
+* Menu Caption:(Menu caption as appears in TRAK)
+* Initial Release:(Date)	Developer:(Fred Bloggs)
+* Modified:(Include date, developer and description)
+***************************************************************************************************************************************
+</pre>]]></Description>
+<ProcedureBlock>0</ProcedureBlock>
+<Super>Custom.SWARH.Report.RptSvc.StoredProc.Abstract</Super>
+<TimeCreated>60905,54849</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/SWARH/Report/RptSvc/StoredProc/Templates/SWARHReportTemplate.xml#1 $</Default>
+</Parameter>
+
+<Method name="ClassReportCodeExecute">
+<Description>
+This is the Execute section for the %Library.Query. 
+All of the logic will be performed here.
+A new node for the ^CacheTemp global will be created and each subscript of this global will contain
+a row for the report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,Hospital:%Integer,DateFrom:%Date,DateTo:%Date]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Get reportid i.e. use $INCREMENT to add another node to ^CacheTemp global. 
+ // We use ^CacheTemp global because it will always use memory before disk
+ New repid,ind
+
+ // Use $Increment to get the next node
+ Set repid=$INCREMENT(^CacheTemp(..#CACHETEMPSUBSCRIPT))
+ 
+ New PAADMRowId,URNo,EpisodeNo,Surname,GivenName,OtherGivenName,AdmDate,AdmTime,DischgDate,DischgTime,Address,Address2,City,PostCode
+
+ Set (URNo,EpisodeNo,Surname,GivenName,OtherGivenName,AdmDate,AdmTime,DischgDate,DischgTime,Address,Address2,City,PostCode)=""
+ Set (PAADMRowId)=0
+ 
+ Set ind=1, END=0
+
+ //Start Monitor (if configured to capture stats)
+ Set mon=..MonitorBegin()
+
+ //Convert ODBC dates to cache format
+ Set DateFrom=..ConvertDateToCache(DateFrom)
+ Set DateTo=..ConvertDateToCache(DateTo)
+ 
+ &SQL(DECLARE ClassReportCode CURSOR FOR
+ 	SELECT
+		adm.PAADM_RowId AS PAADMRowId
+        ,adm.PAADM_PAPMI_DR->PAPMI_No AS URNo
+        ,adm.PAADM_AdmNo AS EpisodeNo
+        ,adm.PAADM_PAPMI_DR->PAPMI_Name AS Surname
+        ,adm.PAADM_PAPMI_DR->PAPMI_Name2 AS GivenName
+        ,adm.PAADM_PAPMI_DR->PAPMI_Name3 AS OtherGivenName
+        ,adm.PAADM_AdmDate AS AdmDate
+        ,adm.PAADM_AdmTime AS AdmTime
+        ,adm.PAADM_DischgDate AS DischgDate
+        ,adm.PAADM_DischgTime AS DischgTime
+        ,adm.PAADM_PAPMI_DR->PAPMI_PAPER_DR->PAPER_StName AS Address
+        ,adm.PAADM_PAPMI_DR->PAPMI_PAPER_DR->PAPER_ForeignAddress AS Address2
+        ,adm.PAADM_PAPMI_DR->PAPMI_PAPER_DR->PAPER_CityCode_DR->CTCIT_Desc AS City
+        ,adm.PAADM_PAPMI_DR->PAPMI_PAPER_DR->PAPER_Zip_DR->CTZIP_Code AS PostCode
+    FROM
+	 	SQLUser.PA_Adm adm
+	WHERE
+	 	adm.PAADM_Hospital_DR = :Hospital
+	AND
+        adm.PAADM_DischgDate BETWEEN :DateFrom AND :DateTo	 
+    AND
+        adm.PAADM_Type = 'I' -- Inpatient
+	AND
+        adm.PAADM_VisitStatus = 'D'	-- Discharged
+	)
+	 	
+ &SQL(OPEN ClassReportCode)
+ 
+ //FETCH FIRST ROW
+ Do FetchRow
+  
+ While END=0 {
+  
+	 Do FormatDates
+  	 Do FormatTimes
+  	 Do FormatStrings
+  	 
+	 Set sort = ind	
+ 
+	 Set ^CacheTemp(..#CACHETEMPSUBSCRIPT,repid,sort)=$LISTBUILD(PAADMRowId,URNo,EpisodeNo,Surname,GivenName,OtherGivenName,AdmDate,AdmTime,DischgDate,DischgTime,Address,Address2,City,PostCode)
+	 Set ind=ind+1
+ 
+	 //fetch rows
+	 Do FetchRow
+ }
+
+ &SQL(CLOSE ClassReportCode)
+ 
+ // Build QHandle (AtEnd,ReportID,Index)
+ Set QHandle=$listbuild(0,repid,0)
+
+ Quit $$$OK
+
+FetchRow
+ &sql(FETCH ClassReportCode INTO :PAADMRowId,:URNo,:EpisodeNo,:Surname,:GivenName,:OtherGivenName,:AdmDate,:AdmTime,:DischgDate,:DischgTime,:Address,:Address2,:City,:PostCode)
+ If SQLCODE '= 0 Set END = 1
+ Quit
+ 
+FormatDates
+ Set AdmDate=..ConvertDateToODBC(AdmDate)
+ Set DischgDate=..ConvertDateToODBC(DischgDate)
+ Quit
+ 
+FormatTimes //Be sure to set fields in Query output as '%String' then format Reporting Services field as Time.
+ Set AdmTime=..ConvertTimeToHHMM(AdmTime) 
+ Set DischgTime=..ConvertTimeToHHMM(DischgTime)
+ Quit
+ 
+FormatStrings
+ Set Address=$ZSTRIP(Address,"*C") //Removes control characters (0-31,127-159)
+ Set Address=$ZSTRIP(Address,"*",$CHAR(34,35,39,44,46)) //Removes 34-Quotes,35-Hash,39-Single quote,44-Comma,46-Period
+ Set Address=$ZCONVERT(Address,"U") //Converts to Uppercase
+ Set Address2=$ZSTRIP(Address2,"*C")
+ Set Address2=$ZSTRIP(Address2,"*",$CHAR(34,35,39,44,46))
+ Set Address2=$ZCONVERT(Address2,"U")
+ Quit
+]]></Implementation>
+</Method>
+
+<Method name="ClassReportCodeFetch">
+<Description>
+This is the Fetch component of the %Library.Query. 
+This should never have to change. It is designed to fetch the row for each subscript of the ^CacheTemp
+global and return this row to the Crystal Report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,&Row:%Library.List,&AtEnd:%Library.Integer=0]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // This fetch method should never have to change. 
+ // repid - Report ID
+ // ind   - sequence index which represents each row
+
+ New repid,ind
+
+ // Restore QHandle
+ Set AtEnd=$LIST(QHandle,1)
+ Set repid=$LIST(QHandle,2)
+ Set ind=$LIST(QHandle,3)
+
+ Set ind=$ORDER(^CacheTemp(..#CACHETEMPSUBSCRIPT,repid,ind))
+ If ind="" {	// if there are no more rows, finish fetching
+	 Set AtEnd=1
+	 Set Row=""
+ }
+ Else      {	// fetch row
+ 	Set Row=^CacheTemp(..#CACHETEMPSUBSCRIPT,repid,ind)
+ }
+
+ // Save QHandle
+ Set QHandle=$LISTBUILD(AtEnd,repid,ind)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="ClassReportCodeClose">
+<Description>
+This is the Close component of the %Library.Query.
+This is standard code and should never have to change.
+This is where all the cleanup is performed, i.e. the purging of the temporary storage global ^CacheTemp.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>QHandle:%Library.Binary</FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Clean up by purging the temporary node in ^CacheTemp global
+ New repid,ind
+ Set repid=$LIST(QHandle,2)
+
+ Kill ^CacheTemp(..#CACHETEMPSUBSCRIPT,repid)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Query name="ClassReportCode">
+<Type>%Library.Query</Type>
+<FormalSpec>Hospital:%Integer,DateFrom:%Date,DateTo:%Date</FormalSpec>
+<SqlProc>1</SqlProc>
+<Parameter name="CONTAINID" value="0"/>
+<Parameter name="ROWSPEC" value="PAADMRowId:%Integer,URNo:%String,EpisodeNo:%String,Surname:%String,GivenName:%String,OtherGivenName:%String,AdmDate:%Date,AdmTime:%String,DischgDate:%Date,DischgTime:%String,Address:%String,Address2:%String,City:%String,PostCode:%String"/>
+<Parameter name="SELECTMODE" value="ODBC"/>
+</Query>
+</Class>
+</Export>

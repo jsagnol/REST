@@ -1,0 +1,175 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.VINAHMSG">
+<SqlTableName>VINAHMSG</SqlTableName>
+<Super>%Persistent</Super>
+<TimeCreated>62731,49249.426975</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/VINAHMSG.xml#1 $</Default>
+</Parameter>
+
+<Property name="MSGVINAHParRef">
+<Type>Custom.VINAH</Type>
+<Cardinality>parent</Cardinality>
+<Inverse>ChildVINAHMSG</Inverse>
+<Relationship>1</Relationship>
+<Required>1</Required>
+<SqlFieldName>MSG_VINAH_ParRef</SqlFieldName>
+</Property>
+
+<Property name="MSGType">
+<Type>%String</Type>
+<SqlFieldName>MSG_Type</SqlFieldName>
+</Property>
+
+<Index name="MSGTypeIndex">
+<Properties>MSGType</Properties>
+</Index>
+
+<Property name="MSGMessageId">
+<Type>%String</Type>
+<SqlFieldName>MSG_MessageId</SqlFieldName>
+<Parameter name="MAXLEN" value="220"/>
+</Property>
+
+<Index name="MSGMessageIdIndex">
+<Properties>MSGMessageId</Properties>
+</Index>
+
+<Property name="MSGSentFilename">
+<Type>%String</Type>
+<SqlFieldName>MSG_SentFilename</SqlFieldName>
+<Parameter name="MAXLEN" value="220"/>
+</Property>
+
+<Index name="MSGSentFilenameIndex">
+<Properties>MSGSentFilename</Properties>
+</Index>
+
+<Method name="ResetBatch">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>filename:%String</FormalSpec>
+<ReturnType>%Status</ReturnType>
+<Implementation><![CDATA[
+	q:filename="" 0
+	&SQL(DECLARE BATCH CURSOR FOR
+	SELECT
+	MSG_VINAH_ParRef
+	INTO :id
+	FROM Custom.VINAHMSG
+	WHERE MSG_SentFilename=:filename)
+	&SQL(OPEN BATCH)
+ 	&SQL(FETCH BATCH)
+	while 'SQLCODE {
+		s obj=##class(Custom.VINAH).%OpenId(id)
+		i obj {
+			i obj.VINAHCreateSent=1 s obj.VINAHCreateSent=0
+			i obj.VINAHUpdateSent=1 s obj.VINAHUpdateSent=0
+			i obj.VINAHDeleteSent=1 s obj.VINAHDeleteSent=0
+			i obj.VINAHMergeSent=1 s obj.VINAHMergeSent=0
+			s save=obj.%Save()
+			i 'save w !,$system.OBJ.DisplayError(save)
+			d obj.%Close()
+		}
+ 		&SQL(FETCH BATCH)
+	}
+	&SQL(CLOSE BATCH)
+	; Remove sent reference
+	i $p(filename,".",2)'="hl7" s filename=filename_".hl7"
+	&SQL(DELETE FROM SQLUser.PA_ISDExtract WHERE ISD_Type=:filename)
+
+	q save
+]]></Implementation>
+</Method>
+
+<Method name="Populate">
+<ClassMethod>1</ClassMethod>
+<ReturnType>%Status</ReturnType>
+<Implementation><![CDATA[
+	k ^Custom.VINAHC
+	s id=0 f  s id=$o(^Custom.VINAHD(id)) q:id=""  d
+	. k ^Custom.VINAHD(id,"ChildVINAHMSG")
+
+	w !,"Adding Client Message Data..."
+	s msg=0 f  s msg=$o(^PAPERi("VINAH","MSG",msg)) q:msg=""  d
+	. s type=0 f  s type=$o(^PAPERi("VINAH","MSG",msg,type)) q:type=""  d
+	. . s patid=0 f  s patid=$o(^PAPERi("VINAH","MSG",msg,type,patid)) q:patid=""  d
+	. . . s vinid=0 f  s vinid=$o(^Custom.VINAHI("VINAHPAPMIDRIndex",patid,vinid)) q:vinid=""  d
+	. . . . s objmsg=##class(Custom.VINAHMSG).%New(vinid)
+	. . . . i objmsg d
+	. . . . . d objmsg.MSGVINAHParRefSetObjectId(vinid)
+	. . . . . s objmsg.MSGSentFilename=$p(msg,"B")
+	. . . . . s objmsg.MSGMessageId=msg
+	. . . . . s objmsg.MSGType=type
+	. . . . . s save=objmsg.%Save(0)
+	. . . . . i 'save w !,$system.OBJ.DisplayError(save)
+	. . . . . d objmsg.%Close()
+	
+	w !,"Adding Episode/Referral Message Data..."
+	s msg=0 f  s msg=$o(^PAADMi("VINAH","MSG",msg)) q:msg=""  d
+	. s type=0 f  s type=$o(^PAADMi("VINAH","MSG",msg,type)) q:type=""  d
+	. . s admid=0 f  s admid=$o(^PAADMi("VINAH","MSG",msg,type,admid)) q:admid=""  d
+	. . . s vinid=0 f  s vinid=$o(^Custom.VINAHI("VINAHPAADMDRIndex",admid,vinid)) q:vinid=""  d
+	. . . . s objmsg=##class(Custom.VINAHMSG).%New(vinid)
+	. . . . i objmsg d
+	. . . . . d objmsg.MSGVINAHParRefSetObjectId(vinid)
+	. . . . . s objmsg.MSGSentFilename=$p(msg,"B")
+	. . . . . s objmsg.MSGMessageId=msg
+	. . . . . s objmsg.MSGType=type
+	. . . . . s save=objmsg.%Save(0)
+	. . . . . i 'save w !,$system.OBJ.DisplayError(save)
+	. . . . . d objmsg.%Close()
+	
+	w !,"Adding Contact Message Data..."
+	s msg=0 f  s msg=$o(^RBAS(0,"VINAH","MSG",msg)) q:msg=""  d
+	. s type=0 f  s type=$o(^RBAS(0,"VINAH","MSG",msg,type)) q:type=""  d
+	. . s apptid=0 f  s apptid=$o(^RBAS(0,"VINAH","MSG",msg,type,apptid)) q:apptid=""  d
+	. . . s vinid=0 f  s vinid=$o(^Custom.VINAHI("VINAHAPPTDRIndex",apptid,vinid)) q:vinid=""  d
+	. . . . s objmsg=##class(Custom.VINAHMSG).%New(vinid)
+	. . . . i objmsg d
+	. . . . . d objmsg.MSGVINAHParRefSetObjectId(vinid)
+	. . . . . s objmsg.MSGSentFilename=$p(msg,"B")
+	. . . . . s objmsg.MSGMessageId=msg
+	. . . . . s objmsg.MSGType=type
+	. . . . . s save=objmsg.%Save(0)
+	. . . . . i 'save w !,$system.OBJ.DisplayError(save)
+	. . . . . d objmsg.%Close()
+	
+	q $$$OK
+]]></Implementation>
+</Method>
+
+<Storage name="Default">
+<Type>%Library.CacheStorage</Type>
+<DataLocation>{%%PARENT}("ChildVINAHMSG")</DataLocation>
+<DefaultData>VINAHMSGDefaultData</DefaultData>
+<IdLocation>^Custom.VINAHC("ChildVINAHMSG")</IdLocation>
+<IndexLocation>^Custom.VINAHMSGI</IndexLocation>
+<StreamLocation>^Custom.VINAHMSGS</StreamLocation>
+<ExtentSize>100000</ExtentSize>
+<Data name="VINAHMSGDefaultData">
+<Value name="1">
+<Value>%%CLASSNAME</Value>
+</Value>
+<Value name="2">
+<Value>MSGSentFilename</Value>
+</Value>
+<Value name="3">
+<Value>MSGType</Value>
+</Value>
+<Value name="4">
+<Value>MSGMessageId</Value>
+</Value>
+</Data>
+<Property name="%%CLASSNAME"/>
+<Property name="MSGMessageId"/>
+<Property name="MSGSentFilename"/>
+<Property name="MSGType"/>
+<Property name="MSGVINAHParRef"/>
+<Property name="childsub"/>
+</Storage>
+</Class>
+</Export>

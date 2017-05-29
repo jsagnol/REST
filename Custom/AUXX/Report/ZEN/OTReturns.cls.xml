@@ -1,0 +1,129 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.AUXX.Report.ZEN.OTReturns">
+<Super>Custom.AUXX.Report.ZEN.Abstract</Super>
+<TimeCreated>61543,54550.041409</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/AUXX/Report/ZEN/OTReturns.xml#1 $</Default>
+</Parameter>
+
+<UDLText name="T">
+<Content><![CDATA[
+// Report Name: AUXX Return to OT <br>
+
+]]></Content>
+</UDLText>
+
+<UDLText name="T">
+<Content><![CDATA[
+// Report Code: AUXX.OPT0003 <br>
+
+]]></Content>
+</UDLText>
+
+<Property name="DateFrom">
+<Type>%String</Type>
+<Parameter name="ZENURL" value="P1"/>
+</Property>
+
+<Property name="DateTo">
+<Type>%String</Type>
+<Parameter name="ZENURL" value="P2"/>
+</Property>
+
+<Property name="Facility">
+<Type>%String</Type>
+<Parameter name="ZENURL" value="P3"/>
+</Property>
+
+<XData name="ReportDefinition">
+<XMLNamespace>http://www.intersystems.com/zen/report/definition</XMLNamespace>
+<Data><![CDATA[
+<report xmlns='http://www.intersystems.com/zen/report/definition'
+   queryClass='Custom.AUXX.Report.ZEN.StoredProc.OTReturns' queryName='GetPatients' name='OTReturns'>
+  <parameter expression='..DateFrom'/>
+  <parameter expression='..DateTo'/>
+  <parameter expression='..Facility'/>
+  <attribute name='ReportTitle' expression='$$$Text("@ReturntoOT@Return to OT")'/>
+  <attribute name='timestamp' expression='$ZDATETIME($H, 2, 2)'/>
+  <attribute name='username' expression='..Username'/>
+  <attribute name='facility' expression="..GetHospListDesc(..Facility)"/>
+  <attribute name="datefrom" expression="..DisplayDate(..DateFrom)"/>
+  <attribute name="dateto" expression="..DisplayDate(..DateTo)"/>
+  
+  <group name="facility" breakOnField="HOSPDesc">
+  <attribute name="description" field="HOSPDesc" />
+        <aggregate name='TotalReturns' type='CUSTOM' field='ANAOPRowID' class='%ZEN.Report.Aggregate.CountDistinct'/>
+           <group name='Detail'>
+            <attribute field='ANAOPRowID' name='ANAOPRowID'/>
+            <attribute field='PAPMINo' name='PAPMINo'/>
+	    	<attribute fields='PAPERName,PAPERName2,PAPERName3' name='PatientName' expression='..DisplayName(%val("PAPERName"),%val("PAPERName2"),%val("PAPERName3"))'/>
+            <attribute field='PAPERDOB' name='PAPERDOB' expression='..DisplayDate(%val)'/>  	    
+            <attribute field='FullSurgeonName' name='FullSurgeonName'/>
+            <attribute field='FirstOperationDate' name='FirstOperationDate' expression='..DisplayDate(%val)'/>
+            <attribute field='ANAOPOpStartDate' name='ANAOPOpStartDate' expression='..DisplayDate(%val)'/>
+            <attribute field='RBOPReasonReturn' name='RBOPReasonReturn'/>
+              </group>
+           </group>
+        </report>
+]]></Data>
+</XData>
+
+<XData name="ReportDisplay">
+<XMLNamespace>http://www.intersystems.com/zen/report/display</XMLNamespace>
+<Data><![CDATA[
+<report xmlns='http://www.intersystems.com/zen/report/display'
+xmlns:auxxstyle='http://www.intersystems.com/zen/report/display/auxx/style'
+xmlns:auxx='http://www.intersystems.com/zen/report/display/auxx'
+  name='OTReturns'>
+<document width= "#(..ReportWidth)#" height="#(..ReportHeight)#" marginLeft="#(..DocMarginLeft)#" marginRight="#(..DocMarginRight)#" 
+marginTop="#(..DocMarginTop)#" marginBottom="#(..DocMarginBottom)#" footerHeight="#(..DocFooterHeight)#" headerHeight="#(..DocHeaderHeight)#" 
+regionBeforeExtent="#(..DocHeaderHeight)#" regionAfterExtent="#(..DocFooterHeight)#" >
+<auxxstyle:auxxgroupheader/>
+<auxxstyle:auxxgroupsummary/>
+<auxxstyle:auxxhospitalheader/>
+<auxxstyle:auxxpagefooter/>
+<auxxstyle:auxxpageheader/>
+<auxxstyle:auxxparameterheader/>
+<auxxstyle:auxxreporttitle/>
+<auxxstyle:auxxtablecolumn/>
+</document>
+<auxx:PageHeader pagetitle='@ReportTitle'/>
+<auxx:ReportFooter username='@username' timestamp='@timestamp'/>
+
+<body>
+<!-- REPORT HEADER -->
+<auxx:ReportHeader reporttitle='@ReportTitle'/>
+<auxx:ReportParameterHeader label='@Facility:@Facility:' field='@facility' class="auxxparameterheader" xcondition="string-length(@facility)>0"/>
+<auxx:ReportDateHeader datefrom="@datefrom" dateto="@dateto" class="auxxparameterheader"/>
+<line pattern="solid" width="100%"/>
+<line pattern="empty" width="100%"></line> 
+
+<!-- No Results -->
+<auxx:NoResults xcondition="not(facility)" />
+
+<group name='facility' pagebreak="true">
+ <auxx:GroupHospitalHeader label="@Facility:@Facility:" field="@description"/>
+<line pattern="empty" lineHeight="1mm" />
+     <table class='auxxtablecolumn' group='Detail' >
+        <item field='@PAPMINo' width="13%" caption='@URN@URN'/>
+        <item field='@PatientName' width="18%" caption="@Name@Name" />
+        <item field='@PAPERDOB' width="13%" caption="@PAPERDOB@DOB" />
+        <item field='@FullSurgeonName' width="16%" caption='@Surgeon@Surgeon'/> 
+        <item field='@FirstOperationDate' width="12%" caption='@DateofFirstProcedure@Date of First Procedure'/> 
+        <item field='@ANAOPOpStartDate' width="10%" caption='@DateofReturntoOT@Date of Return to OT'/>
+        <item field='@RBOPReasonReturn' width="18%" caption='@ReasonforReturn@Reason for Return'/>
+        </table>
+<line pattern="empty" width="100%"></line> 
+	<auxx:GroupSummary label="@TotalReturnstoOTfor@Total Returns to OT for" group="@description" summaryvalue="TotalReturns" />
+	<line pattern="empty" lineHeight="4mm" />
+   </group>
+</body>
+</report>
+]]></Data>
+</XData>
+</Class>
+</Export>

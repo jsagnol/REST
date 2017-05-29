@@ -1,0 +1,539 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.SWARH.JS.PAEnquiryContact.Edit">
+<Description>
+Component JavaScript for: PAEnquiryContact.Edit</Description>
+<Modified>0</Modified>
+<Super>websys.AbstractJavaScript</Super>
+<TimeCreated>63503,40902.63564</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+This Parameter is updated by Perforce</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/SWARH/JS/PAEnquiryContact/Edit.xml#1 $</Default>
+</Parameter>
+
+<Method name="JSContent">
+<Description>
+ </Description>
+<Language>javascript</Language>
+<ClientMethod>1</ClientMethod>
+<Implementation><![CDATA[
+/*********************************************************************
+$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/SWARH/JS/PAEnquiryContact/Edit.xml#1 $
+Version 1
+
+- General custom field validation for paenquirycontact.edit component
+
+REMEMBER to update the versions with initials, date and description for each modification...
+IF		28/11/2011			- TRC91741 Created for AUXX to restrict fields on INSTCode2 field against the payor
+IF		19/07/2012			- Disable questionnaire link if not completed
+FD		02/08/2012			- Do not clear field when disabled
+FD		04/10/2012			- TRC 574 - Fill the STO Number with QDC Sto value
+IF		06/11/2012			- INCIDENT 1171 - Updated validations on ENQInsTypeDR to resolve predictive text issue
+IF		05/12/2012			- INCIDENT 1762 - Updated validations on ENQInsTypeDR
+FD		17/12/2012			- TRC 133116 - T2010-R2.0 Casual Contact - Contact Sex not auto-populated
+IF		09/09/2013			- TRC158254 changed validation to ENQConsultCategDR instead of ENQInsTypeDR
+IF		09/01/2014			- TRC158254 report Health Promotion all the time now
+IF		15/05/2014			- TRC175154 disable payor triggers if program field ENQGovernDepart) is configured on layout
+BS 		10/11/2014			- TRC184610 Make VINAH reporting fields required when program selected is VINAH
+BS 		13/03/2015			- TRC?????? Make VINAH reporting fields required when program selected is VINAH - again
+
+
+**********************************************************************/
+
+websys_removeListener("load","onload",BodyLoadHandler);
+websys_addListener("load","onload",CustomBodyLoadHandler);
+
+function CustomBodyLoadHandler() {
+	//Call core script
+	BodyLoadHandler();
+	DisableFieldsOnLoad("");
+	
+	CustomENQGovernDepartHandler();
+	var obj=document.getElementById('ENQGovernDepart');
+	if ((obj)&&(obj.value!="")) {
+		obj.onkeydown=CustomENQGovernDepartValidation;
+		obj.onkeyup=CustomENQGovernDepartValidation;
+		obj.onkeypress=CustomENQGovernDepartValidation;
+		obj.onchange=CustomENQGovernDepartValidation;
+	} else {
+		CustomENQInsTypeDRHandler();
+		
+		var obj=document.getElementById('ENQInsTypeDR');
+		if ((obj)&&(obj.value!="")) {
+			obj.onkeydown=CustomInsTypeValidation;
+			obj.onkeyup=CustomInsTypeValidation;
+			obj.onkeypress=CustomInsTypeValidation;
+			obj.onchange=CustomInsTypeValidation;
+		}
+	}
+	var obj=document.getElementById('update1');
+	if (obj) obj.onclick=CustomUpdateClickHandler;
+	if (tsc['update1']) websys_sckeys[tsc['update1']]=CustomUpdateClickHandler;
+	
+	var obj=document.getElementById('apply1');
+	if (obj) obj.onclick=CustomApplyClickHandler;
+	if (tsc['update1']) websys_sckeys[tsc['apply1']]=CustomApplyClickHandler;
+	
+	var timeobj=document.getElementById('ENQEstimMins');
+	if (timeobj) timeobj.onblur=timechange;
+	
+	var ques=document.getElementById('QuestionnaireID');
+	if ((ques)&&(ques.value!='')) {
+		var str = ques.value.split('|');
+		if (str.length==1) DisableField('QuestionnaireLink');
+	}
+	
+	//TRC 133116 - Default Gender
+	var objContactType=document.getElementById("ENQRequestTypeDR");
+	if (objContactType) {
+		objContactType.onblur=ChangeGender;		
+	}	
+	ChangeGender();
+}
+
+function CustomInsTypeValidation(e){
+	var type=websys_getType(e);
+    var key=websys_getKey(e);
+	
+	CustomENQInsTypeDRHandler();
+	
+	//alert(type+' '+key);
+	if ((type=='click')||((type=='keydown')&&(key==117))) ENQInsTypeDR_lookuphandler(e);
+	if (type=='blur') ENQInsTypeDR_lookuphandler(e);
+	if (type=="keyup") ENQInsTypeDR_onkeyuphandler(e);
+	if (type=="keypress") ENQInsTypeDR_onkeypresshandler(e);
+	if (type=="change") ENQInsTypeDR_changehandler(e);
+}
+
+function CustomUpdateClickHandler() {
+	obj=document.getElementById("cENQContMethodDR");
+	if ((obj)&&(obj.className=="clsRequired")&&(document.getElementById("ENQContMethodDR").value=="")) {
+		websys_setfocus2("ENQContMethodDR")
+		alert("'Contact Method' is a required field but has not been entered");
+	} else {
+		if (PAEC.updateCheck()) 
+			UpdateClickHandler();
+	}
+}
+
+function CustomApplyClickHandler() {
+	obj=document.getElementById("cENQContMethodDR");
+	if ((obj)&&(obj.className=="clsRequired")&&(document.getElementById("ENQContMethodDR").value=="")) {
+		websys_setfocus2("ENQContMethodDR")
+		alert("'Contact Method' is a required field but has not been entered");
+	} else {
+		ApplyClickHandler();
+	}
+}
+
+function DisableFieldsOnLoad(exclude) {
+	str="ENQContWorkerTypeDR,ENQContVenueDR,PresIssue,PresIssueList,ServRec,ServRecList,ReferTo,ReferToList,ServProv,ServProvList,ENQCityAreaDR,ENQContOutcomeDR,ENQContInterpreterTypeDR,ENQText1,ENQText2,ENQText3,ENQText4,ENQYesNo2,ENQYesNo3,ENQYesNo4,CONTDELMODEDesc,CONTDELSETDesc,CONTCLNPRSTDesc,CONTSESSTYPEDesc,ENQInpatientFlag,ENQInterpreterRequired,CareProvGrp,DeleteCareProvGr,CareProvGrpList"
+	//ENQSourceofReferralDR,ENQContLocalGoalDR,LocalPriority,ENQConsultCategDR  removed from being disabled
+	var arrstr = str.split(",");
+	
+	for (var j=0;j<arrstr.length;j++) {
+		if ((exclude.indexOf(arrstr[j])==-1)&&(exclude!="")) {
+			//FD 02/08/2012 - Do not clear the field when it's gray
+			DisableField(arrstr[j],1);
+		} else if (exclude=="") {
+			//FD 02/08/2012 - Do not clear the field when it's gray
+			DisableField(arrstr[j],1);
+		}
+	}
+	labelNormal("ENQContMethodDR");
+}
+
+function DisableField(fldName,NoClear) {
+    var fld = document.getElementById(fldName);
+    var lbl = document.getElementById('c'+fldName);
+    if (fld) {
+        if ((fld.tagName=="TEXTAREA")||(fld.tagName=="INPUT")||(fld.tagName=="SELECT")) {
+            if ((fld.type!="button")&&(fld.type!="checkbox")&&(!NoClear)) fld.value = "";
+            if ((fld.type=="checkbox")&&(!NoClear)) fld.checked=false;
+            fld.disabled = true;
+            if (fld.type!="button") fld.className = "disabledField";
+            if (fld.type=="button") {fld.className = "clsButtonDisabled";DisableShortcutKey(fld);}
+            if (lbl) lbl.className = "";
+        }
+        // ab 22.04.08 - disable links
+        if (fld.tagName=="A") {
+            fld.disabled=true;
+            fld.className='DisabledLink'
+            fld.onclick=LinkDisable;
+            DisableShortcutKey(fld);
+        }
+        
+        //do not add this yet as there is no correct toggling for EnableHRT and DisableHRT
+        //so anyone who consciously need to en/disable HRT would need to consider the side effects
+        //if ((fld.tagName=="IFRAME")&&(document.getElementById(fldname+'_ToolbarContainer'))) DisableHRT(el);
+    }
+}
+
+function EnableField(fldName) {
+    var fld = document.getElementById(fldName);
+    var lbl = document.getElementById('c'+fldName);
+    if (fld) {
+        fld.disabled = false;
+        if (fld.type!="button") fld.className = "";
+        if (fld.type=="button") fld.className = "clsButton";
+    }
+}
+
+// Disable the onclick for a disable link - lnk.onclick=LinkDisable;
+function LinkDisable(evt) {
+    var el = websys_getSrcElement(evt);
+    if (el.isDisabled) { 
+        return false;
+    }
+    return true;
+}
+
+function DisableShortcutKey(fldobj) {
+    try{
+        if (tsc[fldobj.id]) {
+            var sckey=tsc[fldobj.id]
+            if ((!fldobj.getAttribute("sckeyaction"))&&(websys_sckeys[sckey])) fldobj.setAttribute("sckeyaction",websys_sckeys[sckey]);
+            websys_sckeys[sckey]=DoNotAllow;
+        }
+    }catch(err){}
+}
+
+function CustomENQInsTypeDRHandler() {
+	var obj=document.getElementById('ENQGovernDepart');
+	if (!obj) {
+
+		var cat=document.getElementById('ENQConsultCategDR');
+		var obj=document.getElementById('ENQInsTypeDR');
+		if ((obj)&&(obj.value!="")&&(cat)&&(cat.value=="")) {
+			var code=tkMakeServerCall("Custom.AUXXUtilities","GetINSTCode2FromPayorCode",obj.value);
+			//alert(code);
+			if (code=="IRIS") {
+				EnableField("ENQCityAreaDR");
+				EnableField("ENQContOutcomeDR");
+				EnableField("ENQContInterpreterTypeDR");
+				EnableField("ENQContVenueDR");
+				DisableFieldsOnLoad("ENQCityAreaDR,ENQContOutcomeDR,ENQContVenueDR,ENQContInterpreterTypeDR");
+			} else if (code=="QDC") {
+				EnableField("ENQText1");
+				DisableFieldsOnLoad("ENQText1");
+				//TRC 574
+				var obj=document.getElementById('EpisodeID');
+	            if (obj) {
+					var sto=tkMakeServerCall("Custom.AUXXUtilities","GetSTO",obj.value);
+					var text1obj=document.getElementById("ENQText1");
+					if(text1obj)
+					{
+						if (text1obj.value=="")  text1obj.value=sto;
+					}
+				}
+				
+			} else if (code=="PHMPR") {
+				//EnableField("ENQSourceofReferralDR");
+				//EnableField("ENQContLocalGoalDR");
+				//EnableField("LocalPriority");
+				//EnableField("ENQConsultCategDR");
+				//DisableFieldsOnLoad("ENQSourceofReferralDR,ENQContLocalGoalDR,LocalPriority,ENQConsultCategDR");
+			} else if (code=="ADIS") {
+				EnableField("ENQContWorkerTypeDR");
+				EnableField("ENQContVenueDR");
+				EnableField("PresIssue");
+				EnableField("PresIssueList");
+				EnableField("ServRec");
+				EnableField("ServRecList");
+				EnableField("ReferTo");
+				EnableField("ReferToList");
+				EnableField("ServProv");
+				EnableField("ServProvList");
+				DisableFieldsOnLoad("ENQContWorkerTypeDR,ENQContVenueDR,PresIssue,PresIssueList,ServRec,ServRecList,ReferTo,ReferToList,ServProv,ServProvList");
+			} else if (code=="NRCP") {
+				EnableField("ENQText2");
+				EnableField("ENQText3");
+				EnableField("ENQText4");
+				EnableField("ENQYesNo2");
+				EnableField("ENQYesNo3");
+				EnableField("ENQYesNo4");
+				EnableField("ENQContOutcomeDR");
+				DisableFieldsOnLoad("ENQText2,ENQText3,ENQText4,ENQYesNo2,ENQYesNo3,ENQYesNo4,ENQContOutcomeDR");
+			//  12/04/2013 - Add fields for VINAH	
+			} else if (code=="VINAH") {	
+				EnableField("ENQContLocalGoalDR");
+				EnableField("LocalPriority");
+				DisableFieldsOnLoad("ENQContLocalGoalDR,LocalPriority");
+			// FD - 02/08/2012 - Each Field on the right should be disabled		
+			} else if (code=="HACC") {
+				DisableFieldsOnLoad("");
+				labelMandatory("ENQContMethodDR");			
+			}else {
+				DisableFieldsOnLoad("");
+			}
+		}
+	}
+}
+function ENQInsTypeDR_openlookup(Predictive) {
+        var url='websys.lookup.csp';
+        url += '?ID=d1404iENQInsTypeDR&CONTEXT=Kweb.ARCInsuranceType:LookUp&CONTEXT2='+session['CONTEXT']+'&TLUDESC='+escape(t['ENQInsTypeDR']);
+        url += "&TLUJSF=CustomENQInsTypeDRHandler";
+        
+        var obj=document.getElementById('ENQInsTypeDR');
+      if (obj) {
+          var objval=obj.value;
+          if (obj.getAttribute("tDirty")==0) objval="";
+          url += "&P1=" + websys_escape(objval);
+      }
+        var obj=document.getElementById('ENQInsTypeDR');
+        if (obj) obj.setAttribute('LU','1');
+      websys_LookupOverlay(tkOverlayMethod,url,"cmp_PAEnquiryContact_Edit","ENQInsTypeDR",Predictive)
+        return websys_cancel();
+}
+
+
+function timechange() { 
+  if (timeobj.value!="" && !(isNaN(timeobj.value))) {
+    timeobj.value=(Math.ceil(parseInt(timeobj.value)/5)*5);
+  }
+  return;
+}
+
+//TRC 133116 - Default Gender
+function ChangeGender (){	
+	var obj=document.getElementById('ENQRequestTypeDR');
+	if (obj) 
+	{
+		value=obj.value;	
+		if ((value=="CHP Organisation Client")||(value.toUpperCase()=="O")) {
+			var objGender=document.getElementById("ENQSexDR");
+			objGender.value="Not stated/ Inadequately described";		
+			return;		
+		}
+	}		
+}
+function ENQRequestTypeDR_lookupsel(value) {
+    try {
+        var obj=document.getElementById('ENQRequestTypeDR');
+        if (obj) {
+            obj.value=unescape(value);
+            if (obj.readOnly) {obj.className='clsReadOnly'} else {obj.className=''}
+			if (doneInit) websys_nexttab('13',obj.form);
+            obj.setAttribute('LU','0');       
+			ChangeGender();
+		}
+		
+    } catch(e) {};
+
+}
+
+function ENQGovernDepart_openlookup(Predictive) {
+        var url='websys.lookup.csp';
+        url += '?ID=d1404iENQGovernDepart&CONTEXT=Kweb.CTNFMICategDepart:LookUpDate&CONTEXT2='+session['CONTEXT']+'&TLUDESC='+escape(t['ENQGovernDepart']);
+        url += "&TLUJSF=CustomENQGovernDepartHandler";
+        var obj=document.getElementById('ENQGovernDepart');
+      if (obj) {
+          var objval=obj.value;
+          if (obj.getAttribute("tDirty")==0) objval="";
+          url += "&P1=" + websys_escape(objval);
+      }
+        var obj=document.getElementById('ENQGovernDepart');
+        if (obj) obj.setAttribute('LU','1');
+      if (tkMobile) {
+      	websys_MobileLookup(url,"cmp_PAEnquiryContact_Edit","ENQGovernDepart");
+      } else {
+      websys_LookupOverlay(tkOverlayMethod,url,"cmp_PAEnquiryContact_Edit","ENQGovernDepart",Predictive)
+      }
+        return websys_cancel();
+}
+
+function CustomENQGovernDepartValidation(e){
+	var type=websys_getType(e);
+    var key=websys_getKey(e);
+	
+	CustomENQGovernDepartHandler();
+	
+	//alert(type+' '+key);
+	if ((type=='click')||((type=='keydown')&&(key==117))) ENQGovernDepart_lookuphandler(e);
+	if (type=='blur') ENQGovernDepart_lookuphandler(e);
+	if (type=="keyup") ENQGovernDepart_onkeyuphandler(e);
+	if (type=="keypress") ENQGovernDepart_onkeypresshandler(e);
+	if (type=="change") ENQGovernDepart_changehandler(e);
+}
+
+function CustomENQGovernDepartHandler() {
+	var obj=document.getElementById('ENQGovernDepart');
+	if ((obj)&&(obj.value!="")) {
+		var codes="^";
+		codes=tkMakeServerCall("Custom.AUXXUtilities","GetProgramSubGovCode",obj.value);
+		//alert(codes);
+		var code=codes.split("^");
+
+		PAEC.fieldsRequired(false);
+		
+		//alert(code);
+		if (code[1]=="IRIS") {
+			EnableField("ENQCityAreaDR");
+			EnableField("ENQContOutcomeDR");
+			EnableField("ENQContInterpreterTypeDR");
+			EnableField("ENQContVenueDR");
+			DisableFieldsOnLoad("ENQCityAreaDR,ENQContOutcomeDR,ENQContVenueDR,ENQContInterpreterTypeDR");
+		} else if (code[1]=="QDC") {
+			EnableField("ENQText1");
+			DisableFieldsOnLoad("ENQText1");
+			//TRC 574
+			var obj=document.getElementById('EpisodeID');
+            if (obj) {
+				var sto=tkMakeServerCall("Custom.AUXXUtilities","GetSTO",obj.value);
+				var text1obj=document.getElementById("ENQText1");
+				if(text1obj)
+				{
+					if (text1obj.value=="")  text1obj.value=sto;
+				}
+			}
+			
+		} else if (code[1]=="PHMPR") {
+			EnableField("ENQSourceofReferralDR");
+			EnableField("ENQContLocalGoalDR");
+			EnableField("LocalPriority");
+			EnableField("ENQConsultCategDR");
+			DisableFieldsOnLoad("ENQSourceofReferralDR,ENQContLocalGoalDR,LocalPriority,ENQConsultCategDR");
+		} else if (code[1]=="ADIS") {
+			//if (code[0]=="ALDS") {
+				EnableField("ENQContWorkerTypeDR");
+				EnableField("ENQContVenueDR");
+				EnableField("PresIssue");
+				EnableField("PresIssueList");
+				EnableField("ServRec");
+				EnableField("ServRecList");
+				EnableField("ReferTo");
+				EnableField("ReferToList");
+				EnableField("ServProv");
+				EnableField("ServProvList");
+			//}
+			DisableFieldsOnLoad("ENQContWorkerTypeDR,ENQContVenueDR,PresIssue,PresIssueList,ServRec,ServRecList,ReferTo,ReferToList,ServProv,ServProvList");
+		} else if (code[1]=="NRCP") {
+			EnableField("ENQText2");
+			EnableField("ENQText3");
+			EnableField("ENQText4");
+			EnableField("ENQYesNo2");
+			EnableField("ENQYesNo3");
+			EnableField("ENQYesNo4");
+			EnableField("ENQContOutcomeDR");
+			DisableFieldsOnLoad("ENQText2,ENQText3,ENQText4,ENQYesNo2,ENQYesNo3,ENQYesNo4,ENQContOutcomeDR");
+		//  12/04/2013 - Add fields for VINAH	
+		} else if (code[1]=="VINAH") {				
+			/*
+				Required States:
+					New Contact:
+						OrderItem = NULL
+						ID = NULL
+					New Casual Contact:
+						OrderItem = NULL
+						ID = NULL
+					Existing Casual Contact:
+						Order Item = NULL
+						ID = Not NULL
+					Existing Contact:
+						Order Item = Not NULL
+						ID = Not NULL
+						
+					As a new Contact and Casual Contact are the same, we need to have something on the layout
+					to be able to distinguish between them.
+					Casual Contact has an expression with ID TWKFLNAME = 'AUXX.ContactsNew'
+			*/
+			
+			var SWARHOrdItemDR = document.getElementById("SWARHOrdItemDR");
+			//Default the OEItemDR value to something other than empty string incase it is missing from the layout 
+			//  it will mean that the fields are still marked as required if needed.
+			var OEItemDR = (SWARHOrdItemDR ? SWARHOrdItemDR.value : "Element doesn't exist - need not to eval as == ''")
+			var elID = document.getElementById("ID");
+			var ID = (elID ? elID.value : "Element doesn't exist - Got BIG problems")
+			var TWKFLNAME = document.getElementById("TWKFLNAME");
+			
+			try {
+				if ((!TWKFLNAME) || (TWKFLNAME && ("AUXX.ContactsNew" != TWKFLNAME.value))) {
+					if ((("" == ID) && ("" == OEItemDR)) ||
+						(("" != ID) && ("" != OEItemDR))) {
+						PAEC.fieldsRequired(true);	
+					}	
+				}
+			}
+			catch (ex) {
+				SWARH.log(ex.message);
+				PAEC.fieldsRequired(true);
+			}
+			
+			EnableField("CONTDELMODEDesc");
+			EnableField("CONTDELSETDesc");
+			EnableField("CONTCLNPRSTDesc");
+			EnableField("CONTSESSTYPEDesc");
+			EnableField("ENQInpatientFlag");
+			EnableField("ENQInterpreterRequired");
+			EnableField("CareProvGrp");
+			EnableField("DeleteCareProvGr");
+			EnableField("CareProvGrpList");
+			DisableFieldsOnLoad("CONTDELMODEDesc,CONTDELSETDesc,CONTCLNPRSTDesc,CONTSESSTYPEDesc,ENQInpatientFlag,ENQInterpreterRequired,CareProvGrp,DeleteCareProvGr,CareProvGrpList");
+			// FD - 02/08/2012 - Each Field on the right should be disabled		
+		} else if (code[1]=="HACC") {
+			DisableFieldsOnLoad("");
+			labelMandatory("ENQContMethodDR");			
+		}else if (code[1]=="HP") {	
+			EnableField("ENQContLocalGoalDR");
+			EnableField("LocalPriority");
+			EnableField("ENQConsultCategDR");
+			EnableField("LocalPriorityList");
+			EnableField("DeleteLocPrior");
+			EnableField("ENQSourceOfReferralDR");	
+			DisableFieldsOnLoad("ENQContLocalGoalDR,LocalPriority,ENQConsultCategDR,LocalPriorityList,DeleteLocPrior,ENQSourceOfReferralDR");
+		} else {
+			DisableFieldsOnLoad("");
+		}
+	}
+}
+
+
+var PAEC = {
+	fields : ['CONTDELMODEDesc', 'CONTDELSETDesc', 'CONTSESSTYPEDesc', 'CONTCLNPRSTDesc'],
+	fieldsRequired : function(required) {
+		//try - catch as to not break any InterSystems code afterwards
+		try {
+			if ("boolean" === typeof required) {
+				for (var i = 0, l = PAEC.fields.length; i < l; i++)
+					if (required) labelMandatory(PAEC.fields[i]);
+					else labelNormal(PAEC.fields[i]);
+			}
+		} catch (ex) {
+			SWARH.error("Error occurred changing required fields");
+			SWARH.log(ex, ex.message);
+		}
+	},
+	appendMessage: function(message, addition) {
+		if ("" != addition) {
+			if ("" == message)
+				return addition;
+			else
+				return message + "\n" + addition;
+		}
+	},
+	updateCheck : function() {
+		try {
+			var message = "";
+			for (var i = 0, l = PAEC.fields.length; i < l; i++) {
+				var label = document.getElementById("c" + PAEC.fields[i]),
+					field = document.getElementById(PAEC.fields[i]);
+
+				if (label && field && ("clsRequired" == label.className) && ("" == field.value))
+					message = PAEC.appendMessage(message, "'" + label.innerText + "' is a required field but has not been entered");
+			}
+			if ("" != message)
+				alert(message);
+			return ("" == message);
+		} catch (ex) {
+			SWARH.error("Error occurred checking required fields on update");
+			SWARH.log(ex, ex.message);
+		}
+		return false;
+	}
+}
+]]></Implementation>
+</Method>
+</Class>
+</Export>

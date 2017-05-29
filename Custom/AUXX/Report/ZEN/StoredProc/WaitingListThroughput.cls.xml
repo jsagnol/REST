@@ -1,0 +1,365 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.AUXX.Report.ZEN.StoredProc.WaitingListThroughput">
+<ProcedureBlock>0</ProcedureBlock>
+<Super>Report.Abstract</Super>
+<TimeCreated>59388,55236.125</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/AUXX/Report/ZEN/StoredProc/WaitingListThroughput.xml#1 $</Default>
+</Parameter>
+
+<UDLText name="T">
+<Content><![CDATA[
+// Report Name: Trak Waiting List Throughput <br>
+
+]]></Content>
+</UDLText>
+
+<UDLText name="T">
+<Content><![CDATA[
+// Report Code: Trak.WLT0009 <br>
+
+]]></Content>
+</UDLText>
+
+<UDLText name="T">
+<Content><![CDATA[
+// LOGTRAK Number: 72463 <br>	
+
+]]></Content>
+</UDLText>
+
+<Method name="WLTreatedThroughputClose">
+<Description>
+This is the Close component of the %Library.Query.
+This is standard code and should never have to change.
+This is where all the cleanup is performed, i.e. the purging of the temporary storage global ^CacheTemp.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>QHandle:%Library.Binary</FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Clean up by purging the temporary node in ^CacheTemp global
+ New repid
+ Set repid=$LIST(QHandle,2)
+ 
+ //Start Monitor (if configured to capture stats)
+ i mon Do ..MonitorEnd(mon)
+
+ Kill ^CacheTemp("TRAK",repid)
+ 
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="WLTreatedThroughputExecute">
+<Description>
+This is the Execute section for the %Library.Query. 
+All of the logic will be performed here.
+A new node for the ^CacheTemp("TRAK") global will be created and each subscript of this global will contain
+a row for the report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,DateFrom:%Date,DateTo:%Date,Hospital:%String,Specialty:%String,Unit:%String,Consultant:%String,Category:%String]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Get reportid i.e. use $INCREMENT to add another node to ^CacheTemp("TRAK") global. 
+ // We use ^CacheTemp global because CACHETEMP is a memory resident database
+ New repid,ind
+
+ // Use $Increment to get the next node and clean up
+ Set repid=$Increment(^CacheTemp("TRAK"))
+ Kill ^CacheTemp("TRAK",repid)
+ 
+ //Start Monitor (if configured to capture stats)
+  s mon=..MonitorBegin()
+ 
+ n WLRowID,WLDate,CTZIPCode,WLPRowID,WLPCode,WLDaysOnList,WLTRowID,WLTCode,WLTDesc,CTLOCRowID,CTLOCCode,CTLOCDesc,OPERDesc
+ n CTPCPRowID,CTPCPDesc,CTPCPSurname,HOSPRowID,HOSPDesc,PAPMIName,PAPMIName2,PAPMIName3,SEXCode
+ n PAPERAge,PAPERAgeYr,PAPERAgeMth,PAPERAgeDay,PAPERDeceased,PAPERDeceasedDate,PAPERDOB
+ n PAPMIRowID,WLDateofList,Date
+ n WLProcedureFreeText,URNDetails,PAPMINo,END,WLPindex,WLPcounter,DaysBeforeOp,NFRCDays
+ 
+ s (WLRowID,WLDate,CTZIPCode,WLPRowID,WLPCode,WLDaysOnList,WLTRowID,WLTCode,WLTDesc,CTLOCRowID,CTLOCCode,CTLOCDesc,OPERDesc)=""
+ s (CTPCPRowID,CTPCPDesc,CTPCPSurname,CTPCPTitle,HOSPRowID,HOSPDesc,PAPMIName,PAPMIName2,PAPMIName3,SEXCode)=""
+ s (PAPERAge,PAPERAgeYr,PAPERAgeMth,PAPERAgeDay,PAPERDeceased,PAPERDeceasedDate,PAPERDOB)=""
+ s (PAPMIRowID,WLDateofList,Date)=""
+ s (WLProcedureFreeText,URNDetails,PAPMINo)=""
+ s (END,WLPindex,WLPcounter,DaysBeforeOp,NFRCDays)=0
+ 
+ s ind=1
+
+ //Convert ODBC dates to cache format
+ s DateFrom=..ConvertDateToCache(DateFrom)
+ s DateTo=..ConvertDateToCache(DateTo)
+ 
+ i $g(Hospital)'="" s Hospital=$zstrip(Hospital,"*C")
+ i $g(Specialty)'="" s Specialty=$zstrip(Specialty,"*C")
+ i $g(Unit)'="" s Unit=$zstrip(Unit,"*C")
+ i $g(Consultant)'="" s Consultant=$zstrip(Consultant,"*C")
+ i $g(Category)'="" s Category=$zstrip(Category,"*C")
+ 
+ f Date=DateFrom:1:DateTo  d
+ . s WLRowID=0 
+ . f  s WLRowID=$o(^PAWLi("DateOffList",Date,WLRowID)) q:WLRowID=""  d GetData
+ 
+ // Build QHandle (AtEnd,ReportID,Index)
+ Set QHandle=$LISTBUILD(0,repid,0)
+ Quit $$$OK
+
+GetData
+ &SQL(DECLARE TT CURSOR FOR
+ SELECT
+ WL_Date, 
+ WL_PAPMI_DR->PAPMI_PAPER_DR->PAPER_ZIP_DR->CTZIP_Code, 
+ WL_WaitListPrior_DR->WLP_RowID,
+ WL_WaitListPrior_DR->WLP_Code, 
+ WL_DaysOnList,
+ WL_WaitListType_dr->WLT_RowId,
+ WL_WaitListType_dr->WLT_Code,
+ WL_WaitListType_dr->WLT_Desc,
+ WL_CTLOC_DR->CTLOC_RowId,
+ WL_CTLOC_DR->CTLOC_Code,
+ WL_CTLOC_DR->CTLOC_Desc,
+ WL_StateProc_DR->SPPP_Desc,
+ WL_Doctor_dr->CTPCP_RowId,
+ WL_Doctor_dr->CTPCP_Desc,
+ WL_Doctor_dr->CTPCP_Surname,
+ WL_Doctor_dr->CTPCP_Title, 
+ WL_Hospital_DR->HOSP_RowId,
+ WL_Hospital_DR->HOSP_Desc,
+ WL_PAPMI_DR->PAPMI_Name,
+ WL_PAPMI_DR->PAPMI_Name2,
+ WL_PAPMI_DR->PAPMI_Name3,
+ WL_PAPMI_DR->PAPMI_PAPER_DR->PAPER_Sex_DR->CTSEX_Code,
+ WL_PAPMI_DR->PAPMI_PAPER_DR->PAPER_AgeYr,
+ WL_PAPMI_DR->PAPMI_PAPER_DR->PAPER_AgeMth, 
+ WL_PAPMI_DR->PAPMI_PAPER_DR->PAPER_AgeDay,
+ WL_PAPMI_DR->PAPMI_PAPER_DR->PAPER_Deceased,
+ WL_PAPMI_DR->PAPMI_PAPER_DR->PAPER_Deceased_Date,
+ WL_PAPMI_DR->PAPMI_PAPER_DR->PAPER_DOB,
+ WL_PAPMI_DR->PAPMI_RowId,
+ WL_dateoflist,
+ WL_PAPMI_DR->PAPMI_No
+ INTO :WLDate,:CTZIPCode,:WLPRowID,:WLPCode,:WLDaysOnList,:WLTRowID,:WLTCode,:WLTDesc,:CTLOCRowID,:CTLOCCode,:CTLOCDesc,:OPERDesc,:CTPCPRowID,:CTPCPDesc,:CTPCPSurname,:CTPCPTitle,:HOSPRowID,:HOSPDesc,:PAPMIName,:PAPMIName2,:PAPMIName3,:SEXCode,:PAPERAgeYr,:PAPERAgeMth,:PAPERAgeDay,:PAPERDeceased,:PAPERDeceasedDate,:PAPERDOB,:PAPMIRowID,:WLDateofList,:PAPMINo
+ FROM  SQLUser.PA_WaitingList   
+ WHERE  WL_RowId=:WLRowID
+ AND WL_WaitListStatus_DR->WLS_Code='D'
+ AND (({fn CONCAT( ',', {fn CONCAT((:Hospital),',')})} [ {fn CONCAT( ',', {fn CONCAT((WL_Hospital_DR->HOSP_RowId),',')})}) OR (:Hospital IS NULL))
+ AND (({fn CONCAT( ',', {fn CONCAT((:Specialty),',')})} [ {fn CONCAT( ',', {fn CONCAT((WL_WaitListType_dr->WLT_RowId),',')})}) OR (:Specialty IS NULL))
+ AND (({fn CONCAT( ',', {fn CONCAT((:Unit),',')})} [ {fn CONCAT( ',', {fn CONCAT((WL_CTLOC_DR->CTLOC_RowId),',')})}) OR (:Unit IS NULL))
+ AND (({fn CONCAT( ',', {fn CONCAT((:Consultant),',')})} [ {fn CONCAT( ',', {fn CONCAT((WL_Doctor_dr->CTPCP_RowId),',')})}) OR (:Consultant IS NULL))
+ AND (({fn CONCAT( ',', {fn CONCAT((:Category),',')})} [ {fn CONCAT( ',', {fn CONCAT((WL_WaitListPrior_DR->WLP_RowId),',')})}) OR (:Category IS NULL)))
+ 
+ &SQL(OPEN TT)
+ f  &SQL(FETCH TT) q:SQLCODE'=0  d
+ . d FormatDates
+ . d GetWLProcedureFreeText
+ . d ConstructAge
+ . d BuildRow  
+ 
+ &SQL(CLOSE TT)
+ q
+
+BuildRow
+ s ind=$i(ind) 
+ s ^CacheTemp("TRAK",repid,$ZCVT(HOSPDesc,"U")_" "_$ZCVT(CTLOCDesc,"U")_" "_$ZCVT(CTPCPDesc,"U")_" "_$ZCVT(WLPCode,"U")_" "_WLDaysOnList_" "_ind)=$LB(WLRowID,WLDate,CTZIPCode,WLPRowID,WLPCode,WLDaysOnList,WLTRowID,WLTCode,WLTDesc,CTLOCRowID,CTLOCCode,CTLOCDesc,OPERDesc,CTPCPRowID,CTPCPDesc,CTPCPSurname,CTPCPTitle,HOSPRowID,HOSPDesc,PAPMIName,PAPMIName2,PAPMIName3,SEXCode,PAPERAge,PAPERDeceased,PAPERDeceasedDate,PAPERDOB,PAPMIRowID,WLDateofList,WLProcedureFreeText,PAPMINo)
+ q
+
+
+FormatDates
+ Set WLDate=..ConvertDateToODBC(WLDate)
+ Set PAPERDOB=..ConvertDateToODBC(PAPERDOB)
+ Set PAPERDeceasedDate=..ConvertDateToODBC(PAPERDeceasedDate)
+ Set WLDateofList=..ConvertDateToODBC(WLDateofList)
+ q
+  
+ConstructAge
+ if ((PAPERAgeYr = 0) & (PAPERAgeMth = 0)) {
+	 s PAPERAge = PAPERAgeDay _ "d"
+ }
+ elseif ((PAPERAgeYr = 1) & (PAPERAgeMth <= 6)) {
+	 s PAPERAge = (PAPERAgeMth+12) _ "m"
+ }
+ elseif ((PAPERAgeYr = 0) & (PAPERAgeMth '=0)) {
+	 s PAPERAge = (PAPERAgeMth) _ "m"
+ }
+ elseif (((PAPERAgeYr > 1) ! ((PAPERAgeYr = 1) & (PAPERAgeMth > 6))) & (PAPERAgeYr<5)) {
+	 s PAPERAge = (PAPERAgeYr) _ "y "_ (PAPERAgeMth) _ "m"
+ }  
+ else {
+	 s PAPERAge = PAPERAgeYr  	
+ }
+ q
+ 
+GetWLProcedureFreeText
+ set WLPindex=1,WLPcounter=0
+ set WLProcedureFreeText=""
+ set WLPcounter = $g(^PAWL(WLRowID,"PROC",0))
+ f WLPindex=1:1:WLPcounter  d
+ . s WLProcedureFreeText = WLProcedureFreeText_$g(^PAWL(WLRowID,"PROC",WLPindex))_" "
+ s WLProcedureFreeText=$zstrip(WLProcedureFreeText,"*C")
+ q
+]]></Implementation>
+</Method>
+
+<Method name="WLTreatedThroughputFetch">
+<Description>
+This is the Fetch component of the %Library.Query. 
+This should never have to change. It is designed to fetch the row for each subscript of the 
+^CacheTemp("TRAK" global and return this row to the Report writer</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,&Row:%Library.List,&AtEnd:%Library.Integer=0]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // This fetch method should never have to change. 
+ // repid - Report ID
+ // ind   - sequence index which represents each row
+
+ New repid,ind
+
+ // Restore QHandle
+ Set AtEnd=$LI(QHandle,1)
+ Set repid=$LI(QHandle,2)
+ Set ind=$LI(QHandle,3)
+
+ Set ind=$order(^CacheTemp("TRAK",repid,ind))
+ If ind="" {	// if there are no more rows, finish fetching
+ 	Set AtEnd=1
+ 	Set Row=""
+ }  Else  {	// fetch row
+ 	Set Row=^CacheTemp("TRAK",repid,ind)
+ }
+
+ // Save QHandle
+ Set QHandle=$lb(AtEnd,repid,ind)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Query name="WLTreatedThroughput">
+<Type>%Library.Query</Type>
+<FormalSpec>DateFrom:%Date,DateTo:%Date,Hospital:%String,Specialty:%String,Unit:%String,Consultant:%String,Category:%String</FormalSpec>
+<SqlProc>1</SqlProc>
+<Parameter name="CONTAINID" value="0"/>
+<Parameter name="ROWSPEC" value="WLRowID:%String,WLDate:%Date,CTZIPCode:%String(MAXLEN=255),WLPRowID:%String(MAXLEN=255),WLPCode:%String(MAXLEN=255),WLDaysOnList:%Integer,WLTRowID:%String(MAXLEN=255),WLTCode:%String(MAXLEN=255),WLTDesc:%String(MAXLEN=255),CTLOCRowID:%String(MAXLEN=255),CTLOCCode:%String(MAXLEN=255),CTLOCDesc:%String(MAXLEN=255),OPERDesc:%String(MAXLEN=255),CTPCPRowId:%String(MAXLEN=255),CTPCPDesc:%String(MAXLEN=255),CTPCPSurname:%String(MAXLEN=255),CTPCPTitle:%String(MAXLEN=255),HOSPRowID:%String(MAXLEN=255),HOSPDesc:%String(MAXLEN=255),PAPMIName:%String(MAXLEN=255),PAPMIName2:%String(MAXLEN=255),PAPMIName3:%String(MAXLEN=255),SEXCode:%String(MAXLEN=255),PAPERAge:%String(MAXLEN=255),PAPERDeceased:%String(MAXLEN=255),PAPERDeceasedDate:%Date,PAPERDOB:%Date,PAPMIRowID:%String(MAXLEN=255),WLDateofList:%Date,WLProcedureFreeText:%String(MAXLEN=255),PAPMINo:%String(MAXLEN=255)"/>
+</Query>
+
+<Method name="GetURNCurrentLoc">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>PAPMIRowID:%String,HOSPRowID:%String</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	
+	n rs,URN,RTMASMRTypeDR,CTLOCRowId,CTLOCHospitalDR,RTMAVCTLOCCode,RTMAVDateCreated,RTMAVTimeCreated,URNDetails
+	n RTMAVSSUSRGivenName,RTMAVSSUSRSurname,RTMACSSUSRCTLOCCode,RTMAVSSUSRName
+	n RTMAVActiveFlag,RTMAVDateArrived,RTMAVCurrentLocCTLOCRowId,RTMAVCurrentLocCTLOCCode,RTMAVCurrentLocCTLOCDesc,RTMAVVolDesc,RTMVTDate,RTMVTTime
+	s (rs,URN,RTMASMRTypeDR,CTLOCRowId,CTLOCHospitalDR,RTMAVCTLOCCode,RTMAVDateCreated,RTMAVTimeCreated,URNDetails)=""
+	s (RTMAVSSUSRGivenName,RTMAVSSUSRSurname,RTMACSSUSRCTLOCCode,RTMAVSSUSRName)=""
+	s (RTMAVActiveFlag,RTMAVDateArrived,RTMAVCurrentLocCTLOCRowId,RTMAVCurrentLocCTLOCCode,RTMAVCurrentLocCTLOCDesc,RTMAVVolDesc,RTMVTDate,RTMVTTime)=""
+	// check for an Alias linked to another episode
+	n row,ALIASParRef
+	s ALIASParRef=""
+	s row=PAPMIRowID
+	
+	n FLAG,END
+	s (FLAG,END)=0
+
+	s HOSPRowID=$g(HOSPRowID)
+	
+	// Used to get a URN.
+	&sql(
+	DECLARE URN CURSOR FOR
+	SELECT
+	RTMAS_MRNo,
+	RTMAS_MRType_DR
+	FROM SQLUser.RT_Master
+	WHERE
+	RTMAS_PatNo_DR=:row 
+	and RTMAS_Active='Y')
+	
+	// Used to find an Alias a URN doesn't exist for a patient.
+	&sql(
+	DECLARE ALIAS CURSOR FOR
+	select 
+	ALIAS_ParRef
+	FROM SQLUser.PA_PersonAlias
+	WHERE ALIAS_PatientFrom_ID=:row)
+	
+	//Do a check for a URN
+	d CheckForURN
+	
+	i FLAG=0 {
+		&sql(OPEN ALIAS)
+		&sql(FETCH ALIAS INTO :ALIASParRef )
+		&sql(CLOSE ALIAS)
+		i ALIASParRef'="" {
+			//reset the sql checks
+			s (FLAG,END)=0
+			s row=ALIASParRef
+			//Do a check for a URN using the Alias
+			d CheckForURN
+			i FLAG=0 {
+				s URN=""
+			} else {
+				//A URN exists so now get the details relating to the URN
+				d GetURNDetails
+			}
+		}
+	} else {
+		//A URN exists so now get the details relating to the URN
+		d GetURNDetails
+	}
+	//Create a list of URN details and then rturn to the calling stored procedure
+	s rs=$lb($g(URN),$g(RTMAVCTLOCCode),$g(RTMAVDateCreated),$g(RTMAVTimeCreated),$g(RTMAVSSUSRGivenName),$g(RTMAVSSUSRSurname),$g(RTMACSSUSRCTLOCCode),$g(RTMAVSSUSRName),$g(RTMAVActiveFlag),$g(RTMAVDateArrived),$g(RTMAVCurrentLocCTLOCRowId),$g(RTMAVCurrentLocCTLOCCode),$g(RTMAVCurrentLocCTLOCDesc),$g(RTMAVVolDesc),$g(RTMVTDate),$g(RTMVTTime))
+	q rs
+
+CheckForURN
+	&sql(OPEN URN)
+	WHILE 'END {
+		&sql(FETCH URN INTO :URN,:RTMASMRTypeDR )
+		i 'SQLCODE,RTMASMRTypeDR'="" {			
+			s CTLOCRowId=$p($g(^RTC("TYPE",RTMASMRTypeDR)),"^",8)
+			i CTLOCRowId s CTLOCHospitalDR=$p($g(^CTLOC(CTLOCRowId)),"^",22)
+			i CTLOCHospitalDR=HOSPRowID s FLAG=1,END=1
+		} else {
+			s END=1
+		}
+	}
+	&sql(CLOSE URN)
+	q
+
+GetURNDetails
+	&sql(SELECT
+	RTMAV_HomeLoc_DR->CTLOC_Code,
+	RTMAV_DateCreated,
+	RTMAV_TimeCreated,
+	RTMAV_CreatedByUser_DR->SSUSR_GivenName,
+	RTMAV_CreatedByUser_DR->SSUSR_Surname,
+	RTMAV_CreatedByUser_DR->SSUSR_DefaultDept_DR->CTLOC_Code,
+	RTMAV_CreatedByUser_DR->SSUSR_Name,
+	RTMAV_ActiveFlag,
+	RTMAV_DateArrived,
+	RTMAV_CurrentLoc_DR->CTLOC_RowId,
+	RTMAV_CurrentLoc_DR->CTLOC_Code,
+    RTMAV_CurrentLoc_DR->CTLOC_Desc,
+    RTMAV_VolDesc,
+    RTMVT_Date,
+	RTMVT_Time
+	INTO :RTMAVCTLOCCode,:RTMAVDateCreated,:RTMAVTimeCreated,:RTMAVSSUSRGivenName,:RTMAVSSUSRSurname,:RTMACSSUSRCTLOCCode,:RTMAVSSUSRName,:RTMAVActiveFlag,:RTMAVDateArrived,:RTMAVCurrentLocCTLOCRowId,:RTMAVCurrentLocCTLOCCode,:RTMAVCurrentLocCTLOCDesc,:RTMAVVolDesc,:RTMVTDate,:RTMVTTime
+	FROM SQLUser.RT_MasVol, SQLUser.CF_RTHospMRType,SQLUser.RT_MVTrans
+	WHERE
+	RTMVT_RTMAV_ParRef*=RTMAV_RowId AND
+	RTMAV_HomeLoc_DR->CTLOC_Hospital_DR=:HOSPRowID AND
+	RTMAV_RTMAS_ParRef->RTMAS_MRType_DR = MRTYPE_MRTYPE_DR AND
+	RTMAV_RTMAS_ParRef->RTMAS_PatNo_DR=:row AND
+	RTMAV_RTMAS_ParRef->RTMAS_Active='Y'
+	GROUP BY RTMAV_RTMAS_ParRef->RTMAS_MRNo
+	HAVING MAX(RTMAV_ChildSub) = RTMAV_ChildSub
+	order by RTMVT_Date Desc, RTMVT_Time Desc)
+	q
+]]></Implementation>
+</Method>
+</Class>
+</Export>

@@ -1,0 +1,557 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.SWARH.Report.ZEN.Abstract">
+<Abstract>1</Abstract>
+<ProcedureBlock>0</ProcedureBlock>
+<Super>Report.ZEN.Abstract</Super>
+<TimeCreated>62262,53772.501114</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/SWARH/Report/ZEN/Abstract.xml#1 $</Default>
+</Parameter>
+
+<UDLText name="T">
+<Content><![CDATA[
+/******************************************************************************
+ * Abstract class for SWARH ZEN Reports
+ * All SWARH ZEN Reports should inherit from this class. OR ELSE!!!!
+ *
+ * Change History:
+ *	DATE		WHO	COMMENT
+ *  2011-06-21	TK	Original Version
+ * 	2016-08-12	PH	Excluded cancelled appointments in Appointments query
+ ******************************************************************************/
+]]></Content>
+</UDLText>
+
+<Parameter name="DOMAIN">
+<Description>
+CacheMsg subscript for localisation of reports</Description>
+<Default>SWARHReports</Default>
+</Parameter>
+
+<Parameter name="CACHETEMPSUBSCRIPT">
+<Default>SWARH</Default>
+</Parameter>
+
+<Parameter name="DEFAULTMODE">
+<Default>pdf</Default>
+</Parameter>
+
+<Parameter name="ZENLOCALIZE">
+<Default>1</Default>
+</Parameter>
+
+<Parameter name="XSLTMODE">
+<Default>server</Default>
+</Parameter>
+
+<Parameter name="TOOLONGTEXT">
+<Default>none</Default>
+</Parameter>
+
+<Property name="ReportWidthPortrait">
+<Type>%ZEN.Datatype.string</Type>
+<InitialExpression>"210mm"</InitialExpression>
+</Property>
+
+<Property name="ReportHeightPortrait">
+<Type>%ZEN.Datatype.string</Type>
+<InitialExpression>"297mm"</InitialExpression>
+</Property>
+
+<Method name="DisplayDateDMY">
+<FormalSpec>date:%Date</FormalSpec>
+<ReturnType>%Date</ReturnType>
+<Implementation><![CDATA[
+	//convert odbc date into format dd mmm yyyy
+	if ($g(date)'="" & $g(date)'=0) s date=$zd($zdh(date,3),4,,4)
+	q date
+]]></Implementation>
+</Method>
+
+<Method name="DisplayLocalDocAddress">
+<FormalSpec>clndesc:%String,clnaddr1:%String,clncity:%String,clnzip:%String,refdaddress:%String,refdcity:%String,refdzip:%String</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	//Display local doc street address
+	//Every doctor should be linked to a clinic -> display clinic address
+	//Display address against doctor if the doctor is not linked to a clinic
+	s staddress=""
+	i $g(clnaddr1)'=""  s staddress = clndesc_" "_clnaddr1_" "_clncity_" "_clnzip
+	i $g(clnaddr1)=""  s staddress = refdaddress_" "_refdcity_" "_refdzip
+	q staddress
+]]></Implementation>
+</Method>
+
+<Method name="RefOrgsClose">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>QHandle:%Library.Binary</FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Clean up by purging the temporary node in ^CacheTemp global
+ New repid
+ Set repid=$li(QHandle,2)
+ Kill ^CacheTemp(..#CACHETEMPSUBSCRIPT,repid)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="RefOrgsExecute">
+<Description>
+This is the Execute section for the %Library.Query. 
+All of the logic will be performed here.
+A new node for the ^CacheTemp global will be created and each subscript of this global will contain
+a row for the report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,DischID:%Integer]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+            
+ k ^zbernard 
+ // Get reportid i.e. use $INCREMENT to add another node to ^CacheTemp global. 
+ // We use ^CacheTemp global because it will always use memory before disk
+ New repid,ind
+
+ // Use $Increment to get the next node
+ Set repid=$I(^CacheTemp(..#CACHETEMPSUBSCRIPT))
+ s ^zBernard("1")=(1)
+
+ // Build data into ^CacheTemp(ReportID)
+ // e.g. Set ^CacheTemp(ReportID,Index)=$LB(f1,f2,f3)
+ New Number,String,Date,Time,c,n
+ n NGOCode,NGODesc,NGOAddress,NGOCity,NGOZip,NGOProvince,NGOContactMethod,NGOEmail
+ s (NGOCode,NGODesc,NGOAddress,NGOCity,NGOZip,NGOProvince,NGOContactMethod,NGOEmail)=""
+
+ s ind=1
+ 
+ &sql(declare RefOrgs cursor for
+ SELECT
+        NG_NonGovOrg_DR->NGO_Code,
+        NG_NonGovOrg_DR->NGO_Desc,
+        NG_NonGovOrg_DR->NGO_Address,
+        NG_NonGovOrg_DR->NGO_City_DR->CTCIT_Desc,
+        NG_NonGovOrg_DR->NGO_ZIP_DR->CTZIP_Code,
+        NG_NonGovOrg_DR->NGO_Province_DR->Prov_Code,
+        NG_NonGovOrg_DR->NGO_ContactMethod,
+        NG_NonGovOrg_DR->NGO_Email
+
+ FROM SQLUser.PA_DischargeSummaryNonGov WHERE NG_ParRef=:DischID)
+ 
+ 
+ &sql(open RefOrgs) 
+
+ //fetch first row
+ d FetchRowRefOrgs
+
+ while 'SQLCODE{
+ d FormatAddress
+ // build the row
+ Set ^CacheTemp(..#CACHETEMPSUBSCRIPT,repid,ind)=$LB(NGOCode,NGODesc,NGOAddress,NGOCity,NGOZip,NGOProvince,NGOContactMethod,NGOEmail)
+ s ind=ind+1
+ //fetch rows
+  d FetchRowRefOrgs
+ }
+
+ &sql(close RefOrgs)
+ 
+ // Build QHandle (AtEnd,ReportID,Index)
+ Set QHandle=$lb(0,repid,0)
+
+ Quit $$$OK
+ 
+FetchRowRefOrgs
+ &sql(FETCH RefOrgs INTO :NGOCode,:NGODesc,:NGOAddress,:NGOCity,:NGOZip,:NGOProvince,:NGOContactMethod,:NGOEmail)
+ if SQLCODE '= 0 set END = 1
+ q
+ 
+FormatAddress
+ if NGOAddress'="" s NGOAddress=$LISTTOSTRING(NGOAddress)
+ Quit
+]]></Implementation>
+</Method>
+
+<Method name="RefOrgsFetch">
+<Description>
+This is the Fetch component of the %Library.Query. 
+This should never have to change. It is designed to fetch the row for each subscript of the ^CacheTemp
+global and return this row to the Crystal Report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,&Row:%Library.List,&AtEnd:%Library.Integer=0]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // This fetch method should never have to change. 
+
+ // repid - Report ID
+ // ind - sequence index which represents each row
+
+ New repid,ind
+
+ // Restore QHandle
+ Set AtEnd=$li(QHandle,1)
+ Set repid=$li(QHandle,2)
+ Set ind=$li(QHandle,3)
+
+ Set ind=$o(^CacheTemp(..#CACHETEMPSUBSCRIPT,repid,ind))
+ If ind="" {        // if there are no more rows, finish fetching
+ Set AtEnd=1
+ Set Row=""
+ }
+ Else      {         // fetch row
+ Set Row=^CacheTemp(..#CACHETEMPSUBSCRIPT,repid,ind)
+ }
+
+ // Save QHandle
+ s QHandle=$lb(AtEnd,repid,ind)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Query name="RefOrgs">
+<Type>%Library.Query</Type>
+<FormalSpec>DischID:%Integer</FormalSpec>
+<SqlProc>1</SqlProc>
+<Parameter name="CONTAINID" value="0"/>
+<Parameter name="ROWSPEC" value="NGOCode:%String,NGODesc:%String,NGOAddress:%String,NGOCity:%String,NGOZip:%String,NGOProvince:%String,NGOContactMethod:%String,NGOEmail:%String"/>
+</Query>
+
+<Method name="FamilyDocClose">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>QHandle:%Library.Binary</FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ New repid
+ Set repid=$li(QHandle,2)
+ Kill ^CacheTemp(..#CACHETEMPSUBSCRIPT,repid)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="FamilyDocExecute">
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,RowId:%String]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ k ^zbernard	
+ New repid,ind
+
+ // Use $Increment to get the next node
+ Set repid=$I(^CacheTemp(..#CACHETEMPSUBSCRIPT))
+ s ^zBernard("1")=(1)
+
+ // Build data into ^CacheTemp(ReportID)
+ // e.g. Set ^CacheTemp(ReportID,Index)=$LB(f1,f2,f3),ICDCode,DRGCode
+ New Number,String,Date,Time,c,n
+ New REFDTitle,REFDForename,REFDDesc
+ Set (REFDTitle,REFDForename,REFDDesc)=""
+  
+ s ind=1, END=0
+
+ &SQL(DECLARE FamilyDocCursor CURSOR FOR
+ 	SELECT fd.FAMD_FamDoc_DR->REFD_Title,fd.FAMD_FamDoc_DR->REFD_Forename,fd.FAMD_FamDoc_DR->REFD_Desc
+	FROM SQLUser.PA_FamilyDoctor fd WHERE fd.FAMD_ParRef = :RowId AND fd.FAMD_DateTo IS NULL)
+	
+ &SQL(OPEN FamilyDocCursor)
+
+ d FetchRowFD
+  
+ while END=0 {
+	 do FormatFamilyDocDesc
+	 s sort = ind		
+	 s ^CacheTemp(..#CACHETEMPSUBSCRIPT,repid,sort)=$LB(FDDesc)
+	 s ind=ind+1
+	 Set FDDesc = REFDTitle
+	 //fetch rows
+ 	 d FetchRowFD
+ }
+
+ &SQL(CLOSE FamilyDocCursor)
+ 
+ // Build QHandle (AtEnd,ReportID,Index)
+ Set QHandle=$lb(0,repid,0)
+
+ Quit $$$OK
+
+FetchRowFD
+ &sql(FETCH FamilyDocCursor INTO :REFDTitle,:REFDForename,:REFDDesc)
+ if SQLCODE '= 0 set END = 1
+ q
+ 
+FormatFamilyDocDesc
+	s FDDesc = REFDTitle_" "_REFDForename_" "_REFDDesc
+ q
+]]></Implementation>
+</Method>
+
+<Method name="FamilyDocFetch">
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,&Row:%Library.List,&AtEnd:%Library.Integer=0]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ New repid,ind
+
+ // Restore QHandle
+ Set AtEnd=$li(QHandle,1)
+ Set repid=$li(QHandle,2)
+ Set ind=$li(QHandle,3)
+
+ Set ind=$o(^CacheTemp(..#CACHETEMPSUBSCRIPT,repid,ind))
+ If ind="" {	// if there are no more rows, finish fetching
+	 Set AtEnd=1
+	 Set Row=""
+ }
+ Else      {	// fetch row
+ 	Set Row=^CacheTemp(..#CACHETEMPSUBSCRIPT,repid,ind)
+ }
+
+ // Save QHandle
+ s QHandle=$lb(AtEnd,repid,ind)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Query name="FamilyDoc">
+<Type>%Library.Query</Type>
+<FormalSpec>RowId:%String</FormalSpec>
+<SqlProc>1</SqlProc>
+<Parameter name="CONTAINID" value="0"/>
+<Parameter name="ROWSPEC" value="FDDesc:%String"/>
+<Parameter name="SELECTMODE" value="ODBC"/>
+</Query>
+
+<Method name="RefDocsClose">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>QHandle:%Library.Binary</FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ New repid
+ Set repid=$li(QHandle,2)
+ Kill ^CacheTemp(..#CACHETEMPSUBSCRIPT,repid)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="RefDocsExecute">
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,DISRowId:%Integer]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+
+ New repid,ind,row
+ Set repid=$I(^CacheTemp(..#CACHETEMPSUBSCRIPT))
+
+#SQLCOMPILE SELECT=Display
+ 
+ &sql(
+ 	declare RefDocsCursor cursor for
+ 	
+	 SELECT
+		REF_ParRef,
+		REF_RefDoc_DR->REFD_Desc,
+		REF_RefDoc_DR->REFD_Forename,
+		REF_RefDoc_DR->REFD_Title,
+		REF_RefDoc_DR->REFD_Address as raddr,
+		REF_RefDoc_DR->REFD_Email,
+		REF_RefDoc_DR->REFD_City_DR->CTCIT_Desc,
+		REF_RefDoc_DR->REFD_CTZIP_DR->CTZIP_Code,
+		REF_RefDoc_DR->REFD_Province_DR->PROV_Code,
+		REF_RefDoc_DR->REFD_Text1,
+		REF_RefDocClinic_DR->CLN_Clinic_DR->CLN_Desc,
+		REF_RefDocClinic_DR->CLN_Address1 as addr1,
+		REF_RefDocClinic_DR->CLN_Address2 as addr2,
+		REF_RefDocClinic_DR->CLN_City_DR->CTCIT_Desc as CLNCTCITDesc,
+		REF_RefDocClinic_DR->CLN_Zip_DR->CTZIP_Code as CLNZIPCode,
+		REF_RefDocClinic_DR->CLN_ZIP_DR->CTZIP_Province_dr->PROV_Code as CLNPROVCode,
+		REF_RefDocClinic_DR->CLN_PreferredContact
+	 FROM
+	 	SQLUser.PA_DischargeSummaryRefDoc
+	 WHERE
+	 	REF_ParRef=:DISRowId 
+	 	AND REF_RefDoc_DR->REFD_Code not in ('0000','888','777')	
+ )
+ 
+ &sql(open RefDocsCursor)
+ do RefDocsfetch
+ s ind=1
+ while 'SQLCODE{
+	Set ^CacheTemp(..#CACHETEMPSUBSCRIPT,repid,ind)=row
+ 	s ind=ind+1
+	do RefDocsfetch
+ }
+ &sql(close RefDocsCursor)
+
+ Set QHandle=$lb(0,repid,0)
+
+ Quit $$$OK
+
+RefDocsfetch
+
+ 	s raddr=""
+	&sql(fetch RefDocsCursor into :REFParRef,:REFDDesc,:REFDForename,:REFDTitle,:raddr,:REFDEmail,:CTCITDesc,:CTZIPCode,:PROVCode,:REFDText1,:CLNDesc,:addr1,:addr2,:CLNCTCITDesc,:CLNZIPCode,:CLNPROVCode,:CLNPreferredContact)
+	
+	set raddr = $ZSTRIP(raddr,"*C")
+	set row = $LB(REFParRef,REFDDesc,REFDForename,REFDTitle,raddr,REFDEmail,CTCITDesc,CTZIPCode,PROVCode,REFDText1,CLNDesc,addr1,addr2,CLNCTCITDesc,CLNZIPCode,CLNPROVCode,CLNPreferredContact)
+	q
+]]></Implementation>
+</Method>
+
+<Method name="RefDocsFetch">
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,&Row:%Library.List,&AtEnd:%Library.Integer=0]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // This fetch method should never have to change. 
+
+ // repid - Report ID
+ // ind   - sequence index which represents each row
+
+ New repid,ind,AtEnd
+
+ // Restore QHandle
+ Set AtEnd=$li(QHandle,1)
+ Set repid=$li(QHandle,2)
+ Set ind=$li(QHandle,3)
+
+ Set ind=$o(^CacheTemp(..#CACHETEMPSUBSCRIPT,repid,ind))
+ If ind="" {	// if there are no more rows, finish fetching
+ 	Set AtEnd=1
+ 	Set Row=""
+ }
+ Else      {	// fetch row
+ 	Set Row=^CacheTemp(..#CACHETEMPSUBSCRIPT,repid,ind)
+ }
+
+ // Save QHandle
+ s QHandle=$lb(AtEnd,repid,ind)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Query name="RefDocs">
+<Type>%Library.Query</Type>
+<FormalSpec>DISRowId:%Integer</FormalSpec>
+<SqlProc>1</SqlProc>
+<Parameter name="CONTAINID" value="0"/>
+<Parameter name="ROWSPEC" value="REF_ParRef:%String,REFD_Desc:%String,REFD_Forename:%String,REFD_Title:%String,raddr:%String,REFD_Email:%String,CTCIT_Desc:%String,CTZIP_Code:%String,PROV_Code:%String,REFD_Text1:%String,CLN_Desc:%String,addr1:%String,addr2:%String,CLNCTCITDesc:%String,CLNZIPCode:%String,CLNPROVCode:%String,CLN_PreferredContact:%String"/>
+<Parameter name="SELECTMODE" value="ODBC"/>
+</Query>
+
+<Method name="AppointmentsClose">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>QHandle:%Library.Binary</FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ New repid
+ Set repid=$li(QHandle,2)
+ Kill ^CacheTemp(..#CACHETEMPSUBSCRIPT,repid)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="AppointmentsExecute">
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,PAADMRowID:%Integer]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ k ^zbernard	
+ New repid,ind
+
+ // Use $Increment to get the next node
+ Set repid=$I(^CacheTemp(..#CACHETEMPSUBSCRIPT))
+ s ^zBernard("1")=(1)
+
+ // Build data into ^CacheTemp(ReportID)
+ // e.g. Set ^CacheTemp(ReportID,Index)=$LB(f1,f2,f3),ICDCode,DRGCode
+ New Number,String,Date,Time,c,n
+ New AppService,AppDate,AppTime,AppClinician,AppLocation
+ Set (AppService,AppDate,AppTime,AppClinician,AppLocation)=""
+  
+ s ind=1, END=0
+
+ &SQL(DECLARE Appointments CURSOR FOR
+ 	SELECT
+        app.APPT_RBCServ_DR->SER_Desc AS AppService
+        ,app.APPT_DateComp AS AppDate
+        ,app.APPT_TimeComp AS AppTime
+        ,app.APPT_AS_ParRef->AS_RES_ParRef->RES_CTPCP_DR->CTPCP_Desc AS AppClinician
+        ,app.APPT_AS_ParRef->AS_RES_ParRef->RES_CTLOC_DR->CTLOC_Desc AS AppLocation
+	FROM
+        SQLUser.RB_Appointment app
+
+	WHERE
+        app.APPT_Adm_DR = :PAADMRowID and app.APPT_Status!='X')
+        
+ &SQL(OPEN Appointments)
+
+ d FetchRowApp
+  
+ while END=0 {
+	 do FormatAppDate, FormatAppTime
+	 s sort = ind		
+	 s ^CacheTemp(..#CACHETEMPSUBSCRIPT,repid,sort)=$LB(AppService,AppDate,AppTime,AppClinician,AppLocation)
+	 s ind=ind+1
+	 
+	 //fetch rows
+ 	 d FetchRowApp
+ }
+
+ &SQL(CLOSE Appointments)
+ 
+ // Build QHandle (AtEnd,ReportID,Index)
+ Set QHandle=$lb(0,repid,0)
+
+ Quit $$$OK
+
+FetchRowApp
+ &sql(FETCH Appointments INTO :AppService,:AppDate,:AppTime,:AppClinician,:AppLocation)
+ if SQLCODE '= 0 set END = 1
+ q
+
+FormatAppDate
+	If AppDate Set AppDate = $ZD(AppDate,4,"",4)
+ q
+FormatAppTime
+	If AppTime Set AppTime=$ZT(AppTime,2)
+ q
+]]></Implementation>
+</Method>
+
+<Method name="AppointmentsFetch">
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,&Row:%Library.List,&AtEnd:%Library.Integer=0]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ New repid,ind
+
+ // Restore QHandle
+ Set AtEnd=$li(QHandle,1)
+ Set repid=$li(QHandle,2)
+ Set ind=$li(QHandle,3)
+
+ Set ind=$o(^CacheTemp(..#CACHETEMPSUBSCRIPT,repid,ind))
+ If ind="" {	// if there are no more rows, finish fetching
+	 Set AtEnd=1
+	 Set Row=""
+ }
+ Else      {	// fetch row
+ 	Set Row=^CacheTemp(..#CACHETEMPSUBSCRIPT,repid,ind)
+ }
+
+ // Save QHandle
+ s QHandle=$lb(AtEnd,repid,ind)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Query name="Appointments">
+<Type>%Library.Query</Type>
+<FormalSpec>PAADMRowID:%Integer</FormalSpec>
+<SqlProc>1</SqlProc>
+<Parameter name="CONTAINID" value="0"/>
+<Parameter name="ROWSPEC" value="AppService:%String,AppDate:%Date,AppTime:%String,AppClinician:%String,AppLocation:%String"/>
+<Parameter name="SELECTMODE" value="ODBC"/>
+</Query>
+</Class>
+</Export>

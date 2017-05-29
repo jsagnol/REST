@@ -1,0 +1,175 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.AUXX.Report.ZEN.Adjustments">
+<Super>Custom.AUXX.Report.ZEN.Abstract</Super>
+<TimeCreated>61583,38648.81142</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/AUXX/Report/ZEN/Adjustments.xml#1 $</Default>
+</Parameter>
+
+<UDLText name="T">
+<Content><![CDATA[
+// Report Name: Trak Adjustments <br>
+
+]]></Content>
+</UDLText>
+
+<UDLText name="T">
+<Content><![CDATA[
+// Report Code: AUXX.FIN0001 <br>
+
+]]></Content>
+</UDLText>
+
+<UDLText name="T">
+<Content><![CDATA[
+// LOGTRAK Number: 72206 <br>
+
+]]></Content>
+</UDLText>
+
+<Property name="DateFrom">
+<Type>%String</Type>
+<Parameter name="ZENURL" value="P1"/>
+</Property>
+
+<Property name="DateTo">
+<Type>%String</Type>
+<Parameter name="ZENURL" value="P2"/>
+</Property>
+
+<Property name="Facility">
+<Type>%String</Type>
+<Parameter name="ZENURL" value="P3"/>
+</Property>
+
+<Property name="AdjReason">
+<Type>%String</Type>
+<Parameter name="ZENURL" value="P4"/>
+</Property>
+
+<XData name="ReportDefinition">
+<XMLNamespace>http://www.intersystems.com/zen/report/definition</XMLNamespace>
+<Data><![CDATA[
+<report xmlns='http://www.intersystems.com/zen/report/definition'
+   queryClass='Custom.AUXX.Report.ZEN.StoredProc.Adjustments' queryName='Adjustments' name='Adjustments'>
+  <parameter expression='..DateFrom'/>
+  <parameter expression='..DateTo'/>
+  <parameter expression='..Facility'/>
+  <parameter expression='..AdjReason'/>
+  <attribute name='datefrom' expression='..DisplayDate(..DateFrom)'/>
+  <attribute name='dateto' expression='..DisplayDate(..DateTo)'/>
+  <attribute name='facility' expression='..GetHospListDesc(..Facility)'/>
+  <attribute name='adjreason' expression='..GetWOReasonListDesc(..AdjReason)'/>
+  <attribute name='ReportTitle' expression='$$$Text("@Adjustments@Adjustments")'/>
+  <attribute name='timestamp' expression='$ZDATETIME($H, 2, 2)'/>  
+  <attribute name='username' expression='..Username'/>
+  
+  <group name="facility" breakOnField="HOSPDesc">
+  <attribute name="description" field="HOSPDesc" />
+  <aggregate name='TotalHospAdj' type='SUM' field='WOAmount'/>
+ <group name="adjreason" breakOnField="RWDesc">
+ <attribute name="description" field="RWDesc" />
+ <aggregate name='TotalReasonAdj' type='SUM' field='WOAmount'/>
+      <group name='Detail'>
+       <attribute field='WODate' name='WODate' expression='..DisplayDate(%val)'/>
+       <attribute fields='PAPMIName,PAPMIName2,PAPMIName3' name='PatientName' expression='..DisplayName(%val("PAPMIName"),%val("PAPMIName2"),%val("PAPMIName3"))'/>
+       <attribute field='PAPMINo' name='PAPMINo'/>
+       <attribute field='PAADMADMNo' name='PAADMADMNo'/>
+       <attribute field='RWDesc' name='RWDesc'/>
+       <attribute field='ARPBLBillNo' name='ARPBLBillNo'/>
+       <attribute field='ARPBLDatePrinted' name='ARPBLDatePrinted' expression='..DisplayDate(%val)'/>
+       <attribute field='WOAmount' name='WOAmount'/>
+      </group>
+ </group>
+ </group>
+  </report>
+]]></Data>
+</XData>
+
+<XData name="ReportDisplay">
+<XMLNamespace>http://www.intersystems.com/zen/report/display</XMLNamespace>
+<Data><![CDATA[
+<report xmlns='http://www.intersystems.com/zen/report/display'
+xmlns:auxxstyle='http://www.intersystems.com/zen/report/display/auxx/style'
+xmlns:auxx='http://www.intersystems.com/zen/report/display/auxx'
+  name='Adjustments'>
+<document width= "#(..ReportWidth)#" height="#(..ReportHeight)#" marginLeft="#(..DocMarginLeft)#" marginRight="#(..DocMarginRight)#" 
+marginTop="#(..DocMarginTop)#" marginBottom="#(..DocMarginBottom)#" footerHeight="#(..DocFooterHeight)#" headerHeight="#(..DocHeaderHeight)#" 
+regionBeforeExtent="#(..DocHeaderHeight)#" regionAfterExtent="#(..DocFooterHeight)#">
+<auxxstyle:auxxgroupheader/>
+<auxxstyle:auxxgroupsummary/>
+<auxxstyle:auxxhospitalheader/>
+<auxxstyle:auxxpagefooter/>
+<auxxstyle:auxxpageheader/>
+<auxxstyle:auxxparameterheader/>
+<auxxstyle:auxxreporttitle/>
+<auxxstyle:auxxtablecolumn/>
+</document>
+<auxx:PageHeader pagetitle='@ReportTitle'/>
+<auxx:ReportFooter username='@username' timestamp='@timestamp'/>
+
+<body>
+<!-- REPORT HEADER -->
+<auxx:ReportHeader reporttitle='@ReportTitle'/>
+<auxx:ReportParameterHeader label='@Facility:@Facility:' field='@facility' xcondition="string-length(@facility)>0"/>
+<auxx:ReportParameterHeader label='@AdjustmentReason:@Adjustment Reason:' field='@adjreason' xcondition="string-length(@adjreason)>0"/>
+<auxx:ReportDateHeader datefrom="@datefrom" dateto="@dateto" class="auxxparameterheader"/>
+
+<line pattern="solid" width="100%"></line>
+<line pattern="empty" width="100%"></line> 
+<auxx:NoResults xcondition="not(facility)" />
+<group name='facility' pagebreak="true">
+<auxx:GroupHospitalHeader label="@Facility:@Facility:" field="@description" />
+<line pattern="empty" lineHeight="1mm" width="100%"></line>
+<group name='adjreason'>
+<auxx:GroupHeader label="@AdjustmentReason:@Adjustment Reason:" field="@description"  />
+   <line pattern="empty" lineHeight="2mm" width="100%"></line>
+     <table class='auxxtablecolumn'  group='Detail'  >
+        <item field='@WODate' width="12%" caption='@AdjustmentDate@Adjustment Date' too-long-text="wrap"/>
+        <item field='@PatientName' width="22%" caption="@Name@Name" too-long-text="wrap"/>
+        <item field='@PAPMINo' width="12%" caption='@URN@URN' too-long-text="wrap" />
+        <item field='@PAADMADMNo' width="12%" caption='@EpisodeNo@Episode No' too-long-text="wrap"/>
+        <item field='@ARPBLBillNo' width="12%" caption='@InvoiceNo@Invoice No' too-long-text="wrap"/> 
+         <item field='@ARPBLDatePrinted' width="12%" caption='@InvoiceDate@Invoice Date' too-long-text="wrap"/>       
+        <item field='@WOAmount' width="15%" formatNumber="###,##0.00" style="text-align:right" caption='@Amount@Amount' too-long-text="wrap"/>
+     </table>
+   <line pattern="empty" width="100%"></line>
+      	 <table class='auxxgroupsummary' width="100%">
+	 <block width="70%">
+	  <item value='@Adjustmenttotalfor@Adjustment total for '/>
+	  <item field='@description' />
+	  
+	  	  </block >
+	  <block width="27%" style='text-align:right'>	  
+	  <item field="TotalReasonAdj"  formatNumber="###,###,##0.00"/>
+	  </block>
+	  </table>
+   <line pattern="empty" width="100%"></line>
+
+   </group> 
+  <line pattern="empty" width="100%"></line> 
+ 	 <table class='auxxgroupsummary' width="100%"  >
+	 <block width="70%">
+	  <item value='@Adjustmenttotalfor@Adjustment total for ' />
+	  <item field='@description' />
+	  
+	  	  </block>
+	  <block width="27%" style='text-align:right'>	  
+	  <item field="TotalHospAdj"  formatNumber="###,###,##0.00" />
+	  </block>
+	  </table>
+ 
+
+   </group>
+   
+   
+</body>
+</report>
+]]></Data>
+</XData>
+</Class>
+</Export>

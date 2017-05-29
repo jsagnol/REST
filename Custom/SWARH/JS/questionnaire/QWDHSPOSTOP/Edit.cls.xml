@@ -1,0 +1,737 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.SWARH.JS.questionnaire.QWDHSPOSTOP.Edit">
+<Description>
+Component JavaScript for: questionnaire.QWDHSPOSTOP.Edit</Description>
+<Modified>0</Modified>
+<Super>websys.AbstractJavaScript</Super>
+<TimeCreated>63537,10519.896046</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+This Parameter is updated by Perforce</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/SWARH/JS/questionnaire/QWDHSPOSTOP/Edit.xml#1 $</Default>
+</Parameter>
+
+<Method name="JSContent">
+<Description>
+ </Description>
+<Language>javascript</Language>
+<ClientMethod>1</ClientMethod>
+<Implementation><![CDATA[
+//srees Dec 2010 Doctor Distribut to list
+
+
+if (document.getElementById("QREFDOCLIST")) {document.getElementById("QREFDOCLIST").tkItemPopulate=1;}
+
+//Hide String fields for loading list boxes
+var objREFDOC = document.getElementById('QREFDOCString')
+objREFDOC.style.display='none';
+
+var objENDOIMGTXT = document.getElementById('QEndoimgtxt')
+objENDOIMGTXT.style.display='none';
+
+
+function setButton(obj,id,value) {
+	obj.setAttribute('type','button');
+    	obj.setAttribute('name',id);
+	obj.setAttribute('id',id);
+    	obj.setAttribute('value',value);
+    	obj.setAttribute('title',value);
+    	obj.className = 'clsButton';
+	var objListStr = document.getElementById('QREFDOCLIST');
+    	objListStr.parentElement.insertBefore(obj,objListStr.nextSibling);
+    	objListStr.parentElement.insertBefore(document.createTextNode(" "),objListStr.nextSibling);
+    	obj.deleteList = objListStr;
+	if (value=='Delete') {
+	    	obj.onclick=DeleteClickHandler;
+	}
+	
+	obj.style.display='';
+}
+
+
+function update1_click() {
+	//alert("Update");
+	UpdateAll;	
+	if (evtTimer) {
+		setTimeout('update1_click();',200)
+	} else {
+		websys_setfocus('update1');
+		var frm=document.fquestionnaire_QWDHSPOSTOP_Edit;
+		websys_isInUpdate=true;
+		if (fquestionnaire_QWDHSPOSTOP_Edit_submit()) {
+			var obj=document.getElementById('update1');
+			if (obj) {obj.disabled=true;obj.onclick=function() {return false};}
+			frm.TEVENT.value='d50023iupdate1';
+			frm.submit();
+		}
+		return false;
+	}
+}
+try {
+	var obj=document.getElementById('update1');
+	if (obj) obj.onclick=update1_click;
+} catch(e) { //alert(e.number + ' ' + e.description) 
+};
+
+function limitText(limitField, limitNum) {
+	if (limitField.value.length > limitNum) {
+		limitField.value = limitField.value.substring(0, limitNum);
+	} else {
+		//limitCount.value = limitNum - limitField.value.length;
+	}
+}
+
+function InitCustom() {
+    window.setTimeout(function() {
+    var obj=document.getElementById('update1');
+	if (obj) obj.onclick=UpdateAll;
+	if (tsc['update1']) websys_sckeys[tsc['update1']]=UpdateAll;
+    }, 1000);
+
+
+    // phoang Dec 2010 create our own delete button to delete item from listbox 'del1'
+    var del1=document.createElement('input');	// 2016-10-05 (RG) - Changed from '<input type="text" />' to 'input'
+    setButton(del1,'del1','Delete');
+    // end - phoang Dec 2010 create our own delete button to delete item from listbox 'del1'
+
+
+    // phoang Dec 2010 link to Medical Certificate Forms (create link)  
+    var link=document.getElementById("ld50023iQCertificateReq");
+	if (link) {
+		var objPatientID=document.getElementById('PatientID');
+		if (objPatientID) patientId=objPatientID.value;
+		var objEpisodeID=document.getElementById('EpisodeID');
+		if (objEpisodeID) episodeId=objEpisodeID.value;
+		
+		var objlink=document.createElement('a');
+		objlink.setAttribute('name',"medcerthyperlink");
+		objlink.setAttribute('id',"medcerthyperlink");
+
+		objlink.innerText='Link to Medical Certificate Forms';
+		
+		objlink.href='epr.chartbook.csp?FromIconProfile=1&ChartID=16&PatientID='+patientId+'&EpisodeID='+episodeId+'&PatientBanner=1&CONTEXT=W642&ChartBookID=30&NOUNLOCK=1';
+		objlink.target='Aux_Window';
+		objlink.onclick=function() {window.open('epr.chartbook.csp?FromIconProfile=1&ChartID=16&PatientID='+patientId+'&EpisodeID='+episodeId+'&PatientBanner=1&CONTEXT=W642&ChartBookID=30&NOUNLOCK=1','','toolbar=no,statusbar=no');return false;};
+
+		link.parentElement.insertBefore(objlink,link.nextSibling);
+		link.parentElement.insertBefore(document.createTextNode(" "),link.nextSibling);
+			
+		objQCertificateReq=document.getElementById("QCertificateReq");
+		if (objQCertificateReq) QCertificateReq=objQCertificateReq.value;
+		if (QCertificateReq.toUpperCase()=='YES') {
+		objlink.style.display='';
+		}
+		else {
+		objlink.style.display='none';
+		}
+	}
+    // end - phoang Dec 2010 link to Medical Certificate Forms (create link)
+
+
+    // phoang Dec 2010 Specific Observations if other selected show "Refer Specific Form" label and textbox
+    obj=document.getElementById('Qspecobv');
+    var objLabel=document.getElementById('cQRefSpecForm');
+    var objOther=document.getElementById('QRefSpecForm');
+    var showTB = false;
+    for (var i = 0;i< obj.options.length; i++) {
+	if ((obj.options[i].value=="O") && (obj.options[i].selected == true)) {
+		showTB = true;
+	}
+    }
+    if (showTB) {
+	objLabel.style.display='';
+	objOther.style.display='';
+    }
+    else {
+	objLabel.style.display='none';
+	objOther.style.display='none';
+    }
+    
+    obj.onchange = showHideDetails;
+    // end - phoang Dec 2010 link to Medical Certificate Forms (create link)
+
+
+    var obj=document.getElementById('QQ8');
+    if (obj) {
+	obj.onchange=QGeneric_changehandler;
+	obj.onkeydown=limitText;
+	obj.onkeyup=limitText;
+    }
+    var obj=document.getElementById('QQ9');
+    if (obj) {
+	obj.onchange=QGeneric_changehandler;
+	obj.onkeydown=limitText;
+	obj.onkeyup=limitText;
+    }
+    var obj=document.getElementById('QQ10');
+    if (obj) {
+	obj.onchange=QGeneric_changehandler;
+	obj.onkeydown=limitText;
+	obj.onkeyup=limitText;
+    }
+    var obj=document.getElementById('QQ11');
+    if (obj) {
+	obj.onchange=QGeneric_changehandler;
+	obj.onkeydown=limitText;
+	obj.onkeyup=limitText;
+    }
+    var obj=document.getElementById('QQ12');
+    if (obj) {
+	obj.onchange=QGeneric_changehandler;
+	obj.onkeydown=limitText;
+	obj.onkeyup=limitText;
+    }
+    var obj=document.getElementById('QQ13');
+    if (obj) {
+	obj.onchange=QGeneric_changehandler;
+	obj.onkeydown=limitText;
+	obj.onkeyup=limitText;
+    }
+    var obj=document.getElementById('QQ8a');
+    if (obj) {
+	obj.onchange=QGeneric_changehandler;
+	obj.onkeydown=limitText;
+	obj.onkeyup=limitText;
+    }
+    var obj=document.getElementById('QQ9a');
+    if (obj) {
+	obj.onchange=QGeneric_changehandler;
+	obj.onkeydown=limitText;
+	obj.onkeyup=limitText;
+    }
+    var obj=document.getElementById('QQ10a');
+    if (obj) {
+	obj.onchange=QGeneric_changehandler;
+	obj.onkeydown=limitText;
+	obj.onkeyup=limitText;
+    }
+    var obj=document.getElementById('QQ12a');
+    if (obj) {
+	obj.onchange=QGeneric_changehandler;
+	obj.onkeydown=limitText;
+	obj.onkeyup=limitText;
+    }
+    var obj=document.getElementById('QQ13a');
+    if (obj) {
+	obj.onchange=QGeneric_changehandler;
+	obj.onkeydown=limitText;
+	obj.onkeyup=limitText;
+    }
+}
+
+/*function taLimit(e) {
+	e = e ? e : window.event;
+	eSrc = e.target ? e.target : e.srcElement;
+	if (eSrc.value.length==3) return false;
+	return true;
+}
+
+function taCount(e) {
+	e = e ? e : window.event;
+	eSrc = e.target ? e.target : e.srcElement; 
+	objVal=eSrc.value;
+	if (objVal.length>3) objVal=objVal.substring(0,3);
+	return true;
+}*/
+
+function limitText(e) {
+	e = e ? e : window.event;
+	eSrc = e.target ? e.target : e.srcElement;
+	if (eSrc.value.length > 3) {
+		eSrc.value = eSrc.value.substring(0, 3);
+	}
+}
+
+function QGeneric_changehandler(e) {
+	e = e ? e : window.event;
+	eSrc = e.target ? e.target : e.srcElement;
+	if (eSrc.value!='') {
+		if (!isNumericMax(eSrc.value,999)) {
+			eSrc.className='clsInvalid';		
+			websys_setfocus(eSrc.id);
+			alert('Value must be 3 digits max');
+			return  websys_cancel();
+		}
+	}
+	if (eSrc.readOnly) {eSrc.className='clsReadOnly'} else {eSrc.className=''}
+		window.setTimeout("ForceChange('eSrc.id');",1);
+}
+
+function QUESStatusDR_lookuptoggle(value) {
+ value=unescape(value).toUpperCase();
+ switch (value) {
+  case unescape('Authorised').toUpperCase():
+   Tog('QNumPrintCopies',1);    break;
+  case unescape('Entered').toUpperCase():
+   Tog('QNumPrintCopies',0);    break;
+  case unescape('Corrected').toUpperCase():
+   Tog('QNumPrintCopies',0);    break;
+  default:
+   return Def('QUESStatusDR');
+ }
+}
+function QUESStatusDR_reset() {
+ Tog('QNumPrintCopies',0);
+ if (obj.readOnly) {obj.className="clsReadOnly"} else {obj.className=""}
+}
+function QUESStatusDR_ch() {
+ var obj=document.getElementById('QUESStatusDR');
+ if (obj) {
+  if (obj.value=='') { QUESStatusDR_reset();} else { if (typeof obj.onchangeOLD!="undefined") obj.onchangeOLD(); }
+ }
+}
+var obj=document.getElementById('QUESStatusDR');
+if (obj) {
+	obj.onchangeOLD=obj.onchange;
+	obj.onchange=QUESStatusDR_ch;
+ QUESStatusDR_lookuptoggle(obj.value);
+}
+
+function showHideDetails() {
+    var obj=document.getElementById('Qspecobv');
+    var objLabel=document.getElementById('cQRefSpecForm');
+    var objOther=document.getElementById('QRefSpecForm');
+    var showTB = false;
+    for (var i = 0;i< obj.options.length; i++) {
+	if ((obj.options[i].value=="O") && (obj.options[i].selected == true)) {
+		showTB = true;
+	}
+    }
+    if (showTB) {
+	objLabel.style.display='';
+	objOther.style.display='';
+    }
+    else {
+	objLabel.style.display='none';
+	objOther.style.display='none';
+    }
+}
+
+
+// phoang Dec 2010 link to Medical Certificate Forms Show or Hide
+function QCertificateReq_lookupsel(value) {
+	try {
+		var obj=document.getElementById('QCertificateReq');
+		if (obj) {
+  			obj.value=unescape(value);
+			if (obj.readOnly) {obj.className='clsReadOnly'} else {obj.className=''}
+			try {QCertificateReq_lookuptoggle(value);} catch(err) {};
+			if (doneInit) {
+				var objlink=document.getElementById("medcerthyperlink");
+				var objlink1=document.getElementById("medcerthyperlink1");
+				if (obj.value.toUpperCase()=='YES') {					
+					if (objlink) objlink.style.display='';
+					if (objlink1) objlink1.style.display='';
+					websys_nextfocusElement(objlink);
+				}
+				else {
+					if (objlink) objlink.style.display='none';
+					if (objlink1) objlink1.style.display='';
+					websys_nextfocusElement(obj);
+				}	
+				
+			}
+		}
+	} catch(e) {};
+}
+
+function QCertificateReq_lookuptoggle(value) {
+ value=unescape(value).toUpperCase();
+ switch (value) {
+  case unescape('Yes').toUpperCase():
+   Tog('QCertificateCompl',1); Tog('medcerthyperlink',1);   break;
+   
+  case unescape('No').toUpperCase():
+   Tog('QCertificateCompl',0); Tog('medcerthyperlink',0);    break;
+  default:
+   return Def('QCertificateReq');
+ }
+}
+
+function QCertificateReq_reset() {
+ Tog('QCertificateCompl',0);
+ Tog('medcerthyperlink',0); 
+ if (obj.readOnly) {obj.className="clsReadOnly"} else {obj.className=""}
+}
+// phoang Dec 2010 link to Medical Certificate Forms Show or Hide
+
+
+function RemoveFromList(obj) {
+	var frm=document.fquestionnaire_QWDHSPOSTOP_Edit;
+	//TDIRTY=document.getElementById("TDIRTY")
+	frm.TDIRTY.value=2
+	for (var i=(obj.length-1); i>=0; i--) {
+		if (obj.options[i].selected)
+			obj.options[i]=null;
+	}
+}
+
+function UpdateDocList() {
+	var arrItems = new Array();
+	var lst = document.getElementById("QREFDOCLIST");
+	if (lst) {
+		
+		for (var j=0; j<lst.options.length; j++) {			
+			arrItems[j] = lst.options[j].value;
+			//alert(lst.options[j].value);
+		}
+		var el = document.getElementById("QREFDOCString");
+		if (el) el.value = arrItems.join(String.fromCharCode(1));
+	}
+}
+
+
+
+function DeleteClickHandler() {
+	//Delete items from EMCDesc listbox when a "Delete" button is clicked.
+	//alert("deleteclickhandler");
+	var obj=document.getElementById("QREFDOCLIST")
+	if (obj)
+		RemoveFromList(obj);
+	return false;
+}
+
+
+function AddItemToList(list,code,desc) {
+	//Add an item to a listbox
+	var frm=document.fquestionnaire_QWDHSPOSTOP_Edit;
+	//TDIRTY=document.getElementById("TDIRTY")
+	frm.TDIRTY.value=2
+	//alert("and now..."+frm.TDIRTY.value);
+	code=String.fromCharCode(2)+code
+	list.options[list.options.length] = new Option(desc,code);
+}
+
+
+function QREFDOClk_AddToList(elementId,listId) {
+	//Add an item to list when an item is selected from
+	//the Lookup, then clears the Item text field.
+
+
+	var obj=document.getElementById(elementId);
+    	if (obj.value!='') {
+      	var txt=encodestr(obj.value,obj.value);
+	}
+
+	var adata=txt.split("^");
+	//alert("adata="+adata);
+	var obj=document.getElementById(listId);
+
+	if (obj) {
+		//Need to check if Condition already exists in the List and alert the user
+		for (var i=0; i<obj.options.length; i++) {
+			if (obj.options[i].value == String.fromCharCode(2)+adata[1]) {
+				alert("Code has already been selected");
+				var obj=document.getElementById(elemtId)
+				if (obj) obj.value="";
+				return;
+			}
+			if  ((adata[1] != "") && (obj.options[i].text == adata[0])) {
+			alert("Code has already been selected");
+				var obj=document.getElementById(elementId)
+				if (obj) obj.value="";
+				return;
+			}
+			//alert(obj.options[i].value+"****"+adata[1])
+		}
+	}
+	AddItemToList(obj,adata[1],adata[0]);
+
+	var obj=document.getElementById(elementId);
+	if (obj) obj.value="test";
+	//alert("adata="+adata);
+}
+
+
+
+function QREFDOC_AddToList(txt) {
+//Add an item to QREFDOCLIST when an item is selected from
+	//the Lookup, then clears the Item text field.
+	
+	var adata=txt.split("^");
+	//alert("adata="+adata);
+	var obj=document.getElementById("QREFDOCLIST");
+
+	if (obj) {
+		//Need to check if Condition already exists in the List and alert the user
+		for (var i=0; i<obj.options.length; i++) {
+			if (obj.options[i].value == String.fromCharCode(2)+adata[1]) {
+				alert("Code has already been selected");
+				//var obj=document.getElementById("QREFDOC")
+				var obj=document.getElementById("QCLINIC")
+				if (obj) obj.value="";
+				return;
+			}
+			if  ((adata[1] != "") && (obj.options[i].text == adata[0])) {
+			alert("Code has already been selected");
+				//var obj=document.getElementById("QREFDOC")
+				var obj=document.getElementById("QCLINIC")
+				if (obj) obj.value="";
+				return;
+			}
+			//alert(obj.options[i].value+"****"+adata[1]+adata[0])
+		}
+	}
+	AddItemToList(obj,adata[1],adata[0]);
+	//alert("adata="+adata);
+	//var obj=document.getElementById("QREFDOC")
+	var obj=document.getElementById("QCLINIC")
+	if (obj) obj.value="test";
+	//alert("end AddToList adata="+adata+"obj value="+obj.value);
+}
+
+// reload listbox with values from hidden field.
+//this is due to page being refreshed upon error message (such as invalid pin)
+function QREFDOCReload() {
+	var el = document.getElementById("QREFDOCString");
+	var lst = document.getElementById("QREFDOCLIST");
+	if ((lst)&&(el.value!="")) {
+		var arrITEM=el.value.split(String.fromCharCode(1));
+		for (var i=0; i<arrITEM.length; i++) {
+			var arrITEMVAL=arrITEM[i].split(String.fromCharCode(2));
+			//don't add ones that have a child rowid as they would already be populated
+/*			if ((arrITEMVAL[0]=="")&&(arrITEMVAL[2]!="")) {
+				AddItemToList(lst,arrITEMVAL[1],arrITEMVAL[2]);
+			}*/
+			if ((arrITEMVAL[0]=="")&&(arrITEMVAL[1]!="")) {
+				AddItemToList(lst,arrITEMVAL[1],arrITEMVAL[1]);
+			}
+		}
+	}
+}
+
+function encodestr(code,desc) {
+  return desc+'^'+code;
+}
+  /*var QREFDOC_lookupselOLD = QREFDOC_lookupsel;
+  QREFDOC_lookupsel = function(v) {
+    if (QREFDOC_lookupselOLD) QREFDOC_lookupselOLD(v);
+    var obj=document.getElementById("QREFDOC")
+    if (obj && obj.value!='') {
+      //alert(encodestr(obj.value,obj.value));
+      //QREFDOC_AddToList(encodestr(obj.value,obj.value));
+	QREFDOClk_AddToList("QREFDOC","QREFDOCLIST");
+    }
+    //alert("QREFDOC" + document.getElementById("QREFDOC").value);
+  }*/
+
+var QCLINIC_lookupselOLD = QCLINIC_lookupsel;
+  QCLINIC_lookupsel = function(v) {
+    if (QCLINIC_lookupselOLD) QCLINIC_lookupselOLD(v);
+    var obj=document.getElementById("QCLINIC")
+    if (obj && obj.value!='') {
+      //alert(encodestr(obj.value,obj.value));
+      //QREFDOC_AddToList(encodestr(obj.value,obj.value));
+	QREFDOClk_AddToList("QCLINIC","QREFDOCLIST");
+    }
+    //alert("QCLINIC" + document.getElementById("QCLINIC").value);
+  }
+
+//call this outside onload call so it can be called straight away, and not wait till everything has loaded.
+
+QREFDOCReload();
+QENDOIMGLISTReload();
+
+function UpdateAll() {
+	//alert("UpdateAll");
+	UpdateDocList();
+	//UpdateEndoimg()
+	return update1_click();
+}
+
+websys_addListener("load","onload",InitCustom);
+//document.body.onload=InitCustom;
+
+
+function isNumericMax(strString,max) {
+   var strValidChars = "0123456789";
+   var strChar;
+   var blnResult = true;
+   var size;
+
+   if (strString.length == 0) return false;
+
+   for (i = 0; i < strString.length && blnResult == true; i++) {
+      strChar = strString.charAt(i);
+      if (strValidChars.indexOf(strChar) == -1) {
+         blnResult = false;
+      }
+   }
+
+   if (blnResult) {
+	size=parseInt(strString);
+	if (size>max || strString.length>max.length) {
+		blnResult = false;
+	}
+   }
+
+   return blnResult;
+}
+
+
+// tknollmiller (SWARH) Jan 09 - Add onload handler to trigger authorise popup window for biometrics
+function setupCustomLoadHandler() {
+    var nextHandler = document.body.onload;
+    document.body.onload = function() {
+        if (nextHandler)
+            nextHandler();
+        // tknollmiller (SWARH) 20090702 - Add change handler to observations field
+        setupObservationsChangeHandler();
+        // end tknollmiller (SWARH) 20090702 - Add change handler to observations field
+    }
+}
+
+setupCustomLoadHandler();
+// end tknollmiller (SWARH) Jan 09 - Add onload handler to trigger authorise popup window for biometrics
+
+// tknoll-miller (SWARH) Auto-populate Observation Details -- TK 20090702
+
+function setupObservationsChangeHandler() {
+    /* Override QQ1_lookupsel to handle lookup changes */
+    var fnOld = QQ1_lookupsel;
+
+    QQ1_lookupsel = function(value) {
+        if (typeof fnOld == 'function')
+            fnOld(value);
+
+        var strObsDetText = {
+            'STANDARD':
+                "Every 30 min for 2 hours\n" +
+                "If stable on review by ACN/CSN then CSN then hourly for 4 hours\n" +
+                "Then 4 hourly for next 24 hours",
+            'SPECIFIED':
+                "Every xx min for the first hour\n" +
+                "Every xx min for the next yy hours\n" +
+                "Every xx min for the next yy hours\n" +
+                "zz hourly observations thereafter",
+            'DAY PROCEDURE':
+                "Every 30 min until discharge home score is >9"
+        };
+
+        value = unescape(value).toUpperCase();
+        var objObs = document.getElementById('QQ1');
+        var objObsDet = document.getElementById('QQ1R');
+
+        if (strObsDetText[value]) {
+            objObsDet.value = strObsDetText[value];
+        } else {
+            /* Clear text? Error? */
+        }
+        if (doneInit) {
+            /* Move the focus to the next element after the observation details field.
+            * This prevents the user accidentally overtyping the field as it ends up
+            * being selected. */
+            websys_nextfocusElement(objObsDet);
+            /* FIXME: the following is is not a very clean solution; but is necessary
+             * as the next field (QQ4) is hidden if 'DAY CASE' is selected. This forces
+             * the focus back to the observation details field, selecting all the text... */
+            if (value == 'DAY PROCEDURE') {
+                var el = document.getElementById('QQ4');
+                if (el) websys_nextfocusElement(el);
+            }
+        }
+    }
+}
+
+//end tknoll-miller (SWARH) Auto-populate Observation Details -- TK 20090702
+
+
+
+
+
+
+
+// reload listbox with values from hidden field.
+//this is due to page being refreshed upon error message (such as invalid pin)
+function QENDOIMGLISTReload() {
+	var el = document.getElementById("QEndoimgtxt");
+	var lst = document.getElementById("QEndoimglist");
+	if ((lst)&&(el.value!="")) {
+		var arrITEM=el.value.split(String.fromCharCode(1));
+		for (var i=0; i<arrITEM.length; i++) {
+			var arrITEMVAL=arrITEM[i].split(String.fromCharCode(2));
+			//don't add ones that have a child rowid as they would already be populated
+/*			if ((arrITEMVAL[0]=="")&&(arrITEMVAL[2]!="")) {
+				AddItemToList(lst,arrITEMVAL[1],arrITEMVAL[2]);
+			}*/
+			if ((arrITEMVAL[0]=="")&&(arrITEMVAL[1]!="")) {
+				AddItemToList(lst,arrITEMVAL[1],arrITEMVAL[1]);
+			}
+		}
+	}
+}
+
+//function UpdateEndoimg() {
+	//var arrItems = new Array();
+	//var lst = document.getElementById("QEndoimglist");
+	//if (lst) {
+		
+		//for (var j=0; j<lst.options.length; j++) {			
+			//arrItems[j] = lst.options[j].value;
+			////alert(lst.options[j].value);
+		//}
+		//var el = document.getElementById("QEndoimgtxt");
+		//if (el) el.value = arrItems.join(String.fromCharCode(1));
+	//}
+//}
+
+
+
+function QQ1_lookuptoggle(value) {
+ value=unescape(value).toUpperCase();
+ switch (value) {
+  case unescape('Routine').toUpperCase():
+   Tog('QCtrlClick1^QCtrlClick2^QQ19^QQ20^QQ21^QQ22^QQ23^QQ24^QQ25^	QQ26^QQ27^QQ28^QQ29^QQ4^QQ49',1);    Tog('QCLINIC^QCertificateReq^QDCHospPrescReq^QDCWrittenInstructReq^QDRAINS^QDayProcAntibiotics^QNGT^QQ42^QQ43^QQ44^QQ45^QQ46^QQ47^QQ48^QREFDOC^QREFDOCLIST^QWOUND^Qendoimglist^Qspecobv',0);    break;
+  case unescape('Specified ').toUpperCase():
+   Tog('QCtrlClick1^QCtrlClick2^QQ19^QQ20^QQ21^QQ22^QQ23^QQ24^QQ25^QQ26^QQ27^QQ28^QQ29^QQ4^QQ49',1);    Tog('QCLINIC^QCertificateReq^QDCHospPrescReq^QDCWrittenInstructReq^QDRAINS^QDayProcAntibiotics^QNGT^QQ42^QQ43^QQ44^QQ45^QQ46^QQ47^QQ48^QREFDOC^QREFDOCLIST^QWOUND^Qendoimglist^Qspecobv',0);    break;
+  case unescape('Day Case').toUpperCase():
+   Tog('QQ42^QQ43^QQ44^QQ45^QQ46^QQ47^QQ48',1);    Tog('QCLINIC^QCertificateReq^QCtrlClick1^QCtrlClick2^QDCHospPrescReq^QDCWrittenInstructReq^QDRAINS^QDayProcAntibiotics^QNGT^QQ19^QQ20^QQ21^QQ22^QQ23^QQ24^QQ25^QQ26^QQ27^QQ28^QQ29^QQ4^QQ49^QREFDOC^QREFDOCLIST^QWOUND^Qendoimglist^Qspecobv',0);    break;
+  case unescape('Standard').toUpperCase():
+   Tog('QCLINIC^QCertificateReq^QCtrlClick1^QCtrlClick2^QDRAINS^QNGT^QQ19^QQ20^QQ21^QQ23^QQ24^QQ25^QQ26^QQ27^QQ28^QQ4^QREFDOC^QREFDOCLIST^QWOUND^Qendoimglist^Qspecobv',1);    Tog('QDCHospPrescReq^QDCWrittenInstructReq^QDayProcAntibiotics^QQ22^QQ29^QQ42^QQ43^QQ44^QQ45^QQ46^QQ47^QQ48^QQ49',0);    break;
+  case unescape('Day Procedure').toUpperCase():
+   Tog('QCLINIC^QCertificateReq^QDCHospPrescReq^QDCWrittenInstructReq^QDRAINS^QDayProcAntibiotics^QQ20^QQ21^QQ26^QQ27^QQ28^QQ44^QREFDOC^QREFDOCLIST^QWOUND^Qendoimglist^Qspecobv',1);    Tog('QCtrlClick1^QCtrlClick2^QNGT^QQ19^QQ22^QQ23^QQ24^QQ25^QQ29^QQ4^QQ42^QQ43^QQ45^QQ46^QQ47^QQ48^QQ49',0);    break;
+  case unescape('Specified').toUpperCase():
+   Tog('QCLINIC^QCertificateReq^QCtrlClick1^QCtrlClick2^QDRAINS^QNGT^QQ19^QQ20^QQ21^QQ23^QQ24^QQ25^QQ26^QQ27^QQ28^QQ4^QREFDOC^QREFDOCLIST^QWOUND^Qendoimglist^Qspecobv',1);    Tog('QDCHospPrescReq^QDCWrittenInstructReq^QDayProcAntibiotics^QQ22^QQ29^QQ42^QQ43^QQ44^QQ45^QQ46^QQ47^QQ48^QQ49',0);    break;
+  default:
+   return Def('QQ1');
+ }
+}
+function QQ1_reset() {
+ Tog('QCLINIC^QCertificateReq^QCtrlClick1^QCtrlClick2^QDCHospPrescReq^QDCWrittenInstructReq^QDRAINS^QDayProcAntibiotics^QNGT^QQ19^QQ20^QQ21^QQ22^QQ23^QQ24^QQ25^QQ26^QQ27^QQ28^QQ29^QQ4^QQ42^QQ43^QQ44^QQ45^QQ46^QQ47^QQ48^QQ49^QREFDOC^QREFDOCLIST^QWOUND^Qendoimglist^Qspecobv',0);
+ if (obj.readOnly) {obj.className="clsReadOnly"} else {obj.className=""}
+}
+
+
+
+
+//tknoll-miller (SWARH) 2009-09-16 Load authorise script
+var authcfg = {
+   'buttons': [
+      'update1'
+   ],
+   'fields': {
+      'username': 'UserName',
+      'password': 'PIN'
+   }
+};
+
+(function() {
+   var loadScript = function(type, src) {
+      var head = document.getElementsByTagName('head')[0];
+      var script = document.createElement('script');
+      script.type = type;
+      script.src = src;
+      head.appendChild(script);
+      websys_addListener('load', 'onload', function(){document.isLoaded=true});
+      return script;
+   };
+
+   loadScript('text/javascript', '../custom/SWARH/scripts/authorise4.js');
+})();
+//end tknoll-miller (SWARH) 2009-09-16 Load authorise script
+]]></Implementation>
+</Method>
+</Class>
+</Export>

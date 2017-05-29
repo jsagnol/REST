@@ -1,0 +1,309 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.AUXX.Report.ZEN.StoredProc.CodingWorkload">
+<ProcedureBlock>0</ProcedureBlock>
+<Super>Report.Abstract</Super>
+<TimeCreated>59388,55236.125</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/AUXX/Report/ZEN/StoredProc/CodingWorkload.xml#1 $</Default>
+</Parameter>
+
+<UDLText name="T">
+<Content><![CDATA[
+// Report Name: Trak Coding Workload <br>
+
+]]></Content>
+</UDLText>
+
+<UDLText name="T">
+<Content><![CDATA[
+// Report Code: Trak.CDG0001 <br>
+
+]]></Content>
+</UDLText>
+
+<UDLText name="T">
+<Content><![CDATA[
+// LOGTRAK Number: 72410 <br>
+
+]]></Content>
+</UDLText>
+
+<Method name="CodingWorkloadClose">
+<Description>
+This is the Close component of the %Library.Query.
+This is standard code and should never have to change.
+This is where all the cleanup is performed, i.e. the purging of the temporary storage global ^CacheTemp.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>QHandle:%Library.Binary</FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Clean up by purging the temporary node in ^CacheTemp global
+ New repid
+ Set repid=$li(QHandle,2)
+ 
+ //Start Monitor (if configured to capture stats)
+ i mon Do ..MonitorEnd(mon)
+
+ Kill ^CacheTemp("TRAK",repid)
+
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="CodingWorkloadExecute">
+<Description>
+This is the Execute section for the %Library.Query. 
+All of the logic will be performed here.
+A new node for the ^CacheTemp global will be created and each subscript of this global will contain
+a row for the report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,DateFrom:%Date,Hospital:%String,UserID:%String]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Get reportid i.e. use $INCREMENT to add another node to ^CacheTemp global. 
+ // We use ^CacheTemp global because it will always use memory before disk
+ 
+ New repid,ind,END
+ New MRADMDate,HOSPRowId,NextHospital,SSUSRRowId,NextUser,PAADM2Verified,HOSPDesc
+ New Day,Month,Year
+ New Date0,Date1,Date2,Date3,Date4,Date5,Date6,Date7,Date8,Date9,NoDays,WDate
+ New Desc0,Desc1,Desc2,Desc3,Desc4,Desc5,Desc6,Desc7,Desc8,Desc9,Desc10
+ New Total1,Total2,Total3,Total4,Total5,Total6,Total7,Total8,Total9,Total10
+ New HospTot1,HospTot2,HospTot3,HospTot4,HospTot5,HospTot6,HospTot7,HospTot8,HospTot9,HospTot10
+ New Column0,Column1,Column2,Column3,Column4,Column5,Column6,Column7,Column8,Column9,Column10
+ Set (MRADMDate,HOSPRowId,NextHospital,SSUSRRowId,NextUser,PAADM2Verified,HOSPDesc)=""
+ Set (Day,Month,Year)=""
+ Set (Date0,Date1,Date2,Date3,Date4,Date5,Date6,Date7,Date8,Date9,NoDays)=0
+ Set (Desc0,Desc1,Desc2,Desc3,Desc4,Desc5,Desc6,Desc7,Desc8,Desc9,Desc10,WDate)=""
+ Set (Total1,Total2,Total3,Total4,Total5,Total6,Total7,Total8,Total9,Total10)=0
+ Set (HospTot1,HospTot2,HospTot3,HospTot4,HospTot5,HospTot6,HospTot7,HospTot8,HospTot9,HospTot10)=0
+ Set (Column0,Column1,Column2,Column3,Column4,Column5,Column6,Column7,Column8,Column9,Column10)=""
+ new LastHospital,LastUser,NextHospital, NextUser 
+ set (LastHospital,LastUser,NextHospital,NextUser)=""
+ new FirstTime
+ set FirstTime="Y"
+ 
+ // Use $Increment to get the next node
+ Set repid=$I(^CacheTemp("TRAK"))
+ 
+ //Start Monitor (if configured to capture stats)
+ Set mon=..MonitorBegin()
+ 
+ set ind=1
+ set END=0
+
+ if $g(UserID)'="" set UserID=$ZSTRIP(UserID,"*WC")
+ if $g(Hospital)'="" set Hospital=$ZSTRIP(Hospital,"*WC")
+ 
+ do GenerateDates
+ do RetrieveData  
+
+ // Build QHandle (AtEnd,ReportID,Index)
+ Set QHandle=$lb(0,repid,0)
+ Quit $$$OK
+ 
+GenerateDates
+ set NoDays=0
+ set Date0=..ConvertDateToCache(DateFrom)
+ while NoDays < 57 { 
+ 	set Desc0=$zd(Date0,0)
+ 	if NoDays = 0 {set Date1=Date0 set Desc1=Desc0}
+ 	elseif NoDays = 7 {set Date2=Date0 set Desc2=Desc0}
+ 	elseif NoDays = 14 {set Date3=Date0 set Desc3=Desc0}
+ 	elseif NoDays = 21 {set Date4=Date0 set Desc4=Desc0}
+ 	elseif NoDays = 28 {set Date5=Date0 set Desc5=Desc0}
+ 	elseif NoDays = 35 {set Date6=Date0 set Desc6=Desc0}
+ 	elseif NoDays = 42 {set Date7=Date0 set Desc7=Desc0}
+ 	elseif NoDays = 49 {set Date8=Date0 set Desc8=Desc0}
+ 	else {set Date9=Date0}
+ 	set NoDays = NoDays + 7
+ 	set Date0 = Date0 + 7
+ }
+ quit
+ 
+RetrieveData
+ &SQL(DECLARE CodingWorkload CURSOR FOR
+ 	SELECT
+   		 MRADM_CodingUpdateDate,
+         PAADM_CurrentWard_DR->WARD_LocationDR->CTLOC_Hospital_DR,
+         PAADM_CurrentWard_DR->WARD_LocationDR->CTLOC_Hospital_DR->HOSP_Desc,
+         MRADM_CodingUpdateUser_DR,
+         MRADM_CodingUpdateUser_DR->SSUSR_Initials,
+         PAADM2_VerifiedCoding
+     INTO :MRADMDate,:HOSPRowId,:NextHospital,:SSUSRRowId,:NextUser,:PAADM2Verified
+     FROM SQLUSER.MR_Adm, SQLUser.PA_Adm, SQLUser.PA_Adm2
+     WHERE MRADM_Adm_DR = PAADM_RowID    
+     AND MRADM_Adm_DR = PAADM2_RowID 
+     AND PAADM_Type='I'
+     AND MRADM_CodingUpdateDate >= :Date1  
+     AND MRADM_CodingUpdateDate < :Date9  
+	 AND (({fn CONCAT( ',', {fn CONCAT((:Hospital),',')})} [ {fn CONCAT( ',', {fn CONCAT((PAADM_CurrentWard_DR->WARD_LocationDR->CTLOC_Hospital_DR->HOSP_RowId),',')})}) OR (:Hospital IS NULL))
+     AND (({fn CONCAT( ',', {fn CONCAT((:UserID),',')})} [ {fn CONCAT( ',', {fn CONCAT((MRADM_CodingUpdateUser_DR->SSUSR_RowId),',')})}) OR (:UserID IS NULL))
+	 ORDER BY PAADM_CurrentWard_DR->WARD_LocationDR->CTLOC_Hospital_DR->HOSP_Desc,	MRADM_CodingUpdateUser_DR->SSUSR_Initials)
+ 		
+ &SQL(OPEN CodingWorkload)
+  f  &SQL(FETCH CodingWorkload) q:SQLCODE'=0  do ProcessData
+ 
+ if FirstTime = "N" { 
+ 	set HOSPDesc = LastHospital
+ 	do BuildDetail
+	do BuildTotals
+  }
+ &SQL(CLOSE CodingWorkload)
+ q
+ 
+ProcessData
+ if FirstTime = "Y" {
+	do SetLast
+ }
+ if ((LastHospital = NextHospital) 
+ 		&& (LastUser = NextUser)){
+	do AccumTots
+ }
+ else { 
+	set HOSPDesc = LastHospital
+ 	do BuildDetail
+ 	if (LastHospital '= NextHospital) {
+ 		do BuildTotals
+ 	}
+	do SetLast
+	do AccumTots
+ }
+ q 
+  
+SetLast 
+ set FirstTime = "N" 
+ Set (Total1,Total2,Total3,Total4,Total5,Total6,Total7,Total8,Total9,Total10)=0
+ if LastHospital '= NextHospital {
+	 Set (HospTot1,HospTot2,HospTot3,HospTot4,HospTot5,HospTot6,HospTot7,HospTot8,HospTot9,HospTot10)=0 
+	 do BuildHeader
+ }
+ set LastHospital = NextHospital
+ set LastUser = NextUser 
+ q
+  
+AccumTots
+ if ((MRADMDate >= Date1) && (MRADMDate < Date2)) {set Total1 = Total1 + 1}
+ if ((MRADMDate >= Date2) && (MRADMDate < Date3)) {set Total2 = Total2 + 1}
+ if ((MRADMDate >= Date3) && (MRADMDate < Date4)) {set Total3 = Total3 + 1}
+ if ((MRADMDate >= Date4) && (MRADMDate < Date5)) {set Total4 = Total4 + 1}
+ if ((MRADMDate >= Date5) && (MRADMDate < Date6)) {set Total5 = Total5 + 1}
+ if ((MRADMDate >= Date6) && (MRADMDate < Date7)) {set Total6 = Total6 + 1}
+ if ((MRADMDate >= Date7) && (MRADMDate < Date8)) {set Total7 = Total7 + 1}
+ if ((MRADMDate >= Date8) && (MRADMDate < Date9)) {set Total8 = Total8 + 1}
+ if PAADM2Verified = "Y" {set Total10 = Total10 + 1} 
+ if ((MRADMDate >= Date1) && (MRADMDate < Date2)) {set HospTot1 = HospTot1 + 1}
+ if ((MRADMDate >= Date2) && (MRADMDate < Date3)) {set HospTot2 = HospTot2 + 1}
+ if ((MRADMDate >= Date3) && (MRADMDate < Date4)) {set HospTot3 = HospTot3 + 1}
+ if ((MRADMDate >= Date4) && (MRADMDate < Date5)) {set HospTot4 = HospTot4 + 1}
+ if ((MRADMDate >= Date5) && (MRADMDate < Date6)) {set HospTot5 = HospTot5 + 1}
+ if ((MRADMDate >= Date6) && (MRADMDate < Date7)) {set HospTot6 = HospTot6 + 1}
+ if ((MRADMDate >= Date7) && (MRADMDate < Date8)) {set HospTot7 = HospTot7 + 1}
+ if ((MRADMDate >= Date8) && (MRADMDate < Date9)) {set HospTot8 = HospTot8 + 1}
+ if PAADM2Verified = "Y" {set HospTot10 = HospTot10 + 1} 
+ q
+ 
+BuildHeader 
+ set HOSPDesc = NextHospital
+ set Column0 = " "_"User"
+ set Column1 = Desc1
+ set Column2 = Desc2
+ set Column3 = Desc3
+ set Column4 = Desc4
+ set Column5 = Desc5
+ set Column6 = Desc6
+ set Column7 = Desc7
+ set Column8 = Desc8
+ set Column9 = "User Total"
+ set Column10 = "Verified"	
+ do BuildRow
+ q
+
+BuildDetail
+ set Total9 = Total1 + Total2 + Total3 + Total4 + Total5 + Total6 + Total7 + Total8
+ set Column0 = LastUser
+ set Column1 = Total1
+ set Column2 = Total2
+ set Column3 = Total3
+ set Column4 = Total4
+ set Column5 = Total5
+ set Column6 = Total6
+ set Column7 = Total7
+ set Column8 = Total8
+ set Column9 = Total9
+ set Column10 = Total10
+ do BuildRow
+ q
+
+BuildTotals 
+ set HospTot9 = HospTot1 + HospTot2 + HospTot3 + HospTot4 + HospTot5 + HospTot6 + HospTot7 + HospTot8
+ set Column0 = " "_"Hospital Totals"
+ set Column1 = HospTot1
+ set Column2 = HospTot2
+ set Column3 = HospTot3
+ set Column4 = HospTot4
+ set Column5 = HospTot5
+ set Column6 = HospTot6
+ set Column7 = HospTot7
+ set Column8 = HospTot8
+ set Column9 = HospTot9
+ set Column10 = HospTot10
+ do BuildRow
+ q
+
+BuildRow
+ set ^CacheTemp("TRAK",repid,ind)=$LB(HOSPDesc,Column0,Column1,Column2,Column3,Column4,Column5,Column6,Column7,Column8,Column9,Column10)
+ Set ind=ind+1
+ q
+]]></Implementation>
+</Method>
+
+<Method name="CodingWorkloadFetch">
+<Description>
+This is the Fetch component of the %Library.Query. 
+This should never have to change. It is designed to fetch the row for each subscript of the ^CacheTemp
+global and return this row to the Crystal Report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,&Row:%Library.List,&AtEnd:%Library.Integer=0]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // This fetch method should never have to change. 
+
+ // repid - Report ID
+ // ind   - sequence index which represents each row
+
+ New repid,ind
+
+ // Restore QHandle
+ Set AtEnd=$li(QHandle,1)
+ Set repid=$li(QHandle,2)
+ Set ind=$li(QHandle,3)
+
+ Set ind=$o(^CacheTemp("TRAK",repid,ind))
+ If ind="" {	// if there are no more rows, finish fetching
+ Set AtEnd=1
+ Set Row=""
+ }
+ Else      {	// fetch row
+ Set Row=^CacheTemp("TRAK",repid,ind)
+ }
+
+ // Save QHandle
+ s QHandle=$lb(AtEnd,repid,ind)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Query name="CodingWorkload">
+<Type>%Library.Query</Type>
+<FormalSpec>DateFrom:%Date,Hospital:%String,UserID:%String</FormalSpec>
+<SqlProc>1</SqlProc>
+<Parameter name="CONTAINID" value="0"/>
+<Parameter name="ROWSPEC" value="HOSPDesc:%String(MAXLEN=255),Column0:%String(MAXLEN=255),Column1:%String(MAXLEN=255),Column2:%String(MAXLEN=255),Column3:%String(MAXLEN=255),Column4:%String(MAXLEN=255),Column5:%String(MAXLEN=255),Column6:%String(MAXLEN=255),Column7:%String(MAXLEN=255),Column8:%String(MAXLEN=255),Column9:%String(MAXLEN=255),Column10:%String(MAXLEN=255)"/>
+</Query>
+</Class>
+</Export>

@@ -1,0 +1,230 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.SWARH.Report.ZEN.StoredProc.SWARHZAUD1001">
+<Description><![CDATA[
+<pre>
+**************************************************************************************************************************************
+* Report Code: SWARHZAUD1001
+* Report Description: List discharges from ED showing departure status, used by finance to recover pathology costs.   
+* Menu Caption: ED Discharge Status
+* Initial release: 20/10/2014
+* Developer: Michael Welsh
+* Modified: 
+* 
+**************************************************************************************************************************************
+</pre>]]></Description>
+<ProcedureBlock>0</ProcedureBlock>
+<Super>Custom.SWARH.Report.ZEN.StoredProc.Abstract</Super>
+<TimeCreated>59388,55236.125</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/SWARH/Report/ZEN/StoredProc/SWARHZAUD1001.xml#1 $</Default>
+</Parameter>
+
+<Parameter name="CACHETEMPSUBSCRIPT">
+<Default>SWARH</Default>
+</Parameter>
+
+<Method name="SWARHZAUD1001Close">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>QHandle:%Library.Binary</FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Clean up by purging the temporary node in ^CacheTemp global
+ New repid
+ Set repid=$LIST(QHandle,2)
+ 
+ //Start Monitor (if configured to capture stats)
+ i mon Do ..MonitorEnd(mon)
+ 
+ Kill ^CacheTemp(..#CACHETEMPSUBSCRIPT,repid)
+ 
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="SWARHZAUD1001Execute">
+<Description>
+This is the Execute section for the %Library.Query. 
+All of the logic will be performed here.
+A new node for the ^CacheTemp global will be created and each subscript of this global will contain
+a row for the report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,Hospital:%Integer,DateFrom:%Date,DateTo:%Date]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Get reportid i.e. use $INCREMENT to add another node to ^CacheTemp global. 
+ // We use ^CacheTemp global because it will always use memory before disk
+ New repid,ind
+
+ // Use $Increment to get the next node
+ Set repid=$Increment(^CacheTemp(..#CACHETEMPSUBSCRIPT))
+ 
+ //Start Monitor (if configured to capture stats)
+ s mon=..MonitorBegin()
+ 
+ //Convert ODBC dates to cache format
+ 
+ s DateFrom=$$intdate^SSUTIL4(DateFrom)
+ s DateTo=$$intdate^SSUTIL4(DateTo)
+ Set dateFROM = $ZD(DateFrom,4)
+ Set dateTO = $ZD(DateTo,4)
+  
+ // Build data into ^CacheTemp("TRAK",ReportID)
+ // e.g. Set ^CacheTemp("TRAK",ReportID,Index)=$LB(f1,f2,f3)
+ New URNo,EpisodeNo,Surname,AddressLn1,AddressLn2,Locality,State,Postcode,PostalAdd,PAAddressLn1,PAAddressLn2,PALocality
+ 	,PAState,PAPostcode,DOB,Sex,MedicareNo,CompensableStatus,SeenDate,SeenTime,DischgDate,DischgTime,DepartureStatus
+ 	,TransDestination,HospDesc
+ 
+ Set (URNo,EpisodeNo,Surname,AddressLn1,AddressLn2,Locality,State,Postcode,PostalAdd,PAAddressLn1,PAAddressLn2,PALocality
+ 	,PAState,PAPostcode,DOB,Sex,MedicareNo,CompensableStatus,SeenDate,SeenTime,DischgDate,DischgTime,DepartureStatus
+ 	,TransDestination,HospDesc)=""
+ 
+ Set ind=1
+ 
+ &SQL(DECLARE SWARHZAUD1001 CURSOR FOR
+  SELECT
+        adm.PAADM_PAPMI_DR->PAPMI_No AS URNo
+        ,adm.PAADM_ADMNo AS EpisodeNo
+        ,adm.PAADM_PAPMI_DR->PAPMI_PAPER_DR->PAPER_Name AS Surname
+        ,{fn UCASE(adm.PAADM_PAPMI_DR->PAPMI_PAPER_DR->PAPER_StName)} AS AddressLn1
+        ,{fn UCASE(adm.PAADM_PAPMI_DR->PAPMI_PAPER_DR->PAPER_Address2)} AS AddressLn2
+        ,{fn UCASE(adm.PAADM_PAPMI_DR->PAPMI_PAPER_DR->PAPER_ZIP_DR->CTZIP_Desc)} AS Locality
+        ,{fn UCASE(adm.PAADM_PAPMI_DR->PAPMI_PAPER_DR->PAPER_ZIP_DR->CTZIP_Province_DR->PROV_Desc)} AS State
+        ,adm.PAADM_PAPMI_DR->PAPMI_PAPER_DR->PAPER_ZIP_DR->CTZIP_Code AS Postcode
+        ,{fn UCASE(tadd.PostalAdd)}
+        ,{fn UCASE(tadd.PAAddressLn1)}
+        ,{fn UCASE(tadd.PAAddressLn2)}
+        ,{fn UCASE(tadd.PALocality)}
+        ,{fn UCASE(tadd.PAState)}
+        ,tadd.PAPostcode
+        ,CONVERT(varchar,adm.PAADM_PAPMI_DR->PAPMI_DOB,103) AS DOB
+        ,adm.PAADM_PAPMI_DR->PAPMI_Sex_DR->CTSEX_Code AS Sex
+        ,adm.PAADM_PAPMI_DR->PAPMI_Medicare AS MedicareNo
+        ,instype.INST_Desc AS CompensableStatus
+        ,CONVERT(varchar,adm.PAADM_SeenDate,103) AS SeenDate
+        ,CONVERT(varchar(5),adm.PAADM_SeenTime,108) AS SeenTime
+        ,CONVERT(varchar,adm.PAADM_DischgDate,103) AS DischgDate
+        ,CONVERT(varchar(5),adm.PAADM_DischgTime,108) AS DischgTime
+        ,adm.PAADM_MainMRADM_DR->MRADM_DischClassif_DR->DSCL_Desc AS DepartureStatus
+        ,adm.PAADM_MainMRADM_DR->MRADM_TransfDest_DR->TRD_Desc AS TransDestination
+        ,adm.PAADM_Hospital_DR->HOSP_Desc AS HospDesc
+        ,adm.PAADM_Hospital_DR AS HospDR
+INTO :URNo,:EpisodeNo,:Surname,:AddressLn1,:AddressLn2,:Locality,:State,:Postcode,:PostalAdd,:PAAddressLn1,:PAAddressLn2
+	,:PALocality,:PAState,:PAPostcode,:DOB,:Sex,:MedicareNo,:CompensableStatus,:SeenDate,:SeenTime,:DischgDate,:DischgTime
+	,:DepartureStatus,:TransDestination,:HospDesc,:HospDR
+FROM
+        SqlUser.PA_Adm adm
+                LEFT JOIN(
+                        SELECT
+                                ADDR_AddressType_DR->CTADR_Code AS PostalAdd
+                                ,ADDR_ParRef
+                                ,ADDR_Street AS PAAddressLn1
+                                ,ADDR_Street2 AS PAAddressLn2
+                                ,ADDR_City_DR->CTCIT_Desc AS PALocality
+                                ,ADDR_Province_DR->PROV_Desc AS PAState
+                                ,ADDR_Zip_DR->CTZIP_Code AS PAPostcode
+                                ,ADDR_DateTo
+                        FROM
+                                SQLUser.PA_TempAddress
+                        WHERE
+                                ADDR_AddressType_DR = 2
+                        AND
+                                ADDR_DateTo IS NULL )
+                        AS tadd
+                        ON tadd.ADDR_ParRef = adm.PAADM_PAPMI_DR
+        LEFT JOIN SQLUser.PA_AdmInsurance ins ON (adm.PAADM_RowID = ins.INS_ParRef AND ins.INS_Childsub=1)
+        LEFT JOIN SQLUser.ARC_InsuranceType instype ON (ins.INS_InsType_DR = instype.INST_RowId)
+WHERE
+        adm.PAADM_Hospital_DR = :Hospital
+AND
+        adm.PAADM_DischgDate BETWEEN :DateFrom AND :DateTo
+AND
+        adm.PAADM_VisitStatus <> 'C'
+AND
+        adm.PAADM_Type = 'E'
+ORDER BY
+        adm.PAADM_MainMRADM_DR->MRADM_DischClassif_DR->DSCL_Desc
+)
+ 
+ &SQL(OPEN SWARHZAUD1001)
+ 
+ f  &SQL(FETCH SWARHZAUD1001) q:SQLCODE'=0  d
+ 
+ . do ProcessData
+
+ &SQL(CLOSE SWARHZAUD1001)
+   
+ // Build QHandle (AtEnd,ReportID,Index)
+ Set QHandle=$LISTBUILD(0,repid,0)
+ Quit $$$OK
+  
+ProcessData
+	If (PostalAdd = "P") //Checks for Postal Address and replaces AddressLines with same.
+		{s AddressLn1 = PAAddressLn1,AddressLn2 = PAAddressLn2,Locality = PALocality,State = PAState,Postcode = PAPostcode }
+	s Surname = $ZStrip(Surname,"*C")
+	s AddressLn1 = $REPLACE($ZStrip(AddressLn1,"*C"),",","")
+ 	s AddressLn2 = $REPLACE($ZStrip(AddressLn2,"*C"),",","")
+ 	s Locality = $ZStrip(Locality,"*C") 
+	Set ServerNme = $Get(%request.CgiEnvs("SERVER_NAME"))
+ 	Set NameSpce = $PIECE($namespace,"-")
+ 	do BuildRow
+ quit
+ 
+ &SQL(CLOSE SWARHZAUD1001)
+   
+ // Build QHandle (AtEnd,ReportID,Index)
+ Set QHandle=$LISTBUILD(0,repid,0)
+ Quit $$$OK
+  
+BuildRow
+ s ^CacheTemp(..#CACHETEMPSUBSCRIPT,repid,ind)=$LB(URNo,EpisodeNo,Surname,AddressLn1,AddressLn2,Locality,State,Postcode,DOB,Sex,MedicareNo
+ ,CompensableStatus,SeenDate,SeenTime,DischgDate,DischgTime,DepartureStatus,TransDestination,HospDesc,HospDR,ServerNme,NameSpce
+ ,dateFROM,dateTO)
+ s ind=$i(ind)
+ quit
+]]></Implementation>
+</Method>
+
+<Method name="SWARHZAUD1001Fetch">
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,&Row:%Library.List,&AtEnd:%Library.Integer=0]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // This fetch method should never have to change. 
+ // repid - Report ID
+ // ind   - sequence index which represents each row
+
+ New repid,ind
+
+ // Restore QHandle
+ Set AtEnd=$LI(QHandle,1)
+ Set repid=$LI(QHandle,2)
+ Set ind=$LI(QHandle,3)
+
+ Set ind=$order(^CacheTemp(..#CACHETEMPSUBSCRIPT,repid,ind))
+ If ind="" {	// if there are no more rows, finish fetching
+ 	Set AtEnd=1
+ 	Set Row=""
+ }  Else  {	// fetch row
+ 	Set Row=^CacheTemp(..#CACHETEMPSUBSCRIPT,repid,ind)
+ }
+
+ // Save QHandle
+ Set QHandle=$lb(AtEnd,repid,ind)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Query name="SWARHZAUD1001">
+<Type>%Library.Query</Type>
+<FormalSpec>Hospital:%Integer,DateFrom:%Date,DateTo:%Date</FormalSpec>
+<SqlProc>1</SqlProc>
+<Parameter name="CONTAINID" value="0"/>
+<Parameter name="ROWSPEC" value="URNo:%String,EpisodeNo:%String,Surname:%String,AddressLn1:%String,AddressLn2:%String,Locality:%String,State:%String,Postcode:%String,DOB:%String,Sex:%String,MedicareNo:%String,CompensableStatus:%String,SeenDate:%String,SeenTime:%String,DischgDate:%String,DischgTime:%String,DepartureStatus:%String,TransDestination:%String,HospDesc:%String(MAXLEN=255),HospDR:%Integer,ServerNme:%String(MAXLEN=255),NameSpce:%String(MAXLEN=255),dateFROM:%Date,dateTO:%Date"/>
+<Parameter name="SELECTMODE" value="ODBC"/>
+</Query>
+</Class>
+</Export>

@@ -1,0 +1,224 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.SWARH.Report.RptSvc.StoredProc.SWARHREPR1006">
+<Description><![CDATA[
+<pre>
+**************************************************************************************************************************************
+* Report Code: SWARHREPR1006
+* Report Description: Australian Stroke Registry - Episodes Requiring Questionnaires
+* Menu Caption: AuSCR 
+* Initial release: 2016-08-05
+* Developer: Ross Gladman
+* Report shows: List of episodes in a specified date range where an AuSCR questionnaire has not been completed yet
+* Modified: 2016-02-25 - rpgladman - Changed to use PAADM_DischgDate instead of PAADM_AdmDate to filter to be consistant with
+*                                    exporter, fixed incorrect behaviour when determining ValidICDCodesPresent, added DischgDate to 
+*                                    the output & updated CacheTemp references.
+**************************************************************************************************************************************
+</pre>]]></Description>
+<ProcedureBlock>0</ProcedureBlock>
+<Super>Custom.SWARH.Report.RptSvc.StoredProc.Abstract</Super>
+<TimeCreated>60905,54849</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/SWARH/Report/RptSvc/StoredProc/SWARHREPR1006.xml#1 $</Default>
+</Parameter>
+
+<Method name="SWARHREPR1006QueryClose">
+<Description>
+This is the Close component of the %Library.Query.
+This is standard code and should never have to change.
+This is where all the cleanup is performed, i.e. the purging of the temporary storage global ^CacheTemp.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>QHandle:%Library.Binary</FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Clean up by purging the temporary node in ^CacheTemp global
+  New repid,ind
+ Set repid=$List(QHandle,2)
+
+ //Start Monitor (if configured to capture stats)
+ If mon Do ..MonitorEnd(mon)
+
+ Kill ^CacheTemp(..#CACHETEMPSUBSCRIPT,repid)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="SWARHREPR1006QueryExecute">
+<Description>
+This is the Execute section for the %Library.Query. 
+All of the logic will be performed here.
+A new node for the ^CacheTemp global will be created and each subscript of this global will contain
+a row for the report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,Hospital:%Library.String,DateFrom:%Date,DateTo:%Date]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Get reportid i.e. use $INCREMENT to add another node to ^CacheTemp global. 
+ // We use ^CacheTemp global because it will always use memory before disk
+ New repid,ind
+
+ // Use $Increment to get the next node
+ Set repid=$Increment(^CacheTemp(..#CACHETEMPSUBSCRIPT))
+ 
+ New URNumber, NameFirst, NameLast, EpisodeNumber, ValidICDCodesPresent, QuestionnaireCompleted, ValidationResults
+ New ConsentToReleaseInformation, VStrokeAfterAdmission, NoDischargeDate, DischgDate
+
+ Set (URNumber, NameFirst, NameLast, EpisodeNumber, ValidICDCodesPresent, QuestionnaireCompleted, ValidationResults) = ""
+ Set (ConsentToReleaseInformation, VStrokeAfterAdmission, NoDischargeDate, DischgDate) = ""
+
+ Set ind=1, END=0
+
+ //Start Monitor (if configured to capture stats)
+ Set mon=..MonitorBegin()
+ 
+ //Convert ODBC dates to cache format
+ Set DateFrom=..ConvertDateToCache(DateFrom)
+ Set DateTo=..ConvertDateToCache(DateTo)
+ 
+ // SQL Query
+ &SQL(DECLARE AUSCRCursor CURSOR FOR
+   SELECT DISTINCT BY (ADM.PAADM_ADMNo)
+       CAST(ADM.PAADM_PAPMI_DR->PAPMI_No     AS VARCHAR)                                        As URNumber
+     , CAST(ADM.PAADM_PAPMI_DR->PAPMI_Name2  AS VARCHAR)                                        As NameFirst
+     , CAST(ADM.PAADM_PAPMI_DR->PAPMI_Name   AS VARCHAR)                                        As NameLast
+     , CAST(ADM.PAADM_ADMNo AS VARCHAR)                                                         As EpisodeNumber
+--     , CAST(CASE WHEN DIAG.MRDIA_Prefix = 'P' AND (DIAG.MRDIA_ICDCode_DR->MRCID_Code IN ('I61.0','I61.1','I61.2','I61.3','I61.4','I61.5','I61.6','I61.8','I61.9','I62.9','I63.0','I63.1','I63.2','I63.3','I63.4','I63.5','I63.6','I63.8','I63.9','I64','G45.9')) THEN 'Yes' ELSE 'No' END AS VARCHAR)
+     ,IFNULL(LIST((SELECT TOP 1
+          DIAG.MRDIA_ICDCode_DR->MRCID_Code
+        FROM
+          SQLUser.MR_Diagnos   LDIAG
+        WHERE
+            LDIAG.MRDIA_MRADM_ParRef = DIAG.MRDIA_MRADM_ParRef
+          AND DIAG.MRDIA_Prefix = 'P'
+          AND DIAG.MRDIA_ICDCode_DR->MRCID_Code IN ('I61.0','I61.1','I61.2','I61.3','I61.4','I61.5','I61.6','I61.8','I61.9','I62.9','I63.0','I63.1','I63.2','I63.3','I63.4','I63.5','I63.6','I63.8','I63.9','I64','G45.9')
+           ) %FOREACH(ADM.PAADM_PAPMI_DR->PAPMI_No,ADM.PAADM_ADMNo)),'No','Yes')                As ValidICDCodesPresent -- Only checks if a valid primary code is present
+     , CAST(CASE WHEN QUES.QUESPAAdmDR>0      THEN 'Yes' ELSE 'No' END AS VARCHAR)              As QuestionnaireCompleted
+     , DECODE(QUES.QConsentToReleaseInformat,1,'Yes',2,'No','-')                                As ConsentToReleaseInformation
+     , CASE WHEN
+           QUES.QUESPAAdmDR>0    -- Questionnaire filled out, Stroke date/time is after admission, QStrokeOccursWhileInHospital=9 (Unknown)
+         AND
+           DATEADD(SECOND,QUES.QTimeOfStrokeOnset,QUES.QDateOfStrokeOnset)>DATEADD(SECOND,ISNULL(ADM.PAADM_TriageTime,ADM.PAADM_AdmTime),ISNULL(ADM.PAADM_TriageDate,ADM.PAADM_AdmDate))
+         AND
+           QStrokeOccursWhileInHospi=9 --9=Unknown
+         THEN 'ERROR' ELSE 'OK'
+       END                                                                                      As VStrokeAfterAdmission
+     , CASE WHEN QUES.QDateOfDischargeKnown=1 AND DECODE(ISNULL(CAST(ADM.PAADM_DischgDate AS VARCHAR),'NULL'),'NULL','No','Yes')='No' THEN 'ERROR' ELSE 'OK' END
+                                                                                                As VNoDischargeDate
+	 , CONVERT(varchar(10),ADM.PAADM_DischgDate,103)											As DischgDate
+   FROM  SQLUser.PA_Adm ADM
+       FULL OUTER JOIN SQLUser.MR_Diagnos   DIAG ON ADM.PAADM_MainMRADM_DR=DIAG.MRDIA_MRADM_ParRef
+       FULL OUTER JOIN Questionnaire.QAUSCR QUES ON ADM.PAADM_RowId=QUES.QUESPAAdmDR
+   WHERE
+       ADM.PAADM_Hospital_DR=:Hospital
+     AND
+       ADM.PAADM_DischgDate BETWEEN :DateFrom AND :DateTo
+     AND
+       ((DIAG.MRDIA_Prefix = 'P' AND (DIAG.MRDIA_ICDCode_DR->MRCID_Code IN ('I61.0','I61.1','I61.2','I61.3','I61.4','I61.5','I61.6','I61.8','I61.9','I62.9','I63.0','I63.1','I63.2','I63.3','I63.4','I63.5','I63.6','I63.8','I63.9','I64','G45.9')))
+       OR
+       (QUES.QUESPAAdmDR>0))
+   ORDER BY ADM.PAADM_PAPMI_DR->PAPMI_Name
+
+)
+ &SQL(OPEN AUSCRCursor) 
+ 
+ //FETCH FIRST ROW
+ Do FetchRow
+  
+ While END=0 {
+	 Set sort = ind		// don't sort - uncomment this line if you've sorted in the query
+	 
+	 Do Validation
+	 
+	 Set ^CacheTemp(..#CACHETEMPSUBSCRIPT,repid,sort)=$ListBuild(URNumber, NameFirst, NameLast, EpisodeNumber, ValidICDCodesPresent, QuestionnaireCompleted, ConsentToReleaseInformation, ValidationResults, DischgDate)
+ 
+	 Set ind=ind+1
+ 
+	 //fetch rows
+	 
+	 Do FetchRow
+ }
+
+ &SQL(CLOSE AUSCRCursor)
+ 
+ // Build QHandle (AtEnd,ReportID,Index)
+ Set QHandle=$ListBuild(0,repid,0)
+
+ Quit $$$OK
+
+FetchRow
+ &SQL(FETCH AUSCRCursor INTO :URNumber,:NameFirst,:NameLast,:EpisodeNumber,:ValidICDCodesPresent,:QuestionnaireCompleted,:ConsentToReleaseInformation,:VStrokeAfterAdmission,:VNoDischargeDate,:DischgDate)
+ 
+ If SQLCODE '= 0 Set END = 1
+ Quit
+
+
+Validation
+ Set ValidationResults = ""
+
+ // If no questionnaire with consent supplied then don't bother doing validation at all
+ If ConsentToReleaseInformation="Yes" {
+   // If the DateTime of the stroke is AFTER the DateTime of admission + "Did stroke occur in Hospital" is "Unknown" then ERROR
+   If VStrokeAfterAdmission="ERROR" {
+	   Set ValidationResults = ValidationResults_"; - Stroke occurred after admission so 'Stroke Occurs While In Hospital' field in the questionnaire cannot be 'Unknown'"
+   }
+   // If the field "Date of discharge known" is "Yes" but there is no date of discharge recorded then ERROR
+   If VNoDischargeDate="ERROR" {
+	   Set ValidationResults = ValidationResults_"; - 'Date Of Discharge Known' has been selected in the questionnaire but discharge has not taken place yet"
+   }	 
+   // If any errors are present, remove the "; - " from the first one.  If the string is empty then it does nothing
+   Set ValidationResults = $Extract(ValidationResults,5,1000)
+ }
+
+ Quit
+]]></Implementation>
+</Method>
+
+<Method name="SWARHREPR1006QueryFetch">
+<Description>
+This is the Fetch component of the %Library.Query. 
+This should never have to change. It is designed to fetch the row for each subscript of the ^CacheTemp
+global and return this row to the Crystal Report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,&Row:%Library.List,&AtEnd:%Library.Integer=0]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // This fetch method should never have to change. 
+
+ // repid - Report ID
+ // ind   - sequence index which represents each row
+
+ New repid,ind
+
+ // Restore QHandle
+ Set AtEnd=$List(QHandle,1)
+ Set repid=$List(QHandle,2)
+ Set ind=$List(QHandle,3)
+
+ Set ind=$Order(^CacheTemp(..#CACHETEMPSUBSCRIPT,repid,ind))
+ If ind="" {	// if there are no more rows, finish fetching
+	 Set AtEnd=1
+	 Set Row=""
+ }
+ Else      {	// fetch row
+ 	Set Row=^CacheTemp(..#CACHETEMPSUBSCRIPT,repid,ind)
+ }
+
+ // Save QHandle
+ Set QHandle=$ListBuild(AtEnd,repid,ind)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Query name="SWARHREPR1006Query">
+<Type>%Library.Query</Type>
+<FormalSpec>Hospital:%Integer,DateFrom:%Date,DateTo:%Date</FormalSpec>
+<SqlProc>1</SqlProc>
+<Parameter name="CONTAINID" value="0"/>
+<Parameter name="ROWSPEC" value="URNumber:%String,NameFirst:%String,NameLast:%String,EpisodeNumber:%String,ValidICDCodesPresent:%String,QuestionnaireCompleted:%String,ConsentToReleaseInformation:%String,ValidationResults:%String,DischgDate:%String"/>
+<Parameter name="SELECTMODE" value="ODBC"/>
+</Query>
+</Class>
+</Export>

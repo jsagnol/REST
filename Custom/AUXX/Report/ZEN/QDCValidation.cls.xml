@@ -1,0 +1,157 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.AUXX.Report.ZEN.QDCValidation">
+<Description><![CDATA[
+Report Name: QDC Extract Validation <br>
+Report Code: AUXX.EXT.QDCV <br>
+TRC Number: 158258 <br>]]></Description>
+<Super>Custom.AUXX.Report.ZEN.Abstract</Super>
+<TimeCreated>63074,57563.976991</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/AUXX/Report/ZEN/QDCValidation.xml#1 $</Default>
+</Parameter>
+
+<Property name="DateFrom">
+<Type>%String</Type>
+<Parameter name="ZENURL" value="P1"/>
+</Property>
+
+<Property name="DateTo">
+<Type>%String</Type>
+<Parameter name="ZENURL" value="P2"/>
+</Property>
+
+<Property name="Facility">
+<Type>%String</Type>
+<Parameter name="ZENURL" value="P3"/>
+</Property>
+
+<Property name="Speciality">
+<Type>%String</Type>
+<Parameter name="ZENURL" value="P4"/>
+</Property>
+
+<Property name="Clinician">
+<Type>%String</Type>
+<Parameter name="ZENURL" value="P5"/>
+</Property>
+
+<Property name="ConType">
+<Type>%String</Type>
+<Parameter name="ZENURL" value="P6"/>
+</Property>
+
+<Property name="ErrorType">
+<Type>%String</Type>
+<Parameter name="ZENURL" value="P7"/>
+</Property>
+
+<XData name="ReportDefinition">
+<XMLNamespace>http://www.intersystems.com/zen/report/definition</XMLNamespace>
+<Data><![CDATA[
+<report xmlns='http://www.intersystems.com/zen/report/definition' queryClass='Custom.AUXX.Report.ZEN.StoredProc.QDCValidation' queryName='Validate' name='Validation'>
+<parameter expression='..DateFrom'/>
+<parameter expression='..DateTo'/>
+<parameter expression='..Facility'/>
+<parameter expression='..Speciality'/>
+<parameter expression='..Clinician'/>
+<parameter expression='..ConType'/>
+<parameter expression='..ErrorType'/>
+<attribute name='ReportTitle' expression='$$$Text("@QDCExtractValidation@QDC Extract Validation")'/>
+<attribute name='timestamp' expression='$ZDATETIME($H, 2, 2)'/>
+<attribute name='username' expression='..Username'/>
+<attribute name='facility' expression="..GetHospListDesc(..Facility)"/>
+<attribute name='speciality' expression="..GetSpecialtyListDesc(..Speciality)"/>
+<attribute name='clinician' expression="..GetCareProvListDesc(..Clinician)"/>
+<attribute name='contacttype' expression="..ConType"/>
+<attribute name='errortype' expression="..ErrorType"/>
+<attribute name="datefrom" expression="..DisplayDate(..DateFrom)"/>
+<attribute name="dateto" expression="..DisplayDate(..DateTo)"/>
+
+<group name="displaytype" breakOnField="DisplayType">
+<attribute name="displaytypedesc" field="DisplayType" />
+<aggregate name='TotalErrors' type='SUM' field='Errors'/>
+<aggregate name='TotalWarnings' type='SUM' field='Warnings'/>
+<aggregate name='TotalContacts' type='CUSTOM' field='PAENQRowId' class='%ZEN.Report.Aggregate.CountDistinct'/>
+<group name="clinician" breakOnField="CareProv">
+<attribute name="cliniciandesc" field="CareProv" />
+<group name='Detail'>
+<attribute field='CareProv' name='CareProv'/>
+<attribute field='PatientNo' name='PatientNo'/>
+<attribute field='EpisodeNo' name='EpisodeNo'/>
+<attribute field='SLK' name='SLK'/>
+<attribute field='ContactName' name='ContactName'/>
+<attribute field='ErrorWarning' name='ErrorWarning'/>
+</group>
+</group>
+</group>
+</report>
+]]></Data>
+</XData>
+
+<XData name="ReportDisplay">
+<XMLNamespace>http://www.intersystems.com/zen/report/display</XMLNamespace>
+<Data><![CDATA[
+<report xmlns='http://www.intersystems.com/zen/report/display'
+xmlns:auxxstyle='http://www.intersystems.com/zen/report/display/auxx/style'
+xmlns:auxx='http://www.intersystems.com/zen/report/display/auxx'
+  name='Validation'>
+ <document width= "#(..ReportWidth)#" height="#(..ReportHeight)#" marginLeft="#(..DocMarginLeft)#" marginRight="#(..DocMarginRight)#" 
+marginTop="#(..DocMarginTop)#" marginBottom="#(..DocMarginBottom)#" footerHeight="#(..DocFooterHeight)#" headerHeight="#(..DocHeaderHeight)#" 
+regionBeforeExtent="#(..DocHeaderHeight)#" regionAfterExtent="#(..DocFooterHeight)#">
+<auxxstyle:auxxgroupheader/>
+<auxxstyle:auxxgroupsummary/>
+<auxxstyle:auxxhospitalheader/>
+<auxxstyle:auxxpagefooter/>
+<auxxstyle:auxxpageheader/>
+<auxxstyle:auxxparameterheader/>
+<auxxstyle:auxxreporttitle/>
+<auxxstyle:auxxtablecolumn/>
+</document>
+<auxx:PageHeader pagetitle='@ReportTitle'/>
+<auxx:ReportFooter username='@username' timestamp='@timestamp'/>
+
+<body>
+<!-- REPORT HEADER -->
+<auxx:ReportHeader reporttitle='@ReportTitle'/>
+<auxx:ReportParameterHeader label='@Facility:@Facility:' field='@facility' xcondition="string-length(@facility)>0"/>
+<auxx:ReportParameterHeader label='@Speciality:@Speciality:' field='@speciality' xcondition="string-length(@speciality)>0"/>
+<auxx:ReportParameterHeader label='@Clinician:@Clinician:' field='@clinician' xcondition="string-length(@clinician)>0"/>
+<auxx:ReportParameterHeader label='@ConType:@ConType:' field='@contacttype' xcondition="string-length(@contacttype)>0"/>
+<auxx:ReportParameterHeader label='@ErrorType:@ErrorType:' field='@errortype' xcondition="string-length(@errortype)>0"/>
+<auxx:ReportDateHeader datefrom="@datefrom" dateto="@dateto" />
+<line pattern="solid" width="100%"/>
+<line pattern="empty" width="100%"></line> 
+<auxx:NoResults xcondition="not(displaytype)" />
+<group name='displaytype' pagebreak="true">
+<auxx:GroupHeader label="@DisplayType:@DisplayType:" field="@displaytypedesc" />
+<group name='clinician'>
+<auxx:GroupHeader label="@Clinician:@Clinician:" field="@cliniciandesc" />
+<line pattern="empty" lineHeight="1mm" />
+
+<table class='auxxtablecolumn' group='Detail'>
+<item field='@PatientNo' width="10%" caption='@URN@URN/Identifier'/>
+<item field='@EpisodeNo' width="10%" caption="@EpisodeNo@Episode No"/>
+<item field='@ContactName' width="15%" caption="@PatientName@Patient Name"/>
+<item field='@SLK' width="15%" caption="@SLK@SLK"/>
+<item field='@ErrorWarning' width="50%" caption="@ErrorWarning@Error/Warning Message"/>
+</table>
+
+<line pattern="empty" width="100%"></line> 
+
+</group>
+
+<line pattern="empty" width="100%"></line>
+<auxx:GroupSummary label="@Totalnumberoferrors@Total number of Errors for" group="@displaytypedesc" summaryvalue="TotalErrors" />
+<auxx:GroupSummary label="@Totalnumberofwarnings@Total number of Warnings for" group="@displaytypedesc" summaryvalue="TotalWarnings" />
+<auxx:GroupSummary label="@Totalnumberoferrorwarnings@Total number of " group="@displaytypedesc" summaryvalue="TotalContacts" />
+</group>
+</body>
+</report>
+]]></Data>
+</XData>
+</Class>
+</Export>

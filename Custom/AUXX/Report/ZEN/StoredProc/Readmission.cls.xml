@@ -1,0 +1,252 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.AUXX.Report.ZEN.StoredProc.Readmission">
+<ProcedureBlock>0</ProcedureBlock>
+<Super>Report.Abstract</Super>
+<TimeCreated>60360,43621.642598</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/AUXX/Report/ZEN/StoredProc/Readmission.xml#1 $</Default>
+</Parameter>
+
+<UDLText name="T">
+<Content><![CDATA[
+// Report Name: AUXX Readmissions <br>
+
+]]></Content>
+</UDLText>
+
+<UDLText name="T">
+<Content><![CDATA[
+// Report Code: AUXX.MED0007 <br>
+
+]]></Content>
+</UDLText>
+
+<Method name="ReadmissionClose">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>QHandle:%Library.Binary</FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Clean up by purging the temporary node in ^CacheTemp global
+ New repid
+ Set repid=$li(QHandle,2)
+ 
+ //Close Monitor (if configured to capture stats)
+ i mon Do ..MonitorEnd(mon)
+ 
+ Kill ^CacheTemp("TRAK",repid)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="ReadmissionExecute">
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,DateFrom:%Date,DateTo:%Date,Hospital:%String,Location:%String,DaysElapsed:%Integer]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+	
+ // Get reportid i.e. use $INCREMENT to add another node to ^CacheTemp global. 
+ // We use ^CacheTemp global because it will always use memory before disk
+ New repid,ind
+
+ // Use $Increment to get the next node
+ Set repid=$I(^CacheTemp("TRAK"))
+
+ //Start Monitor (if configured to capture stats)
+ s mon=..MonitorBegin()
+ 
+ // Build data into ^CacheTemp(ReportID)
+ new Number,String,Date,Time,c,n
+ 
+ new EndDate,AdmDate1,DchDate1,AdmDate2,DchDate2,DaysInterval
+ new PAADMRowId,PAADMADMNo,PAADMAdmDate,PAADMAdmTime,PAADMDischgDate,PAADMDischgTime,ADSOUCode,PAADMDepRowId,PAADMDepCode,PAADMDepDesc,HOSPRowId,HOSPCode,HOSPDesc,PAPMIName,PAPMIName2,PAPMIName3,PAPMINo,PAPMIRowId
+ new PrevADMRowId,PrevADMADMNo,PrevADMAdmDate,PrevADMAdmTime,PrevADMDischgDate,PrevADMDischgTime,PrevADSOUCode,PrevADMDepRowId,PrevADMDepCode,PrevADMDepDesc,PrevHOSPRowId,PrevHOSPCode,PrevHOSPDesc,PrevPMIName,PrevPMIName2,PrevPMIName3,PrevPMINo,PrevPMIRowId
+ new READMADMNo,READMAdmDate,READMDischgDate,READSOUCode,READMDepRowId,READMDepCode,READMDepDesc,REHOSPRowId,REHOSPCode,REHOSPDesc
+ set (EndDate,AdmDate1,DchDate1,AdmDate2,DchDate2)=""
+ set (PAADMADMNo,PAADMAdmDate,PAADMAdmTime,PAADMDischgDate,PAADMDischgTime,ADSOUCode,PAADMDepRowId,PAADMDepCode,PAADMDepDesc,HOSPRowId,HOSPCode,HOSPDesc,PAPMIName,PAPMIName2,PAPMIName3,PAPMINo,PAPMIRowId)="" 
+ set (PrevADMRowId,PrevADMADMNo,PrevADMAdmDate,PrevADMAdmTime,PrevADMDischgDate,PrevADMDischgTime,PrevADSOUCode,PrevADMDepRowId,PrevADMDepCode,PrevADMDepDesc,PrevHOSPRowId,PrevHOSPCode,PrevHOSPDesc,PrevPMIName,PrevPMIName2,PrevPMIName3,PrevPMINo,PrevPMIRowId)=""
+ set (READMADMNo,READMAdmDate,READMDischgDate,READSOUCode,READMDepRowId,READMDepCode,READMDepDesc,REHOSPRowId,REHOSPCode,REHOSPDesc)=""
+ set (DaysInterval) = 0
+ new FirstTime
+ set FirstTime="Y"
+
+ set ind=1
+
+ //Convert ODBC dates to cache format
+ s DateFrom=..ConvertDateToCache(DateFrom)
+ s DateTo=..ConvertDateToCache(DateTo)
+
+ if $g(Hospital)'="" s Hospital=$zstrip(Hospital,"*WC")
+ if $g(Location)'="" s Location=$zstrip(Location,"*WC")
+ if DaysElapsed = "" || DaysElapsed < 1 set DaysElapsed = 1 
+ set EndDate = DateTo + DaysElapsed
+
+ &sql(DECLARE Readmission CURSOR FOR
+ SELECT
+	PAADM_RowId, 
+	PAADM_ADMNo, 
+	PAADM_AdmDate, 
+ 	PAADM_AdmTime, 
+ 	PAADM_DischgDate,  
+ 	PAADM_DischgTime, 
+	PAADM_AdmSrc_DR->ADSOU_Code, 
+	PAADM_DepCode_DR->CTLOC_RowId,
+	PAADM_DepCode_DR->CTLOC_Code,
+	PAADM_DepCode_DR->CTLOC_Desc, 
+	PAADM_DepCode_DR->CTLOC_Hospital_DR,   
+	PAADM_DepCode_DR->CTLOC_Hospital_DR->HOSP_Code,   
+	PAADM_DepCode_DR->CTLOC_Hospital_DR->HOSP_Desc, 
+	PAPMI_Name, 
+	PAPMI_Name2,  
+	PAPMI_Name3,
+ 	PAPMI_No, 
+ 	PAPMI_RowId  
+ INTO :PAADMRowId,:PAADMADMNo,:PAADMAdmDate,:PAADMAdmTime,:PAADMDischgDate,:PAADMDischgTime,:ADSOUCode,:PAADMDepRowId,:PAADMDepCode,:PAADMDepDesc,:HOSPRowId,:HOSPCode,:HOSPDesc,:PAPMIName,:PAPMIName2,:PAPMIName3,:PAPMINo,:PAPMIRowId
+ FROM SQLUser.PA_Adm, SQLUser.PA_PatMas
+ WHERE PAADM_Type = 'I' 
+   AND PAADM_VisitStatus in ('D') 
+   AND PAADM_PAPMI_DR = PAPMI_RowId 
+   AND PAADM_DischgDate between :DateFrom and :DateTo 
+   AND (({fn CONCAT( ',', {fn CONCAT((:Hospital),',')})} [ {fn CONCAT( ',', {fn CONCAT((PAADM_DepCode_DR->CTLOC_Hospital_DR->Hosp_RowId),',')})}) OR (:Hospital IS NULL))
+   AND (({fn CONCAT( ',', {fn CONCAT((:Location),',')})} [ {fn CONCAT( ',', {fn CONCAT((PAADM_DepCode_DR->CTLOC_RowId),',')})}) OR (:Location IS NULL))
+ UNION SELECT
+	PAADM_RowId, 
+	PAADM_ADMNo, 
+	PAADM_AdmDate, 
+ 	PAADM_AdmTime, 
+ 	PAADM_DischgDate,  
+ 	PAADM_DischgTime, 
+	PAADM_AdmSrc_DR->ADSOU_Code, 
+	PAADM_DepCode_DR->CTLOC_RowId,
+	PAADM_DepCode_DR->CTLOC_Code,
+	PAADM_DepCode_DR->CTLOC_Desc, 
+	PAADM_DepCode_DR->CTLOC_Hospital_DR,   
+	PAADM_DepCode_DR->CTLOC_Hospital_DR->HOSP_Code,   
+	PAADM_DepCode_DR->CTLOC_Hospital_DR->HOSP_Desc, 
+	PAPMI_Name, 
+	PAPMI_Name2,  
+	PAPMI_Name3,
+ 	PAPMI_No, 
+ 	PAPMI_RowId  
+ FROM SQLUser.PA_Adm, SQLUser.PA_PatMas
+ WHERE PAADM_Type = 'I' 
+   AND PAADM_VisitStatus in ('A', 'D') 
+   AND PAADM_PAPMI_DR = PAPMI_RowId 
+   AND PAADM_AdmDate between :DateFrom and :EndDate 
+   AND (PAADM_DischgDate is null OR PAADM_DischgDate >= :DateTo) 
+   AND (({fn CONCAT( ',', {fn CONCAT((:Hospital),',')})} [ {fn CONCAT( ',', {fn CONCAT((PAADM_DepCode_DR->CTLOC_Hospital_DR->Hosp_RowId),',')})}) OR (:Hospital IS NULL))   
+ ORDER BY PAPMI_No, PAADM_AdmDate, PAADM_AdmTime)
+
+ &sql(open Readmission)
+ 
+ for  &SQL(FETCH Readmission) q:SQLCODE'=0  do ProcessData
+ 
+ &SQL(CLOSE Readmission)
+  // Build QHandle (AtEnd,ReportID,Index)
+ Set QHandle=$lb(0,repid,0)
+ Quit $$$OK 
+
+ProcessData
+ if FirstTime = "Y" {
+	do SetPrevious
+ }
+ else {
+	do CheckReadm
+ }
+ quit
+  
+CheckReadm
+ if ((PrevPMINo = PAPMINo) && (PrevADMDischgDate '= "")) {
+	set DaysInterval = PAADMAdmDate - PrevADMDischgDate
+	if ((DaysInterval >= 0) && (DaysInterval <= DaysElapsed)) {
+		do FormatDates
+		do BuildRow
+	}
+ }		
+ do SetPrevious
+ quit
+  
+SetPrevious
+ if (PAADMDischgDate < DateFrom) || (PAADMDischgDate > DateTo) {
+ 	set (PrevADMRowId,PrevADMADMNo,PrevADMAdmDate,PrevADMAdmTime,PrevADMDischgDate,PrevADMDischgTime,PrevADSOUCode,PrevADMDepRowId,PrevADMDepCode,PrevADMDepDesc,PrevHOSPRowId,PrevHOSPCode,PrevHOSPDesc,PrevPMIName,PrevPMIName2,PrevPMIName3,PrevPMINo,PrevPMIRowId)=""
+ } else {
+ 	set FirstTime = "N" 
+ 	set PrevADMRowId = PAADMRowId
+ 	set PrevADMADMNo = PAADMADMNo
+ 	set PrevADMAdmDate = PAADMAdmDate
+ 	set PrevADMAdmTime = PAADMAdmTime
+ 	set PrevADMDischgDate = PAADMDischgDate
+ 	set PrevADMDischgTime = PAADMDischgTime
+ 	set PrevADSOUCode = ADSOUCode
+ 	set PrevADMDepRowId = PAADMDepRowId
+ 	set PrevADMDepCode = PAADMDepCode
+ 	set PrevADMDepDesc = PAADMDepDesc
+ 	set PrevHOSPRowId = HOSPRowId
+ 	set PrevHOSPCode = HOSPCode
+ 	set PrevHOSPDesc = HOSPDesc
+ 	set PrevPMIName = PAPMIName
+ 	set PrevPMIName2 = PAPMIName2
+ 	set PrevPMIName3 = PAPMIName3
+ 	set PrevPMINo = PAPMINo
+ 	set PrevPMIRowId = PAPMIRowId
+ }
+ quit
+ 
+BuildRow
+ s ind=$i(ind)
+ set ^CacheTemp("TRAK",repid,$ZCVT(PrevHOSPDesc,"U")_" "_$ZCVT(PrevADMDepDesc,"U")_" "_PrevPMINo_" "_AdmDate1_ind)=$LB(PrevADMADMNo,AdmDate1,DchDate1,PrevADSOUCode,PrevADMDepCode,PrevADMDepDesc,PrevHOSPCode,PrevHOSPDesc,PrevPMIName,PrevPMIName2,PrevPMIName3,PrevPMINo,DaysInterval,PAADMADMNo,AdmDate2,DchDate2,ADSOUCode,PAADMDepCode,PAADMDepDesc,HOSPCode,HOSPDesc)
+ q
+
+
+FormatDates
+ // Convert the dates to ODBC date format
+ set (AdmDate1,AdmDate2,DchDate1,DchDate2)=""
+ If PrevADMAdmDate Set AdmDate1=..ConvertDateToODBC(PrevADMAdmDate)
+ If PrevADMDischgDate Set DchDate1=..ConvertDateToODBC(PrevADMDischgDate)
+ If PAADMAdmDate Set AdmDate2=..ConvertDateToODBC(PAADMAdmDate)
+ If PAADMDischgDate Set DchDate2=..ConvertDateToODBC(PAADMDischgDate)
+ Quit
+]]></Implementation>
+</Method>
+
+<Method name="ReadmissionFetch">
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,&Row:%Library.List,&AtEnd:%Library.Integer=0]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // This fetch method should never have to change. 
+
+ New repid,ind
+
+ // Restore QHandle
+ Set AtEnd=$li(QHandle,1)
+ Set repid=$li(QHandle,2)
+ Set ind=$li(QHandle,3)
+
+ Set ind=$o(^CacheTemp("TRAK",repid,ind))
+ If ind="" {	// if there are no more rows, finish fetching
+ Set AtEnd=1
+ Set Row=""
+ }
+ Else      {	// fetch row
+ Set Row=^CacheTemp("TRAK",repid,ind)
+ }
+
+ // Save QHandle
+ s QHandle=$lb(AtEnd,repid,ind)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Query name="Readmission">
+<Type>%Library.Query</Type>
+<FormalSpec>DateFrom:%Date,DateTo:%Date,Hospital:%String,Location:%String,DaysElapsed:%Integer</FormalSpec>
+<SqlProc>1</SqlProc>
+<Parameter name="CONTAINID" value="0"/>
+<Parameter name="ROWSPEC" value="PrevADMADMNo:%String,AdmDate1:%Date,DchDate1:%Date,PrevADSOUCode:%String,PrevADMDepCode:%String,PrevADMDepDesc:%String,PrevHOSPCode:%String,PrevHOSPDesc:%String,PrevPMIName:%String,PrevPMIName2:%String,PrevPMIName3:%String,PrevPMINo:%String,DaysInterval:%Integer,PAADMADMNo:%String,AdmDate2:%Date,DchDate2:%Date,ADSOUCode:%String,PAADMDepCode:%String,PAADMDepDesc:%String,HOSPCode:%String,HOSPDesc:%String"/>
+</Query>
+</Class>
+</Export>

@@ -1,0 +1,274 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.AUXX.Report.ZEN.StoredProc.PatientsOnLeave">
+<ProcedureBlock>0</ProcedureBlock>
+<Super>Report.Abstract</Super>
+<TimeCreated>60884,55777</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/AUXX/Report/ZEN/StoredProc/PatientsOnLeave.xml#1 $</Default>
+</Parameter>
+
+<UDLText name="T">
+<Content><![CDATA[
+// Zen Report Name: Patients on Leave <br>
+
+]]></Content>
+</UDLText>
+
+<UDLText name="T">
+<Content><![CDATA[
+// Report Code: AUXX.ATD0016 <br>
+
+]]></Content>
+</UDLText>
+
+<Method name="PatientsOnLeaveClose">
+<Description>
+This is the Close component of the %Library.Query.
+This is standard code and should never have to change.
+This is where all the cleanup is performed, i.e. the purging of the temporary storage global ^CacheTemp.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>QHandle:%Library.Binary</FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Clean up by purging the temporary node in ^CacheTemp global
+ New repid
+ Set repid=$li(QHandle,2)
+ 
+  //Start Monitor (if configured to capture stats)
+ i mon Do ..MonitorEnd(mon)
+ 
+ Kill ^CacheTemp(repid)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="PatientsOnLeaveExecute">
+<Description>
+This is the Execute section for the %Library.Query. 
+All of the logic will be performed here.
+A new node for the ^CacheTemp global will be created and each subscript of this global will contain
+a row for the report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,HospitalID:%Library.String,Location:%Library.String,WardID:%Library.String,CareProvID:%Library.String,LeaveCategory:%Library.String]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Get reportid i.e. use $INCREMENT to add another node to ^CacheTemp global. 
+ // We use ^CacheTemp global because it will always use memory before disk
+ New repid,ind, END, index, counter
+ 
+ // Use $Increment to get the next node
+ Set repid=$I(^CacheTemp)
+ 
+
+
+ // Build data into ^CacheTemp(ReportID)
+ // e.g. Set ^CacheTemp(ReportID,Index)=$LB(f1,f2,f3)
+ New PAADMRowID,PAADMAdmNo,PAADMAdmDate,ADMLGoingOutDate,ADMLGoingOutTime,ADMLExpectedDateReturn
+ New LEACATRowID,LEACATCode,LEACATDesc,DDESTCode,PAPMIRowID,PAPMINo,PAPMIName,PAPMIName2,PAPMIName3,PAPMIVIPFlag
+ New PAPMIDOB,PAPERAge,CTSEXCode,CTPCPRowID,CTPCPDesc,WARDRowID,WARDCode,WARDDesc,CTLOCRowID
+ New CTLOCCode,CTLOCDesc,HOSPRowID,HOSPNationalCode,HOSPDesc,SIGNFRowID,SIGNFCode,SIGNFDesc,ThisDate
+ Set (PAADMRowID,PAADMAdmNo,PAADMAdmDate,ADMLGoingOutDate,ADMLGoingOutTime,ADMLExpectedDateReturn)=""
+ Set (LEACATRowID,LEACATCode,LEACATDesc,DDESTCode,PAPMIRowID,PAPMINo,PAPMIName,PAPMIName2,PAPMIName3,PAPMIVIPFlag)=""
+ Set (PAPMIDOB,PAPERAge,CTSEXCode,CTPCPRowID,CTPCPDesc,WARDRowID,WARDCode,WARDDesc,CTLOCRowID)=""
+ Set (CTLOCCode,CTLOCDesc,HOSPRowID,HOSPNationalCode,HOSPDesc,SIGNFRowID,SIGNFCode,SIGNFDesc,ThisDate) = ""
+ New DaysOnLeave
+ Set (DaysOnLeave)=0 
+ New ExceedFlag
+ Set (ExceedFlag)=""
+
+  s ind=1, END = 0
+ 
+  //Start Monitor (if configured to capture stats)
+ s mon=..MonitorBegin()
+ 
+   // Strip white space/control chars from blank variables
+ if HospitalID '= "" {set HospitalID = $ZSTRIP(HospitalID,"*WC")}
+ if CareProvID '= "" {set CareProvID = $ZSTRIP(CareProvID,"*WC")}
+ if Location '= "" {set Location = $ZSTRIP(Location,"*WC")}
+ if WardID '= "" {set WardID = $ZSTRIP(WardID,"*WC")}
+ if LeaveCategory '= "" {set LeaveCategory = $ZSTRIP(LeaveCategory,"*WC")}
+ 
+ s admid=0
+ f {
+	 s admid=$o(^PAADMi("AdmTypeCurr","I",admid))
+	 q:admid=""
+	 i (","_HospitalID_",")[(","_$p($g(^PAADM(admid,2)),"^",85)_",") {
+		 s lea=0
+		 f {
+			 s lea=$o(^PAADM(admid,"LEA",lea))
+			 q:lea=""
+			 i $p($g(^PAADM(admid,"LEA",lea)),"^",9)="" {
+				 s ADMLRowId=admid_"||"_lea
+				 do GetPatientsOnLeave
+			 }
+		 }
+	 }
+ }
+  
+  // Build QHandle (AtEnd,ReportID,Index)
+ Set QHandle=$lb(0,repid,0)
+ Quit $$$OK 
+  
+ //Get all patients on leave for the hospital(s) selected
+GetPatientsOnLeave
+ &sql(declare GetPatientsOnLeave cursor for
+ SELECT distinct
+     ADML_ParRef,
+     ADML_ParRef->paadm_admno,
+     ADML_ParRef->PAADM_AdmDate,
+     ADML_GoingOutDate,
+     ADML_GoingOutTime,
+     ADML_ExpectedDateReturn,
+     ADML_leaveCategory_DR->LEACAT_RowID,
+     ADML_leaveCategory_DR->LEACAT_Code,
+     ADML_leaveCategory_DR->LEACAT_Desc,
+     ADML_ParRef->PAADM_MainMRADM_DR->MRADM_DischDestin_DR->DDEST_Code,
+     ADML_ParRef->paadm_papmi_dr->papmi_rowid, 
+     ADML_ParRef->PAADM_PAPMI_DR->PAPMI_No,
+     ADML_ParRef->paadm_papmi_dr->papmi_name,
+     ADML_ParRef->paadm_papmi_dr->papmi_name2,
+     ADML_ParRef->paadm_papmi_dr->papmi_name3,
+     ADML_ParRef->PAADM_PAPMI_dr->PAPMI_VIPFlag,
+     ADML_ParRef->PAADM_PAPMI_dr->PAPMI_DOB,
+     ADML_ParRef->PAADM_PAPMI_dr->PAPMI_PAPER_DR->paper_ageyr,
+     ADML_ParRef->paadm_papmi_dr->papmi_sex_dr->ctsex_code,
+     ADML_ParRef->PAADM_AdmDocCodeDR->CTPCP_RowID,
+     ADML_ParRef->PAADM_AdmDocCodeDR->CTPCP_Desc,
+     ADML_ParRef->paadm_currentward_dr->ward_rowid,
+     ADML_ParRef->paadm_currentward_dr->ward_code,
+     ADML_ParRef->paadm_currentward_dr->ward_desc,
+     ADML_ParRef->paadm_depcode_dr->ctloc_rowid,
+     ADML_ParRef->paadm_depcode_dr->ctloc_code,
+     ADML_ParRef->paadm_depcode_dr->ctloc_desc,
+     ADML_ParRef->paadm_currentward_dr->ward_locationdr->ctloc_hospital_dr->hosp_rowid,
+     ADML_ParRef->paadm_currentward_dr->ward_locationdr->ctloc_hospital_dr->HOSP_NationalCode,
+     ADML_ParRef->paadm_currentward_dr->ward_locationdr->ctloc_hospital_dr->hosp_desc,
+     ADML_ParRef->paadm_currentward_dr->ward_locationdr->CTLOC_SignifFacility_DR->SignF_RowId,
+     ADML_ParRef->paadm_currentward_dr->ward_locationdr->CTLOC_SignifFacility_DR->SignF_Code,
+     ADML_ParRef->paadm_currentward_dr->ward_locationdr->CTLOC_SignifFacility_DR->SignF_Desc
+FROM SQLUser.PA_AdmLeave
+WHERE adml_rowid=:ADMLRowId
+AND (({fn CONCAT( ',', {fn CONCAT((:CareProvID),',')})} [ {fn CONCAT( ',', {fn CONCAT((ADML_ParRef->PAADM_AdmDocCodeDR->CTPCP_RowID),',')})}) OR (:CareProvID IS NULL))
+AND (({fn CONCAT( ',', {fn CONCAT((:Location),',')})} [ {fn CONCAT( ',', {fn CONCAT((ADML_ParRef->paadm_depcode_dr->ctloc_rowid),',')})}) OR (:Location IS NULL))
+AND (({fn CONCAT( ',', {fn CONCAT((:WardID),',')})} [ {fn CONCAT( ',', {fn CONCAT((ADML_ParRef->PAADM_CurrentWard_DR->WARD_RowId),',')})}) OR (:WardID IS NULL))
+AND (({fn CONCAT( ',', {fn CONCAT((:LeaveCategory),',')})} [ {fn CONCAT( ',', {fn CONCAT((ADML_leaveCategory_DR->LEACAT_RowID),',')})}) OR (:LeaveCategory IS NULL))
+)
+ 		
+ &sql(open GetPatientsOnLeave)
+ 
+ do FetchPatientsOnLeave
+ 
+ while END = 0
+ {
+	 do CalcDaysOnLeave	 
+	 do FormatDates
+	 do FormatTimes
+	 do BuildRow
+	 do FetchPatientsOnLeave
+ }
+ 
+ &sql(close GetPatientsOnLeave)
+ 
+ quit
+
+FetchPatientsOnLeave
+ //fetch rows into cursor
+ &sql(fetch GetPatientsOnLeave INTO 
+ 	 	:PAADMRowID,:PAADMAdmNo,:PAADMAdmDate,:ADMLGoingOutDate,:ADMLGoingOutTime,:ADMLExpectedDateReturn,
+     	:LEACATRowID,:LEACATCode,:LEACATDesc,:DDESTCode,:PAPMIRowID,:PAPMINo,:PAPMIName,:PAPMIName2,:PAPMIName3,
+	 	:PAPMIVIPFlag,:PAPMIDOB,:PAPERAge,:CTSEXCode,:CTPCPRowID,:CTPCPDesc,:WARDRowID,:WARDCode,
+	 	:WARDDesc,:CTLOCRowID,:CTLOCCode,:CTLOCDesc,:HOSPRowID,:HOSPNationalCode,:HOSPDesc,
+	 	:SIGNFRowID,:SIGNFCode,:SIGNFDesc)
+
+ if SQLCODE '= 0 set END = 1
+
+ Quit
+ 
+CalcDaysOnLeave 
+ set ThisDate = $p($h,",",1)
+ set DaysOnLeave=ThisDate-ADMLGoingOutDate
+ set ExceedFlag = ""
+ if ADMLExpectedDateReturn '="" {
+	 if ThisDate > ADMLExpectedDateReturn {
+		 	set ExceedFlag = "Y"
+	 } 
+	 elseif ThisDate < ADMLExpectedDateReturn {
+		 	set ExceedFlag = "N"
+	 }
+ }
+
+ Quit
+ 
+FormatDates
+ // Convert the dates to ODBC date format
+ If PAADMAdmDate  Set PAADMAdmDate=..ConvertDateToODBC(PAADMAdmDate)
+ If PAPMIDOB Set PAPMIDOB=..ConvertDateToODBC(PAPMIDOB)
+ If ADMLGoingOutDate Set ADMLGoingOutDate=..ConvertDateToODBC(ADMLGoingOutDate)
+ If ADMLExpectedDateReturn Set ADMLExpectedDateReturn=..ConvertDateToODBC(ADMLExpectedDateReturn) 
+  
+ Quit
+
+FormatTimes
+ // Convert the dates to ODBC date format
+ If ADMLGoingOutTime Set ADMLGoingOutTime=..ConvertTimeToODBC(ADMLGoingOutTime)
+ If ADMLGoingOutTime = 0 set ADMLGoingOutTime = "00:00:00"
+   
+ Quit
+
+BuildRow
+ // build the row
+ Set ^CacheTemp(repid,HOSPDesc_" "_WARDDesc_" "_PAPMIName_" "_PAPMIName2_" "_PAPMIName3_" "_ADMLGoingOutDate_" "_ADMLGoingOutTime_ind)=$LB(PAADMRowID,PAPMINo,PAADMAdmNo,PAADMAdmDate,ADMLGoingOutDate,ADMLGoingOutTime, ADMLExpectedDateReturn,LEACATRowID,LEACATCode, LEACATDesc,DDESTCode,PAPMIRowID, PAPMIName,PAPMIName2,PAPMIName3, PAPMIVIPFlag,PAPMIDOB,PAPERAge,CTSEXCode, CTPCPRowID,CTPCPDesc, WARDRowID,WARDCode, WARDDesc,CTLOCRowID,CTLOCCode, CTLOCDesc, HOSPRowID,HOSPNationalCode,HOSPDesc,SIGNFRowID,SIGNFCode,SIGNFDesc,DaysOnLeave,ExceedFlag)
+ Set ind=ind+1
+ quit
+]]></Implementation>
+</Method>
+
+<Method name="PatientsOnLeaveFetch">
+<Description>
+This is the Fetch component of the %Library.Query. 
+This should never have to change. It is designed to fetch the row for each subscript of the ^CacheTemp
+global and return this row to the Crystal Report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,&Row:%Library.List,&AtEnd:%Library.Integer=0]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // This fetch method should never have to change. 
+
+ // repid - Report ID
+ // ind   - sequence index which represents each row
+
+ New repid,ind
+
+ // Restore QHandle
+ Set AtEnd=$li(QHandle,1)
+ Set repid=$li(QHandle,2)
+ Set ind=$li(QHandle,3)
+
+ Set ind=$o(^CacheTemp(repid,ind))
+ If ind="" {	// if there are no more rows, finish fetching
+ Set AtEnd=1
+ Set Row=""
+ }
+ Else      {	// fetch row
+ Set Row=^CacheTemp(repid,ind)
+ }
+
+ // Save QHandle
+ s QHandle=$lb(AtEnd,repid,ind)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Query name="PatientsOnLeave">
+<Type>%Library.Query</Type>
+<FormalSpec>HospitalID:%Library.String,Location:%Library.String,WardID:%Library.String,CareProvID:%Library.String,LeaveCategory:%Library.String</FormalSpec>
+<SqlProc>1</SqlProc>
+<Parameter name="CONTAINID" value="0"/>
+<Parameter name="ROWSPEC" value="PAADMRowID:%Library.String,PAPMINo:%Library.String,PAADMAdmNo:%Library.String,PAADMAdmDate:%Library.Date,ADMLGoingOutDate:%Library.Date,ADMLGoingOutTime:%Library.Time, ADMLExpectedDateReturn:%Library.Date,LEACATRowID:%Library.String,LEACATCode:%Library.String,LEACATDesc:%Library.String,DDESTCode:%Library.String,PAPMIRowID:%Library.String, PAPMIName:%Library.String,PAPMIName2:%Library.String,PAPMIName3:%Library.String, PAPMIVIPFlag:%Library.String,PAPMIDOB:%Library.Date,PAPERAge:%Library.String,CTSEXCode:%Library.String, CTPCPRowID:%Library.String,CTPCPDesc:%Library.String, WARDRowID:%Library.String,WARDCode, WARDDesc:%Library.String,CTLOCRowID:%Library.String,CTLOCCode:%Library.String, CTLOCDesc:%Library.String, HOSPRowID:%Library.String,HOSPNationalCode:%Library.String,HOSPDesc:%Library.String,SIGNFRowID:%Library.String,SIGNFCode:%Library.String,SIGNFDesc:%Library.String,DaysOnLeave:%Library.Integer,ExceedFlag:%Library.String"/>
+</Query>
+</Class>
+</Export>

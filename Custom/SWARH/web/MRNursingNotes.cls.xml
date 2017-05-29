@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.SWARH.web.MRNursingNotes">
+<ClassType/>
+<ProcedureBlock>0</ProcedureBlock>
+<Super>%RegisteredObject</Super>
+<TimeCreated>63945,38028.085619</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/SWARH/web/MRNursingNotes.xml#1 $</Default>
+</Parameter>
+
+<Method name="GetDiagnosis">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>EpisodeID:%Integer</FormalSpec>
+<Implementation><![CDATA[
+	set (MRADMRowId,Diagnosis,PresentCompaint,EpisodeType)=""
+	set EpisodeType=$p(^PAADM(EpisodeID),"^",2)
+	set MRADMRowId=$p(^PAADM(EpisodeID),"^",61)
+	// showing Provisional Diagnosis (IP) or Presenting Complaint (ED / NA)
+	set Diagnosis=$p($G(^MR(MRADMRowId,"PRO",1)),"^",81)
+	if (EpisodeType="I") {
+		set Diagnosis="Provisional Diagnosis: "_Diagnosis
+	}
+	else {
+		set Diagnosis="Presenting Complaint: "_Diagnosis
+	}
+	quit Diagnosis
+	// coding only done after episode is discharged (code below)
+	/*set (childsub,MRCIDId,MRCIDCode,diagnosis,primaryDiag)=""
+	for {
+		set childsub = $o(^MR(MRADMRowId,"DIA",childsub))
+		quit:(childsub="")
+		set DRGOrder = $p(^MR(MRADMRowId,"DIA",childsub),"^",11)
+		set MRCIDId=$p(^MR(MRADMRowId,"DIA",childsub),"^",1)
+		if (MRCIDId'="") {
+			set MRCIDCode=$p(^MRC("ID",MRCIDId),"^",1)
+			set MRCIDDesc=$p(^MRC("ID",MRCIDId),"^",2)
+		}
+		if (DRGOrder=1) {
+			set primaryDiag="Primary Diagnosis for Episode "_$p(^PAADM(EpisodeID),"^",81)_": "_MRCIDCode_" ("_MRCIDDesc_")"
+		}
+		else {
+			if (DRGOrder="") {
+				if (diagnosis="") {
+					set diagnosis="Diagnosis for Episode "_$p(^PAADM(EpisodeID),"^",81)_": "_MRCIDCode_" ("_MRCIDDesc_")"
+				}
+				else {
+					set diagnosis=diagnosis_", "_MRCIDCode_" ("_MRCIDDesc_")"
+				}
+			}	
+		}
+	}
+	if (primaryDiag'="") {
+		quit primaryDiag
+	}
+	else {
+		quit diagnosis
+	}*/
+]]></Implementation>
+</Method>
+</Class>
+</Export>

@@ -1,0 +1,164 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.AUXX.Report.ZEN.WLHIPS">
+<Super>Custom.AUXX.Report.ZEN.Abstract</Super>
+<TimeCreated>61543,54494.035066</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+This Parameter should be updated when synced from Perforce</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/AUXX/Report/ZEN/WLHIPS.xml#1 $</Default>
+</Parameter>
+
+<UDLText name="T">
+<Content><![CDATA[
+// Report Name: AUXX WL Hospital Initiated Postponements <br>
+
+]]></Content>
+</UDLText>
+
+<UDLText name="T">
+<Content><![CDATA[
+// Report Code: AUXX.WLT0001 <br>
+
+]]></Content>
+</UDLText>
+
+<UDLText name="T">
+<Content><![CDATA[
+// TRC Number: 70183 <br>
+
+]]></Content>
+</UDLText>
+
+<Property name="DateFrom">
+<Type>%String</Type>
+<Parameter name="ZENURL" value="P1"/>
+</Property>
+
+<Property name="DateTo">
+<Type>%String</Type>
+<Parameter name="ZENURL" value="P2"/>
+</Property>
+
+<Property name="Hospital">
+<Type>%String</Type>
+<Parameter name="ZENURL" value="P3"/>
+</Property>
+
+<Property name="ReasonGroup">
+<Type>%String</Type>
+<Parameter name="ZENURL" value="P4"/>
+</Property>
+
+<XData name="ReportDefinition">
+<XMLNamespace>http://www.intersystems.com/zen/report/definition</XMLNamespace>
+<Data><![CDATA[
+<report xmlns='http://www.intersystems.com/zen/report/definition'
+   queryClass='Custom.AUXX.Report.ZEN.StoredProc.WLHIPS' queryName='GetRecords' name='WLHIPS'>
+  <parameter expression='..DateFrom'/>
+  <parameter expression='..DateTo'/>
+  <parameter expression='..Hospital'/>
+  <parameter expression='..ReasonGroup'/>
+ 
+  <attribute name='ReportTitle' expression='$$$Text("@WLHospitalInitiatedPostponements@WL Hospital Initiated Postponements")'/>
+  <attribute name='timestamp' expression='$ZDATETIME($H, 2, 2)'/>
+  <attribute name='username' expression='..Username'/>
+  <attribute name='hospital' expression="..GetHospListDesc(..Hospital)"/>
+  <attribute name='ReasonGroup' expression="..GetReasonGroupListDesc(..ReasonGroup)"/>
+  <attribute name="datefrom" expression="..DisplayDate(..DateFrom)"/>
+  <attribute name="dateto" expression="..DisplayDate(..DateTo)"/>
+
+  <group name="hospital" breakOnField="HOSPDesc">
+ <attribute name="description" field="HOSPDesc" />
+
+   <aggregate name='HospitalTotal' type='COUNT' field='PAPMINo'/>
+
+ <group name="ReasonGroup" breakOnField="WLRGDesc">
+ <attribute name="description" field="WLRGDesc" />
+
+   <aggregate name='RGTotal' type='COUNT' field='PAPMINo'/>
+   
+        <group name='Detail'>
+            <attribute field='PAPMINo' name='PAPMINo'/>	    
+	    	<attribute fields='PAPMIName,PAPMIName2,PAPMIName3' name='PatientName' expression='..DisplayName(%val("PAPMIName"),%val("PAPMIName2"),%val("PAPMIName3"))'/>
+ 	    	<attribute field='WLDate' name='WLDate' expression='..DisplayDate(%val)'/>   
+             <attribute field='WLNo' name='WLNo'/>
+          <attribute field='CTLOCCode' name='CTLOCCode'/>                   
+ 	    	<attribute field='CTPCPDesc' name='CTPCPDesc' />
+            <attribute field='SPPPDesc' name='SPPPDesc'/>
+            <attribute field='WLPCode' name='WLPCode'/>
+             <attribute field='WLSCode' name='WLSCode'/>
+            <attribute field='ADMCancelDate' name='ADMCancelDate' expression='..DisplayDate(%val)'/>
+            <attribute field='WLOperativeEpisode' name='WLOperativeEpisode'/>
+            </group>
+ 		  </group> 
+  	 </group>
+  	  </report>
+]]></Data>
+</XData>
+
+<XData name="ReportDisplay">
+<XMLNamespace>http://www.intersystems.com/zen/report/display</XMLNamespace>
+<Data><![CDATA[
+<report xmlns='http://www.intersystems.com/zen/report/display'
+xmlns:auxxstyle='http://www.intersystems.com/zen/report/display/auxx/style'
+xmlns:auxx='http://www.intersystems.com/zen/report/display/auxx'
+   name='WLHIPS'>
+ <document width= "#(..ReportWidth)#" height="#(..ReportHeight)#" marginLeft="#(..DocMarginLeft)#" marginRight="#(..DocMarginRight)#" 
+marginTop="#(..DocMarginTop)#" marginBottom="#(..DocMarginBottom)#" footerHeight="#(..DocFooterHeight)#" headerHeight="#(..DocHeaderHeight)#" 
+regionBeforeExtent="#(..DocHeaderHeight)#" regionAfterExtent="#(..DocFooterHeight)#">
+<auxxstyle:auxxgroupheader/>
+<auxxstyle:auxxgroupsummary/>
+<auxxstyle:auxxhospitalheader/>
+<auxxstyle:auxxpagefooter/>
+<auxxstyle:auxxpageheader/>
+<auxxstyle:auxxparameterheader/>
+<auxxstyle:auxxreporttitle/>
+<auxxstyle:auxxtablecolumn/>
+</document>
+<auxx:PageHeader pagetitle='@ReportTitle'/>
+<auxx:ReportFooter username='@username' timestamp='@timestamp'/>
+<body>
+<!-- REPORT HEADER -->
+<auxx:ReportHeader reporttitle='@ReportTitle'/>
+<auxx:ReportParameterHeader label='@Hospital:@Hospital:' field='@hospital' xcondition="string-length(@hospital)>0"/>
+<auxx:ReportParameterHeader label='@ReasonGroup:@ReasonGroup:' field='@ReasonGroup' xcondition="string-length(@ReasonGroup)>0"/>
+<auxx:ReportDateHeader datefrom="@datefrom" dateto="@dateto" />
+<line pattern="solid" width="100%"/>
+<line pattern="empty" width="100%"></line> 
+<auxx:NoResults xcondition="not(hospital)" />
+<group name='hospital' pagebreak="true">
+<auxx:GroupHospitalHeader label="@Hospital:@Hospital:" field="@description" />
+<line pattern="empty" lineHeight="2mm" />
+
+<group name='ReasonGroup'>
+<auxx:GroupHospitalHeader label="@ReasonGroup:@Reason Group:" field="@description" />
+<line pattern="empty" lineHeight="2mm" />
+
+     <table class='auxxtablecolumn' group='Detail' >
+        <item field='@PAPMINo' width="9.5%" caption='@URN@URN' />
+        <item field='@PatientName' width="12.5%" caption='@PatientName@Patient Name' />
+       <item field='@WLDate' width='8%' caption="@DateRegistered@Date Registered"/>
+		<item field='@WLNo' width="9%" caption='@UniqueKey@Unique Key' />
+        <item field='@CTLOCCode' width='7%' caption='@Location@Location' />
+         <item field='@CTPCPDesc' width='9%' caption="Clinician"/>
+        <item field='@SPPPDesc' width='13%' caption='@Procedure@Procedure' />
+        <item field='@WLPCode' width='5%' caption='@Priority@Priority' />
+        <item field='@WLSCode' width='6%' caption='@CurrentStatus@Current Status'/>
+         <item field='@ADMCancelDate' width='8%' caption='@DateCancelled@Date Cancelled'/>
+        <item field='@WLOperativeEpisode' width='6%'  caption='@BookingNumber@Booking Number' />
+        <item field='@REACode' width='7%' caption='@ReasonCode@Reason Code' />
+     </table>
+       <line pattern="empty" lineHeight="4mm" />
+	   <auxx:GroupSummary label="@TotalCasesfor@Total Cases for " group="@description" summaryvalue="RGTotal" />
+    </group> 
+   	   <line pattern="empty" width="100%"></line>  
+   	   <auxx:GroupSummary label="@TotalCasesfor@Total Cases for " group="@description" summaryvalue="HospitalTotal" />
+</group>
+</body>
+   </report>
+]]></Data>
+</XData>
+</Class>
+</Export>

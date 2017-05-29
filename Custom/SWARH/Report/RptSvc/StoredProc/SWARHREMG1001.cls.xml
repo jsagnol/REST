@@ -1,0 +1,295 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.SWARH.Report.RptSvc.StoredProc.SWARHREMG1001">
+<Description><![CDATA[
+<pre>
+**************************************************************************************************************************************
+* Report Code: SWARHREMG1001
+* Report Description: ED Data
+* Menu Caption: ED Data
+* Initial release: 27/08/2013
+* Developer: Phuong-Dung Hoang
+* Report shows: Nearly all the data contained within the VEMD including descriptions
+* Modified: MW - 30/07/14 - Added PAADM2_ActualArrivalDate, PAADM2_ActualArrivalTime, PAADM2_AmbulHandoverCompDate 
+*	and PAADM2_AmbulHandoverCompTime to report, formatted time fields to remove seconds.
+* 
+**************************************************************************************************************************************
+</pre>
+Class for SWARHREMG1001 Report]]></Description>
+<ProcedureBlock>0</ProcedureBlock>
+<Super>Custom.SWARH.Report.RptSvc.StoredProc.Abstract</Super>
+<TimeCreated>60905,54849</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/SWARH/Report/RptSvc/StoredProc/SWARHREMG1001.xml#1 $</Default>
+</Parameter>
+
+<UDLText name="T">
+<Content><![CDATA[
+/*
+ * Report Name: ED Data <br>
+ * Report Code: SWARHREMG1001 <br>
+ * SWARH Developer: Phuong-Dung Hoang <br>
+ */
+]]></Content>
+</UDLText>
+
+<Method name="SWARHREMG1001QueryClose">
+<Description>
+This is the Close component of the %Library.Query.
+This is standard code and should never have to change.
+This is where all the cleanup is performed, i.e. the purging of the temporary storage global ^CacheTemp.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>QHandle:%Library.Binary</FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Clean up by purging the temporary node in ^CacheTemp global
+ New repid,ind
+ Set repid=$li(QHandle,2)
+
+ //Start Monitor (if configured to capture stats)
+ i mon Do ..MonitorEnd(mon)
+
+ Kill ^CacheTemp("TRAK",repid)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="SWARHREMG1001QueryExecute">
+<Description>
+This is the Execute section for the %Library.Query. 
+All of the logic will be performed here.
+A new node for the ^CacheTemp global will be created and each subscript of this global will contain
+a row for the report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,Hospital:%Library.Integer,DateFrom:%Date,DateTo:%Date]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Get reportid i.e. use $INCREMENT to add another node to ^CacheTemp global. 
+ // We use ^CacheTemp global because it will always use memory before disk
+ New repid,ind
+
+  // Use $Increment to get the next node
+ Set repid=$I(^CacheTemp("TRAK"))
+ 
+ /* TEMPLATE MODIFY: Define and initialise appropriate column variables to describe output rowset columns */
+ New PAADMType,PAADMVisitStatus,PAADMAdmNo,PAADMAdmDate,PAADMDischgDate,PAPMINo,HOSPDesc,PAADMHospitalDR,PAADMMainMRADMDR,DSCLDesc,Priority,
+ PAPMIMedicare,PAPMIMedicareCode,MedicareSuffix,PAPMIDVANumber,Sex,PAPMIDOB,CTCOUDesc,IndigStatus,PREFLDesc,
+ PAPERInterpreterRequired,CTCITDesc,CTZIPCode,UsualAccommodation,TransferMeans,ReferringClinic,TransIn,TransOut,
+ VisitType,INSTDesc,MRADMAmbulanceCase,PAADMAdmTime,PAADMTriageDate,PAADMTriageTime,PAADMSeenDate,PAADMSeenTime,
+ PAADMDischgTime,PAADMInpatBedReqDate,PAADMInpatBedReqTime,REFDEPDesc,RETRADesc,EscortSource,TRANSPDesc,MRADMInjuryDesc,
+ INJUDesc,HumanIntent,PLINGDesc,ACTINJDesc,ICDCodes,AmbulArrivalDate,AmbulArrivalTime,AmbulHandoverDate,AmbulHandoverTime
+ 
+ Set (PAADMHospitalDR,PAADMMainMRADMDR)=0
+ Set (PAADMType,PAADMVisitStatus,PAADMAdmNo,PAADMAdmDate,PAADMDischgDate,PAPMINo,HOSPDesc,DSCLDesc,Priority,
+ PAPMIMedicare,PAPMIMedicareCode,MedicareSuffix,PAPMIDVANumber,Sex,PAPMIDOB,CTCOUDesc,IndigStatus,PREFLDesc,
+ PAPERInterpreterRequired,CTCITDesc,CTZIPCode,UsualAccommodation,TransferMeans,ReferringClinic,TransIn,TransOut,
+ VisitType,INSTDesc,MRADMAmbulanceCase,PAADMAdmTime,PAADMTriageDate,PAADMTriageTime,PAADMSeenDate,PAADMSeenTime,
+ PAADMDischgTime,PAADMInpatBedReqDate,PAADMInpatBedReqTime,REFDEPDesc,RETRADesc,EscortSource,TRANSPDesc,MRADMInjuryDesc,
+ INJUDesc,HumanIntent,PLINGDesc,ACTINJDesc,ICDCodes,AmbulArrivalDate,AmbulArrivalTime,AmbulHandoverDate,AmbulHandoverTime)=""
+
+
+ s ind=1, END=0
+
+ //Start Monitor (if configured to capture stats)
+ s mon=..MonitorBegin()
+ 
+ //Convert ODBC dates to cache format
+ s DateFrom=..ConvertDateToCache(DateFrom)
+ s DateTo=..ConvertDateToCache(DateTo)
+ 
+ /*
+  * TEMPLATE MODIFY:
+  *		1. Change name of cursor to something more descriptive than EDDataCursor (need to change in 4 places; here, 2x "fetch" expressions and close expression below)
+  *		2. Change SQL query to query desired data, passing valid parameters as defined in Query and Execute method arguments.
+  *		3. Pass appropriate parameters using :<ParameterVariableName> - eg. :Hospital
+  */
+ &SQL(DECLARE EDDataCursor CURSOR FOR 
+	 SELECT
+		PAADM_Type,
+		PAADM_VisitStatus,
+		PAADM_ADMNo,
+		PAADM_AdmDate,
+		PAADM_DischgDate,
+		PAADM_PAPMI_DR->PAPMI_No,
+		PAADM_Hospital_DR->HOSP_Desc,
+		PAADM_Hospital_DR,
+		PAADM_MainMRADM_DR,
+		PAADM_MainMRADM_DR->MRADM_DischClassif_DR->DSCL_Desc,
+		PAADM_Priority_DR->CTACU_Desc AS Priority,
+		PAADM_PAPMI_DR->PAPMI_Medicare,
+		PAADM_PAPMI_DR->PAPMI_MedicareCode,
+		PAADM_PAPMI_DR->PAPMI_MedicareSuffix_DR->MEDSUF_Desc AS Medicare_Suffix,
+		PAADM_PAPMI_DR->PAPMI_DVAnumber,
+		PAADM_PAPMI_DR->PAPMI_Sex_DR->CTSEX_Desc as Sex,
+		PAADM_PAPMI_DR->PAPMI_DOB,
+		PAADM_PAPMI_DR->PAPMI_CountryOfBirth_DR->CTCOU_Desc,
+		PAADM_PAPMI_DR->PAPMI_IndigStat_DR->INDST_Desc as Indig_Status,
+		PAADM_PAPMI_DR->PAPMI_PrefLanguage_DR->PREFL_Desc,
+		PAADM_PAPMI_DR->PAPMI_PAPER_DR->PAPER_InterpreterRequired,
+		PAADM_PAPMI_DR->PAPMI_PAPER_DR->PAPER_CityCode_DR->CTCIT_Desc,
+		PAADM_PAPMI_DR->PAPMI_PAPER_DR->PAPER_Zip_DR->CTZIP_Code,
+		PAADM_UsualAccom_DR->USACC_Desc as Usual_Accommodation,
+		PAADM_MainMRADM_DR->MRADM_TransferMeans_DR->TRANSM_Desc as Transfer_Means,
+		PAADM_RefClinic_DR->CTRFC_Desc AS Referring_Clinic,
+		PAADM_MainMRADM_DR->MRADM_TransDest2_DR->TRD_Desc as Trans_In,
+		PAADM_MainMRADM_DR->MRADM_TransfDest_DR->TRD_Desc as Trans_Out,
+		PAADM_MainMRADM_DR->MRADM_VisitType_DR->VST_Desc as Visit_Type,
+		ARC_InsuranceType.INST_Desc,
+		PAADM_MainMRADM_DR->MRADM_AmbulanceCase,
+		PAADM_AdmTime,
+		PAADM_TriageDate,
+		PAADM_TriageTime,
+		PAADM_SeenDate,
+		PAADM_SeenTime,
+		PAADM_DischgTime,
+		PAADM_InpatBedReqDate,
+		PAADM_InpatBedReqTime,
+		PAADM_MainMRADM_DR->MRADM_ReferredTo_DR->REFDEP_Desc,
+		PAADM_MainMRADM_DR->MRADM_ReasonTransfer_DR->RETRA_Desc,
+		PAADM_MainMRADM_DR->MRADM_EscortSource_DR->ESCS_Desc AS Escort_Source,
+		PAADM_MainMRADM_DR->MRADM_DischTransport_DR->TRANSP_Desc,
+		PAADM_MainMRADM_DR->MRADM_InjuryDesc,
+		PAADM_CauseInj_DR->INJU_Desc,
+		PAADM_HumanIntent_DR->HUMINT_Desc as Human_Intent,
+		PAADM_PlaceOfInj_DR->PLINJ_Desc,
+		PAADM_ActivityInjured_DR->ACTINJ_Desc,
+		PAADM_PAAdm2_DR->PAADM2_ActualArrivalDate AS AmbulArrivalDate,
+		PAADM_PAAdm2_DR->PAADM2_ActualArrivalTime AS AmbulArrivalTime,
+		PAADM_PAAdm2_DR->PAADM2_AmbulHandoverCompDate AS AmbulHandoverDate,
+		PAADM_PAAdm2_DR->PAADM2_AmbulHandoverCompTime AS AmbulHandoverTime
+	 FROM SqlUser.PA_Adm LEFT JOIN
+     SQLUser.PA_AdmInsurance ON (PAADM_RowID=INS_ParRef and INS_Childsub=1) LEFT JOIN
+     SQLUser.ARC_InsuranceType ON INS_InsType_DR=INST_RowId
+     WHERE PAADM_DischgDate >= :DateFrom  
+     AND PAADM_DischgDate <= :DateTo  
+     AND PAADM_Hospital_DR = :Hospital
+     AND PAADM_VisitStatus <> 'C' 
+     AND PAADM_Type = 'E'
+	ORDER BY PAADM_ADMNo
+	 )
+ &SQL(OPEN EDDataCursor)
+ 
+ //FETCH FIRST ROW
+ d FetchRow
+  
+ while END=0 {
+  
+	 d FormatDates
+  	 d FormatTimes
+  	 s ICDCodes=..GetICD10CodeList(PAADMMainMRADMDR)
+  	 //s ICDCodeDetails=..GetICD10DetailsList(PAADMMainMRADMDR)
+  	 
+	 /* TEMPLATE MODIFY: Build the sort string here from column variables. Convert strings to uppercase ($ZCVT(<field>,"U") and separate with spaces */
+	 s sort = ind		// don't sort - uncomment this line if you've sorted in the query
+ 
+	 /* TEMPLATE MODIFY: Build the list of fields by placing correct column variable names in the $LB() here. */
+	 s ^CacheTemp("TRAK",repid,sort)=$LB(PAADMType,PAADMVisitStatus,PAADMAdmNo,PAADMAdmDate,PAADMDischgDate,PAPMINo,HOSPDesc,PAADMHospitalDR,PAADMMainMRADMDR,DSCLDesc,Priority,
+ PAPMIMedicare,PAPMIMedicareCode,MedicareSuffix,PAPMIDVANumber,Sex,PAPMIDOB,CTCOUDesc,IndigStatus,PREFLDesc,
+ PAPERInterpreterRequired,CTCITDesc,CTZIPCode,UsualAccommodation,TransferMeans,ReferringClinic,TransIn,TransOut,
+ VisitType,INSTDesc,MRADMAmbulanceCase,PAADMAdmTime,PAADMTriageDate,PAADMTriageTime,PAADMSeenDate,PAADMSeenTime,
+ PAADMDischgTime,PAADMInpatBedReqDate,PAADMInpatBedReqTime,REFDEPDesc,RETRADesc,EscortSource,TRANSPDesc,MRADMInjuryDesc,
+ INJUDesc,HumanIntent,PLINGDesc,ACTINJDesc,AmbulArrivalDate,AmbulArrivalTime,AmbulHandoverDate,AmbulHandoverTime,ICDCodes)
+	 s ind=ind+1
+ 
+	 //fetch rows
+	 d FetchRow
+ }
+
+ &SQL(CLOSE EDDataCursor)
+ 
+ // Build QHandle (AtEnd,ReportID,Index)
+ Set QHandle=$lb(0,repid,0)
+
+ Quit $$$OK
+
+FetchRow
+ /* TEMPLATE MODIFY: Rename cursor to something moreChange fetch INTO parameter list to match column variable names */
+ &sql(FETCH EDDataCursor INTO :PAADMType,:PAADMVisitStatus,:PAADMAdmNo,:PAADMAdmDate,:PAADMDischgDate,:PAPMINo,:HOSPDesc,:PAADMHospitalDR,:PAADMMainMRADMDR,:DSCLDesc,:Priority,
+ :PAPMIMedicare,:PAPMIMedicareCode,:MedicareSuffix,:PAPMIDVANumber,:Sex,:PAPMIDOB,:CTCOUDesc,:IndigStatus,:PREFLDesc,
+ :PAPERInterpreterRequired,:CTCITDesc,:CTZIPCode,:UsualAccommodation,:TransferMeans,:ReferringClinic,:TransIn,:TransOut,
+ :VisitType,:INSTDesc,:MRADMAmbulanceCase,:PAADMAdmTime,:PAADMTriageDate,:PAADMTriageTime,:PAADMSeenDate,:PAADMSeenTime,
+ :PAADMDischgTime,:PAADMInpatBedReqDate,:PAADMInpatBedReqTime,:REFDEPDesc,:RETRADesc,:EscortSource,:TRANSPDesc,:MRADMInjuryDesc,
+ :INJUDesc,:HumanIntent,:PLINGDesc,:ACTINJDesc,:AmbulArrivalDate,:AmbulArrivalTime,:AmbulHandoverDate,:AmbulHandoverTime)
+ if SQLCODE '= 0 set END = 1
+ q
+ 
+FormatDates
+ s PAADMAdmDate=..ConvertDateToODBC(PAADMAdmDate)
+ s PAADMDischgDate=..ConvertDateToODBC(PAADMDischgDate)
+ s PAADMTriageDate=..ConvertDateToODBC(PAADMTriageDate)
+ s PAPMIDOB=..ConvertDateToODBC(PAPMIDOB)
+ s PAADMSeenDate=..ConvertDateToODBC(PAADMSeenDate)
+ s PAADMInpatBedReqDate=..ConvertDateToODBC(PAADMInpatBedReqDate)
+ s AmbulArrivalDate=..ConvertDateToODBC(AmbulArrivalDate)
+ s AmbulHandoverDate=..ConvertDateToODBC(AmbulHandoverDate)
+ q
+ 
+FormatTimes
+ If PAADMAdmTime s PAADMAdmTime = $ZT(PAADMAdmTime,2)
+ If PAADMDischgTime s PAADMDischgTime = $ZT(PAADMDischgTime,2)
+ If PAADMTriageTime s PAADMTriageTime = $ZT(PAADMTriageTime,2)
+ If PAADMInpatBedReqTime s PAADMInpatBedReqTime = $ZT(PAADMInpatBedReqTime,2)
+ If PAADMSeenTime s PAADMSeenTime = $ZT(PAADMSeenTime,2)
+ If AmbulArrivalTime s AmbulArrivalTime = $ZT(AmbulArrivalTime,2)
+ If AmbulHandoverTime s AmbulHandoverTime = $ZT(AmbulHandoverTime,2)
+ q
+]]></Implementation>
+</Method>
+
+<Method name="SWARHREMG1001QueryFetch">
+<Description>
+This is the Fetch component of the %Library.Query. 
+This should never have to change. It is designed to fetch the row for each subscript of the ^CacheTemp
+global and return this row to the Crystal Report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,&Row:%Library.List,&AtEnd:%Library.Integer=0]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // This fetch method should never have to change. 
+
+ // repid - Report ID
+ // ind   - sequence index which represents each row
+
+ New repid,ind
+
+ // Restore QHandle
+ Set AtEnd=$li(QHandle,1)
+ Set repid=$li(QHandle,2)
+ Set ind=$li(QHandle,3)
+
+ Set ind=$o(^CacheTemp("TRAK",repid,ind))
+ If ind="" {	// if there are no more rows, finish fetching
+	 Set AtEnd=1
+	 Set Row=""
+ }
+ Else      {	// fetch row
+ 	Set Row=^CacheTemp("TRAK",repid,ind)
+ }
+
+ // Save QHandle
+ s QHandle=$lb(AtEnd,repid,ind)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<UDLText name="T">
+<Content><![CDATA[
+/* TEMPLATE MODIFY: Rename Stored Proc query to <MyStoredProcName> 
+ * TEMPLATE MODIFY: Change parameters to match desired stored procedure parameters
+ * TEMPLATE MODIFY: Change ROWSPEC list to match desired output column names and column data types */
+]]></Content>
+</UDLText>
+
+<Query name="SWARHREMG1001Query">
+<Type>%Library.Query</Type>
+<FormalSpec>Hospital:%Library.Integer,DateFrom:%Date,DateTo:%Date</FormalSpec>
+<SqlProc>1</SqlProc>
+<Parameter name="CONTAINID" value="0"/>
+<Parameter name="ROWSPEC" value="PAADMType:%String,PAADMVisitStatus:%String,PAADMAdmNo:%String,PAADMAdmDate:%Date,PAADMDischgDate:%Date,PAPMINo:%String,HOSPDesc:%String,PAADMHospitalDR:%Integer,PAADMMainMRADMDR:%Integer,DSCLDesc:%String,Priority:%String,PAPMIMedicare:%String,PAPMIMedicareCode:%String,MedicareSuffix:%String,PAPMIDVANumber:%String,Sex:%String,PAPMIDOB:%Date,CTCOUDesc:%String,IndigStatus:%String,PREFLDesc:%String,PAPERInterpreterRequired:%String,CTCITDesc:%String,CTZIPCode:%String,UsualAccommodation:%String,TransferMeans:%String,ReferringClinic:%String,TransIn:%String,TransOut:%String,VisitType:%String,INSTDesc:%String,MRADMAmbulanceCase:%String,PAADMAdmTime:%String(MAXLEN=10),PAADMTriageDate:%Date,PAADMTriageTime:%String(MAXLEN=10),PAADMSeenDate:%Date,PAADMSeenTime:%String(MAXLEN=10),PAADMDischgTime:%String(MAXLEN=10),PAADMInpatBedReqDate:%Date,PAADMInpatBedReqTime:%String(MAXLEN=10),REFDEPDesc:%String,RETRADesc:%String,EscortSource:%String,TRANSPDesc:%String,MRADMInjuryDesc:%String,INJUDesc:%String,HumanIntent:%String,PLINGDesc:%String,ACTINJDesc:%String,AmbulArrivalDate:%Date,AmbulArrivalTime:%String(MAXLEN=10),AmbulHandoverDate:%Date,AmbulHandoverTime:%String(MAXLEN=10),ICDCodes:%String"/>
+<Parameter name="SELECTMODE" value="ODBC"/>
+</Query>
+</Class>
+</Export>

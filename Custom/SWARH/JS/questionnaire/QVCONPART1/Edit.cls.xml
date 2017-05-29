@@ -1,0 +1,804 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.SWARH.JS.questionnaire.QVCONPART1.Edit">
+<Description>
+Component JavaScript for: questionnaire.QVCONPART1.Edit</Description>
+<Modified>0</Modified>
+<Super>websys.AbstractJavaScript</Super>
+<TimeCreated>63537,10519.542812</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+This Parameter is updated by Perforce</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/SWARH/JS/questionnaire/QVCONPART1/Edit.xml#1 $</Default>
+</Parameter>
+
+<Method name="JSContent">
+<Description>
+ </Description>
+<Language>javascript</Language>
+<ClientMethod>1</ClientMethod>
+<Implementation><![CDATA[
+var securityGroup = session['LOGON.GROUPDESC'];
+//var lookupicon = document.getElementById("ld50020iQHOSPITAL");
+var hospfield = document.getElementById("QHOSPITAL");
+if (securityGroup != 'TRAKHEALTH' && securityGroup != 'VCON') {
+	//lookupicon.style.display='none';
+	//hospfield.readonly = true;
+	//hospfield.disabled = true;
+}
+else {
+	var tumRefNo = document.getElementById("QTumRefNo");
+	if (tumRefNo.value=="") {
+		hospfield.value="";
+	}
+}
+
+var obj=document.getElementById('QRegLymphNodesPos');
+obj.maxlength=2;
+
+var obj=document.getElementById('QPart1ID');
+obj.style.display='none';
+
+if (document.getElementById("QSiteMetDiagList")) {document.getElementById("QSiteMetDiagList").tkItemPopulate=1;}
+
+
+function QUESStatusDR_lookupsel(value) {
+	try {
+		var obj=document.getElementById('QUESStatusDR');
+		if (obj) {
+  			obj.value=unescape(value);
+			if (obj.readOnly) {obj.className='clsReadOnly'} else {obj.className=''}
+			try {QUESStatusDR_lookuptoggle(value);} catch(err) {};
+			if (doneInit) {
+				var status=obj.value;
+				if (status=="Authorised") {
+					obj.className='clsInvalid';
+					websys_setfocus('QUESStatusDR');
+					return websys_cancel();
+				}
+				else {
+					websys_nextfocusElement(obj);
+				}
+			}
+		}
+	} catch(e) {};
+}
+
+QUESStatusDR_changehandlerX_IS = QUESStatusDR_changehandlerX;
+
+QUESStatusDR_changehandlerX = function() {
+	if (QUESStatusDR_changehandlerX_IS.apply(this,arguments) === false) {
+		return false;
+	} else {
+		var obj=document.getElementById('QUESStatusDR');
+		if (obj.value=="Authorised") {
+			obj.className='clsInvalid';
+			websys_setfocus('QUESStatusDR');
+			alert('Status must not be changed to "Authorised" for the VCON forms');
+			return websys_cancel();
+		}
+	}
+}
+
+// Tumor Reference Number - field read only and default is UR No
+var obj=document.getElementById("QTumRefNo");
+var objur=document.getElementById("BANNERRegistrationNo");
+
+obj.readOnly = true;
+if (obj.value=='') {
+obj.value = objur.value;
+}
+
+// read only for SiteFirstP label and TumMorph label
+document.getElementById("QSiteFirstPLabel").readOnly = true;
+document.getElementById("QTumMorphLabel").readOnly = true;
+
+// Show HER2 Oest Progest fields hidden by default unless updating existing form that has these fields filled in
+// no HER2 field in DD v3.02: commented all code related to HER2
+
+var objHER2=document.getElementById("QHER2Status");
+var imgHER2=document.getElementById("ld50020iQHER2Status");
+var objOest=document.getElementById("QOestAStatus");
+var imgOest=document.getElementById("ld50020iQOestAStatus");
+var objProgest=document.getElementById("QProgestAStatus");
+var imgProgest=document.getElementById("ld50020iQProgestAStatus");
+
+if (objHER2.value=='') {
+objHER2.style.display='none';
+imgHER2.style.display='none';
+}
+if (objOest.value=='') {
+objOest.style.display='none';
+imgOest.style.display='none';
+}
+if (objProgest.value=='') {
+objProgest.style.display='none';
+imgProgest.style.display='none';
+}
+
+function updateTumor(value) {
+  	var obj=document.getElementById("QTumRefNo");
+	var objur=document.getElementById("BANNERRegistrationNo");
+	obj.value = objur.value + value;
+}
+
+function QSiteFirstP_lookupsel(value) {
+	try {
+		var obj=document.getElementById('QSiteFirstP');
+
+		if (obj) {
+  			obj.value=unescape(value);
+			if (obj.readOnly) {obj.className='clsReadOnly'} else {obj.className=''}
+			try {QSiteFirstP_lookuptoggle(value);} catch(err) {};
+			if (doneInit) {
+				websys_nextfocusElement(obj);
+				//update tumor reference with icd10 code
+				//updateTumor("");
+				// display or hide HER2 Oest Progest fields according to Primary Site Code selected
+				breastSpecific(obj.value);
+			}
+		}
+	} catch(e) {};
+}
+
+// display or hide HER2 Oest Progest fields according to Primary Site Code selected
+function breastSpecific(value) {
+	
+	var str="breast"
+	var str1="Breast"
+	var str2="nipple"
+	var str3="Nipple"
+
+	// no HER2 field in DD v3.02: commented all code related to HER2
+	// 26/08/2010: HER2 is needed even though not in DD v3.02
+	var objHER2=document.getElementById("QHER2Status");
+	var imgHER2=document.getElementById("ld50020iQHER2Status");
+	var objOest=document.getElementById("QOestAStatus");
+	var imgOest=document.getElementById("ld50020iQOestAStatus");
+	var objProgest=document.getElementById("QProgestAStatus");
+	var imgProgest=document.getElementById("ld50020iQProgestAStatus");
+
+	if (value.search(str)!=-1 || value.search(str1)!=-1 || value.search(str2)!=-1 || value.search(str3)!=-1) {
+		objHER2.style.display='block';
+		imgHER2.style.display='block';
+		objOest.style.display='block';
+		imgOest.style.display='block';
+		objProgest.style.display='block';
+		imgProgest.style.display='block';
+	}
+	else {
+		objHER2.style.display='none';
+		objHER2.value='';
+		imgHER2.style.display='none';
+		objOest.style.display='none';
+		objOest.value='';
+		imgOest.style.display='none';
+		objProgest.style.display='none';
+		objProgest.value='';
+		imgProgest.style.display='none';
+		
+	}
+}
+
+QSiteFirstP_changehandlerX_IS = QSiteFirstP_changehandlerX;
+
+QSiteFirstP_changehandlerX = function() {
+	if (QSiteFirstP_changehandlerX_IS.apply(this,arguments) === false) {
+		return false;
+	} else {
+		updateTumor('');
+		return websys_cancel();
+	}
+}
+
+// Date of First Primary Diagnosis
+
+function QFirstPDDT_changehandler(e) {
+	var eSrc=document.getElementById('QFirstPDDT');
+	var objDOB=document.getElementById('BANNERDOB');
+	if (!IsValidDate(eSrc)) {
+		eSrc.className='clsInvalid';
+		websys_setfocus('QFirstPDDT');
+		return  websys_cancel();
+	} else {
+		if (eSrc.value!='') {
+			if (!compareDate(eSrc.value,objDOB.value)) {
+				eSrc.className='clsInvalid';
+				websys_setfocus('QFirstPDDT');
+				alert('Date cannot be prior to DOB');
+				return  websys_cancel();
+			}
+		}
+		if (eSrc.readOnly) {eSrc.className='clsReadOnly'} else {eSrc.className=''}
+		window.setTimeout("ForceChange('QFirstPDDT');",1);
+	}
+}
+var obj=document.getElementById('QFirstPDDT');
+if (obj) obj.onchange=QFirstPDDT_changehandler;
+
+
+function compareDate(str1,str2) {
+    var dd1  = str1.substring(0,2); 
+    var mm1 = str1.substring(3,5); 
+    var yyyy1  = str1.substring(6,10); 
+    var dd2  = str2.substring(0,2); 
+    var mm2 = str2.substring(3,5); 
+    var yyyy2  = str2.substring(6,10); 
+    var date1 = new Date(yyyy1 + "/" + mm1 + "/" + dd1);
+    var date2 = new Date(yyyy2 + "/" + mm2 + "/" + dd2);
+    if (date1<date2) {return false;}
+    else {return true;}
+}
+
+// end - Date of First Primary Diagnosis
+
+
+function QMetDiagDT_changehandler(e) {
+	var eSrc=document.getElementById('QMetDiagDT');
+	var objDOB=document.getElementById('BANNERDOB');
+	if (!IsValidDate(eSrc)) {
+		eSrc.className='clsInvalid';
+		websys_setfocus('QMetDiagDT');
+		return  websys_cancel();
+	} else {
+		if (eSrc.value!='') {
+			defaultMetDT();
+			if (!compareDate(eSrc.value,objDOB.value)) {
+				eSrc.className='clsInvalid';
+				websys_setfocus('QFirstPDDT');
+				alert('Date cannot be prior to DOB');
+				return  websys_cancel();
+			}
+		}
+		if (eSrc.readOnly) {eSrc.className='clsReadOnly'} else {eSrc.className=''}
+		window.setTimeout("ForceChange('QMetDiagDT');",1);
+	}
+}
+
+function defaultMetDT() {
+  var obj = document.getElementById("QFirstPDDT");
+  var obj1 = document.getElementById("QMetDiagDT");
+  if (obj1.value != obj.value) {
+    obj1.value = obj.value;
+    alert("Date of Met at Diagnosis must be equal to Date of Primary Diagnosis");
+  }
+}
+var obj=document.getElementById('QMetDiagDT');
+if (obj) obj.onchange=QMetDiagDT_changehandler;
+
+// if staging scheme source selected is 1, we default the edition number to 2
+// if staging scheme source selected is 88 or 99, we default the edition number to blank
+function QStagSchemeSource_lookupsel(value) {
+	try {
+		var obj=document.getElementById('QStagSchemeSource');
+
+		if (obj) {
+  			obj.value=unescape(value);
+			if (obj.readOnly) {obj.className='clsReadOnly'} else {obj.className=''}
+			try {QStagSchemeSource_lookuptoggle(value);} catch(err) {};
+			if (doneInit) {
+				websys_nextfocusElement(obj);
+				var StagSchemeSource = obj.value;
+				if (StagSchemeSource=="1: TNM Classification of Malignant Tunours (UICC)") {
+					var QStagSchSEdNo=document.getElementById('QStagSchSEdNo');
+					QStagSchSEdNo.value='2: TNM 6th edition (2002)';
+					QStagSchSEdNo.className='';
+					websys_nextfocusElement(QStagSchSEdNo);
+				}
+				else {
+					var QStagSchSEdNo=document.getElementById('QStagSchSEdNo');
+					QStagSchSEdNo.value='';
+					QStagSchSEdNo.className='';
+				}
+			}
+		}
+	} catch(e) {};
+}
+
+// validation of the staging scheme source according to edition number
+
+QStagSchemeSource_changehandlerX_IS = QStagSchemeSource_changehandlerX;
+
+QStagSchemeSource_changehandlerX = function() {
+	if (QStagSchemeSource_changehandlerX_IS.apply(this,arguments) === false) {
+		return false;
+	} else {
+		var obj=document.getElementById('QStagSchemeSource');
+		var obj1=document.getElementById('QStagSchSEdNo');
+		if (obj.value!='' && obj1) {
+			if (((obj1.value=="2: TNM 6th edition (2002)") && (obj.value!="1: TNM Classification of Malignant Tunours (UICC)"))
+|| ((obj.value=="1: TNM Classification of Malignant Tunours (UICC)") && (obj1.value!="2: TNM 6th edition (2002)"))) {
+				obj.className='clsInvalid';
+				websys_setfocus('QStagSchemeSource');
+				return websys_cancel();
+			}
+		}
+	}
+}
+
+function QStagSchSEdNo_lookupsel(value) {
+	try {
+		var obj=document.getElementById('QStagSchSEdNo');
+		if (obj) {
+  			obj.value=unescape(value);
+			if (obj.readOnly) {obj.className='clsReadOnly'} else {obj.className=''}
+			try {QStagSchSEdNo_lookuptoggle(value);} catch(err) {};
+			if (doneInit) {
+				var StagSchEdNo=obj.value;
+				var QStagSchemeSource=document.getElementById('QStagSchemeSource');
+				if (((QStagSchemeSource.value=="1: TNM Classification of Malignant Tunours (UICC)") && (StagSchEdNo!="2: TNM 6th edition (2002)")) ||
+((QStagSchemeSource.value!="1: TNM Classification of Malignant Tunours (UICC)") && (StagSchEdNo=="2: TNM 6th edition (2002)"))) {
+					obj.className='clsInvalid';
+					alert('Staging Scheme Source Edition Number must be 2: TNM 6th edition (2002) if and only if Staging Scheme Source is 1: TNM Classification of Malignant Tumours (UICC)');
+					websys_setfocus('QStagSchSEdNo');
+					return websys_cancel();
+				}
+				websys_nextfocusElement(obj);
+			}
+		}
+	} catch(e) {};
+}
+
+
+// validation of edition number according to staging scheme source
+
+QStagSchSEdNo_changehandlerX_IS = QStagSchSEdNo_changehandlerX;
+
+QStagSchSEdNo_changehandlerX = function() {
+	if (QStagSchSEdNo_changehandlerX_IS.apply(this,arguments) === false) {
+		return false;
+	} else {
+		var obj=document.getElementById('QStagSchSEdNo');
+		var obj1=document.getElementById('QStagSchemeSource');
+		if (obj.value!='') {
+			if (((obj.value=="2: TNM 6th edition (2002)") && (obj1.value!="1: TNM Classification of Malignant Tunours (UICC)"))
+|| ((obj1.value=="1: TNM Classification of Malignant Tunours (UICC)") && (obj.value!="2: TNM 6th edition (2002)"))) {
+				obj.className='clsInvalid';
+				websys_setfocus('QStagSchSEdNo');
+				return websys_cancel();
+			}
+		}
+	}
+}
+
+var obj=document.getElementById('QTumourSize');
+if (obj) obj.onchange=QTumourSize_changehandler;
+
+function QTumourSize_changehandler(e) {
+	var eSrc=document.getElementById('QTumourSize');
+	if (eSrc.value!='') {
+		if (!isNumericMax(eSrc.value,999) || eSrc.value=='998' || eSrc.value=='000') {
+			eSrc.className='clsInvalid';		
+			websys_setfocus('QTumourSize');
+			alert('Tumor size must be between 001 and 999 excluding 998');
+			return  websys_cancel();
+		}
+		else {
+			eSrc.value=PadDigits(eSrc.value,3);
+		}
+	}
+	if (eSrc.readOnly) {eSrc.className='clsReadOnly'} else {eSrc.className=''}
+		window.setTimeout("ForceChange('QTumourSize');",1);
+}
+
+var obj=document.getElementById('QTumourSize');
+if (obj) obj.onchange=QTumourSize_changehandler;
+
+
+function QMelanomaThickAtDiag_changehandler(e) {
+	var eSrc=document.getElementById('QMelanomaThickAtDiag');
+	if (eSrc.value!='') {
+		if (!isValidMelanomaThick(eSrc.value)) {
+			eSrc.className='clsInvalid';		
+			websys_setfocus('QMelanomaThickAtDiag');
+			alert('Melanoma thickness must be 000 or NNN.NN (000.01 to 997.99 or 999.99 if unknown)');
+			return  websys_cancel();
+		}
+		else {
+			eSrc.value=FormatMelanomaThick(eSrc.value);
+		}
+	}
+	if (eSrc.readOnly) {eSrc.className='clsReadOnly'} else {eSrc.className=''}
+		window.setTimeout("ForceChange('QMelanomaThickAtDiag');",1);
+}
+
+var obj=document.getElementById('QMelanomaThickAtDiag');
+if (obj) obj.onchange=QMelanomaThickAtDiag_changehandler;
+
+
+
+function QRegLymphNodes_changehandler(e) {
+	var eSrc=document.getElementById('QRegLymphNodes');
+	if (eSrc.value!='') {
+		if ((!isNumericMax(eSrc.value,99)) || (eSrc.value=='91') || (eSrc.value=='92') || (eSrc.value=='93') || (eSrc.value=='94')) {
+			eSrc.className='clsInvalid';		
+			websys_setfocus('QRegLymphNodes');
+			alert('Regional Lymph Nodes Examined must be a number <= 99 excluding {91,92,93,94}');
+			return  websys_cancel();
+		}
+		else {
+			eSrc.value=PadDigits(eSrc.value,2);
+		}
+	}
+	if (eSrc.readOnly) {eSrc.className='clsReadOnly'} else {eSrc.className=''}
+		window.setTimeout("ForceChange('QRegLymphNodes');",1);
+}
+
+var obj=document.getElementById('QRegLymphNodes');
+if (obj) obj.onchange=QRegLymphNodes_changehandler;
+
+function QRegLymphNodesPos_changehandler(e) {
+	var eSrc=document.getElementById('QRegLymphNodesPos');
+	if (eSrc.value!='') {
+		if (!isNumericMax(eSrc.value,99)) {
+			eSrc.className='clsInvalid';		
+			websys_setfocus('QRegLymphNodesPos');
+			alert('Regional Lymph Nodes Positive must be a number <=99');
+			return  websys_cancel();
+		}
+		else {
+			eSrc.value=PadDigits(eSrc.value,2);
+		}
+	}
+	if (eSrc.readOnly) {eSrc.className='clsReadOnly'} else {eSrc.className=''}
+		window.setTimeout("ForceChange('QRegLymphNodesPos');",1);
+}
+
+var obj=document.getElementById('QRegLymphNodesPos');
+if (obj) obj.onchange=QRegLymphNodesPos_changehandler;
+
+
+/*function QTumMorph_changehandler(e) {
+	var eSrc=document.getElementById('QTumMorph');
+	if (eSrc.value!='') {
+		else {
+			if (!checkMorphCode(eSrc.value)) {
+				alert('Morphology code must be Mxxxx/x and xxxx must be >= 1000');	
+				eSrc.className='clsInvalid';		
+				websys_setfocus('QTumMorph');
+				return  websys_cancel();
+			}
+		}
+	}
+	if (eSrc.readOnly) {eSrc.className='clsReadOnly'} else {eSrc.className=''}
+		window.setTimeout("ForceChange('QTumMorph');",1);
+}
+
+var obj=document.getElementById('QTumMorph');
+if (obj) obj.onchange=QTumMorph_changehandler;*/
+
+
+function isValidMelanomaThick(strString) {
+   var blnResult = true;
+   if (!isFloat(strString)) {
+	blnResult=false;
+   }
+   else {
+   if (parseFloat(strString)>997.99 && parseFloat(strString)!=999.99) {
+	blnResult=false;
+   }
+   else {
+	var strArray = strString.split(".");
+	if (strArray.length>1) {
+		if (strArray[1].length>2) {
+			blnResult=false;
+		}
+	}
+   }
+   }
+   return blnResult;
+}
+
+function FormatMelanomaThick(strString) {
+   if (parseFloat(strString)==0) {
+   	strStringFormat = PadDigits(strString,3);
+   }
+   else {
+	strArray=strString.split(".")
+        if (strArray.length==1) {
+		strStringFormat = PadDigits(strArray[0],3) + ".00";
+	}
+	else {
+		strStringFormat = PadDigits(strArray[0],3) + "." + RightPadDigits(strArray[1],2);
+	}
+   }
+   return strStringFormat;
+}
+
+function isFloat(strString) {
+   var strValidChars = "0123456789.";
+   var strChar;
+   var blnResult = true;
+   var size;
+
+   if (strString.length == 0) return false;
+
+   for (i = 0; i < strString.length && blnResult == true; i++) {
+      strChar = strString.charAt(i);
+      if (strValidChars.indexOf(strChar) == -1) {
+         blnResult = false;
+      }
+   }
+
+   return blnResult;
+}
+
+function isNumeric(strString) {
+   var strValidChars = "0123456789";
+   var strChar;
+   var blnResult = true;
+   var size;
+
+   if (strString.length == 0) return false;
+
+   for (i = 0; i < strString.length && blnResult == true; i++) {
+      strChar = strString.charAt(i);
+      if (strValidChars.indexOf(strChar) == -1) {
+         blnResult = false;
+      }
+   }
+
+   return blnResult;
+}
+
+/*function checkMorphCode(strString) {
+	//var strChar = strString.charAt(strString.length-1);
+	var strFirst = strString.charAt(0);
+	var strLast = strString.substring(strString.length-2,strString.length);
+	var val = parseInt(strString.substring(1,strString.length-2));
+	var blnResult = false;
+	if (((strLast=='/3') || (strLast=='/2') || (strLast=='/1')) && (strFirst=='M' || strFirst=='m') && val>=1000) {
+		blnResult = true;
+	}
+	return blnResult;
+}*/
+
+function isNumericMax(strString,max) {
+   var strValidChars = "0123456789";
+   var strChar;
+   var blnResult = true;
+   var size;
+
+   if (strString.length == 0) return false;
+
+   for (i = 0; i < strString.length && blnResult == true; i++) {
+      strChar = strString.charAt(i);
+      if (strValidChars.indexOf(strChar) == -1) {
+         blnResult = false;
+      }
+   }
+
+   if (blnResult) {
+	size=parseInt(strString);
+	if (size>max || strString.length>max.length) {
+		blnResult = false;
+	}
+   }
+
+   return blnResult;
+}
+
+function PadDigits(str, totalDigits) 
+    {  
+        var pd = ''; 
+        if (totalDigits > str.length) 
+        { 
+            for (i=0; i < (totalDigits-str.length); i++) 
+            { 
+                pd += '0'; 
+            } 
+        } 
+        return pd + str.toString(); 
+    } 
+
+function RightPadDigits(str, totalDigits) 
+    {  
+        var pd = ''; 
+        if (totalDigits > str.length) 
+        { 
+            for (i=0; i < (totalDigits-str.length); i++) 
+            { 
+                pd += '0'; 
+            } 
+        } 
+        return str.toString() + pd; 
+    } 
+
+
+
+//Hide String fields for loading list boxes
+//var objMetaSite = document.getElementById('QSiteMetDiagString')
+//objMetaSite.style.display='none';
+
+
+function InitCustom() {
+
+    var obj=document.getElementById('update1');
+	if (obj) obj.onclick=UpdateAll;
+	if (tsc['update1']) websys_sckeys[tsc['update1']]=UpdateAll;
+
+    /*var obj=document.getElementById('Delete1');
+	if (obj) obj.onclick=DeleteClickHandler;*/
+
+    // Use the save button to delete elements of the listbox
+    var obj=document.getElementById('Save1');
+    if (obj) obj.onclick=DeleteClickHandler  
+
+    var obj=document.getElementById('QSiteFirstP');
+    breastSpecific(obj.value);  
+
+    var obj=document.getElementById('QRegLymphNodes');
+    obj.maxlength=2;
+
+    var obj=document.getElementById('QRegLymphNodesPos');
+    obj.maxlength=2;
+    //alert(obj.maxlength);
+
+}
+
+
+//srees SWARH May 09 Site of Metastasis List
+
+function RemoveFromList(obj) {
+	var frm=document.fquestionnaire_QVCONPART1_Edit;
+	//TDIRTY=document.getElementById("TDIRTY")
+	frm.TDIRTY.value=2
+	for (var i=(obj.length-1); i>=0; i--) {
+		if (obj.options[i].selected)
+			obj.options[i]=null;
+	}
+}
+
+function UpdateMetaSiteList() {
+	var arrItems = new Array();
+	var lst = document.getElementById("QSiteMetDiagList");
+	if (lst) {
+		for (var j=0; j<lst.options.length; j++) {			
+			arrItems[j] = lst.options[j].value;
+		}
+		var el = document.getElementById("QSiteMetDiagString");
+		if (el) el.value = arrItems.join(String.fromCharCode(1));
+	}
+}
+
+
+
+function DeleteClickHandler() {
+	//Delete items from EMCDesc listbox when a "Delete" button is clicked.
+	var obj=document.getElementById("QSiteMetDiagList")
+	if (obj)
+		RemoveFromList(obj);
+	return false;
+}
+
+
+function AddItemToList(list,code,desc) {
+	//Add an item to a listbox
+	var frm=document.fquestionnaire_QVCONPART1_Edit;
+	//TDIRTY=document.getElementById("TDIRTY")
+	frm.TDIRTY.value=2
+	//alert("and now..."+frm.TDIRTY.value);
+	code=String.fromCharCode(2)+code
+	list.options[list.options.length] = new Option(desc,code);
+}
+
+
+
+function QSiteMetDiag_AddToList(txt) {
+//Add an item to QSiteMetDiagList when an item is selected from
+	//the Lookup, then clears the Item text field.
+	var adata=txt.split("^");
+	//alert("adata="+adata);
+	var obj=document.getElementById("QSiteMetDiagList");
+
+	if (obj) {
+		//Need to check if Condition already exists in the List and alert the user
+		for (var i=0; i<obj.options.length; i++) {
+			if (obj.options[i].value == String.fromCharCode(2)+adata[1]) {
+				alert("Code has already been selected");
+				var obj=document.getElementById("QSiteMetDiag")
+				if (obj) obj.value="";
+				return;
+			}
+			if  ((adata[1] != "") && (obj.options[i].text == adata[0])) {
+			alert("Code has already been selected");
+				var obj=document.getElementById("QSiteMetDiag")
+				if (obj) obj.value="";
+				return;
+			}
+			//alert(obj.options[i].value+"****"+adata[1])
+		}
+	}
+	AddItemToList(obj,adata[1],adata[0]);
+
+	var obj=document.getElementById("QSiteMetDiag")
+	if (obj) obj.value="";
+	//alert("adata="+adata);
+}
+
+// reload listbox with values from hidden field.
+//this is due to page being refreshed upon error message (such as invalid pin)
+function QSiteMetDiagReload() {
+	var el = document.getElementById("QSiteMetDiagString");
+	var lst = document.getElementById("QSiteMetDiagList");
+	if ((lst)&&(el.value!="")) {
+		var arrITEM=el.value.split(String.fromCharCode(1));
+		for (var i=0; i<arrITEM.length; i++) {
+			var arrITEMVAL=arrITEM[i].split(String.fromCharCode(2));
+			//don't add ones that have a child rowid as they would already be populated
+/*			if ((arrITEMVAL[0]=="")&&(arrITEMVAL[2]!="")) {
+				AddItemToList(lst,arrITEMVAL[1],arrITEMVAL[2]);
+			}*/
+			if ((arrITEMVAL[0]=="")&&(arrITEMVAL[1]!="")) {
+				AddItemToList(lst,arrITEMVAL[1],arrITEMVAL[1]);
+			}
+		}
+	}
+}
+
+function encodestr(code,desc) {
+  return desc+'^'+code;
+}
+  /*var QSiteMetDiag_lookupselOLD = QSiteMetDiag_lookupsel;
+  QSiteMetDiag_lookupsel = function(v) {
+    if (QSiteMetDiag_lookupselOLD) QSiteMetDiag_lookupselOLD(v);
+    var obj=document.getElementById("QSiteMetDiag")
+    if (obj && obj.value!='') {
+      QSiteMetDiag_AddToList(encodestr(obj.value,obj.value));
+      updateDateMetDiag();
+    }
+  }*/
+
+/*function updateDateMetDiag() {
+  var obj = document.getElementById("QFirstPDDT");
+  var obj1 = document.getElementById("QMetDiagDT");
+  obj1.value = obj.value;
+}*/
+
+//call this outside onload call so it can be called straight away, and not wait till everything has loaded.
+
+//QSiteMetDiagReload();
+
+function UpdateAll() {
+	//if (!CheckInvalidFields())  { return false; }
+	//if (!CheckRequiredFields()) { return false; }
+	UpdateMetaSiteList();
+	return update1_click();
+}
+
+websys_addListener("load","onload",InitCustom);
+//document.body.onload=InitCustom;
+
+
+//tknoll-miller (SWARH) 2009-09-16 Load authorise script
+var authcfg = {
+   'buttons': [
+      'update1'
+   ],
+   'fields': {
+      'username': 'UserName',
+      'password': 'PIN'
+   }
+};
+
+//tknoll-miller (SWARH) 2009-09-16 Load authorise script
+// Scope variables
+(function() {
+   var loadScript = function(type, src) {
+      var head = document.getElementsByTagName('head')[0];
+      var script = document.createElement('script');
+      script.type = type;
+      script.src = src;
+      head.appendChild(script);
+      websys_addListener('load', 'onload', function(){document.isLoaded=true});
+      return script;
+   };
+
+   loadScript('text/javascript', '../custom/SWARH/scripts/authorise4.js');
+})();
+//end tknoll-miller (SWARH) 2009-09-16 Load authorise script
+]]></Implementation>
+</Method>
+</Class>
+</Export>

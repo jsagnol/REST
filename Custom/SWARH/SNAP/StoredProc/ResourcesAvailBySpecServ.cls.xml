@@ -1,0 +1,279 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.SWARH.SNAP.StoredProc.ResourcesAvailBySpecServ">
+<ProcedureBlock>0</ProcedureBlock>
+<Super>Custom.SWARH.Report.RptSvc.StoredProc.Abstract</Super>
+<TimeCreated>60905,54849</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/SWARH/SNAP/StoredProc/ResourcesAvailBySpecServ.xml#1 $</Default>
+</Parameter>
+
+<Method name="ResourcesAvailBySpecServClose">
+<Description>
+This is the Close component of the %Library.Query.
+This is standard code and should never have to change.
+This is where all the cleanup is performed, i.e. the purging of the temporary storage global ^CacheTemp.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>QHandle:%Library.Binary</FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Clean up by purging the temporary node in ^CacheTemp global
+ New repid,ind
+ Set repid=$li(QHandle,2)
+
+ //Start Monitor (if configured to capture stats)
+ i mon Do ..MonitorEnd(mon)
+
+ Kill ^CacheTemp("TRAK",repid)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="ResourcesAvailBySpecServExecute">
+<Description>
+This is the Execute section for the %Library.Query. 
+All of the logic will be performed here.
+A new node for the ^CacheTemp global will be created and each subscript of this global will contain
+a row for the report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,Hospital:%Library.String,Specialty:%Library.String,Service:%Library.String,DateFrom:%Date]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Get reportid i.e. use $INCREMENT to add another node to ^CacheTemp global. 
+ // We use ^CacheTemp global because it will always use memory before disk
+ New repid,ind
+
+  // Use $Increment to get the next node
+ Set repid=$I(^CacheTemp("TRAK"))
+ 
+ New RESRowId,RESCTLOCDR,RESDesc,RESCTPCPDR,RESEQDR,RESCode
+ Set (RESRowId,RESCTLOCDR,RESCTPCPDR,RESEQDR)=0
+ Set (RESDesc,RESCode)=""
+
+ s ind=1, END=0
+
+ //Start Monitor (if configured to capture stats)
+ s mon=..MonitorBegin()
+ 
+ s Hospital=$zstrip(Hospital,"*CW")
+ s Specialty=$zstrip(Specialty,"*CW")
+ s Service=$zstrip(Service,"*CW")
+ //Convert ODBC dates to cache format
+ s DateFrom=..ConvertDateToCache(DateFrom)
+ 
+ &SQL(DECLARE ResourcesAvailCursor CURSOR FOR 
+	SELECT 
+			RES_RowId
+		,	RES_CTLOC_DR
+		,	CASE
+				WHEN RES_Desc IS NOT NULL THEN RES_Desc
+				WHEN RES_CTPCP_DR IS NOT NULL THEN RES_CTPCP_DR->CTPCP_Desc
+				ELSE RES_EQ_DR->EQ_Desc
+			END AS RES_Desc
+		,	RES_CTPCP_DR
+		,	RES_EQ_DR
+		,	RES_Code
+	FROM SQLUser.RB_Resource r 
+	WHERE	(RES_CTLOC_DR->CTLOC_Hospital_DR = :Hospital)
+		AND	(RES_CTLOC_DR = :Specialty OR :Specialty is NULL)
+		AND (RES_DateActiveFrom IS NULL OR RES_DateActiveFrom <= :DateFrom)
+		AND (RES_DateActiveTo IS NULL OR RES_DateActiveTo >= :DateFrom)
+		AND	(RES_DateTo IS NULL OR RES_DateTo >= :DateFrom)
+ )
+ &SQL(OPEN ResourcesAvailCursor)
+ 
+ //FETCH FIRST ROW
+ d FetchRow
+  
+ while END=0 {
+  
+	 //d FormatDates
+  	 //d FormatTimes
+  	 
+  	 Set HasService = $$ResourceHasService(RESRowId, Service, DateFrom)
+  	 If HasService {
+		 s sort = $ZCVT(RESDesc,"U")_" "_ind
+		 s ^CacheTemp("TRAK",repid,sort)=$LB(RESRowId,RESCTLOCDR,RESDesc,RESCTPCPDR,RESEQDR,RESCode,Service,HasService)
+		 s ind=ind+1
+  	 }
+
+	 //fetch rows
+	 d FetchRow
+ }
+
+ &SQL(CLOSE ResourcesAvailCursor)
+ 
+ // Build QHandle (AtEnd,ReportID,Index)
+ Set QHandle=$lb(0,repid,0)
+
+ Quit $$$OK
+
+GetResourceNextSession(pRESRowId, pDateFrom)
+ If pServiceId = 0 {
+ }
+ 
+ Set t = $O(^RBAS(pRESRowId,0,"DateSess",pDateFrom)) //{AS_RBEffDateSession_DR},{AS_SessStartTime},{AS_ChildSub}))
+ //^RBAS({RB_Resource.RES_RowId},0,"DateSess",{AS_Date},{AS_RBEffDateSession_DR},{AS_SessStartTime},{AS_ChildSub})
+ //^RBAS({RB_Resource.RES_RowId},0,"DateSTime",{AS_Date},{AS_SessStartTime},{AS_ChildSub})
+ Quit 1
+GetSessionServices(pSessionId,pServiceListRef)
+
+ Quit 1
+FetchRow
+ &sql(FETCH ResourcesAvailCursor INTO :RESRowId,:RESCTLOCDR,:RESDesc,:RESCTPCPDR,:RESEQDR,:RESCode)
+ if SQLCODE '= 0 set END = 1
+ q
+ 
+FormatDates
+ q
+ 
+FormatTimes
+ q
+ResourceHasService(pRESRowId,pSERRowId,pDateFrom)
+
+	If pSERRowId {
+		Set SERARCIMDR = $P($G(^RBC("SER",pSERRowId)),"^",1) // RBC_Services->SER_ARCIM_DR
+		,	SERARCOSDR = $P($G(^RBC("SER",pSERRowId)),"^",2) // RBC_Services->SER_ARCOS_DR
+		,	SERARCIMARCOS = SERARCIMDR_"&"_SERARCOSDR
+	}
+	Set i = $I(^CacheTemp)
+	
+	Set Found = 0
+	
+	Set ASDate = pDateFrom, SESSParRef = "", SERChildsub = ""
+	For  {
+		If SESSParRef = "" {
+			// Get next appointment
+			Set ASDate = $O(^RBAS(pRESRowId,0,"DateSess",ASDate))
+			Quit:ASDate=""
+		}
+		// Get next session
+		Set SESSParRef = $O(^RBAS(pRESRowId,0,"DateSess",ASDate, SESSParRef))
+		Continue:SESSParRef="" // 
+		
+		//If 'pSERRowId {
+		//	// We've found a session, that's enough!
+		//	Set Found = 1
+		//	Quit
+		//}
+
+		If '$D(^CacheTemp(i,SESSParRef)) {
+			// The session hasn't been checked for services yet
+			// Check session for services
+			Set DATEChildsub = $P(SESSParRef,"||",2)
+			Set SESSChildsub = $P(SESSParRef,"||",3)
+			
+			Set SERChildsub = 0 // Initialise to 0 to skip the counter
+			For {
+				Set SERChildsub = $O(^RB("RES",pRESRowId,"DATE",DATEChildsub,"SESS",SESSChildsub,"SER",SERChildsub))
+				Quit:SERChildsub=""
+				Set RBCServiceDR = $P(^RB("RES",pRESRowId,"DATE",DATEChildsub,"SESS",SESSChildsub,"SER",SERChildsub),"^",1)  // RB_ResEffDateSessServices
+				Set ARCIM = $P($G(^RBC("SER",RBCServiceDR)),"^",1)
+				,	ARCOS = $P($G(^RBC("SER",RBCServiceDR)),"^",2)
+				
+				If 'pSERRowId {
+					// Check that service is not a data migration service and is not in the admin service group
+					Set ARCIMSubscript = $P(ARCIM,"||",1)
+					,	ARCIMVersion = $P(ARCIM,"||",2)
+					
+					Set ARCIMCode = $P(^ARCIM(ARCIMSubscript,ARCIMVersion,1),"^",1)
+					
+					Continue:$CASE(ARCIMCode,"NDM":1,"RDM":1,"EDM":1,"PJBDI":1,:0)
+					
+					Set SERServGroupDR = $P($G(^RBC("SER",RBCServiceDR)),"^",9)
+					Set SGCode = $P($G(^RBC("SG",SERServGroupDR)),"^",1)
+					
+					Continue:(SGCode="A")
+					
+					Set Found = 1
+					Quit
+				} ElseIf (ARCIM = SERARCIMDR) && (ARCOS = SERARCOSDR) {
+					Set Found = 1
+					Quit
+				}
+			}
+			// Quit if the service has been found
+			Quit:Found
+			// Mark the session as having being checked
+			Set ^CacheTemp(i,SESSParRef) = 1
+		}
+	}
+	
+	Kill ^CacheTemp(i)
+	Quit Found
+	
+ /* // Look for a date 
+ Set DATEChildsub="", SESSChildsub="", SERChildsub=""  For  {
+	If SERChildsub = "" {
+		// Get next EffDateSession
+		If SESSChildsub = "" {
+			// Get next EffDate
+			Set DATEChildsub = $O(^RB("RES",0,"SER1",SERARCIMARCOS,pRESRowId,DATEChildsub))
+			Quit:DATEChildsub=""
+		}
+		Set SESSChildsub = $O(^RB("RES",0,"SER1",SERARCIMARCOS,pRESRowId,DATEChildsub,SESSChildsub))
+		Continue:SESSChildsub="" // Reached last session for date
+		
+	}
+	Set SERChildsub = $O(^RB("RES",0,"SER1",SERARCIMARCOS,pRESRowId,DATEChildsub,SESSChildsub,SERChildsub))
+	Continue:SERChildsub="" // Reached last service for session
+	
+	// Check for a future session in the ApptSchedule table
+ }		 		
+ 
+ //^RB("RES",0,"SER1",SERARCIM_","_SERARCOS,pRESRowId,{RB_ResEffDate.DATE_Childsub},{RB_ResEffDateSession.SESS_Childsub},{SER_Childsub}) 
+ //^RB("RES",0,"SER1",{SER_ARCIM_ARCOS},{RB_Resource.RES_RowId},{RB_ResEffDate.DATE_Childsub},{RB_ResEffDateSession.SESS_Childsub},{SER_Childsub}) 
+ //^RB("RES",0,"ResSER1",{SER_Resource_DR},{SER_ARCIM_ARCOS},{RB_Resource.RES_RowId},{RB_ResEffDate.DATE_Childsub},{RB_ResEffDateSession.SESS_Childsub},{SER_Childsub})
+ Quit 1*/
+]]></Implementation>
+</Method>
+
+<Method name="ResourcesAvailBySpecServFetch">
+<Description>
+This is the Fetch component of the %Library.Query. 
+This should never have to change. It is designed to fetch the row for each subscript of the ^CacheTemp
+global and return this row to the Crystal Report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,&Row:%Library.List,&AtEnd:%Library.Integer=0]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // This fetch method should never have to change. 
+
+ // repid - Report ID
+ // ind   - sequence index which represents each row
+
+ New repid,ind
+
+ // Restore QHandle
+ Set AtEnd=$li(QHandle,1)
+ Set repid=$li(QHandle,2)
+ Set ind=$li(QHandle,3)
+
+ Set ind=$o(^CacheTemp("TRAK",repid,ind))
+ If ind="" {	// if there are no more rows, finish fetching
+	 Set AtEnd=1
+	 Set Row=""
+ }
+ Else      {	// fetch row
+ 	Set Row=^CacheTemp("TRAK",repid,ind)
+ }
+
+ // Save QHandle
+ s QHandle=$lb(AtEnd,repid,ind)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Query name="ResourcesAvailBySpecServ">
+<Type>%Library.Query</Type>
+<FormalSpec>Hospital:%Library.String,Specialty:%Library.String,Service:%Library.String,DateFrom:%Date</FormalSpec>
+<SqlProc>1</SqlProc>
+<Parameter name="CONTAINID" value="0"/>
+<Parameter name="ROWSPEC" value="RES_RowId:%Library.Integer,RES_CTLOC_DR:%Library.Integer,RES_Desc:%Library.String,RES_CTPCP_DR:%Library.Integer,RES_EQ_DR:%Library.Integer,RES_Code:%Library.String,Service:%String,HasService:%Integer"/>
+<Parameter name="SELECTMODE" value="ODBC"/>
+</Query>
+</Class>
+</Export>

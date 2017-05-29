@@ -1,0 +1,787 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.SWARH.JS.PACWardRoom.ListPatients">
+<Description>
+Component JavaScript for: PACWardRoom.ListPatients</Description>
+<Modified>0</Modified>
+<Super>websys.AbstractJavaScript</Super>
+<TimeCreated>63503,40902.595691</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+This Parameter is updated by Perforce</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/SWARH/JS/PACWardRoom/ListPatients.xml#1 $</Default>
+</Parameter>
+
+<Method name="JSContent">
+<Description>
+ </Description>
+<Language>javascript</Language>
+<ClientMethod>1</ClientMethod>
+<Implementation><![CDATA[
+	var callbackLPAB = function() {
+		ePSAG.initLPAB();
+	};
+	SWARH.loadePSAG(callbackLPAB);
+/*function createButton(name,label) {
+	var obj=document.createElement('<input type="text" />');
+	obj.setAttribute('type','button');
+	obj.setAttribute('name',name);
+	obj.setAttribute('id',name);
+	obj.setAttribute('value',label);
+	obj.setAttribute('title',name);
+	obj.className = 'clsButton';
+	return obj;
+}
+var workName;
+var colIndex = function(surnameIndex,firstnameIndex,iconProfileIndex) {		// object used to store column indexes
+																			// property of LP (ListPatients) object
+	this.Surname=surnameIndex;												// column index for surname 
+	this.Firstname=firstnameIndex;											// column index for firstname
+	this.IconProfile=iconProfileIndex;										// column index for icon profile
+}
+var LP = function(id) {														// object used to store table properties
+	this.table=document.getElementById(id);
+};
+LP.prototype.getFieldColIndex = function(str) {
+	var mappings = {
+		"Icon Profile": 47,
+		"Name": 3,
+		"Given": 4
+	}
+	if (!mappings.hasOwnProperty(str)) return;
+	var rows=this.table.getElementsByTagName('th');
+	for (i=0, l=rows.length; i<l; i++) {
+		if (rows[i].id==mappings[str]) return i;
+	}
+	return;
+}
+LP.prototype.setColIndex = function() {
+	this.colIndex = new colIndex(this.getFieldColIndex("Name"),this.getFieldColIndex("Given"),this.getFieldColIndex("Icon Profile"));
+	if (this.getFieldColIndex("Name") && this.getFieldColIndex("Given")) this.colNamesArray=[this.colIndex.Surname,this.colIndex.Firstname];
+}
+
+var ePSAGLPAB = {
+	
+	workNameLP: "SWARH.ePSAGPatients",			// Workflow name for ePSAG board
+	objButton: undefined,						// Hide/Show Names button
+	showOption: true,							// Current name display option
+	ePSAGHospitals: {							// Hospitals where the ePSAG board is active (hospital id, default name display option)
+		696: true,								// SWH-W: display pat names by default
+		697: true,								// SWH-C: display pat names by default
+		701: false								// WDHS-H: hide names by default except for surgery (CTLOCSURG) - see below exception
+	},
+	EDDLinksHospitals: [696,697],				// Hospitals where the EDD is clickable and opens the Patient Condition screen
+	displayNameExceptionLoc: {					// Locations where the default name display option differs from the hospital option
+		55: true								// WDHS-H Surgery: display pat names by default
+	},
+	initialLabel: {								// Initial label of the hide/show names button (name display option, label)
+		1: "Hide Names",						// 1: names are showing -> button click to hide the names
+		0: "Show Names"							// 0: names are hidden -> button click to show the names
+	},
+	getShowOption: function() {
+		for (var k in this.displayNameExceptionLoc){
+    		if (this.displayNameExceptionLoc.hasOwnProperty(k)) {
+       			if (this.logon.LocId==k) {
+	       			return this.displayNameExceptionLoc[k];
+       			}
+    		}
+		}
+		for  (var k in this.ePSAGHospitals){
+    		if (this.ePSAGHospitals.hasOwnProperty(k)) {
+       			if (this.logon.HospId==k) {
+	       			return this.ePSAGHospitals[k];
+       			}
+    		}
+		}
+		return;
+	},
+	getInitialLabel: function() {
+		return this.initialLabel[this.getShowOption()?1:0];
+	},
+	// Array of hospitals to display pat names by default
+	ePSAGHospShowNamesDefault: undefined,
+	
+	// Returns whether the ePSAG board is active for the logon hospital
+	isEPSAGHospital: function(hospid) {
+		for (var k in this.ePSAGHospitals){
+    		if (this.ePSAGHospitals.hasOwnProperty(k)) {
+       			if (hospid==k) return true;
+    		}
+		}
+		return false;
+	},
+	
+	// Populates array of hospitals to display pat names by default
+	ePSAGHospShowNamesDefaultPopulate: function() {
+		var array=[];
+		for (var k in this.ePSAGHospitals){
+    		if (this.ePSAGHospitals.hasOwnProperty(k)) {
+       			if (this.ePSAGHospitals[k]) array.push(k);
+    		}
+		}
+		return array;
+	},
+	
+	// Logon properties
+	logon: {
+		GroupId: session['LOGON.GROUPID'],
+		GroupDesc: session['LOGON.GROUPDESC'],
+		HospId: session['LOGON.HOSPID'],
+		LocId: session['LOGON.CTLOCID']
+	},
+	
+	CTLOCSURG: 55,																// Surgical Unit WDHS Row ID
+	SSGRP: { 
+		"701": ['e-PSAG HAM 1','e-PSAG HAM 2','e-PSAG HAM 3']
+	},
+	SSGRPHAM1: 'e-PSAG HAM 1', 													// e-PSAG HAM 1 Row Description
+	SSGRPHAM2: 'e-PSAG HAM 2', 													// e-PSAG HAM 2 Row Description
+	SSGRPHAM3: 'e-PSAG HAM 3', 													// e-PSAG HAM 3 Row Description
+	EDDPosition: {
+		"LPIW": 9,
+		"LPAB": 22
+	},
+	// List of patients in ward
+	LPIW: new LP("tPACWard_ListPatientsInWard"),
+	// List of patients awaiting bed
+	LPAB: new LP("tPACWardRoom_ListPatients"),
+	
+	initLPAB: function() {
+		websys_removeListener("load","onload",WardBodyOnloadHandler); 
+		websys_addListener("load","onload",function(){ePSAGLPAB.CustomWardBodyOnloadHandler.call(ePSAGLPAB)});
+	},
+	CustomWardBodyOnloadHandler: function() {
+		WardBodyOnloadHandler();
+		this.ePSAGLPABCustom(this.LPAB);
+		this.ePSAG(this.LPAB);
+		this.edd(this.LPAB,this.EDDPosition["LPAB"]);
+	},
+	RefreshPages: function() {
+    	var value="";
+    	if (top.ToolsMenu) return false;
+    	//check mymodalwin to see if bed header window open 
+    	try {
+        	if (mymodalwin.name) {
+            	setTimeout(this.RefreshPages, 30*1000*5);
+            	return true;
+        	}
+    	} catch(e) {
+        	//do refresh
+    	}
+
+    	//check websys_windows to see if icon profile window open 
+    	for (var i in websys_windows) {		
+        	if (!(websys_windows[i].closed)) value = 1;
+			if (i == "TRAK_info") value = "";
+    	}
+	
+		if (value) {
+			setTimeout(this.RefreshPages, 30*1000*5);
+			return true;
+		}
+	
+    	//If no windows open do refresh
+		window.location.reload();
+	},
+	edd: function(objLP,position) {
+		var table = objLP.table,
+			thead = [],
+			tbody = [],
+			columns = [],
+			rows = [],
+			elPosition,
+			classes = " expandColour";
+		
+		table && (thead = table.getElementsByTagName("thead"));
+		thead && 0 < thead.length && (columns = thead[0].getElementsByTagName("th"));
+		for(var i = 0; i < columns.length; i++)
+			elPosition = position.toString() == columns[i].id ? i : elPosition;
+		
+		elPosition && table && (tbody = table.getElementsByTagName("tbody"));
+		tbody && 0 < tbody.length && (rows = tbody[0].getElementsByTagName("tr"));
+		for(i = 0; i < rows.length; i++) {
+			columns = rows[i].getElementsByTagName("td");
+			if (elPosition <= columns.length) {
+				var column = columns[elPosition],
+					a = column.getElementsByTagName("a"),
+					label = column.getElementsByTagName("label");
+				column.className = column.className + classes;
+				
+				if (0 == a.length && 0 < label.length) {
+					label = label[0];
+					label.style.paddingTop = "" + ((column.clientHeight/2) - (label.clientHeight/2)) + "px";
+					label.style.paddingLeft = "" + ((column.clientWidth/2) - (label.clientWidth/2)) + "px";
+				}
+			}
+		}
+	},
+	ePSAG: function(objLP) {
+		objWorkName=document.getElementById('WKFL');
+		if (!workName) workName = (objWorkName ? objWorkName.value : "");
+		if (workName==this.workNameLP) {
+			this.LPIW.setColIndex();
+			//this.LPAB = new LP("tPACWardRoom_ListPatients");
+			//this.LPAB.setColIndex();
+			SWARH.addArrayMethods();
+			this.ePSAGHospShowNamesDefault=this.ePSAGHospShowNamesDefaultPopulate();
+			if (this.isEPSAGHospital(this.logon.HospId)) {
+				if (this.LPAB.colNamesArray) {
+					this.showOption=this.getShowOption()
+					this.show_hide_column_Generic(this.LPAB.table,this.showOption, this.LPAB.colNamesArray);
+				}
+			
+				// 696: ePSAG defaulted to showing names -> showOption is true and initial label for button is set to "Hide Names"
+				this.objButton = document.getElementById('displayNameButton');
+				if (!this.objButton) {
+					this.objButton=createButton('displayNameButton',this.getInitialLabel());
+					this.LPIW.table.parentElement.insertBefore(this.objButton,this.LPIW.table);
+					this.LPIW.table.parentElement.insertBefore(document.createTextNode(" "),this.LPIW.table);
+					if (this.objButton) this.objButton.onclick=function(){ePSAGLP.OnClickHandler.call(ePSAGLP)};
+					if (this.LPIW.colNamesArray) {
+						//this.showOption=this.getShowOption()
+						this.show_hide_column_Generic(this.LPIW.table,this.showOption, this.LPIW.colNamesArray);
+					}
+				}
+				this.ePSAGHeading(objLP);
+				this.RemoveLastRefSeparator(objLP);
+			}
+		}
+	},
+	ePSAGLPABCustom: function(objLP) {
+		SWARH.addArrayMethods();
+		if (this.EDDLinksHospitals.contains(this.logon.HospId)) {
+			this.EDDLinks(objLP);
+			this.RemoveEDDIcon(objLP);
+		}
+	},
+	OnClickHandler: function() {
+		this.show_hide_column_Generic(this.LPIW.table,!this.showOption,this.LPIW.colNamesArray);
+		this.show_hide_column_Generic(this.LPAB.table,!this.showOption,this.LPAB.colNamesArray);
+		this.showOption=!this.showOption;
+		this.objButton.setAttribute('value',this.initialLabel[this.showOption?1:0]);
+		
+	},
+	show_hide_column_Generic: function(table,show,ColumnsToHide) {
+		var displayOption="";
+		if (show==true) displayOption='block';
+		else displayOption='none';
+	
+		var rows=table.getElementsByTagName('tr');
+		for (var row=1; row<rows.length; row++) {
+			var cells=rows[row].getElementsByTagName('td');
+			var length = ColumnsToHide.length;
+			var element = null;
+			for (var i = 0; i < length; i++) {
+				element = ColumnsToHide[i];
+				if (element) {
+					cells[element].style.display=displayOption;
+				}
+			}
+		}
+		var objHeader=table.getElementsByTagName('thead');
+		if (objHeader) {
+			var headerRows=table.getElementsByTagName('tr');
+			var th=headerRows[0].getElementsByTagName('th');
+			var length = ColumnsToHide.length;
+			var element = null;
+			for (var i = 0; i < length; i++) {
+				element = ColumnsToHide[i];
+				if (element) {
+					th[element].style.display=displayOption;
+				}
+			}
+		}
+	},
+	EDDLinks:function(objLP) {
+		var rows=objLP.table.getElementsByTagName('tr');
+		if (rows.length > 1) {
+			for (i=1;i<rows.length;i++) {
+				var row=rows[i];
+				var cells=row.getElementsByTagName('td');
+				var EDDLabel=document.getElementById('ExpDischargez'+i);
+			
+				var hyperlinks=cells[objLP.colIndex.IconProfile].getElementsByTagName('a');
+			
+				for (j=0;j<hyperlinks.length-1;j++) {
+					if (hyperlinks[j].innerHTML.indexOf("EDD")>=0) {
+						var EDDindex=j;
+						break;
+					}
+				}
+				var newLink=document.createElement('a');
+				newLink.setAttribute('href','#');
+				newLink.onclick=hyperlinks[j].onclick;
+				var parent=EDDLabel.parentNode;
+				parent.replaceChild(newLink,EDDLabel);
+				newLink.appendChild(EDDLabel);
+				if (EDDLabel.innerHTML=="&nbsp;") {
+					EDDLabel.innerHTML="N/A";
+				}
+			}
+		}
+	},
+	RemoveEDDIcon:function(objLP) {
+		var rows=objLP.table.getElementsByTagName('tr');
+		if (rows.length>0) {
+			for (i=1;i<rows.length;i++) {
+				cells=rows[i].getElementsByTagName('td');
+				imgs = cells[objLP.colIndex.IconProfile].getElementsByTagName('img');
+				for (j=imgs.length-1;j>=0;j--) {
+					if (imgs[j].title=='EDD') {
+						imgs[j].parentNode.removeChild(imgs[j]);
+						break;
+					}
+				}
+			}
+		}
+	},
+	ePSAGHeading:function(objLP) {
+		var rows=objLP.table.getElementsByTagName('tr');
+		if (rows.length > 1) {
+			var cells=rows[1].getElementsByTagName('td');
+			var icons=new Array(); 
+			var titles=new Array();
+			var str="";
+			var endSeparatorFound=false;
+
+			var imgs=cells[objLP.colIndex.IconProfile].getElementsByTagName('IMG');
+			var img=0;
+			while ((img<imgs.length) && (endSeparatorFound==false)) {
+				icons[img]=imgs[img].src.split("_")[0] + "_Header.png";
+				//alert(icons[img]);
+				titles[img]=imgs[img].title;
+				if (icons[img].toLowerCase().indexOf("separatorend")>=0) {
+					endSeparatorFound=true;
+				}
+				// do not display last referral separator
+				if (img<imgs.length-1) {
+					if (!((imgs[img].src.split("_")[0].toLowerCase().indexOf("separator")>=0) && (imgs[img+1].src.split("_")[0].toLowerCase().indexOf("separatorend")>=0))) {
+						str=str+"<IMG class=\"clsNormalIcon\" style=\"vertical-align: middle\" src=\""+icons[img]+"\" alt="+titles[img]+" />";
+					}
+				}
+				if (img==imgs.length-1) {
+				
+					str=str+"<IMG class=\"clsNormalIcon\" src=\""+icons[img]+"\" alt="+titles[img]+" />";
+				}
+				img++;
+			}
+		
+			var headerRows=objLP.table.getElementsByTagName('tr');
+			var th=headerRows[0].getElementsByTagName('th');
+			th[objLP.colIndex.IconProfile].style.paddingLeft="3px";
+			th[objLP.colIndex.IconProfile].innerHTML=str + "Icon Profile";	
+		}	
+	},
+	RemoveLastRefSeparator:function(objLP) {
+		var rows=objLP.table.getElementsByTagName('tr');
+		if (rows.length>0) {
+			for (i=1;i<rows.length;i++) {
+				cells=rows[i].getElementsByTagName('td');
+				imgs = cells[objLP.colIndex.IconProfile].getElementsByTagName('img');
+				for (j=imgs.length-1;j>=0;j--) {
+					if (imgs[j].title=='Ward List Separator') {
+						imgs[j].parentNode.removeChild(imgs[j-1]);
+						break;
+					}
+				}
+				if (j<0) 
+					alert("Couldn't find end separator");
+			}
+		}
+	},
+	ShortenRoomNames:function(objLP,startroom, endroom) {
+		var rows =objLP.table.getElementsByTagName('tr');
+		if (rows.length>0) {
+			for (i=1;i<rows.length;i++) {
+				roomObj = document.getElementById('Roomz'+i);
+				roomObj && (roomObj.innerText = roomObj.innerText.substr(startroom,endroom))
+			}
+		}
+	},
+	HideRows: function(objLP) {
+		var EPSAGHAM1 = ["501", "502", "503", "504", "505", "506", "507", "508", "510", "511", "601", "602", "603", "605", "606", "607"];
+		var EPSAGHAM3 = ["603", "605", "606", "607", "704", "706", "707", "801", "802", "803", "804", "805", "805"];
+	
+		if (this.logon.GroupDesc==this.SSGRPHAM1 && this.logon.LocId==this.CTLOCSURG) {
+			var rows = objLP.table.getElementsByTagName('tr');
+			if (rows.length>0) {
+				for (i=1;i<rows.length;i++) {
+					bedObj = document.getElementById('Roomz'+i);
+					if (bedObj) {
+						for (var j = 0; j < EPSAGHAM1.length; j++) {
+							if (EPSAGHAM1[j].match(bedObj.innerText.substr(0,3))) rows[i].style.display="none"
+						}	
+					}
+				}
+			}
+		}
+	
+		//for epsag3
+		if (this.logon.GroupDesc==this.SSGRPHAM3 && this.logon.LocId==this.CTLOCSURG) {
+			var rows = objLP.table.getElementsByTagName('tr');
+			if (rows.length>0) {
+				for (i=1;i<rows.length;i++) {
+					bedObj = document.getElementById('Roomz'+i);
+					if (bedObj) {
+						for (var j = 0; j < EPSAGHAM3.length; j++) {
+							if (EPSAGHAM3[j].match(bedObj.innerText.substr(0,3))) rows[i].style.display="none"
+						}	
+					}
+				}
+			}
+		}
+	}
+};*/
+//ePSAGLPAB.initLPAB();
+
+
+/*var PACWardRoomLP = {
+	workNameLP: "SWARH.ePSAGPatients",
+	ePSAGHospitals: [696,697,701],
+	objTable: document.getElementById("tPACWard_ListPatientsInWard"), 			// Patients In Bed table
+	objTableAwaitingBed: document.getElementById("tPACWardRoom_ListPatients"),	// Patients Awaiting Bed Assignment table
+	objButton: undefined,
+	columnArray: undefined,														
+	columnBedArray: undefined,													// Show/Hide names button
+	showOption: true,															// Initial Option for names
+	logon: {
+		GroupId: session['LOGON.GROUPID'],
+		GroupDesc: session['LOGON.GROUPDESC'],
+		HospId: session['LOGON.HOSPID']
+	},															
+	SSGRPHAM1: 'e-PSAG HAM 1', 													// e-PSAG HAM 1 Row Description
+	SSGRPHAM2: 'e-PSAG HAM 2', 													// e-PSAG HAM 2 Row Description
+	SSGRPHAM3: 'e-PSAG HAM 3', 													// e-PSAG HAM 3 Row Description
+	CTLOCSURG: 55,																// Surgical Unit WDHS Row ID
+	SSGRP: { 
+		"701": ['e-PSAG HAM 1','e-PSAG HAM 2','e-PSAG HAM 3']
+	},
+	colIndexAwaitingBed: {														// array to store column indices of Awaiting Bed table
+		Surname: undefined,
+		Firstname: undefined,
+		IconProfile: undefined,
+		EDD: undefined
+	},
+	colIndex: {
+		Surname: undefined,
+		Firstname: undefined,
+		IconProfile: undefined
+	},
+	init: function() {
+		websys_removeListener("load","onload",WardBodyOnloadHandler);
+		websys_addListener("load","onload",function(){PACWardRoomLP.CustomWardBodyOnloadHandler.call(PACWardRoomLP)});
+	},
+	CustomWardBodyOnloadHandler: function() {
+		WardBodyOnloadHandler();
+		this.edd();
+		this.ePSAG();
+	},
+	ePSAG: function(){
+		
+		objWorkName=document.getElementById('WKFL');
+		if (!workName) workName =  (objWorkName ? objWorkName.value : "");
+			if (workName==this.workNameLP) {
+				if (this.objTableAwaitingBed) {
+				this.colIndexAwaitingBed.Surname=this.getFieldColIndex(this.objTableAwaitingBed,"Name");
+				this.colIndexAwaitingBed.Firstname=this.getFieldColIndex(this.objTableAwaitingBed,"Given");
+				this.colIndexAwaitingBed.IconProfile=this.getFieldColIndex(this.objTableAwaitingBed,"Icon Profile");
+				this.colIndexAwaitingBed.EDD=this.getFieldColIndex(this.objTableAwaitingBed,"EDD");
+				this.colIndex.Surname=this.getFieldColIndex(this.objTable,"Name");
+				this.colIndex.Firstname=this.getFieldColIndex(this.objTable,"Given");
+				SWARH.addArrayMethods();
+				if (this.colIndexAwaitingBed.IconProfile) {
+					this.objButton=document.getElementById("displayNameButton");
+					if (this.logon.HospId==696 || this.logon.HospId==697) {		
+						this.showOption=true;
+						initialLabel="Hide Names";
+						if (!this.objButton) {
+							// create button to Hide or Show Patient Names on ePSAG board
+							this.objButton=createButton('displayNameButton',initialLabel);
+							if (this.objButton) this.objButton.onclick=function(){PACWardRoomLP.OnClickHandler.call(PACWardRoomLP)};
+							this.objTable.parentElement.insertBefore(this.objButton,this.objTable);
+							this.objTable.parentElement.insertBefore(document.createTextNode(" "),this.objTable);
+						}
+						this.EDDLinksAwaitingBed();
+						this.RemoveEDDIconAwaitingBed();
+						this.ePSAGHeadingAwaitingBed();
+						this.RemoveLastRefSeparatorAwaitingBed();
+					}
+					// For Hamilton: only showing ePSAG board and heading if security group logon is ePSAG HAM1, HAM2 or HAM3
+					if (this.logon.HospId==701) {
+						SWARH.addArrayMethods();
+						//if (this.logon.GroupDesc==this.SSGRPHAM1 || this.logon.GroupDesc==this.SSGRPHAM2 || this.logon.GroupDesc==this.SSGRPHAM3) {
+						if (this.SSGRP[this.logon.HospId.toString()].contains(this.logon.GroupDesc)) {
+							if (this.logon.LocId==this.CTLOCSURG) {
+								this.showOption=false;
+								initialLabel="Show Names";
+							}
+							else {
+								this.showOption=true;
+								initialLabel="Hide Names";
+							}
+							if (!this.objButton) {
+								// create button to Hide or Show Patient Names on ePSAG board
+								this.objButton=createButton('displayNameButton',initialLabel);
+								if (this.objButton) this.objButton.onclick=function(){PACWardRoomLP.OnClickHandler.call(PACWardRoomLP)};
+								this.objTable.parentElement.insertBefore(this.objButton,this.objTable);
+								this.objTable.parentElement.insertBefore(document.createTextNode(" "),this.objTable);
+							}
+							this.ePSAGHeadingAwaitingBed();
+							this.RemoveLastRefSeparatorAwaitingBed();
+						}	 
+					}
+				}
+			}
+		}
+	},
+	getFieldColIndex: function(table,str) {
+		var mappings = {
+			"Icon Profile": 47,
+			"Name": 3,
+			"Given": 4,
+			"EDD": 22
+		}
+		if (!mappings.hasOwnProperty(str)) return;
+		var rows=table.getElementsByTagName('th');
+		for (i=0, l=rows.length; i<l; i++) {
+			if (rows[i].id==mappings[str]) return i;
+		}
+		return;
+	},
+	EDDLinksAwaitingBed:function() {
+		var rows=this.objTableAwaitingBed.getElementsByTagName('tr');
+		if (rows.length > 1) {
+			for (i=1;i<rows.length;i++) {
+				var row=rows[i];
+				var cells=row.getElementsByTagName('td');
+				if (cells.length>0) {
+					var EDDcell=cells[this.colIndexAwaitingBed.EDD];
+					if (EDDcell) var EDDLabel=EDDcell.getElementsByTagName('label')[0];
+					var IconProfileCell=cells[this.colIndexAwaitingBed.IconProfile];
+					if (IconProfileCell) var hyperlinks=IconProfileCell.getElementsByTagName('a');
+					if (hyperlinks.length>0) {
+						for (j=0;j<hyperlinks.length-1;j++) {
+							if (hyperlinks[j].innerHTML.indexOf("EDD")>=0) {
+								var EDDindex=j;
+								break;
+							}
+						}
+					}
+					var newLink=document.createElement('a');
+					newLink.setAttribute('href','#');
+					newLink.onclick=hyperlinks[j].onclick;
+					if (EDDLabel) {
+						var parent=EDDLabel.parentNode;
+						parent.replaceChild(newLink,EDDLabel);
+						newLink.appendChild(EDDLabel);
+						//var newSpan=document.createElement('span');
+						//newSpan.setAttribute('width','5em');
+						if (EDDLabel.innerHTML=="&nbsp;") {
+							EDDLabel.innerHTML="N/A";
+							//parent.insertBefore(newSpan,newLink);
+						}
+					}
+				}
+			}
+		}
+	},
+	RemoveEDDIconAwaitingBed:function() {
+		var rows=this.objTableAwaitingBed.getElementsByTagName('tr');
+		if (rows.length>0) {
+			for (i=1;i<rows.length;i++) {
+				cells=rows[i].getElementsByTagName('td');
+				imgs = cells[this.colIndexAwaitingBed.IconProfile].getElementsByTagName('img');
+				for (j=imgs.length-1;j>=0;j--) {
+					if (imgs[j].title=='EDD') {
+						imgs[j].parentNode.removeChild(imgs[j]);
+						break;
+					}
+				}
+			}
+		}
+	},
+	ePSAGHeadingAwaitingBed:function() {
+		var rows=this.objTableAwaitingBed.getElementsByTagName('tr');
+		if (rows.length > 1) {
+			var cells=rows[1].getElementsByTagName('td');
+			var icons=new Array(); 
+			var titles=new Array();
+			var str="";
+			var endSeparatorFound=false;		
+
+			var imgs=cells[this.colIndexAwaitingBed.IconProfile].getElementsByTagName('IMG');
+	
+			var img=0;
+			while ((img<imgs.length) && (endSeparatorFound==false)) {
+				icons[img]=imgs[img].src.split("_")[0] + "_Header.png";
+				titles[img]=imgs[img].title;
+				if (icons[img].toLowerCase().indexOf("separatorend")>=0) {
+					endSeparatorFound=true;
+				}
+				// do not display last referral separator
+				if (img<imgs.length-1) {
+					if (!((imgs[img].src.split("_")[0].toLowerCase().indexOf("separator")>=0) && (imgs[img+1].src.split("_")[0].toLowerCase().indexOf("separatorend")>=0))) {
+						str=str+"<IMG class=\"clsNormalIcon\" style=\"vertical-align: middle\" src=\""+icons[img]+"\" alt="+titles[img]+" />";
+					}
+				}
+				if (img==imgs.length-1) {
+					str=str+"<IMG class=\"clsNormalIcon\" src=\""+icons[img]+"\" alt="+titles[img]+" />";
+				}
+				img++;
+			}
+			
+			var headerRows=this.objTableAwaitingBed.getElementsByTagName('tr');
+			var th=headerRows[0].getElementsByTagName('th');
+			th[this.colIndexAwaitingBed.IconProfile].style.paddingLeft="3px";
+			th[this.colIndexAwaitingBed.IconProfile].innerHTML=str + "Icon Profile";
+		}
+	},
+	RemoveLastRefSeparatorAwaitingBed:function() {
+		var rows=this.objTableAwaitingBed.getElementsByTagName('tr');
+		if (rows.length>0) {
+			for (i=1;i<rows.length;i++) {
+				cells=rows[i].getElementsByTagName('td');
+				imgs = cells[this.colIndexAwaitingBed.IconProfile].getElementsByTagName('img');
+			
+				for (j=imgs.length-1;j>=0;j--) {
+					if (imgs[j].title=='Ward List Separator') {
+						imgs[j].parentNode.removeChild(imgs[j-1]);
+						break;
+					}
+				}
+				if (j<0) 
+					alert("Couldn't find end separator");
+			}
+		}
+	},
+	show_hide_column_Generic: function(table,show,ColumnsToHide) {
+		var displayOption="";
+		if (show==true) displayOption='block';
+		else displayOption='none';
+	
+		var rows=table.getElementsByTagName('tr');
+		for (var row=1; row<rows.length; row++) {
+			var cells=rows[row].getElementsByTagName('td');
+			var length = ColumnsToHide.length;
+			var element = null;
+			for (var i = 0; i < length; i++) {
+				element = ColumnsToHide[i];
+				if (element) {
+					cells[element].style.display=displayOption;
+				}
+			}
+		}
+		var objHeader=table.getElementsByTagName('thead');
+		if (objHeader) {
+			var headerRows=table.getElementsByTagName('tr');
+			var th=headerRows[0].getElementsByTagName('th');
+			var length = ColumnsToHide.length;
+			var element = null;
+			for (var i = 0; i < length; i++) {
+				element = ColumnsToHide[i];
+				if (element) {
+					th[element].style.display=displayOption;
+				}
+			}
+		}
+	},
+	OnClickHandler: function() {
+		if (this.logon.HospId == 696 || this.logon.HospId == 697 || this.logon.HospId == 701) {
+			this.columnBedArray = [this.colIndexAwaitingBed.Surname,this.colIndexAwaitingBed.Firstname];
+			this.columnArray = [this.colIndex.Surname,this.colIndex.Firstname];
+		}
+			
+		if (this.showOption==false) {
+			this.show_hide_column_Generic(this.objTable,true,this.columnArray);
+			this.show_hide_column_Generic(this.objTableAwaitingBed,true,this.columnBedArray);
+			this.showOption=true;
+			this.objButton.setAttribute('value','Hide Names');
+		}
+		else {
+			this.show_hide_column_Generic(this.objTable,false,this.columnArray);
+			this.show_hide_column_Generic(this.objTableAwaitingBed,false,this.columnBedArray);
+			this.showOption=false;
+			this.objButton.setAttribute('value','Show Names');
+		}
+	},
+	edd: function() {
+		var table = document.getElementById("tPACWardRoom_ListPatients"),
+			thead = [],
+			tbody = [],
+			columns = [],
+			rows = [],
+			label,
+			elPosition,
+			classes = " expandColour";
+		
+		table && (thead = table.getElementsByTagName("thead"));
+		thead && 0 < thead.length && (columns = thead[0].getElementsByTagName("th"));
+		for(var i = 0; i < columns.length; i++)
+			elPosition = "22" == columns[i].id ? i : elPosition;
+		
+		elPosition && table && (tbody = table.getElementsByTagName("tbody"));
+		tbody && 0 < tbody.length && (rows = tbody[0].getElementsByTagName("tr"));
+		for(i = 0; i < rows.length; i++) {
+			columns = rows[i].getElementsByTagName("td");
+			if (elPosition <= columns.length) {
+				var column = columns[elPosition],
+					a = column.getElementsByTagName("a"),
+					label = column.getElementsByTagName("label");
+				column.className = column.className + classes;
+				
+				if (0 == a.length && 0 < label.length) {
+					label = label[0];
+					label.style.paddingTop = "" + ((column.clientHeight/2) - (label.clientHeight/2)) + "px";
+					label.style.paddingLeft = "" + ((column.clientWidth/2) - (label.clientWidth/2)) + "px";
+				}
+			}
+		}
+	}	
+}*/
+//PACWardRoomLP.init();
+// start BS SWARH EDD
+/*var PACWardLPIW = {
+	init: function() {
+		this.edd();
+	},
+	edd: function() {
+		var table = document.getElementById("tPACWardRoom_ListPatients"),
+			thead = [],
+			tbody = [],
+			columns = [],
+			rows = [],
+			label,
+			elPosition,
+			classes = " expandColour";
+		
+		table && (thead = table.getElementsByTagName("thead"));
+		thead && 0 < thead.length && (columns = thead[0].getElementsByTagName("th"));
+		for(var i = 0; i < columns.length; i++)
+			elPosition = "22" == columns[i].id ? i : elPosition;
+		
+		elPosition && table && (tbody = table.getElementsByTagName("tbody"));
+		tbody && 0 < tbody.length && (rows = tbody[0].getElementsByTagName("tr"));
+		for(i = 0; i < rows.length; i++) {
+			columns = rows[i].getElementsByTagName("td");
+			if (elPosition <= columns.length) {
+				var column = columns[elPosition],
+					a = column.getElementsByTagName("a"),
+					label = column.getElementsByTagName("label");
+				column.className = column.className + classes;
+				
+				if (0 == a.length && 0 < label.length) {
+					label = label[0];
+					label.style.paddingTop = "" + ((column.clientHeight/2) - (label.clientHeight/2)) + "px";
+					label.style.paddingLeft = "" + ((column.clientWidth/2) - (label.clientWidth/2)) + "px";
+				}
+			}
+		}
+	}	
+}*/
+//PACWardLPIW.init();
+// end BS SWARH EDD
+]]></Implementation>
+</Method>
+</Class>
+</Export>

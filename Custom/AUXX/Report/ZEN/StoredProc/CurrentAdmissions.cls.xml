@@ -1,0 +1,849 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.AUXX.Report.ZEN.StoredProc.CurrentAdmissions">
+<Description><![CDATA[
+Report Name: Current Admissions <br>
+Report Code: TRAKCURRENTADMISSIONS <br>
+LOGTRAK Number: 64910 <br>
+Report Description: List of current admissions by Ward.]]></Description>
+<ClassType/>
+<ProcedureBlock>0</ProcedureBlock>
+<Super>Report.Abstract</Super>
+<TimeCreated>59806,71923.284402</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/AUXX/Report/ZEN/StoredProc/CurrentAdmissions.xml#1 $</Default>
+</Parameter>
+
+<Method name="BuildAdmRow">
+<Description>
+This method builds a $LB row based on PAADM_Rowid.</Description>
+<Final>0</Final>
+<ClassMethod>1</ClassMethod>
+<CodeMode>code</CodeMode>
+<FormalSpec>Hospital:%Library.String,Unit:%Library.String,Ward:%Library.String,Consultant:%Library.String,EpisodeID:%Library.String</FormalSpec>
+<Private>0</Private>
+<ReturnType>%Library.List</ReturnType>
+<SqlProc>0</SqlProc>
+<Implementation><![CDATA[
+ If Hospital=$C(0) Set Hospital=""
+ If Consultant=$C(0) Set Consultant=""
+ If Unit=$C(0) Set Unit=""
+ If Ward=$C(0) Set Ward=""
+ 	
+ New admid,admno,admlocid,admloccode,admlocdesc,admdate,admtime,admtype,admresdoc,admresdoccode,admresdocdesc,admvisit,vipflag,estdisdate,hospid,hospdesc,hospcode
+			New signiffacilitydr,signfdesc,patid,patno,patname,patname2,patname3,ageyr,dob,wardid,wardcode,warddesc,wardloc,bedcode,CARETYPcode,sex,CARETYProwid,CARETYPdesc,adsourowid,adsoucode,adsoudesc
+			New insurdetails,leave,RTMASNo
+			New rsn
+			n CTLOCRespUnitDR,CTLOCRUCode,CTLOCRUDesc
+			Set (admid,admlocid,hospid,signiffacilitydr,patid,ageyr,wardloc,adsourowid)=0
+			Set (admno,admloccode,admlocdesc,admdate,admtime,admtype,admresdoc,admresdoccode,admresdocdesc,admvisit,vipflag,estdisdate,hospdesc,hospcode) = ""
+			Set (signfdesc,patno,patname,patname2,patname3,dob,wardid,wardcode,warddesc,bedcode,CARETYPcode,sex,CARETYProwid,CARETYPdesc,adsoucode,adsoudesc)=""
+			Set (insurdetails,leave,RTMASNo)=""
+			
+			  // Strip white space/control chars from blank variables
+ i $g(Hospital)'="" s Hospital=$ZSTRIP(Hospital,"*WC")
+  i $g(Unit)'="" s Unit=$ZSTRIP(Unit,"*WC")
+ i $g(Ward)'="" s Ward=$ZSTRIP(Ward,"*WC")
+ i $g(Consultant)'="" s Consultant=$ZSTRIP(Consultant,"*WC")
+						
+			&sql(SELECT
+			PAADM_RowID,
+			PAADM_ADMNo,
+			PAADM_DepCode_DR,
+			PAADM_DepCode_DR->CTLOC_Code,
+			PAADM_DepCode_DR->CTLOC_Desc,
+			PAADM_AdmDate,
+			PAADM_AdmTime,
+			PAADM_Type,
+			PAADM_AdmDocCodeDR,
+			PAADM_AdmDocCodeDR->CTPCP_Code,
+			PAADM_AdmDocCodeDR->CTPCP_Desc,
+			PAADM_VisitStatus,
+			{fn IFNULL(PAADM_PAPMI_DR->PAPMI_VIPFlag,'')},
+			PAADM_EstimDischargeDate,
+			PAADM_CurrentWard_DR->WARD_LocationDR->CTLOC_Hospital_DR,
+			PAADM_CurrentWard_DR->WARD_LocationDR->CTLOC_Hospital_DR->HOSP_Desc,
+			PAADM_CurrentWard_DR->WARD_LocationDR->CTLOC_SignifFacility_DR,
+			PAADM_CurrentWard_DR->WARD_LocationDR->CTLOC_SignifFacility_DR->SIGNF_Desc,
+			PAADM_PAPMI_DR,
+			PAADM_PAPMI_DR->PAPMI_No,
+			PAADM_PAPMI_DR->PAPMI_Name,
+			PAADM_PAPMI_DR->PAPMI_Name2,
+			PAADM_PAPMI_DR->PAPMI_Name3,
+			PAADM_PAPMI_DR->PAPMI_PAPER_DR->PAPER_AgeYr,
+			PAADM_PAPMI_DR->PAPMI_DOB,
+			PAADM_CurrentWard_DR,
+			PAADM_CurrentWard_DR->WARD_Code,
+			PAADM_CurrentWard_DR->WARD_Desc,
+			PAADM_CurrentWard_DR->WARD_LocationDR,
+			PAADM_CurrentBed_DR->BED_Code,
+			PAADM_MAINMRADM_DR->MRADM_CareType_DR->CARETYP_Code,
+			PAADM_PAPMI_DR->PAPMI_PAPER_DR->PAPER_Sex_DR->CTSEX_Code,
+			PAADM_MAINMRADM_DR->MRADM_CareType_DR,
+			PAADM_MAINMRADM_DR->MRADM_CareType_DR->CARETYP_Desc,
+			PAADM_AdmSrc_DR->ADSOU_RowId,
+			PAADM_AdmSrc_DR->ADSOU_Code,
+			PAADM_AdmSrc_DR->ADSOU_Desc,
+			PAADM_CurrentWard_DR->WARD_LocationDR->CTLOC_Hospital_DR->HOSP_Code
+			INTO :admid,:admno,:admlocid,:admloccode,:admlocdesc,:admdate,:admtime,:admtype,:admdoc,:admdoccode,:admdocdesc,:admvisit,:vipflag,:estdisdate,:hospid,:hospdesc,:signiffacilitydr,:signfdesc,:patid,:patno,:patname,:patname2,:patname3,:ageyr,:dob,:wardid,:wardcode,:warddesc,:wardloc,:bedcode,:CARETYPcode,:sex,:CARETYProwid,:CARETYPdesc,:adsourowid,:adsoucode,:adsoudesc,:hospcode
+			FROM
+			SQLUser.PA_Adm PAADM
+			WHERE 
+			PAADM_RowId = :EpisodeID AND 
+			(({fn CONCAT( ',', {fn CONCAT((:Unit),',')})} [ {fn CONCAT( ',', {fn CONCAT((PAADM_DepCode_DR),',')})}) OR (:Unit IS NULL)) AND 
+			(({fn CONCAT( ',', {fn CONCAT((:Consultant),',')})} [ {fn CONCAT( ',', {fn CONCAT((PAADM_AdmDocCodeDR),',')})}) OR (:Consultant IS NULL)) AND 
+ 			(({fn CONCAT( ',', {fn CONCAT((:Hospital),',')})} [ {fn CONCAT( ',', {fn CONCAT((paadm_CURRENTWARD_DR->WARD_LocationDR->CTLOC_hospital_dr),',')})}) OR (:Hospital IS NULL))
+			 AND (({fn CONCAT( ',', {fn CONCAT((:Ward),',')})} [ {fn CONCAT( ',', {fn CONCAT((PAADM_CURRENTWARD_DR),',')})}) OR (:Ward IS NULL))
+			 ORDER BY PAADM_CurrentWard_DR->WARD_LocationDR->CTLOC_Hospital_DR->HOSP_Desc,
+			 PAADM_DepCode_DR->CTLOC_Desc,
+			 PAADM_CurrentWard_DR->WARD_Code,
+			 PAADM_AdmDocCodeDR->CTPCP_Desc
+			)
+			
+			//PAADM_Hospital_DR=:Hospital)
+			
+			I SQLCODE Quit ""
+
+ // Format Dates and Times for ODBC Format - this must be done otherwise an ODBC error will occur
+ Do FormatDates
+ Do FormatTimes
+
+ // Get fields from child tables
+ s insurdetails=..GetInsurDetails(admid)
+
+ ;get URN
+ ;s RTMASNo=..GetURNCurrentLoc(patid,hospid)
+ ;s RTMASNo=$ZSTRIP($li(RTMASNo,1),"*C")
+
+
+ // Build the row
+ s rs=$LB(admid,admno,admlocid,admloccode,admlocdesc,admdate,admtime,admtype)
+ s rs=rs_$LB(admdoc,admdoccode,admdocdesc,admvisit,vipflag,estdisdate,hospid)
+ s rs=rs_$LB(hospdesc,signiffacilitydr,signfdesc,patid,patno,patname,patname2)
+ s rs=rs_$LB(patname3,ageyr,dob,wardid,wardcode,warddesc,wardloc,bedcode,CARETYPcode)
+ s rs=rs_$LB(sex,CARETYProwid,CARETYPdesc,adsourowid,adsoucode,adsoudesc)
+ s rs=rs_$LB(inscode,insdesc,leave,RTMASNo)
+ s rs=rs_$LB(CTLOCRespUnitDR,CTLOCRUCode,CTLOCRUDesc,hospcode)
+ 
+ q rs
+
+ s leave=..GetPatientOnLeave(admid)
+
+FormatDates
+ // Convert the dates to ODBC date format
+ //If admdate Set admdate=$ZD(admdate,3)
+ //If dob Set dob=$ZD(dob,3)
+ Set admdate=..ConvertDateToODBC(admdate)
+ Set dob=..ConvertDateToODBC(dob)
+ Set estdisdate=..ConvertDateToODBC(estdisdate)
+ Quit
+
+FormatTimes
+ // Convert the times to ODBC time format
+ //If admtime Set admtime=$ZT(admtime,2)
+ //Set admtime=$ZT(admtime,2)
+ If admtime Set admtime=..ConvertTimeToODBC(admtime)
+ Quit
+]]></Implementation>
+</Method>
+
+<Method name="FindAllAdmsInWardClose">
+<Description>
+This is the Close component of the %Query.
+This is standard code and should never have to change.
+This is where all the cleanup is performed, i.e. the purging of the temporary storage global ^CacheTemp.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>QHandle:%Binary</FormalSpec>
+<ReturnType>%Status</ReturnType>
+<Implementation><![CDATA[
+
+ // Clean up by purging the temporary node in ^CacheTemp global
+ New repid
+ Set repid = $li(QHandle,2)
+ //Start Monitor (if configured to capture stats)
+ i mon Do ..MonitorEnd(mon)
+ Kill ^CacheTemp(repid)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="FindAllAdmsInWardExecute">
+<Description>
+This is the Execute section for the %Library.Query. 
+All of the logic will be performed here.
+A new node for the ^CacheTemp global will be created and each subscript of this global will contain
+a row for the report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Binary,Hospital:%Library.Integer,Unit:%Library.String,Ward:%Library.String,Consultant:%Library.String]]></FormalSpec>
+<ReturnType>%Status</ReturnType>
+<Implementation><![CDATA[
+ 
+ // Get reportid i.e. use $INCREMENT to add another node to ^CacheTemp global. 
+ // We use ^CacheTemp global because it will always use memory before disk
+
+ New repid, ind
+ // Use $Increment to get the next node
+ Set repid = $I(^CacheTemp("TRAK"))
+ Set ind = 1
+
+ //Start Monitor (if configured to capture stats)
+ s mon=..MonitorBegin()
+ 
+ // Build data into ^CacheTemp("TRAK",ReportID)
+ // e.g. Set ^CacheTemp("TRAK",ReportID,Index)=$LB(f1,f2,f3)
+
+ n ward,adm,admid,rs,bed,badm,s,BookedStatus,transid
+
+ // Returns all inpatient admissions that have a bed or not
+ do
+ . s ward=0 f  s ward=$o(^PAWARDA(ward)) q:ward=""  d
+ . . s bed="" f  s bed=$o(^PAWARDA(ward,"BED",bed)) q:bed=""  d
+ . . . s badm="" f  s badm=$o(^PAWARDA(ward,"BED",bed,"ADM",badm)) q:badm=""  s s=^(badm) d
+ . . . . s BookedStatus=$p(s,"^",2)			 
+ . . . . s admid=$p(s,"^",1)
+ . . . . q:'admid
+ . . . . q:$p($g(^PAADM(admid)),"^",2)'="I"
+ . . . . s transid=$p(s,"^",3)
+ . . . . s rs=..BuildAdmRow(Hospital,Consultant,Unit,Ward,admid)
+ . . . . i rs="" q
+ . . . . s rs=rs_$LB(BookedStatus)
+ . . . . s ^CacheTemp("TRAK",repid, ind) = rs
+ . . . . s ind=ind+1
+
+ s (BookedStatus,transid)=""
+
+ // Returns all current and preadmission inpatient episodes that have a ward but no bed.
+ do
+ . s ward=0 f  s ward=$o(^PAWARDA(ward)) q:ward=""  d
+ . . s adm=0 f  s adm=$o(^PAWARDA(ward,"WADM",adm)) q:adm=""  d
+ . . . s admid=$p($g(^PAWARDA(ward,"WADM",adm)),"^",1)
+ . . . q:$p($g(^PAADM(admid)),"^",2)'="I"
+ . . . q:" A P "'[(" "_$p($g(^PAADM(admid)),"^",20)_" ")
+ . . . ;build the row
+ . . . s transid=$p($g(^PAWARDA(ward,"WADM",adm)),"^",3)
+ . . . s rs=..BuildAdmRow(Hospital,Consultant,Unit,Ward,admid)
+ . . . i rs="" q
+ . . . s BookedStatus=$p($g(^PAWARDA(ward,"WADM",adm)),"^",2)
+ . . . s rs=rs_$LB(BookedStatus)
+ . . . s ^CacheTemp(repid, ind) = rs
+ . . . s ind=ind+1
+
+ // Build QHandle (AtEnd,ReportID,Index)
+ Set QHandle = $lb(0, repid, 0)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="FindAllAdmsInWardFetch">
+<Description>
+This is the Fetch component of the %Library.Query. 
+This should never have to change. It is designed to fetch the row for each subscript of the ^CacheTemp
+global and return this row to the Crystal Report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Binary,&Row:%List,&AtEnd:%Integer=0]]></FormalSpec>
+<ReturnType>%Status</ReturnType>
+<Implementation><![CDATA[
+ // This fetch method should never have to change. 
+
+ // repid - Report ID
+ // ind   - sequence index which represents each row
+
+ New repid,ind
+
+ // Restore QHandle
+ Set AtEnd=$li(QHandle,1)
+ Set repid=$li(QHandle,2)
+ Set ind=$li(QHandle,3)
+
+ Set ind=$o(^CacheTemp("TRAK",repid,ind))
+ If ind="" {	// if there are no more rows, finish fetching
+ Set AtEnd=1
+ Set Row=""
+ }
+ Else      {	// fetch row
+ Set Row=^CacheTemp("TRAK",repid,ind)
+ }
+
+ // Save QHandle
+ s QHandle=$lb(AtEnd,repid,ind)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="GetInsurDetails">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>EpisodeID:%Library.String</FormalSpec>
+<ReturnType>%Library.String</ReturnType>
+<Implementation><![CDATA[
+ s inscode=""
+ s insdesc=""	
+
+ &sql(SELECT INS_InsType_DR->INST_Code,INS_InsType_DR->INST_Desc
+ INTO :inscode,:insdesc
+ FROM SQLUser.PA_AdmInsurance
+ WHERE INS_ParRef =:EpisodeID
+ AND(INS_DateValidFrom <= Current_Date OR INS_DateValidFrom IS NULL)
+ AND(INS_DateValidTo >= Current_Date OR INS_DateValidTo IS NULL))
+ ;
+ s temp=$LB(inscode,insdesc)
+ q temp
+]]></Implementation>
+</Method>
+
+<Method name="LookUpBrokerHospital">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>itmjs:%Library.String="",itmjsex:%Library.String="",val:%Library.String=""</FormalSpec>
+<Implementation><![CDATA[
+ n id,code,desc,activedate
+ ;
+ s (id,code,desc)=""
+ ;s activedate=+$h
+ ;
+ ; Try and find a matching code
+ &sql(SELECT	HOSP_Desc, HOSP_RowId, HOSP_Code
+ INTO	:desc, :id, :code
+ FROM	SQLUser.CT_Hospital
+ WHERE	((%ALPHAUP HOSP_Desc = %UPPER :val) OR (%UPPER HOSP_Code = %UPPER :val))
+ )
+ ;
+ i SQLCODE s desc=val q 0
+ s retval=itmjs_"('"_$ZCVT(desc,"O","JS")_"');"
+ i itmjsex'="""" s retval=retval_itmjsex_"('"_$ZCVT(desc,"O","JS")_"^"_id_"^"_$ZCVT(code,"O","JS")_"');"
+ &javascript<#(retval)#>
+ q 1
+]]></Implementation>
+</Method>
+
+<Method name="LookUpBrokerCampusByHosp">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>itmjs:%Library.String="",itmjsex:%Library.String="",val:%Library.String="",activedate:%Library.String=""</FormalSpec>
+<Implementation><![CDATA[
+ n id,code,desc,activedate
+ ;
+ s (id,code,desc)=""
+ s activedate=+$h
+ ;
+ ; Try and find a matching code
+ &sql(SELECT DISTINCT CTLOC_SignifFacility_DR->SIGNF_Desc,
+ CTLOC_SignifFacility_DR->SIGNF_Rowid,
+ CTLOC_SignifFacility_DR->SIGNF_Code
+ INTO	:desc, :id, :code
+ FROM	SQLUser.CT_LOC
+ WHERE	((%ALPHAUP CTLOC_SignifFacility_DR->SIGNF_Desc = %UPPER :val) OR (%UPPER CTLOC_SignifFacility_DR->SIGNF_Code = %UPPER :val))
+ )
+ ;
+ i SQLCODE s desc=val q 0
+ s retval=itmjs_"('"_$ZCVT(desc,"O","JS")_"');"
+ i itmjsex'="""" s retval=retval_itmjsex_"('"_$ZCVT(desc,"O","JS")_"^"_id_"^"_$ZCVT(code,"O","JS")_"');"
+ &javascript<#(retval)#>
+ q 1
+]]></Implementation>
+</Method>
+
+<Method name="LookUpBrokerSpecByHospCampus">
+<Description>
+Look Up Broker Specialty by Hospital and Campus</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>itmjs:%Library.String="",itmjsex:%Library.String="",val:%Library.String="",hospital:%Library.String="",campus:%Library.String=""</FormalSpec>
+<Implementation><![CDATA[
+	n id,code,desc,activedate
+	;
+	s (id,code,desc)=""
+	s activedate=+$h
+	;
+	; Try and find a matching code
+	&sql(SELECT
+	RU_Desc,
+ 	RU_RowId,
+ 	RU_Code
+ 	INTO :desc, :id, :code
+	FROM SQLUser.CT_ResponsibleUnit
+	WHERE ((%ALPHAUP RU_Desc = %UPPER :val) OR (%UPPER RU_Code = %UPPER :val))
+	)
+	;
+	i SQLCODE s desc=val q 0
+	s retval=itmjs_"('"_$ZCVT(desc,"O","JS")_"');"
+	i itmjsex'="""" s retval=retval_itmjsex_"('"_$ZCVT(desc,"O","JS")_"^"_id_"^"_$ZCVT(code,"O","JS")_"');"
+	&javascript<#(retval)#>
+	q 1
+]]></Implementation>
+</Method>
+
+<Method name="LookUpBrokerConsByHospCampSpec">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>itmjs:%Library.String="",itmjsex:%Library.String="",val:%Library.String="",hospital:%Library.String="",campus:%Library.String="",speciality:%Library.String="",consultant:%Library.String=""</FormalSpec>
+<Implementation><![CDATA[
+	n id,code,desc,activedate
+	;
+	s (id,code,desc)=""
+	s activedate=+$h
+	;
+	; Try and find a matching code
+	&sql(SELECT Distinct
+	RES_CTPCP_DR->CTPCP_Desc,
+	RES_CTPCP_DR->CTPCP_RowId,
+	RES_CTPCP_DR->CTPCP_Code
+	INTO :desc, :id, :code
+	FROM SQLUser.RB_Resource
+	WHERE ((%ALPHAUP RES_CTPCP_DR->CTPCP_Desc = %UPPER :val) OR (%UPPER RES_CTPCP_DR->CTPCP_Code = %UPPER :val))
+	)
+	;
+	i SQLCODE s desc=val q 0
+	s retval=itmjs_"('"_$ZCVT(desc,"O","JS")_"');"
+	i itmjsex'="""" s retval=retval_itmjsex_"('"_$ZCVT(desc,"O","JS")_"^"_id_"^"_$ZCVT(code,"O","JS")_"');"
+	&javascript<#(retval)#>
+	q 1
+]]></Implementation>
+</Method>
+
+<Method name="LookUpBrokerWrdByHosCmpSpConLoc">
+<Description>
+LookUp Broker Ward from RB_Resource for Ward by Hospital,Campus,Specialty,Consultant,Unit (Loc)</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>itmjs:%Library.String="",itmjsex:%Library.String="",val:%Library.String="",Hospital:%Library.String="",Campus:%Library.String="",Specialty:%Library.String="",Location:%Library.String=""</FormalSpec>
+<Implementation><![CDATA[
+ n id,code,desc,activedate
+ ;
+ s (id,code,desc)=""
+ s activedate=+$h
+ ;
+ ; Try and find a matching code
+ &sql(SELECT DISTINCT WARD_Desc,
+ WARD_Rowid,
+ WARD_Code
+ INTO	:desc, :id, :code
+ FROM	SQLUser.PAC_Ward
+ WHERE	((%ALPHAUP WARD_Desc = %UPPER :val) OR (%UPPER WARD_Code = %UPPER :val))
+ )
+ ;
+ i SQLCODE s desc=val q 0
+ s retval=itmjs_"('"_$ZCVT(desc,"O","JS")_"');"
+ i itmjsex'="""" s retval=retval_itmjsex_"('"_$ZCVT(desc,"O","JS")_"^"_id_"^"_$ZCVT(code,"O","JS")_"');"
+ &javascript<#(retval)#>
+ q 1
+]]></Implementation>
+</Method>
+
+<Method name="LookUpBrokerLocByHospCampSpcCon">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>itmjs:%Library.String="",itmjsex:%Library.String="",val:%Library.String="",hospital:%Library.String="",campus:%Library.String=""</FormalSpec>
+<Implementation><![CDATA[
+ n id,code,desc,activedate
+ ;
+ s (id,code,desc)=""
+ s activedate=+$h
+ ;
+ ; Try and find a matching code
+ &sql(SELECT 
+ RES_CTLOC_DR->CTLOC_Desc,
+ RES_CTLOC_DR->CTLOC_Rowid,
+ RES_CTLOC_DR->CTLOC_Code
+ 	INTO	:desc, :id, :code
+ 	FROM	SQLUser.RB_Resource
+ 	WHERE	((%ALPHAUP RES_CTLOC_DR->CTLOC_Desc = %UPPER :val) OR (%UPPER RES_CTLOC_DR->CTLOC_Code = %UPPER :val))
+ )
+ ;
+ i SQLCODE s desc=val q 0
+ s retval=itmjs_"('"_$ZCVT(desc,"O","JS")_"');"
+ i itmjsex'="""" s retval=retval_itmjsex_"('"_$ZCVT(desc,"O","JS")_"^"_id_"^"_$ZCVT(code,"O","JS")_"');"
+ &javascript<#(retval)#>
+ q 1
+]]></Implementation>
+</Method>
+
+<Query name="FindAllAdmsInWard">
+<Description>
+This query returns all current inpatient episodes that occupy a ward regardless 
+of whether the patient is assigned to a bed. It will only return rows with a booking status of Occupied.</Description>
+<Type>%Query</Type>
+<FormalSpec>Hospital:%Library.String,Unit:%Library.String,Ward:%Library.String,Consultant:%Library.String</FormalSpec>
+<SqlProc>1</SqlProc>
+<Parameter name="CONTAINID" value="0"/>
+<Parameter name="ROWSPEC" value="EpisodeID:%Integer,AdmNo:%String(MAXLEN=255),LocationID:%Integer,LocationCode:%String(MAXLEN=255),LocationDesc:%String(MAXLEN=255),AdmDate:%Library.Date,AdmTime:%String(MAXLEN=255),AdmType:%String(MAXLEN=255),CarerProviderID:%Library.String,DoctorCode:%String(MAXLEN=255),DoctorDesc:%String(MAXLEN=255),VisitStatus:%String(MAXLEN=255),VIPFlag:%String(MAXLEN=255),EstimatedDischageDate:%Library.Date,HospId:%Integer,HospitalDesc:%String(MAXLEN=255),SignifFacilityID:%Integer,SignfDesc:%String(MAXLEN=255),PatId:%Integer,PatNo:%String(MAXLEN=255),PatName:%String(MAXLEN=255),PatName2:%String(MAXLEN=255),PatName3:%String(MAXLEN=255),Age:%Integer,DOB:%Library.Date,WardRowId:%String(MAXLEN=255),WardCode:%String(MAXLEN=255),WardDesc:%String(MAXLEN=255),WardLocation:%Integer,BedCode:%String(MAXLEN=255),CARETYPCode:%String(MAXLEN=255),Sex:%String(MAXLEN=255),CARETYPRowId:%Integer,CARETYPDesc:%String(MAXLEN=255),ADSOURowId:%Library.Integer,ADSOUCode:%String(MAXLEN=255),ADSOUDesc:%String(MAXLEN=255),inscode:%String(MAXLEN=255),insdesc:%String(MAXLEN=255),leave:%String(MAXLEN=255),RTMASNo:%String(MAXLEN=255),SpecialtyId:%Integer,SpecialtyCode:%String(MAXLEN=255),SpecialtyDesc:%String(MAXLEN=255),HospitalCode:%String,BookedStatus:%String(MAXLEN=255)"/>
+</Query>
+
+<Query name="LookUpCampusByHosp">
+<Description>
+Lookup on CT_Hospital returning all active hospitals</Description>
+<Type>%Library.SQLQuery</Type>
+<FormalSpec>SIGNFDesc:%String,HOSP:%String</FormalSpec>
+<SqlQuery><![CDATA[SELECT DISTINCT CTLOC_SignifFacility_DR->SIGNF_Desc,
+CTLOC_SignifFacility_DR->SIGNF_Rowid,
+CTLOC_SignifFacility_DR->SIGNF_Code
+FROM SQLUser.CT_LOC
+WHERE ((%ALPHAUP CTLOC_SignifFacility_DR->SIGNF_Desc %STARTSWITH %UPPER :SIGNFDesc) OR (%UPPER CTLOC_SignifFacility_DR->SIGNF_Code %STARTSWITH %UPPER :SIGNFDesc) OR (:SIGNFDesc IS NULL))
+AND CTLOC_Hospital_DR=:HOSP
+ORDER BY CTLOC_SignifFacility_DR->SIGNF_Desc]]></SqlQuery>
+<Parameter name="CONTAINID" value="2"/>
+<Parameter name="ROWSPEC" value="SIGNFDesc:%String,HIDDEN:%String,SIGNFCode:%String"/>
+</Query>
+
+<UDLText name="T">
+<Content><![CDATA[
+/* SELECT DISTINCT CTLOC_SignifFacility_DR->SIGNF_Desc,
+; CTLOC_SignifFacility_DR->SIGNF_Rowid,
+; CTLOC_SignifFacility_DR->SIGNF_Code
+;FROM SQLUser.CT_LOC
+;WHERE ((%ALPHAUP CTLOC_SignifFacility_DR->SIGNF_Desc %STARTSWITH %ALPHAUP :SIGNFDesc) OR (%ALPHAUP CTLOC_SignifFacility_DR->SIGNF_Code %STARTSWITH %ALPHAUP :SIGNFDesc) OR (:SIGNFDesc IS NULL))
+;AND (({fn CONCAT( ',', {fn CONCAT((:HOSP),',')})} [ {fn CONCAT( ',', {fn CONCAT((CTLOC_Hospital_DR),',')})}) OR (:HOSP IS NULL))
+;ORDER BY CTLOC_SignifFacility_DR->SIGNF_Desc
+*/
+]]></Content>
+</UDLText>
+
+<UDLText name="T">
+<Content><![CDATA[
+//The DateFrom and DateTo mapping is actually not mapped so this sql code cannot be used.
+
+]]></Content>
+</UDLText>
+
+<UDLText name="T">
+<Content><![CDATA[
+//Tested on the latest dev environment with the same problem
+
+]]></Content>
+</UDLText>
+
+<UDLText name="T">
+<Content><![CDATA[
+//AND (CTLOC_SignifFacility_DR->SIGNF_DateFrom <= CURRENT_DATE)
+
+]]></Content>
+</UDLText>
+
+<UDLText name="T">
+<Content><![CDATA[
+//AND ((CTLOC_SignifFacility_DR->SIGNF_DateTo IS NULL) OR (CTLOC_SignifFacility_DR->SIGNF_DateTo >= CURRENT_DATE))
+
+]]></Content>
+</UDLText>
+
+<Query name="LookUpHospital">
+<Description>
+Lookup on CT_Hospital returning all active hospitals</Description>
+<Type>%Library.SQLQuery</Type>
+<FormalSpec>HospDesc:%String</FormalSpec>
+<SqlQuery><![CDATA[SELECT HOSP_Desc, HOSP_RowId, HOSP_Code
+FROM SQLUser.CT_Hospital
+WHERE ((%ALPHAUP HOSP_Desc %STARTSWITH %UPPER :HospDesc) OR (%UPPER HOSP_Code %STARTSWITH %UPPER :HospDesc))
+AND (HOSP_DateFrom <= CURRENT_DATE) 
+AND ((HOSP_DateTo IS NULL) OR (HOSP_DateTo >= CURRENT_DATE))
+ORDER BY HOSP_Desc]]></SqlQuery>
+<Parameter name="CONTAINID" value="2"/>
+<Parameter name="ROWSPEC" value="HOSPDesc:%String,HIDDEN:%String,HOSPCode:%String"/>
+</Query>
+
+<Query name="LookUpSpecByHospCampus">
+<Description>
+Lookup on CT_ResponsibleUnit returning all active specialties
+Specialty by Hospital and Campus</Description>
+<Type>%Library.SQLQuery</Type>
+<FormalSpec>RUDesc:%String,HOSP:%String,Campus:%String</FormalSpec>
+<SqlQuery><![CDATA[	
+SELECT DISTINCT CTLOC_RespUnit_DR->RU_Desc,
+ CTLOC_RespUnit_DR->RU_RowId,
+ CTLOC_RespUnit_DR->RU_Code
+FROM SQLUser.CT_LOC
+WHERE 
+((%ALPHAUP CTLOC_RespUnit_DR->RU_Desc %STARTSWITH %ALPHAUP :RUDesc) OR (%ALPHAUP CTLOC_RespUnit_DR->RU_Desc %STARTSWITH %ALPHAUP :RUDesc) OR (:RUDesc IS NULL ))
+AND CTLOC_Hospital_DR=:HOSP
+AND ((CTLOC_SignifFacility_DR=:Campus) OR (:Campus IS NULL))
+ORDER BY CTLOC_RespUnit_DR->RU_Desc]]></SqlQuery>
+<Parameter name="CONTAINID" value="2"/>
+<Parameter name="ROWSPEC" value="RUDesc:%String,HIDDEN:%String,RUCode:%String"/>
+</Query>
+
+<UDLText name="T">
+<Content><![CDATA[
+/*
+SELECT DISTINCT CTLOC_RespUnit_DR->RU_Desc,
+ CTLOC_RespUnit_DR->RU_RowId,
+ CTLOC_RespUnit_DR->RU_Code
+FROM SQLUser.CT_LOC
+WHERE ((%ALPHAUP CTLOC_RespUnit_DR->RU_Desc %STARTSWITH %ALPHAUP :RUDesc) OR (%ALPHAUP CTLOC_RespUnit_DR->RU_Desc %STARTSWITH %ALPHAUP :RUDesc))
+AND (({fn CONCAT( ',', {fn CONCAT((:HOSP),',')})} [ {fn CONCAT( ',', {fn CONCAT((CTLOC_Hospital_DR),',')})}) OR (:HOSP IS NULL))
+AND (({fn CONCAT( ',', {fn CONCAT((:Campus),',')})} [ {fn CONCAT( ',', {fn CONCAT((CTLOC_SignifFacility_DR),',')})}) OR (:Campus IS NULL))
+ORDER BY CTLOC_RespUnit_DR->RU_Desc
+*/
+]]></Content>
+</UDLText>
+
+<Query name="LookUpConsByHospCampSpec">
+<Description>
+Lookup on RB_Resource returning consultant by speciality</Description>
+<Type>%Library.SQLQuery</Type>
+<FormalSpec>RESDesc:%String,HOSP:%String,Campus:%String,RUDesc:%String</FormalSpec>
+<SqlQuery><![CDATA[SELECT DISTINCT 
+ RES_CTPCP_DR->CTPCP_Desc,
+ RES_CTPCP_DR->CTPCP_RowId,
+ RES_CTPCP_DR->CTPCP_Code
+FROM SQLUser.RB_Resource
+WHERE ((%ALPHAUP RES_CTPCP_DR->CTPCP_Desc %STARTSWITH %ALPHAUP :RESDesc) OR (%ALPHAUP RES_CTPCP_DR->CTPCP_Desc %STARTSWITH %ALPHAUP :RESDesc))
+AND RES_CTLOC_DR->CTLOC_Hospital_DR=:HOSP
+AND ((RES_CTLOC_DR->CTLOC_SignifFacility_DR=:Campus) OR (:Campus IS NULL))
+AND (({fn CONCAT( ',', {fn CONCAT((%ALPHAUP :RUDesc),',')})} [ {fn CONCAT( ',', {fn CONCAT((%ALPHAUP RES_CTLOC_DR->CTLOC_RespUnit_DR->RU_Desc),',')})}) OR (:RUDesc IS NULL))
+AND (RES_DateActiveFrom <= CURRENT_DATE)
+AND ((RES_DateActiveTo IS NULL) OR (RES_DateActiveTo >= CURRENT_DATE))
+ORDER BY RES_CTPCP_DR->CTPCP_Desc]]></SqlQuery>
+<Parameter name="CONTAINID" value="2"/>
+<Parameter name="ROWSPEC" value="CTPCPDesc:%String,HIDDEN:%String,CTPCPCode:%String"/>
+</Query>
+
+<UDLText name="T">
+<Content><![CDATA[
+/*
+SELECT DISTINCT 
+ RES_CTPCP_DR->CTPCP_Desc,
+ RES_CTPCP_DR->CTPCP_RowId,
+ RES_CTPCP_DR->CTPCP_Code
+FROM SQLUser.RB_Resource
+WHERE ((%ALPHAUP RES_CTPCP_DR->CTPCP_Desc %STARTSWITH %ALPHAUP :RESDesc) OR (%ALPHAUP RES_CTPCP_DR->CTPCP_Desc %STARTSWITH %ALPHAUP :RESDesc))
+AND (({fn CONCAT( ',', {fn CONCAT((:HOSP),',')})} [ {fn CONCAT( ',', {fn CONCAT((RES_CTLOC_DR->CTLOC_Hospital_DR),',')})}) OR (:HOSP IS NULL))
+AND (({fn CONCAT( ',', {fn CONCAT((:Campus),',')})} [ {fn CONCAT( ',', {fn CONCAT((RES_CTLOC_DR->CTLOC_SignifFacility_DR),',')})}) OR (:Campus IS NULL))
+AND (({fn CONCAT( ',', {fn CONCAT((%ALPHAUP :RUDesc),',')})} [ {fn CONCAT( ',', {fn CONCAT((%ALPHAUP RES_CTLOC_DR->CTLOC_RespUnit_DR->RU_Desc),',')})}) OR (:RUDesc IS NULL))
+AND (RES_DateActiveFrom <= CURRENT_DATE)
+AND ((RES_DateActiveTo IS NULL) OR (RES_DateActiveTo >= CURRENT_DATE))
+ORDER BY RES_CTPCP_DR->CTPCP_Desc
+*/
+]]></Content>
+</UDLText>
+
+<Query name="LookUpWrdByHosCmpSpConLoc">
+<Description>
+Lookup on CT_Hospital returning all active hospitals</Description>
+<Type>%Library.SQLQuery</Type>
+<FormalSpec>WARDDesc:%String,Hospital:%String,Campus:%String,Specialty:%String,Consultant:%String,Location:%String</FormalSpec>
+<SqlQuery><![CDATA[SELECT DISTINCT
+WARD_Desc,
+WARD_Rowid,
+WARD_Code
+FROM SQLUser.RB_Resource, SQLUser.PAC_Ward
+WHERE WARD_LocationDR=RES_CTPCP_DR->CTPCP_CTLOC_DR
+AND (%ALPHAUP WARD_LocationDR->CTLOC_Type= %ALPHAUP 'w')
+AND ((%ALPHAUP WARD_Desc %STARTSWITH %ALPHAUP :WARDDesc) OR (%ALPHAUP WARD_Code %STARTSWITH %ALPHAUP :WARDDesc))
+AND RES_CTPCP_DR->CTPCP_CTLOC_DR->CTLOC_Hospital_DR=:Hospital
+AND ((RES_CTPCP_DR->CTPCP_CTLOC_DR->CTLOC_SignifFacility_DR=:Campus) OR (:Campus IS NULL))
+AND (({fn CONCAT( ',', {fn CONCAT((:Specialty),',')})} [ {fn CONCAT( ',', {fn CONCAT((%ALPHAUP RES_CTPCP_DR->CTPCP_RespUnit_DR),',')})}) OR (:Specialty IS NULL))
+AND (({fn CONCAT( ',', {fn CONCAT((:Consultant),',')})} [ {fn CONCAT( ',', {fn CONCAT((RES_CTPCP_DR),',')})}) OR (:Consultant IS NULL))
+AND (({fn CONCAT( ',', {fn CONCAT((:Location),',')})} [ {fn CONCAT( ',', {fn CONCAT((RES_CTPCP_DR->CTPCP_CTLOC_DR),',')})}) OR (:Location IS NULL))
+AND (WARD_InactiveDateFrom <= CURRENT_DATE)
+AND ((WARD_InactiveDateTo IS NULL) OR (WARD_InactiveDateTo >= CURRENT_DATE))]]></SqlQuery>
+<Parameter name="CONTAINID" value="2"/>
+<Parameter name="ROWSPEC" value="WARDDesc:%String,HIDDEN:%String,WARDCode:%String"/>
+</Query>
+
+<UDLText name="T">
+<Content><![CDATA[
+/*
+SELECT DISTINCT
+WARD_Desc,
+WARD_Rowid,
+WARD_Code
+FROM SQLUser.RB_Resource, SQLUser.PAC_Ward
+WHERE WARD_LocationDR=RES_CTPCP_DR->CTPCP_CTLOC_DR
+AND (%ALPHAUP WARD_LocationDR->CTLOC_Type= %ALPHAUP 'w')
+AND ((%ALPHAUP WARD_Desc %STARTSWITH %ALPHAUP :WARDDesc) OR (%ALPHAUP WARD_Code %STARTSWITH %ALPHAUP :WARDDesc))
+AND (({fn CONCAT( ',', {fn CONCAT((:Hospital),',')})} [ {fn CONCAT( ',', {fn CONCAT((RES_CTPCP_DR->CTPCP_CTLOC_DR->CTLOC_Hospital_DR),',')})}) OR (:Hospital IS NULL))
+AND (({fn CONCAT( ',', {fn CONCAT((:Campus),',')})} [ {fn CONCAT( ',', {fn CONCAT((RES_CTPCP_DR->CTPCP_CTLOC_DR->CTLOC_SignifFacility_DR),',')})}) OR (:Campus IS NULL))
+AND (({fn CONCAT( ',', {fn CONCAT((:Specialty),',')})} [ {fn CONCAT( ',', {fn CONCAT((%ALPHAUP RES_CTPCP_DR->CTPCP_RespUnit_DR),',')})}) OR (:Specialty IS NULL))
+AND (({fn CONCAT( ',', {fn CONCAT((:Consultant),',')})} [ {fn CONCAT( ',', {fn CONCAT((RES_CTPCP_DR),',')})}) OR (:Consultant IS NULL))
+AND (({fn CONCAT( ',', {fn CONCAT((:Location),',')})} [ {fn CONCAT( ',', {fn CONCAT((RES_CTPCP_DR->CTPCP_CTLOC_DR),',')})}) OR (:Location IS NULL))
+AND (WARD_InactiveDateFrom <= CURRENT_DATE)
+AND ((WARD_InactiveDateTo IS NULL) OR (WARD_InactiveDateTo >= CURRENT_DATE))
+*/
+]]></Content>
+</UDLText>
+
+<Query name="LookUpLocByHospCampSpcCon">
+<Description>
+Lookup on CT_Hospital returning all active hospitals
+Lookup Unit on RB_Resource By Hospital,Campus,Specialty,Consultant</Description>
+<Type>%Library.SQLQuery</Type>
+<FormalSpec>LOCDesc:%String,HOSP:%String,Campus:%String,Specialty:%String,Consultant:%String</FormalSpec>
+<SqlQuery><![CDATA[SELECT DISTINCT 
+RES_CTLOC_DR->CTLOC_Desc,
+RES_CTLOC_DR->CTLOC_Rowid,
+RES_CTLOC_DR->CTLOC_Code
+FROM SQLUser.RB_Resource
+WHERE ((%ALPHAUP RES_CTLOC_DR->CTLOC_Desc %STARTSWITH %ALPHAUP :LOCDesc) OR (%ALPHAUP RES_CTLOC_DR->CTLOC_Desc %STARTSWITH %ALPHAUP :LOCDesc))
+AND RES_CTLOC_DR->CTLOC_Hospital_DR=:HOSP
+AND ((RES_CTLOC_DR->CTLOC_SignifFacility_DR=:Campus) OR (:Campus IS NULL))
+AND (({fn CONCAT( ',', {fn CONCAT((:Specialty),',')})} [ {fn CONCAT( ',', {fn CONCAT((RES_CTLOC_DR->CTLOC_RespUnit_DR),',')})}) OR (:Specialty IS NULL))
+AND (({fn CONCAT( ',', {fn CONCAT((:Consultant),',')})} [ {fn CONCAT( ',', {fn CONCAT((RES_CTPCP_DR),',')})}) OR (:Consultant IS NULL))
+ORDER BY RES_CTLOC_DR->CTLOC_Desc]]></SqlQuery>
+<Parameter name="CONTAINID" value="2"/>
+<Parameter name="ROWSPEC" value="CTLOCDesc:%String,HIDDEN:%String,CTLOCCode:%String"/>
+</Query>
+
+<Method name="GetURNCurrentLoc">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>PAPMIRowID:%String,HOSPRowID:%String</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	
+	n rs,URN,RTMASMRTypeDR,CTLOCRowId,CTLOCHospitalDR,RTMAVCTLOCCode,RTMAVDateCreated,RTMAVTimeCreated,URNDetails
+	n RTMAVSSUSRGivenName,RTMAVSSUSRSurname,RTMACSSUSRCTLOCCode,RTMAVSSUSRName
+	n RTMAVActiveFlag,RTMAVDateArrived,RTMAVCurrentLocCTLOCRowId,RTMAVCurrentLocCTLOCCode,RTMAVCurrentLocCTLOCDesc,RTMAVVolDesc,RTMVTDate,RTMVTTime
+	s (rs,URN,RTMASMRTypeDR,CTLOCRowId,CTLOCHospitalDR,RTMAVCTLOCCode,RTMAVDateCreated,RTMAVTimeCreated,URNDetails)=""
+	s (RTMAVSSUSRGivenName,RTMAVSSUSRSurname,RTMACSSUSRCTLOCCode,RTMAVSSUSRName)=""
+	s (RTMAVActiveFlag,RTMAVDateArrived,RTMAVCurrentLocCTLOCRowId,RTMAVCurrentLocCTLOCCode,RTMAVCurrentLocCTLOCDesc,RTMAVVolDesc,RTMVTDate,RTMVTTime)=""
+	// check for an Alias linked to another episode
+	n row,ALIASParRef
+	s ALIASParRef=""
+	s row=PAPMIRowID
+	
+	n FLAG,END
+	s (FLAG,END)=0
+
+	s HOSPRowID=$g(HOSPRowID)
+	
+	// Used to get a URN.
+	&sql(
+	DECLARE URN CURSOR FOR
+	SELECT
+	RTMAS_MRNo,
+	RTMAS_MRType_DR
+	FROM SQLUser.RT_Master
+	WHERE
+	RTMAS_PatNo_DR=:row 
+	and RTMAS_Active='Y')
+	
+	// Used to find an Alias a URN doesn't exist for a patient.
+	&sql(
+	DECLARE ALIAS CURSOR FOR
+	select 
+	ALIAS_ParRef
+	FROM SQLUser.PA_PersonAlias
+	WHERE ALIAS_PatientFrom_ID=:row)
+	
+	//Do a check for a URN
+	d CheckForURN
+	
+	i FLAG=0 {
+		;s ^zwsa("going for the alias")=""
+		&sql(OPEN ALIAS)
+		&sql(FETCH ALIAS INTO :ALIASParRef )
+		&sql(CLOSE ALIAS)
+		i ALIASParRef'="" {
+			;s ^zwsa("got an alias",row)=ALIASParRef
+			//reset the sql checks
+			s (FLAG,END)=0
+			s row=ALIASParRef
+			//Do a check for a URN using the Alias
+			d CheckForURN
+			;s ^zwsa("flag after alias check")=FLAG
+			i FLAG=0 {
+				s URN=""
+			} else {
+				;s ^zwsa("URN of alias",row,HOSPRowID)=URN
+				//A URN exists so now get the details relating to the URN
+				d GetURNDetails
+			}
+		}
+		;s URN=""
+	} else {
+		//A URN exists so now get the details relating to the URN
+		d GetURNDetails
+	}
+	//Create a list of URN details and then rturn to the calling stored procedure
+	s rs=$lb($g(URN),$g(RTMAVCTLOCCode),$g(RTMAVDateCreated),$g(RTMAVTimeCreated),$g(RTMAVSSUSRGivenName),$g(RTMAVSSUSRSurname),$g(RTMACSSUSRCTLOCCode),$g(RTMAVSSUSRName),$g(RTMAVActiveFlag),$g(RTMAVDateArrived),$g(RTMAVCurrentLocCTLOCRowId),$g(RTMAVCurrentLocCTLOCCode),$g(RTMAVCurrentLocCTLOCDesc),$g(RTMAVVolDesc),$g(RTMVTDate),$g(RTMVTTime))
+	q rs
+
+CheckForURN
+	&sql(OPEN URN)
+	WHILE 'END {
+		&sql(FETCH URN INTO :URN,:RTMASMRTypeDR )
+		i 'SQLCODE,RTMASMRTypeDR'="" {
+			
+			s CTLOCRowId=$p($g(^RTC("TYPE",RTMASMRTypeDR)),"^",8)
+			;s ^zxandy("LOC",CTLOCRowId)=CTLOCRowId
+			i CTLOCRowId s CTLOCHospitalDR=$p($g(^CTLOC(CTLOCRowId)),"^",22)
+			;s ^zxandy("HOS",CTLOCHospitalDR)=CTLOCHospitalDR
+			i CTLOCHospitalDR=HOSPRowID s FLAG=1,END=1
+		} else {
+			s END=1
+		}
+	}
+	&sql(CLOSE URN)
+	q
+
+GetURNDetails
+	&sql(SELECT
+	RTMAV_HomeLoc_DR->CTLOC_Code,
+	RTMAV_DateCreated,
+	RTMAV_TimeCreated,
+	RTMAV_CreatedByUser_DR->SSUSR_GivenName,
+	RTMAV_CreatedByUser_DR->SSUSR_Surname,
+	RTMAV_CreatedByUser_DR->SSUSR_DefaultDept_DR->CTLOC_Code,
+	RTMAV_CreatedByUser_DR->SSUSR_Name,
+	RTMAV_ActiveFlag,
+	RTMAV_DateArrived,
+	RTMAV_CurrentLoc_DR->CTLOC_RowId,
+	RTMAV_CurrentLoc_DR->CTLOC_Code,
+    RTMAV_CurrentLoc_DR->CTLOC_Desc,
+    RTMAV_VolDesc,
+    RTMVT_Date,
+	RTMVT_Time
+	INTO :RTMAVCTLOCCode,:RTMAVDateCreated,:RTMAVTimeCreated,:RTMAVSSUSRGivenName,:RTMAVSSUSRSurname,:RTMACSSUSRCTLOCCode,:RTMAVSSUSRName,:RTMAVActiveFlag,:RTMAVDateArrived,:RTMAVCurrentLocCTLOCRowId,:RTMAVCurrentLocCTLOCCode,:RTMAVCurrentLocCTLOCDesc,:RTMAVVolDesc,:RTMVTDate,:RTMVTTime
+	FROM SQLUser.RT_MasVol, SQLUser.CF_RTHospMRType,SQLUser.RT_MVTrans
+	WHERE
+	RTMVT_RTMAV_ParRef*=RTMAV_RowId AND
+	RTMAV_HomeLoc_DR->CTLOC_Hospital_DR=:HOSPRowID AND
+	RTMAV_RTMAS_ParRef->RTMAS_MRType_DR = MRTYPE_MRTYPE_DR AND
+	RTMAV_RTMAS_ParRef->RTMAS_PatNo_DR=:row AND
+	RTMAV_RTMAS_ParRef->RTMAS_Active='Y'
+	GROUP BY RTMAV_RTMAS_ParRef->RTMAS_MRNo
+	HAVING MAX(RTMAV_ChildSub) = RTMAV_ChildSub
+	order by RTMVT_Date Desc, RTMVT_Time Desc)
+	q
+]]></Implementation>
+</Method>
+
+<Method name="GetPatientOnLeave">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>PAADMRowId:%Integer</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	n ADMLGoingOutDate,ADMLGoingOutTime,ADMLActualDateReturn,ADMLActualTimeReturn,leave,dfrom
+	s leave="N"
+	d ResetLeave
+	
+	s dfrom=$p($h,",",1)
+	
+	&sql(DECLARE ADML CURSOR FOR
+	select distinct adml_goingoutdate,adml_goingouttime,ADML_ActualDateReturn,ADML_ActualTimeReturn
+	from sqluser.pa_admleave
+	where adml_parref=:PAADMRowId
+	order by adml_goingoutdate desc, adml_goingouttime desc
+	)
+	
+	&sql(OPEN ADML)
+
+	while 'SQLCODE{
+		&sql(FETCH ADML INTO ADMLGoingOutDate,ADMLGoingOutTime,ADMLActualDateReturn,ADMLActualTimeReturn)
+		i 'SQLCODE {
+			i ADMLActualDateReturn'<dfrom {
+				 //On leave
+				 s leave="Y"
+			}elseif ADMLActualDateReturn="" {
+				 //On leave
+				 s leave="Y"
+			}
+			d ResetLeave
+		}
+	}
+	
+	&sql(CLOSE ADML)
+	q leave
+	
+ResetLeave
+	s (ADMLGoingOutDate,ADMLGoingOutTime,ADMLActualDateReturn,ADMLActualTimeReturn)=""
+	q
+]]></Implementation>
+</Method>
+</Class>
+</Export>

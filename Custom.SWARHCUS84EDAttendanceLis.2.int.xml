@@ -1,0 +1,375 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Routine name="Custom.SWARHCUS84EDAttendanceLis.2" type="INT" languagemode="0"><![CDATA[
+	;Custom.SWARHCUS84EDAttendanceLis.2
+	;(C)InterSystems, generated for class Custom.SWARHCUS84EDAttendanceListbyAlerts.  Do NOT edit. 03/27/2009 01:21:51PM
+	;;005EE22BA9109FE9;Custom.SWARHCUS84EDAttendanceListbyAlerts
+	Quit
+	;
+zAttendanceListExecute(QHandle,DateFrom,DateTo,Alert,Hospital) ;
+	k ^zbernard	
+	// Get reportid i.e. use $INCREMENT to add another node to ^CacheTemp global. 
+	// We use ^CacheTemp global because it will always use memory before disk
+	New repid,ind
+	// Use $Increment to get the next node
+	Set repid=$I(^CacheTemp)
+	s ^zBernard("1")=(1)
+	// Build data into ^CacheTemp(ReportID)
+	// e.g. Set ^CacheTemp(ReportID,Index)=$LB(f1,f2,f3)
+	New Number,String,Date,Time,c,n
+	n PAADMAdmDate,PAADMDischgDate,PAADMAdmTime,PAADMDischgTime,PAADMADMNo,PAPMINo,PAPMIName,PAPMIName2,MRCIDDesc,CTZIPCode,HOSPRowId,HOSPDesc,CTPCPDesc,CTSEXCode,PAPERAgeYr,CTACUCode, ALMAlertDR, AlertCode, AlertDesc
+	s (HOSPRowId)=0
+	s (PAADMAdmDate,PAADMDischgDate,PAADMAdmTime,PAADMDischgTime,PAADMADMNo,PAPMINo,PAPMIName,PAPMIName2,MRCIDDesc,CTZIPCode,HOSPDesc,CTPCPDesc,CTSEXCode,PAPERAgeYr,CTACUCode, ALMAlertDR, AlertCode, AlertDesc)=""
+	s ind=1
+	//Convert ODBC dates to cache format
+	s DateFrom=$$intdate^SSUTIL4(DateFrom)
+	s DateTo=$$intdate^SSUTIL4(DateTo)
+	//s ^bernard("2")=(2)
+	 ;---&sql(declare AttendanceList cursor for
+	  ;--- SELECT distinct
+	  ;--- PAADM_AdmDate,
+	  ;--- PAADM_DischgDate,
+	  ;--- PAADM_AdmTime,
+	  ;--- PAADM_DischgTime,
+	  ;--- PAADM_ADMNo,   
+	  ;--- PAADM_PAPMI_DR->PAPMI_No,
+	  ;--- PAADM_PAPMI_DR->PAPMI_Name,
+	  ;--- PAADM_PAPMI_DR->PAPMI_Name2,
+	  ;--- MRDIA_ICDCode_DR->MRCID_Desc,
+	  ;--- PAADM_PAPMI_DR->PAPMI_PAPER_DR->PAPER_ZIP_DR->CTZIP_Code,
+	  ;--- PAADM_CurrentWard_DR->WARD_LocationDR->CTLOC_HOspital_DR->HOSP_RowId,
+	  ;--- PAADM_CurrentWard_DR->WARD_LocationDR->CTLOC_HOspital_DR->HOSP_Desc,
+	  ;--- PAADM_AdmDocCodeDR->CTPCP_Desc,
+	  ;--- PAADM_PAPMI_DR->PAPMI_PAPER_DR->PAPER_SEX_DR->CTSEX_Code,
+	  ;--- PAADM_PAPMI_DR->PAPMI_PAPER_DR->PAPER_AgeYr,
+	  ;--- PAADM_Priority_DR->CTACU_Code,
+	  ;--- ALM_Alert_DR,
+	  ;--- ALM_Alert_DR->Alert_Code,
+	  ;--- ALM_Alert_DR->Alert_Desc
+	  ;--- FROM    SQLUser . PA_Adm, SQLUser . MR_Diagnos, SQLUser.PA_PatMas, SQLUser.PA_AlertMsg
+	  ;--- WHERE  PAADM_MainMRADM_DR=*MRDIA_MRADM_ParRef and
+	  ;--- PAADM_PAPMI_DR=PAPMI_RowId and 
+	  ;--- PAPMI_RowId =ALM_PAPMI_ParRef and 
+	  ;--- PAADM_AdmDate between :DateFrom and :DateTo and 
+	  ;--- PAADM_Type="E" and
+	  ;--- PAADM_VisitStatus<>"C" and
+	  ;--- ALM_Alert_DR = :Alert AND PAADM_CurrentWard_DR->WARD_LocationDR->CTLOC_HOspital_DR= :Hospital 
+	  ;--- order by PAPMI_No, PAADM_AdmDate, PAADM_AdmTime)
+	  ;--- ** SQL PUBLIC Variables: Alert, DateFrom, DateTo, Hospital, SQLCODE
+	 ;---&sql(open AttendanceList)
+	  ;--- ** SQL PUBLIC Variables: SQLCODE
+	Do %AttendanceList0o
+	//fetch first row
+	 ;---&sql(fetch AttendanceList into :PAADMAdmDate,:PAADMDischgDate,:PAADMAdmTime,:PAADMDischgTime,:PAADMADMNo,:PAPMINo,:PAPMIName,:PAPMIName2,:MRCIDDesc,:CTZIPCode,:HOSPRowId,:HOSPDesc,:CTPCPDesc,:CTSEXCode,:PAPERAgeYr,:CTACUCode, :ALMAlertDR, :AlertCode, :AlertDesc)
+	  ;--- ** SQL PUBLIC Variables: ALMAlertDR, AlertCode, AlertDesc, CTACUCode, CTPCPDesc, CTSEXCode, CTZIPCode, HOSPDesc, HOSPRowId, MRCIDDesc, PAADMADMNo, PAADMAdmDate, PAADMAdmTime, PAADMDischgDate, PAADMDischgTime, PAPERAgeYr, PAPMIName, PAPMIName2, PAPMINo, SQLCODE
+	Do %0Io
+	while 'SQLCODE{
+	d FormatDates
+	d FormatTimes
+	// build the row
+	Set ^CacheTemp(repid,ind)=$LB(PAADMAdmDate,PAADMDischgDate,PAADMAdmTime,PAADMDischgTime,PAADMADMNo,PAPMINo,PAPMIName,PAPMIName2,MRCIDDesc,CTZIPCode,HOSPRowId,HOSPDesc,CTPCPDesc,CTSEXCode,PAPERAgeYr,CTACUCode, ALMAlertDR, AlertCode, AlertDesc)
+	s ind=ind+1
+	//fetch rows
+	 ;---&sql(fetch AttendanceList into :PAADMAdmDate,:PAADMDischgDate,:PAADMAdmTime,:PAADMDischgTime,:PAADMADMNo,:PAPMINo,:PAPMIName,:PAPMIName2,:MRCIDDesc,:CTZIPCode,:HOSPRowId,:HOSPDesc,:CTPCPDesc,:CTSEXCode,:PAPERAgeYr,:CTACUCode,:ALMAlertDR, :AlertCode, :AlertDesc)
+	  ;--- ** SQL PUBLIC Variables: ALMAlertDR, AlertCode, AlertDesc, CTACUCode, CTPCPDesc, CTSEXCode, CTZIPCode, HOSPDesc, HOSPRowId, MRCIDDesc, PAADMADMNo, PAADMAdmDate, PAADMAdmTime, PAADMDischgDate, PAADMDischgTime, PAPERAgeYr, PAPMIName, PAPMIName2, PAPMINo, SQLCODE
+	Do %0Jo
+	}
+	//s ^zBernard("3")=(3)
+	 ;---&sql(close AttendanceList)
+	  ;--- ** SQL PUBLIC Variables: SQLCODE
+	Do %AttendanceList0c
+	// Build QHandle (AtEnd,ReportID,Index)
+	Set QHandle=$lb(0,repid,0)
+	//s ^zBernard("4")=(4)
+	Quit 1
+FormatDates
+	// Convert the dates to ODBC date format
+	If PAADMAdmDate Set PAADMAdmDate=$ZD(PAADMAdmDate,3)
+	If PAADMDischgDate Set PAADMDischgDate=$ZD(PAADMDischgDate,3)
+	//s ^zBernard("5")=(5)
+	Quit
+FormatTimes
+	// Convert the times to ODBC time format
+	If PAADMAdmTime Set PAADMAdmTime=$ZT(PAADMAdmTime,2)
+	If PAADMDischgTime Set PAADMDischgTime=$ZT(PAADMDischgTime,2)
+	Quit
+%0Fr1 S %AttendanceList0d(6)=$S($G(XFUNC("CLASS"))="OP":$g(%AttendanceList0d(114)),1:$g(%AttendanceList0d(115)))
+	;S {PAPMI_No}=$$CO2^at84({PAPMI_IPNo},{PAPMI_OPNo})
+	q
+%0Fr2 s %AttendanceList0d(49)=$g(%AttendanceList0d(53)) q
+%0Fr3 S %AttendanceList0d(35)=$S($G(XFUNC("CLASS"))="OP":$g(%AttendanceList0d(127)),1:$g(%AttendanceList0d(128)))
+	;S {PAPMI_No}=$$CO2^at84({PAPMI_IPNo},{PAPMI_OPNo})
+	q
+%0Gr1 s %AttendanceList0d(138)=$$CalAge^at182($g(%AttendanceList0d(139)),+$H,$g(%AttendanceList0d(140)),$g(%AttendanceList0d(141)),$g(%AttendanceList0d(142))) q
+%0Gr2 s %AttendanceList0d(15)=$P($g(%AttendanceList0d(138)),"|",12) q
+%0pad s %AttendanceList0p(8)=2,%AttendanceList0d(21)="",%AttendanceList0d(79)="",%AttendanceList0d(51)="",%AttendanceList0d(70)=""
+	g %0Hpdtg
+%AttendanceList0o s SQLCODE=$s($g(%AttendanceList0c):-101,1:0) q:SQLCODE'=0  s %AttendanceList0d(84)=0
+	s %AttendanceList0d(25)=$g(DateFrom),%AttendanceList0d(26)=$g(DateTo),%AttendanceList0d(28)="E",%AttendanceList0d(30)="C",%AttendanceList0d(31)=$g(Alert),%AttendanceList0d(33)=$g(Hospital)
+	s %AttendanceList0t(1)=$i(^mtemp0,6) f %AttendanceList0d(85)=2:1:6 s %AttendanceList0t(%AttendanceList0d(85))=%AttendanceList0t(1)-%AttendanceList0d(85)+1
+	s %AttendanceList0d(55)=(" "_$s(%AttendanceList0d(28)="":"",$zstrip(%AttendanceList0d(28),">W")'="":$zcvt($zstrip(%AttendanceList0d(28),">W"),"U"),1:$c(0)))
+	s %AttendanceList0d(57)=(" "_$s(%AttendanceList0d(30)="":"",$zstrip(%AttendanceList0d(30),">W")'="":$zcvt($zstrip(%AttendanceList0d(30),">W"),"U"),1:$c(0)))
+	s %AttendanceList0c=1 q
+%0first s %AttendanceList0d(73)="",%AttendanceList0d(74)="",%AttendanceList0d(83)=""
+	f %AttendanceList0d(85)=6,1,2,4,5 k ^mtemp0(%AttendanceList0t(%AttendanceList0d(85)),0) s ^mtemp0(%AttendanceList0t(%AttendanceList0d(85)),0)=$H_"^"_$J_"^"_$zu(67,11,$j)_"^"_$zu(67,12,$j)_"^"_$zu(67,15,$j)_"^"_$ZN
+	f %AttendanceList0d(85)=1,5 i $sortbegin(^mtemp0(%AttendanceList0t(%AttendanceList0d(85)),0))
+	d %0CMod
+	d %0DMod
+	d %0FMod
+	; asl MOD# 10
+	i $sortend(^mtemp0(%AttendanceList0t(5),0))
+	s %AttendanceList0s(69)=""
+%0Jk1 s %AttendanceList0s(69)=$o(^mtemp0(%AttendanceList0t(5),0,%AttendanceList0s(69)))
+	i %AttendanceList0s(69)="" g %0Jdun
+	s %AttendanceList0d(69)=$s(%AttendanceList0s(69)=-1E14:"",1:%AttendanceList0s(69))
+	s %AttendanceList0s(1)=""
+%0Jk2 s %AttendanceList0s(1)=$o(^mtemp0(%AttendanceList0t(5),0,%AttendanceList0s(69),%AttendanceList0s(1)))
+	i %AttendanceList0s(1)="" g %0Jk1
+	s %AttendanceList0d(1)=$s(%AttendanceList0s(1)=-1E14:"",1:%AttendanceList0s(1))
+	s %AttendanceList0s(3)=""
+%0Jk3 s %AttendanceList0s(3)=$o(^mtemp0(%AttendanceList0t(5),0,%AttendanceList0s(69),%AttendanceList0s(1),%AttendanceList0s(3)))
+	i %AttendanceList0s(3)="" g %0Jk2
+	s %AttendanceList0d(3)=$s(%AttendanceList0s(3)=-1E14:"",1:%AttendanceList0s(3))
+	s %AttendanceList0s(83)=""
+%0Jk4 s %AttendanceList0s(83)=$o(^mtemp0(%AttendanceList0t(5),0,%AttendanceList0s(69),%AttendanceList0s(1),%AttendanceList0s(3),%AttendanceList0s(83)))
+	i %AttendanceList0s(83)="" g %0Jk3
+	s %AttendanceList0d(83)=$s(%AttendanceList0s(83)=-1E14:"",1:%AttendanceList0s(83))
+	s %AttendanceList0d(179)=$g(^mtemp0(%AttendanceList0t(5),0,%AttendanceList0s(69),%AttendanceList0s(1),%AttendanceList0s(3),%AttendanceList0d(83)))
+	s %AttendanceList0d(2)=$lg(%AttendanceList0d(179),2) s %AttendanceList0d(4)=$lg(%AttendanceList0d(179),3) s %AttendanceList0d(5)=$lg(%AttendanceList0d(179),1) s %AttendanceList0d(6)=$lg(%AttendanceList0d(179),7) s %AttendanceList0d(7)=$lg(%AttendanceList0d(179),5) s %AttendanceList0d(8)=$lg(%AttendanceList0d(179),6) s %AttendanceList0d(9)=$lg(%AttendanceList0d(179),27) s %AttendanceList0d(10)=$lg(%AttendanceList0d(179),17) s %AttendanceList0d(11)=$lg(%AttendanceList0d(179),26) s %AttendanceList0d(12)=$lg(%AttendanceList0d(179),25) s %AttendanceList0d(13)=$lg(%AttendanceList0d(179),11) s %AttendanceList0d(14)=$lg(%AttendanceList0d(179),23) s %AttendanceList0d(15)=$lg(%AttendanceList0d(179),16) s %AttendanceList0d(16)=$lg(%AttendanceList0d(179),13) s %AttendanceList0d(17)=$lg(%AttendanceList0d(179),15) s %AttendanceList0d(18)=$lg(%AttendanceList0d(179),19) s %AttendanceList0d(19)=$lg(%AttendanceList0d(179),20) s %AttendanceList0d(58)=$lg(%AttendanceList0d(179),4) s %AttendanceList0d(59)=$lg(%AttendanceList0d(179),10) s %AttendanceList0d(60)=$lg(%AttendanceList0d(179),8) s %AttendanceList0d(61)=$lg(%AttendanceList0d(179),9) s %AttendanceList0d(62)=$lg(%AttendanceList0d(179),28) s %AttendanceList0d(63)=$lg(%AttendanceList0d(179),18) s %AttendanceList0d(64)=$lg(%AttendanceList0d(179),12) s %AttendanceList0d(65)=$lg(%AttendanceList0d(179),24) s %AttendanceList0d(66)=$lg(%AttendanceList0d(179),14) s %AttendanceList0d(67)=$lg(%AttendanceList0d(179),21) s %AttendanceList0d(68)=$lg(%AttendanceList0d(179),22) s %AttendanceList0d(81)=$lg(%AttendanceList0d(179),29) s %AttendanceList0d(82)=$lg(%AttendanceList0d(179),30)
+	s:$g(SQLCODE)'<0 SQLCODE=0 s %ROWCOUNT=$i(%AttendanceList0d(84)) s %AttendanceList0c=10 q
+%AttendanceList0f i '$g(%AttendanceList0c) { s SQLCODE=-102 q  } i %AttendanceList0c=100 { s SQLCODE=100 q  } s SQLCODE=0
+	s $zt="%0err" s $ze="" g %0first:%AttendanceList0c=1
+	g %0Jk4
+%0Jdun 
+%0Adun 
+	s %ROWCOUNT=%AttendanceList0d(84),SQLCODE=100,%AttendanceList0c=100 q
+%AttendanceList0c i '$g(%AttendanceList0c) { s SQLCODE=-102 q  } s %ROWCOUNT=+$g(%AttendanceList0d(84)) f %AttendanceList0d(85)=1,5 { i $sortend(^mtemp0(%AttendanceList0t(%AttendanceList0d(85)),0),0) } f %AttendanceList0d(85)=1:1:6 { k ^mtemp0(%AttendanceList0t(%AttendanceList0d(85))) } k %AttendanceList0c,%AttendanceList0d,%AttendanceList0E,%AttendanceList0l,%AttendanceList0n,%AttendanceList0p,%AttendanceList0R,%AttendanceList0s,%AttendanceList0t,%AttendanceList0Z s SQLCODE=0 q
+%0err s $zt="" d SQLRunTimeError^%apiSQL($ze,.SQLCODE,.%msg) s %AttendanceList0c=100
+	f %AttendanceList0d(85)=1,5 i $sortend(^mtemp0(%AttendanceList0t(%AttendanceList0d(85)),0),0)
+	q
+%0BMod ; asl MOD# 2
+	s %AttendanceList0d(1)=%AttendanceList0d(25)
+	i %AttendanceList0d(1)'="",$d(^PAADMi("PAADM_AdmDate",%AttendanceList0d(1))) g %0Bg1
+%0Bk1 s %AttendanceList0d(1)=$o(^PAADMi("PAADM_AdmDate",%AttendanceList0d(1)))
+	i %AttendanceList0d(1)="" g %0Bdun
+%0Bg1 i %AttendanceList0d(1)>%AttendanceList0d(26) g %0Bdun
+	i '(%AttendanceList0d(1)'="") g %0Bk1
+	s %AttendanceList0d(72)=""
+%0Bk2 s %AttendanceList0d(72)=$o(^PAADMi("PAADM_AdmDate",%AttendanceList0d(1),%AttendanceList0d(72)))
+	i %AttendanceList0d(72)="" g %0Bk1
+	s $bit(^mtemp0(%AttendanceList0t(6),0,%AttendanceList0d(72)\64000+1),%AttendanceList0d(72)#64000+1)=1
+	g %0Bk2
+%0Bdun 
+	q
+%0CMod ; asl MOD# 3
+	d %0BMod
+	s %AttendanceList0d(91)="",%AttendanceList0d(92)="",%AttendanceList0d(94)=1
+%0Ck1 f  s %AttendanceList0d(94)=$bitfind(%AttendanceList0d(92),1,%AttendanceList0d(94)+1) i %AttendanceList0d(94) {s %AttendanceList0d(72)=%AttendanceList0d(93)+%AttendanceList0d(94)-1 q} s %AttendanceList0d(91)=$o(^mtemp0(%AttendanceList0t(6),0,%AttendanceList0d(91)),1,%AttendanceList0d(92)) q:%AttendanceList0d(91)=""  s %AttendanceList0d(93)=%AttendanceList0d(91)-1*64000
+	i %AttendanceList0d(91)="" g %0Cdun
+	i %AttendanceList0d(72)'="",$d(^PAADM(%AttendanceList0d(72)))
+	i '$t
+	e  i 1]]%AttendanceList0d(72)
+	i  g %0Ck1
+	s %AttendanceList0d(97)=$g(^PAADM(%AttendanceList0d(72)))
+	s %AttendanceList0d(1)=$p(%AttendanceList0d(97),"^",6) s %AttendanceList0d(2)=$p(%AttendanceList0d(97),"^",17) s %AttendanceList0d(3)=$p(%AttendanceList0d(97),"^",7) s %AttendanceList0d(4)=$p(%AttendanceList0d(97),"^",18) s %AttendanceList0d(5)=$p(%AttendanceList0d(97),"^",81) s %AttendanceList0d(20)=$p(%AttendanceList0d(97),"^",61) s %AttendanceList0d(22)=$p(%AttendanceList0d(97),"^",1) s %AttendanceList0d(27)=$p(%AttendanceList0d(97),"^",2) s %AttendanceList0d(29)=$p(%AttendanceList0d(97),"^",20) s %AttendanceList0d(37)=$p(%AttendanceList0d(97),"^",33) s %AttendanceList0d(41)=$p(%AttendanceList0d(97),"^",9) s %AttendanceList0d(45)=$p(%AttendanceList0d(97),"^",70)
+	s %AttendanceList0d(58)=$zcvt($zstrip(%AttendanceList0d(5),"*P",,",?"),"U")
+	s %AttendanceList0d(54)=(" "_$s(%AttendanceList0d(27)="":"",$zstrip(%AttendanceList0d(27),">W")'="":$zcvt($zstrip(%AttendanceList0d(27),">W"),"U"),1:$c(0)))
+	s %AttendanceList0d(56)=(" "_$s(%AttendanceList0d(29)="":"",$zstrip(%AttendanceList0d(29),">W")'="":$zcvt($zstrip(%AttendanceList0d(29),">W"),"U"),1:$c(0)))
+	g:'(%AttendanceList0d(56)'=" ") %0Ck1
+	g:'(%AttendanceList0d(56)'=%AttendanceList0d(57)) %0Ck1
+	g:'(%AttendanceList0d(54)=%AttendanceList0d(55)) %0Ck1
+	s %AttendanceList0d(46)=%AttendanceList0d(45)
+	i %AttendanceList0d(46)'="",$d(^PAWARD(%AttendanceList0d(46)))
+	i '$t
+	e  i 1]]%AttendanceList0d(46)
+	e  i %AttendanceList0d(46)]]"A"
+	i  g %0Ck1
+	s %AttendanceList0d(100)=$g(^PAWARD(%AttendanceList0d(46)))
+	s %AttendanceList0d(43)=$p(%AttendanceList0d(100),"^",5)
+	s %AttendanceList0s(43)=$s(%AttendanceList0d(43)'="":%AttendanceList0d(43),1:-1E14),%AttendanceList0d(73)=%AttendanceList0d(73)+1,%AttendanceList0d(101)="",$li(%AttendanceList0d(101),2)=%AttendanceList0d(1),$li(%AttendanceList0d(101),6)=%AttendanceList0d(2),$li(%AttendanceList0d(101),4)=%AttendanceList0d(3),$li(%AttendanceList0d(101),7)=%AttendanceList0d(4),$li(%AttendanceList0d(101),1)=%AttendanceList0d(5),$li(%AttendanceList0d(101),8)=%AttendanceList0d(20),$li(%AttendanceList0d(101),9)=%AttendanceList0d(22),$li(%AttendanceList0d(101),10)=%AttendanceList0d(37),$li(%AttendanceList0d(101),3)=%AttendanceList0d(41),$li(%AttendanceList0d(101),5)=%AttendanceList0d(45),$li(%AttendanceList0d(101),12)=%AttendanceList0d(46),$li(%AttendanceList0d(101),11)=%AttendanceList0d(58),^mtemp0(%AttendanceList0t(1),0,%AttendanceList0s(43),%AttendanceList0d(73))=%AttendanceList0d(101)
+	g %0Ck1
+%0Cdun 
+	q
+%0DMod ; asl MOD# 4
+	i $sortend(^mtemp0(%AttendanceList0t(1),0))
+	s %AttendanceList0s(43)=""
+%0Dk1 s %AttendanceList0s(43)=$o(^mtemp0(%AttendanceList0t(1),0,%AttendanceList0s(43)))
+	i %AttendanceList0s(43)="" g %0Ddun
+	s %AttendanceList0d(43)=$s(%AttendanceList0s(43)=-1E14:"",1:%AttendanceList0s(43))
+	s %AttendanceList0s(73)=""
+%0Dk2 s %AttendanceList0s(73)=$o(^mtemp0(%AttendanceList0t(1),0,%AttendanceList0s(43),%AttendanceList0s(73)))
+	i %AttendanceList0s(73)="" g %0Dk1
+	s %AttendanceList0d(73)=$s(%AttendanceList0s(73)=-1E14:"",1:%AttendanceList0s(73))
+	s %AttendanceList0d(102)=$g(^mtemp0(%AttendanceList0t(1),0,%AttendanceList0s(43),%AttendanceList0d(73)))
+	s %AttendanceList0d(1)=$lg(%AttendanceList0d(102),2) s %AttendanceList0d(2)=$lg(%AttendanceList0d(102),6) s %AttendanceList0d(3)=$lg(%AttendanceList0d(102),4) s %AttendanceList0d(4)=$lg(%AttendanceList0d(102),7) s %AttendanceList0d(5)=$lg(%AttendanceList0d(102),1) s %AttendanceList0d(20)=$lg(%AttendanceList0d(102),8) s %AttendanceList0d(22)=$lg(%AttendanceList0d(102),9) s %AttendanceList0d(37)=$lg(%AttendanceList0d(102),10) s %AttendanceList0d(41)=$lg(%AttendanceList0d(102),3) s %AttendanceList0d(45)=$lg(%AttendanceList0d(102),5) s %AttendanceList0d(46)=$lg(%AttendanceList0d(102),12) s %AttendanceList0d(58)=$lg(%AttendanceList0d(102),11)
+	; asl MOD# 5
+	s %AttendanceList0d(32)=%AttendanceList0d(33)
+	s %AttendanceList0d(44)=%AttendanceList0d(43)
+	i %AttendanceList0d(32)="" g %0Edun
+	i '(%AttendanceList0d(32)'="") g %0Edun
+	i %AttendanceList0d(44)="" g %0Edun
+	i '$d(^CTLOC(0,"Hosp",%AttendanceList0d(32),%AttendanceList0d(44))) g %0Edun
+	s %AttendanceList0d(74)=%AttendanceList0d(74)+1,%AttendanceList0d(110)="",$li(%AttendanceList0d(110),2)=%AttendanceList0d(1),$li(%AttendanceList0d(110),6)=%AttendanceList0d(2),$li(%AttendanceList0d(110),4)=%AttendanceList0d(3),$li(%AttendanceList0d(110),7)=%AttendanceList0d(4),$li(%AttendanceList0d(110),1)=%AttendanceList0d(5),$li(%AttendanceList0d(110),8)=%AttendanceList0d(20),$li(%AttendanceList0d(110),9)=%AttendanceList0d(22),$li(%AttendanceList0d(110),14)=%AttendanceList0d(32),$li(%AttendanceList0d(110),10)=%AttendanceList0d(37),$li(%AttendanceList0d(110),3)=%AttendanceList0d(41),$li(%AttendanceList0d(110),12)=%AttendanceList0d(43),$li(%AttendanceList0d(110),15)=%AttendanceList0d(44),$li(%AttendanceList0d(110),5)=%AttendanceList0d(45),$li(%AttendanceList0d(110),13)=%AttendanceList0d(46),$li(%AttendanceList0d(110),11)=%AttendanceList0d(58),^mtemp0(%AttendanceList0t(2),0,%AttendanceList0d(74))=%AttendanceList0d(110)
+%0Edun 
+	g %0Dk2
+%0Ddun 
+	q
+%0FMod ; asl MOD# 6
+	s %AttendanceList0s(74)=""
+%0Fk1 s %AttendanceList0s(74)=$o(^mtemp0(%AttendanceList0t(2),0,%AttendanceList0s(74)))
+	i %AttendanceList0s(74)="" g %0Fdun
+	s %AttendanceList0d(74)=$s(%AttendanceList0s(74)=-1E14:"",1:%AttendanceList0s(74))
+	s %AttendanceList0d(111)=$g(^mtemp0(%AttendanceList0t(2),0,%AttendanceList0d(74)))
+	s %AttendanceList0d(1)=$lg(%AttendanceList0d(111),2) s %AttendanceList0d(2)=$lg(%AttendanceList0d(111),6) s %AttendanceList0d(3)=$lg(%AttendanceList0d(111),4) s %AttendanceList0d(4)=$lg(%AttendanceList0d(111),7) s %AttendanceList0d(5)=$lg(%AttendanceList0d(111),1) s %AttendanceList0d(20)=$lg(%AttendanceList0d(111),8) s %AttendanceList0d(22)=$lg(%AttendanceList0d(111),9) s %AttendanceList0d(32)=$lg(%AttendanceList0d(111),14) s %AttendanceList0d(37)=$lg(%AttendanceList0d(111),10) s %AttendanceList0d(41)=$lg(%AttendanceList0d(111),3) s %AttendanceList0d(43)=$lg(%AttendanceList0d(111),12) s %AttendanceList0d(44)=$lg(%AttendanceList0d(111),15) s %AttendanceList0d(45)=$lg(%AttendanceList0d(111),5) s %AttendanceList0d(46)=$lg(%AttendanceList0d(111),13) s %AttendanceList0d(58)=$lg(%AttendanceList0d(111),11)
+	s %AttendanceList0d(53)=%AttendanceList0d(22)
+	s %AttendanceList0d(75)=$p(%AttendanceList0d(53),"||")
+	i %AttendanceList0d(53)'="",$d(^PAPER(%AttendanceList0d(53)))
+	i '$t
+	e  i 1]]%AttendanceList0d(53)
+	i  s %AttendanceList0d(7)="",%AttendanceList0d(60)="",%AttendanceList0d(8)="",%AttendanceList0d(61)="",%AttendanceList0d(6)="",%AttendanceList0d(59)="",%AttendanceList0d(49)="",%AttendanceList0d(53)="" g %0Fp3
+	s %AttendanceList0d(116)=$g(^PAPER(%AttendanceList0d(53),"ALL"))
+	s %AttendanceList0d(7)=$p(%AttendanceList0d(116),"^",1) s %AttendanceList0d(8)=$p(%AttendanceList0d(116),"^",2)
+	s %AttendanceList0d(116)=$g(^PAPER(%AttendanceList0d(53),"PAT",1))
+	s %AttendanceList0d(114)=$p(%AttendanceList0d(116),"^",2) s %AttendanceList0d(115)=$p(%AttendanceList0d(116),"^",1)
+	d %0Fr1
+	d %0Fr2
+	s %AttendanceList0d(60)=$zcvt($zstrip(%AttendanceList0d(7),"*P",,",?"),"U")
+	s %AttendanceList0d(61)=$zcvt($zstrip(%AttendanceList0d(8),"*P",,",?"),"U")
+	s %AttendanceList0d(59)=$zcvt($zstrip(%AttendanceList0d(6),"*P",,",?"),"U")
+%0Fp3 
+	s %AttendanceList0d(42)=%AttendanceList0d(41)
+	s %AttendanceList0d(76)=$p(%AttendanceList0d(42),"||")
+	i %AttendanceList0d(42)'="",$d(^CTPCP(%AttendanceList0d(42)))
+	i '$t
+	e  i 1]]%AttendanceList0d(42)
+	i  s %AttendanceList0d(13)="",%AttendanceList0d(64)="",%AttendanceList0d(42)="" g %0Fp6
+	s %AttendanceList0d(119)=$g(^CTPCP(%AttendanceList0d(42),1))
+	s %AttendanceList0d(13)=$p(%AttendanceList0d(119),"^",2)
+	s %AttendanceList0d(64)=$zcvt($zstrip(%AttendanceList0d(13),"*P",,",?"),"U")
+%0Fp6 
+	s %AttendanceList0d(38)=%AttendanceList0d(37)
+	i %AttendanceList0d(38)'="",$d(^CT("ACU",%AttendanceList0d(38)))
+	i '$t
+	e  i 1]]%AttendanceList0d(38)
+	i  s %AttendanceList0d(16)="",%AttendanceList0d(66)="",%AttendanceList0d(38)="" g %0Fp8
+	s %AttendanceList0d(124)=$g(^CT("ACU",%AttendanceList0d(38)))
+	s %AttendanceList0d(16)=$p(%AttendanceList0d(124),"^",1)
+	s %AttendanceList0d(66)=$zcvt($zstrip(%AttendanceList0d(16),"*P",,",?"),"U")
+%0Fp8 
+	s %AttendanceList0d(23)=%AttendanceList0d(22)
+	s %AttendanceList0d(77)=$p(%AttendanceList0d(23),"||")
+	i %AttendanceList0d(23)'="",$d(^PAPER(%AttendanceList0d(23)))
+	i '$t
+	e  i 1]]%AttendanceList0d(23)
+	i  g %0Fk1
+	s %AttendanceList0d(129)=$g(^PAPER(%AttendanceList0d(23),"PAT",1))
+	s %AttendanceList0d(127)=$p(%AttendanceList0d(129),"^",2) s %AttendanceList0d(128)=$p(%AttendanceList0d(129),"^",1)
+	d %0Fr3
+	s %AttendanceList0d(69)=$zcvt($zstrip(%AttendanceList0d(35),"*P",,",?"),"U")
+	; asl MOD# 7
+	s %AttendanceList0d(24)=%AttendanceList0d(23)
+	i %AttendanceList0d(24)'="",$d(^PAPER(%AttendanceList0d(24)))
+	i '$t
+	e  i 1]]%AttendanceList0d(24)
+	i  g %0Gdun
+	s %AttendanceList0d(78)=""
+%0Gk1 s %AttendanceList0d(78)=$o(^PAPER(%AttendanceList0d(24),"ALM",%AttendanceList0d(78)))
+	i %AttendanceList0d(78)="" g %0Gdun
+	i 1]]%AttendanceList0d(78) g %0Gk1
+	s %AttendanceList0d(135)=$g(^PAPER(%AttendanceList0d(24),"ALM",%AttendanceList0d(78)))
+	s %AttendanceList0d(17)=$p(%AttendanceList0d(135),"^",9)
+	g:'(%AttendanceList0d(17)=%AttendanceList0d(31)) %0Gk1
+	g:'(%AttendanceList0d(17)'="") %0Gk1
+	s %AttendanceList0d(71)=(%AttendanceList0d(24))_"||"_(%AttendanceList0d(78))
+	s %AttendanceList0d(50)=%AttendanceList0d(49)
+	i %AttendanceList0d(50)'="",$d(^PAPER(%AttendanceList0d(50)))
+	i '$t
+	e  i 1]]%AttendanceList0d(50)
+	i  s %AttendanceList0d(15)="",%AttendanceList0d(39)="",%AttendanceList0d(47)="",%AttendanceList0d(50)="" g %0Gp3
+	s %AttendanceList0d(143)=$g(^PAPER(%AttendanceList0d(50),"ALL"))
+	s %AttendanceList0d(39)=$p(%AttendanceList0d(143),"^",7) s %AttendanceList0d(139)=$p(%AttendanceList0d(143),"^",6) s %AttendanceList0d(140)=$p(%AttendanceList0d(143),"^",16) s %AttendanceList0d(141)=$p(%AttendanceList0d(143),"^",15) s %AttendanceList0d(142)=$p(%AttendanceList0d(143),"^",17)
+	s %AttendanceList0d(143)=$g(^PAPER(%AttendanceList0d(50),"PER",1))
+	s %AttendanceList0d(47)=$p(%AttendanceList0d(143),"^",7)
+	d %0Gr1
+	d %0Gr2
+%0Gp3 
+	s %AttendanceList0d(48)=%AttendanceList0d(47)
+	i %AttendanceList0d(48)'="",$d(^CT("ZIP",%AttendanceList0d(48)))
+	i '$t
+	e  i 1]]%AttendanceList0d(48)
+	i  s %AttendanceList0d(10)="",%AttendanceList0d(63)="",%AttendanceList0d(48)="" g %0Gp5
+	s %AttendanceList0d(148)=$g(^CT("ZIP",%AttendanceList0d(48)))
+	s %AttendanceList0d(10)=$p(%AttendanceList0d(148),"^",1)
+	s %AttendanceList0d(63)=$zcvt($zstrip(%AttendanceList0d(10),"*P",,",?"),"U")
+%0Gp5 
+	s %AttendanceList0d(36)=%AttendanceList0d(17)
+	i %AttendanceList0d(36)'="",$d(^PAC("ALERT",%AttendanceList0d(36)))
+	i '$t
+	e  i 1]]%AttendanceList0d(36)
+	i  s %AttendanceList0d(18)="",%AttendanceList0d(67)="",%AttendanceList0d(19)="",%AttendanceList0d(68)="",%AttendanceList0d(36)="" g %0Gp7
+	s %AttendanceList0d(153)=$g(^PAC("ALERT",%AttendanceList0d(36)))
+	s %AttendanceList0d(18)=$p(%AttendanceList0d(153),"^",1) s %AttendanceList0d(19)=$p(%AttendanceList0d(153),"^",2)
+	s %AttendanceList0d(67)=$zcvt($zstrip(%AttendanceList0d(18),"*P",,",?"),"U")
+	s %AttendanceList0d(68)=$zcvt($zstrip(%AttendanceList0d(19),"*P",,",?"),"U")
+%0Gp7 
+	s %AttendanceList0d(40)=%AttendanceList0d(39)
+	i %AttendanceList0d(40)'="",$d(^CT("SEX",%AttendanceList0d(40)))
+	i '$t
+	e  i 1]]%AttendanceList0d(40)
+	i  s %AttendanceList0d(14)="",%AttendanceList0d(65)="",%AttendanceList0d(40)="" g %0Gp9
+	s %AttendanceList0d(158)=$g(^CT("SEX",%AttendanceList0d(40)))
+	s %AttendanceList0d(14)=$p(%AttendanceList0d(158),"^",1)
+	s %AttendanceList0d(65)=$zcvt($zstrip(%AttendanceList0d(14),"*P",,",?"),"U")
+%0Gp9 
+	s %AttendanceList0d(11)=%AttendanceList0d(32)
+	i %AttendanceList0d(11)'="",$d(^CT("HOSP",%AttendanceList0d(11)))
+	i '$t
+	e  i 1]]%AttendanceList0d(11)
+	i  s %AttendanceList0d(12)="",%AttendanceList0d(11)="" g %0Gp11
+	s %AttendanceList0d(163)=$g(^CT("HOSP",%AttendanceList0d(11)))
+	s %AttendanceList0d(12)=$p(%AttendanceList0d(163),"^",2)
+%0Gp11 
+	; asl MOD# 8
+	s %AttendanceList0d(21)=%AttendanceList0d(20)
+	s %AttendanceList0p(8)=0
+	i %AttendanceList0d(21)="" g %0Hdun:%AttendanceList0p(8)=1 g %0pad
+	s %AttendanceList0d(79)=""
+%0Hk1 i %AttendanceList0p(8)=2 g %0Hdun
+	s %AttendanceList0d(79)=$o(^MR(%AttendanceList0d(21),"DIA",%AttendanceList0d(79)))
+	i %AttendanceList0d(79)="" g %0Hdun:%AttendanceList0p(8)=1 g %0pad
+	i 1]]%AttendanceList0d(79) g %0Hk1
+	s %AttendanceList0d(169)=$g(^MR(%AttendanceList0d(21),"DIA",%AttendanceList0d(79)))
+	s %AttendanceList0d(51)=$p(%AttendanceList0d(169),"^",1)
+	s %AttendanceList0d(70)=(%AttendanceList0d(21))_"||"_(%AttendanceList0d(79))
+	s %AttendanceList0p(8)=1
+%0Hpdtg 
+	s %AttendanceList0d(52)=%AttendanceList0d(51)
+	i %AttendanceList0d(52)'="",$d(^MRC("ID",%AttendanceList0d(52)))
+	i '$t
+	e  i 1]]%AttendanceList0d(52)
+	i  s %AttendanceList0d(9)="",%AttendanceList0d(62)="",%AttendanceList0d(52)="" g %0Hp2
+	s %AttendanceList0d(174)=$g(^MRC("ID",%AttendanceList0d(52)))
+	s %AttendanceList0d(9)=$p(%AttendanceList0d(174),"^",2)
+	s %AttendanceList0d(62)=$zcvt($zstrip(%AttendanceList0d(9),"*P",,",?"),"U")
+%0Hp2 
+	; asl MOD# 9
+	s %AttendanceList0d(175)=$lb(""_%AttendanceList0d(1),""_%AttendanceList0d(2),""_%AttendanceList0d(3),""_%AttendanceList0d(4),""_%AttendanceList0d(58),""_%AttendanceList0d(59),""_%AttendanceList0d(60),""_%AttendanceList0d(61),""_%AttendanceList0d(62),""_%AttendanceList0d(15),""_%AttendanceList0d(63),""_%AttendanceList0d(11),""_%AttendanceList0d(64),""_%AttendanceList0d(65),""_%AttendanceList0d(66),""_%AttendanceList0d(17),""_%AttendanceList0d(67),""_%AttendanceList0d(68))
+	s %AttendanceList0d(81)=$e(%AttendanceList0d(175),1,124),%AttendanceList0d(176)=$e(%AttendanceList0d(175),125,99999)
+	f %AttendanceList0d(82)=1:1 i $s(%AttendanceList0d(82)=1:$d(^mtemp0(%AttendanceList0t(4),0,%AttendanceList0d(81),1),%AttendanceList0d(177)),1:$d(^(%AttendanceList0d(82)),%AttendanceList0d(177))) { g:%AttendanceList0d(177)=%AttendanceList0d(176) %0Idun } else { s ^(%AttendanceList0d(82))=%AttendanceList0d(176) q }
+	s %AttendanceList0s(69)=$s(%AttendanceList0d(69)'="":%AttendanceList0d(69),1:-1E14),%AttendanceList0s(1)=$s(%AttendanceList0d(1)'="":%AttendanceList0d(1),1:-1E14),%AttendanceList0s(3)=$s(%AttendanceList0d(3)'="":%AttendanceList0d(3),1:-1E14),%AttendanceList0d(83)=%AttendanceList0d(83)+1,%AttendanceList0d(178)="",$li(%AttendanceList0d(178),2)=%AttendanceList0d(2),$li(%AttendanceList0d(178),3)=%AttendanceList0d(4),$li(%AttendanceList0d(178),1)=%AttendanceList0d(5),$li(%AttendanceList0d(178),7)=%AttendanceList0d(6),$li(%AttendanceList0d(178),5)=%AttendanceList0d(7),$li(%AttendanceList0d(178),6)=%AttendanceList0d(8),$li(%AttendanceList0d(178),27)=%AttendanceList0d(9),$li(%AttendanceList0d(178),17)=%AttendanceList0d(10),$li(%AttendanceList0d(178),26)=%AttendanceList0d(11),$li(%AttendanceList0d(178),25)=%AttendanceList0d(12),$li(%AttendanceList0d(178),11)=%AttendanceList0d(13),$li(%AttendanceList0d(178),23)=%AttendanceList0d(14),$li(%AttendanceList0d(178),16)=%AttendanceList0d(15),$li(%AttendanceList0d(178),13)=%AttendanceList0d(16),$li(%AttendanceList0d(178),15)=%AttendanceList0d(17),$li(%AttendanceList0d(178),19)=%AttendanceList0d(18),$li(%AttendanceList0d(178),20)=%AttendanceList0d(19),$li(%AttendanceList0d(178),4)=%AttendanceList0d(58),$li(%AttendanceList0d(178),10)=%AttendanceList0d(59),$li(%AttendanceList0d(178),8)=%AttendanceList0d(60),$li(%AttendanceList0d(178),9)=%AttendanceList0d(61),$li(%AttendanceList0d(178),28)=%AttendanceList0d(62),$li(%AttendanceList0d(178),18)=%AttendanceList0d(63),$li(%AttendanceList0d(178),12)=%AttendanceList0d(64),$li(%AttendanceList0d(178),24)=%AttendanceList0d(65),$li(%AttendanceList0d(178),14)=%AttendanceList0d(66),$li(%AttendanceList0d(178),21)=%AttendanceList0d(67),$li(%AttendanceList0d(178),22)=%AttendanceList0d(68),$li(%AttendanceList0d(178),29)=%AttendanceList0d(81),$li(%AttendanceList0d(178),30)=%AttendanceList0d(82),^mtemp0(%AttendanceList0t(5),0,%AttendanceList0s(69),%AttendanceList0s(1),%AttendanceList0s(3),%AttendanceList0d(83))=%AttendanceList0d(178)
+%0Idun 
+	g %0Hk1
+%0Hdun 
+	g %0Gk1
+%0Gdun 
+	g %0Fk1
+%0Fdun 
+	q
+%0Io d %AttendanceList0f q:SQLCODE'=0
+	s PAADMAdmDate=%AttendanceList0d(1),PAADMDischgDate=%AttendanceList0d(2),PAADMAdmTime=%AttendanceList0d(3),PAADMDischgTime=%AttendanceList0d(4),PAADMADMNo=%AttendanceList0d(5),PAPMINo=%AttendanceList0d(6),PAPMIName=%AttendanceList0d(7),PAPMIName2=%AttendanceList0d(8),MRCIDDesc=%AttendanceList0d(9),CTZIPCode=%AttendanceList0d(10),HOSPRowId=%AttendanceList0d(11),HOSPDesc=%AttendanceList0d(12),CTPCPDesc=%AttendanceList0d(13),CTSEXCode=%AttendanceList0d(14),PAPERAgeYr=%AttendanceList0d(15),CTACUCode=%AttendanceList0d(16),ALMAlertDR=%AttendanceList0d(17),AlertCode=%AttendanceList0d(18),AlertDesc=%AttendanceList0d(19)
+	q
+%0Jo d %AttendanceList0f q:SQLCODE'=0
+	s PAADMAdmDate=%AttendanceList0d(1),PAADMDischgDate=%AttendanceList0d(2),PAADMAdmTime=%AttendanceList0d(3),PAADMDischgTime=%AttendanceList0d(4),PAADMADMNo=%AttendanceList0d(5),PAPMINo=%AttendanceList0d(6),PAPMIName=%AttendanceList0d(7),PAPMIName2=%AttendanceList0d(8),MRCIDDesc=%AttendanceList0d(9),CTZIPCode=%AttendanceList0d(10),HOSPRowId=%AttendanceList0d(11),HOSPDesc=%AttendanceList0d(12),CTPCPDesc=%AttendanceList0d(13),CTSEXCode=%AttendanceList0d(14),PAPERAgeYr=%AttendanceList0d(15),CTACUCode=%AttendanceList0d(16),ALMAlertDR=%AttendanceList0d(17),AlertCode=%AttendanceList0d(18),AlertDesc=%AttendanceList0d(19)
+	q
+]]></Routine>
+</Export>

@@ -1,0 +1,348 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.SWARH.Report.RptSvc.StoredProc.SWARHRTHR1005">
+<Description><![CDATA[
+<pre>
+**************************************************************************************************************************************
+* Report Code: SWARHRTHR1005
+* Report Description: Shows Theatre data grouped by Session Surgeon, Date, Time and Procedure Surgeon.
+* Menu Caption: Theatre Utilisation by Surgeon
+* Initial release: 06/04/2016  Developer: Michael Welsh
+* Modified:
+* 
+**************************************************************************************************************************************
+</pre>]]></Description>
+<ProcedureBlock>0</ProcedureBlock>
+<Super>Custom.SWARH.Report.RptSvc.StoredProc.Abstract</Super>
+<TimeCreated>60905,54849</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2014/LIVE/cls/Custom/SWARH/Report/RptSvc/StoredProc/SWARHRTHR1005.xml#2 $</Default>
+</Parameter>
+
+<Method name="SWARHRTHR1005Execute">
+<Description>
+This is the Execute section for the %Library.Query. 
+All of the logic will be performed here.
+A new node for the ^CacheTemp global will be created and each subscript of this global will contain
+a row for the report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,Hospital:%Integer,DateFrom:%Date,DateTo:%Date,Surg:%Integer,Theatre:%Integer]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Get reportid i.e. use $INCREMENT to add another node to ^CacheTemp global. 
+ // We use ^CacheTemp global because it will always use memory before disk
+ New repid,ind
+
+ // Use $Increment to get the next node
+ Set repid=$INCREMENT(^CacheTemp(..#CACHETEMPSUBSCRIPT))
+ 
+ NEW RBEffDateSessionDR,ResourceRowID,ResourceCode,ResourceDesc,ResourceLocCode,ResourceLocDesc
+ 	,SessionDate,SessionStartTime,SessionEndTime,SessionType,SessionDOW,SessionSlotlength,SessionSurgeonDR,SessionSurgeonCode,SessionSurgeonDesc
+ 	,ApptSchRowID,ApptSchDate,ApptSchStartTime,ApptSchEndTime,ApptSchOrder,ApptSchDuration,ApptSchSurgeonCode,ApptSchSurgeonCode
+ 	,URNo,Surname,GivenName,OthGivenName,DOB,EpisodeNo,ApptDuration
+ 	,AnaStartDate,AnaStartTime,AnaFinishDate,AnaFinishTime,AnaDuration,ProAnaesthetistCode,ProAnaesthetistDesc
+ 	,ProSurgeonCode,ProSurgeonDesc,ProStartDate,ProStartTime,ProEndDate,ProEndTime,ProDuration,EffectiveElective,preSessionRowID,SlotLength
+ 	,ApptSchSurgeonDR,ProSurgeonDR,IrregularFlag,IrrAnaDuration,RegAnaDuration,IrrProDuration,RegProDuration,SessionID,preSessionDate
+ 	,LateFinish,LateFinishGrp,Result,EarlyFinish,EarlyFinishGrp
+ 	
+ SET (RBEffDateSessionDR,ResourceCode,ResourceDesc,ResourceLocCode,ResourceLocDesc
+ 	,SessionDate,SessionStartTime,SessionEndTime,SessionType,SessionDOW,SessionSurgeonCode,SessionSurgeonDesc
+ 	,ApptSchRowID,ApptSchDate,ApptSchStartTime,ApptSchEndTime,ApptSchDuration,ApptSchSurgeonCode,ApptSchSurgeonCode
+ 	,URNo,Surname,GivenName,OthGivenName,DOB,EpisodeNo
+ 	,AnaStartDate,AnaStartTime,AnaFinishDate,AnaFinishTime,ProAnaesthetistCode,ProAnaesthetistDesc
+ 	,ProSurgeonCode,ProSurgeonDesc,ProStartDate,ProStartTime,ProEndDate,ProEndTime,EffectiveElective,preSessionRowID,IrregularFlag,SessionID,preSessionDate
+ 	,LateFinish,LateFinishGrp,EarlyFinish,EarlyFinishGrp) = ""
+ 	
+ SET (ResourceRowID,SessionSlotlength,ApptSchOrder,ApptDuration,AnaDuration,ProDuration,SlotLength,ApptSchSurgeonDR,ProSurgeonDR
+	 ,IrrAnaDuration,RegAnaDuration,IrrProDuration,RegProDuration,SessionSurgeonDR,Result) = 0
+	 
+ s ind=1, END=0
+
+ //Start Monitor (if configured to capture stats)	
+ s mon=..MonitorBegin()
+ 
+ //Convert ODBC dates to cache format
+ s DateFrom=..ConvertDateToCache(DateFrom)
+ s DateTo=..ConvertDateToCache(DateTo)
+  
+ &SQL(DECLARE SWARHRTHR1005Cursor CURSOR FOR 
+	SELECT
+		ApptSchedule.AS_RBEffDateSession_DR AS RBEffDateSessionDR
+        ,ApptSchedule.AS_RES_ParRef->RES_RowID AS ResourceRowID
+        ,ApptSchedule.AS_RES_ParRef->RES_Code AS ResourceCode
+        ,ApptSchedule.AS_RES_ParRef->RES_Desc AS ResourceDesc
+        ,ApptSchedule.AS_RES_ParRef->RES_CTLOC_DR->CTLOC_Code AS ResourceLocCode
+        ,ApptSchedule.AS_RES_ParRef->RES_CTLOC_DR->CTLOC_Desc AS ResourceLocDesc
+
+        ,ApptSchedule.AS_Date AS SessionDate
+        ,ResEffDateSession.SESS_TimeStart AS SessionStartTime
+        ,ResEffDateSession.SESS_TimeEnd AS SessionEndTime
+        ,ResEffDateSession.SESS_SessionType_DR->SESS_Code AS SessionType
+        ,ResEffDateSession.SESS_DOW_DR->DOW_Name AS SessionDOW
+        ,ResEffDateSession.SESS_SlotLength AS SessionSlotlength
+
+        ,ResEffDateSessionCP.CP_CTCP_DR AS SessionSurgeonDR
+        ,ResEffDateSessionCP.CP_CTCP_DR->CTPCP_Code AS SessionSurgeonCode
+        ,ResEffDateSessionCP.CP_CTCP_DR->CTPCP_Desc AS SessionSurgeonDesc
+
+        ,ApptSchedule.AS_RowID AS ApptSchRowID
+        ,ApptSchedule.AS_Date AS ApptSchDate
+        ,ApptSchedule.AS_SessStartTime AS ApptSchStartTime
+        ,ApptSchedule.AS_SessEndTime AS ApptSchEndTime
+        ,ApptSchedule.AS_Session AS ApptSchOrder
+        ,DATEDIFF(mi,CONVERT(TIMESTAMP,ApptSchedule.AS_SessStartTime),CONVERT(TIMESTAMP,ApptSchedule.AS_SessEndTime)) AS ApptSchDuration
+
+        ,"" AS ApptSchSurgeonCode
+        ,"" AS ApptSchSurgeonDesc
+
+        ,Appointment.APPT_PAPMI_DR->PAPMI_No AS URNo
+        ,Appointment.APPT_PAPMI_DR->PAPMI_Name AS Surname
+        ,Appointment.APPT_PAPMI_DR->PAPMI_Name2 AS GivenName
+        ,Appointment.APPT_PAPMI_DR->PAPMI_Name3 AS OthGivenName
+        ,Appointment.APPT_PAPMI_DR->PAPMI_DOB AS DOB
+        ,Appointment.APPT_Adm_DR->PAADM_ADMNo AS EpisodeNo
+        ,Appointment.APPT_Duration AS ApptDuration
+
+        ,Anaesthesia.ANA_Date AS AnaStartDate
+        ,Anaesthesia.ANA_AnaStartTime AS AnaStartTime
+        ,Anaesthesia.ANA_FinishDate AS AnaFinishDate
+        ,Anaesthesia.ANA_AnaFinishTime AS AnaFinishTime
+        ,Anaesthesia.ANA_Anest_Duration /60 AS AnaDuration
+        ,Anaesthesia.ANA_Anaesthetist_DR->CTPCP_Code AS ProAnaesthetistCode
+        ,Anaesthesia.ANA_Anaesthetist_DR->CTPCP_Desc AS ProAnaesthetistDesc
+
+        ,Operation.ANAOP_Surgeon_DR->CTPCP_Code AS ProSurgeonCode
+        ,Operation.ANAOP_Surgeon_DR->CTPCP_Desc AS ProSurgeonDesc
+        ,Operation.ANAOP_OpStartDate AS ProStartDate
+        ,Operation.ANAOP_OpStartTime AS ProStartTime
+        ,Operation.ANAOP_OpEndDate AS ProEndDate
+        ,Operation.ANAOP_OpEndTime AS ProEndTime
+		,DATEDIFF(n,DATEADD(s,CAST(Operation.ANAOP_OpStartTime AS Integer),Operation.ANAOP_OpStartDate),
+					DATEADD(s,CAST(Operation.ANAOP_OpEndTime AS Integer),Operation.ANAOP_OpEndDate)) AS ProDuration
+        ,Operation.ANAOP_EffectiveElective AS EffectiveElective
+        ,Operation.ANAOP_Surgeon_DR AS ProSurgeonDR
+        ,ApptSchedule.AS_IrregularFlag AS IrregularFlag
+        ,ResEffDateSession.SESS_RowID AS SessionID
+FROM
+        SQLuser.RB_ApptSchedule ApptSchedule
+                LEFT JOIN SQLUser.RB_ResEffDateSession ResEffDateSession ON (ResEffDateSession.SESS_RowID = ApptSchedule.AS_RBEffDateSession_DR)
+                LEFT JOIN SQLUser.RB_ResEffDateSessionCP ResEffDateSessionCP ON (ResEffDateSessionCP.CP_ParRef = ApptSchedule.AS_RBEffDateSession_DR)
+                LEFT JOIN
+                (
+                        SELECT APPT_PAPMI_DR,APPT_Adm_DR,APPT_Duration,APPT_AS_ParRef,APPT_RowID,APPT_RBOP_DR
+                        FROM SQLUser.RB_Appointment
+                        WHERE APPT_Status NOT IN ('T','X')
+                ) AS Appointment
+                ON (Appointment.APPT_AS_ParRef = ApptSchedule.AS_RowID)
+                LEFT JOIN SQLUser.OR_Anaesthesia Anaesthesia ON (Anaesthesia.ANA_RBOperatingRoom_DR = Appointment.APPT_RBOP_DR)
+                LEFT JOIN SQLUser.OR_Anaest_Operation Operation ON (Operation.ANAOP_Par_Ref = Anaesthesia.ANA_RowID)
+
+WHERE
+        (ApptSchedule.AS_RES_ParRef->RES_CTLOC_DR->CTLOC_Hospital_DR = :Hospital)
+AND
+        (ApptSchedule.AS_Date BETWEEN :DateFrom AND :DateTo)
+AND
+        (ApptSchedule.AS_RES_ParRef = :Theatre OR (:Theatre is null))
+AND
+        (ApptSchedule.AS_RES_ParRef->RES_OperTheatreType_DR = 2)
+AND
+        (ApptSchedule.AS_RES_ParRef->RES_DateActiveTo IS NULL)
+AND
+        (ApptSchedule.AS_NotAvailableSlot <> 'Y' OR (ApptSchedule.AS_NotAvailableSlot IS NULL))
+ORDER BY
+        ApptSchedule.AS_RES_ParRef,ApptSchedule.AS_Date,ResEffDateSession.SESS_TimeStart
+)
+ &SQL(OPEN SWARHRTHR1005Cursor)
+ 
+ //FETCH FIRST ROW
+ d FetchRow
+ 
+ while END=0 {
+   
+	 d FormatDates, FormatTimes, GetApptSchGP
+	 
+	 if '(ApptSchRowID = preSessionRowID) do SetOverRun
+	 
+	 if (AnaDuration < 0) {set AnaDuration = 0}
+	 if (ProDuration < 0) {set ProDuration = 0}
+	 if (SessionID '= preSessionRowID){set SlotLength = ApptSchDuration, SessionSlotlength = SessionSlotlength}
+		Else {set SlotLength = 0, SessionSlotlength = 0}
+	 if '(IrregularFlag = "") {set IrrAnaDuration = AnaDuration, RegAnaDuration = 0} Else {set IrrAnaDuration = 0, RegAnaDuration = AnaDuration}
+	 if '(IrregularFlag = "") {set IrrProDuration = ProDuration, RegProDuration = 0} Else {set IrrProDuration = 0, RegProDuration = ProDuration}
+	 s sort = ind
+	
+	 Set ^CacheTemp(..#CACHETEMPSUBSCRIPT,repid,sort)=$LB(ResourceRowID,ResourceCode,ResourceDesc,ResourceLocCode,ResourceLocDesc
+ 	,SessionDate,SessionStartTime,SessionEndTime,SessionType,SessionDOW,SessionSlotlength,SessionSurgeonDR,SessionSurgeonCode,SessionSurgeonDesc
+ 	,ApptSchRowID,ApptSchDate,ApptSchStartTime,ApptSchEndTime,ApptSchOrder,ApptSchDuration,ApptSchSurgeonCode,ApptSchSurgeonDesc
+ 	,URNo,Surname,GivenName,OthGivenName,DOB,EpisodeNo,ApptDuration
+ 	,AnaStartDate,AnaStartTime,AnaFinishDate,AnaFinishTime,AnaDuration,ProAnaesthetistCode,ProAnaesthetistDesc
+ 	,ProSurgeonCode,ProSurgeonDesc,ProStartDate,ProStartTime,ProEndDate,ProEndTime,ProDuration,EffectiveElective,ProSurgeonDR,IrregularFlag
+ 	,SessionID,SlotLength,ApptSchSurgeonDR,IrrAnaDuration,RegAnaDuration,IrrProDuration,RegProDuration,LateFinish,LateFinishGrp,EarlyFinish,EarlyFinishGrp,Result)
+	 s ind=ind+1
+	 s preSessionRowID = ApptSchRowID
+	 s preSessionRowID = SessionID
+	 s preSessionDate = SessionDate
+	 //FETCH ROWS
+	 d FetchRow
+ }
+
+ &SQL(CLOSE SWARHRTHR1005Cursor)
+ 
+ // Build QHandle (AtEnd,ReportID,Index)  
+ Set QHandle=$lb(0,repid,0)
+
+ Quit $$$OK
+
+FetchRow
+ &sql(FETCH SWARHRTHR1005Cursor INTO :RBEffDateSessionDR,:ResourceRowID,:ResourceCode,:ResourceDesc,:ResourceLocCode,:ResourceLocDesc
+ 	,:SessionDate,:SessionStartTime,:SessionEndTime,:SessionType,:SessionDOW,:SessionSlotlength,:SessionSurgeonDR,:SessionSurgeonCode,:SessionSurgeonDesc
+ 	,:ApptSchRowID,:ApptSchDate,:ApptSchStartTime,:ApptSchEndTime,:ApptSchOrder,:ApptSchDuration,:ApptSchSurgeonCode,:ApptSchSurgeonDesc
+ 	,:URNo,:Surname,:GivenName,:OthGivenName,:DOB,:EpisodeNo,:ApptDuration
+ 	,:AnaStartDate,:AnaStartTime,:AnaFinishDate,:AnaFinishTime,:AnaDuration,:ProAnaesthetistCode,:ProAnaesthetistDesc
+ 	,:ProSurgeonCode,:ProSurgeonDesc,:ProStartDate,:ProStartTime,:ProEndDate,:ProEndTime,:ProDuration,:EffectiveElective,:ProSurgeonDR
+ 	,:IrregularFlag,:SessionID)
+ 
+ if SQLCODE '= 0 set END = 1
+ q
+ 
+FormatDates
+ s SessionDate=..ConvertDateToODBC(SessionDate)
+ s ApptSchDate=..ConvertDateToODBC(ApptSchDate)
+ s DOB=..ConvertDateToODBC(DOB)
+ s AnaStartDate=..ConvertDateToODBC(AnaStartDate)
+ s AnaFinishDate=..ConvertDateToODBC(AnaFinishDate)
+ s ProStartDate=..ConvertDateToODBC(ProStartDate)
+ s ProEndDate=..ConvertDateToODBC(ProEndDate) 
+ q
+ 
+FormatTimes
+ s SessionStartTime=..ConvertTimeToHHMM(SessionStartTime)
+ s SessionEndTime=..ConvertTimeToHHMM(SessionEndTime)
+ s ApptSchStartTime=..ConvertTimeToHHMM(ApptSchStartTime)
+ s ApptSchEndTime=..ConvertTimeToHHMM(ApptSchEndTime)
+
+ s AnaStartTime=..ConvertTimeToHHMM(AnaStartTime)
+ s AnaFinishTime=..ConvertTimeToHHMM(AnaFinishTime)
+ s ProStartTime=..ConvertTimeToHHMM(ProStartTime)
+ s ProEndTime=..ConvertTimeToHHMM(ProEndTime)
+ 
+ q
+ 
+GetApptSchGP
+ Set (ApptSchSurgeonCode,ApptSchSurgeonDesc,ApptSchSurgeonDR)=""
+ &sql(        
+        SELECT DISTINCT ASCP_CareProv_DR->CTPCP_Code,ASCP_CareProv_DR->CTPCP_Desc,ASCP_CareProv_DR
+        INTO :ApptSchSurgeonCode,:ApptSchSurgeonDesc,:ApptSchSurgeonDR
+		FROM SQLUser.RB_ApptScheduleCP
+		WHERE ASCP_CareProv_DR->CTPCP_Anaesthetist = 'N'
+		AND ASCP_Active = 'Y'
+		AND ASCP_ParRef = :ApptSchRowID
+		AND (ASCP_Session_DR = :RBEffDateSessionDR OR (ASCP_Session_DR IS NULL))
+	)
+
+ q
+ 
+SetOverRun
+ Set (LateFinish,LateFinishGrp,EarlyFinish,EarlyFinishGrp) = ""
+ Set (Result)=0
+ &SQL(
+ 		SELECT CAST(MAX(Anaesthesia2.ANA_AnaFinishTime) AS Integer) - CAST( ApptSchedule2.AS_SessEndTime AS Integer)/60
+ 		INTO :Result
+		FROM SQLUser.RB_ApptSchedule ApptSchedule2
+        	LEFT JOIN SQLUser.RB_ResEffDateSession ResEffDateSession2 ON (ResEffDateSession2.SESS_RowID = ApptSchedule2.AS_RBEffDateSession_DR)
+            LEFT JOIN SQLUser.RB_ResEffDateSessionCP ResEffDateSessionCP2 ON (ResEffDateSessionCP2.CP_ParRef = ApptSchedule2.AS_RBEffDateSession_DR)
+            LEFT JOIN (
+            			SELECT APPT_PAPMI_DR,APPT_Adm_DR,APPT_Duration,APPT_AS_ParRef,APPT_RowID,APPT_RBOP_DR
+                        FROM SQLUser.RB_Appointment
+                        WHERE APPT_Status NOT IN ('T','X')
+                      ) AS Appointment2
+                	ON (Appointment2.APPT_AS_ParRef = ApptSchedule2.AS_RowID)
+            LEFT JOIN SQLUser.OR_Anaesthesia Anaesthesia2 ON (Anaesthesia2.ANA_RBOperatingRoom_DR = Appointment2.APPT_RBOP_DR)
+
+		WHERE ApptSchedule2.AS_RowID = :ApptSchRowID
+		AND ApptSchedule2.AS_IrregularFlag IS NULL
+	)
+ If (Result < 0) {do EarlyFinish} Else {do LateFinish}
+ Quit
+LateFinish
+ Set LateFinish = Result
+ If (LateFinish <= 0) {Set LateFinishGrp = "a"} Elseif (LateFinish > 0) && (LateFinish <= 15) {Set LateFinishGrp = "b"} Elseif (LateFinish > 15) && (LateFinish <= 30) {Set LateFinishGrp = "c"}
+ 	Elseif (LateFinish > 30) && (LateFinish <= 45) {Set LateFinishGrp = "d"} Elseif (LateFinish > 45) && (LateFinish <= 60) {Set LateFinishGrp = "e"} Else {Set LateFinishGrp = "f"}
+ Quit
+EarlyFinish
+ Set EarlyFinish = $ZABS(Result)
+ If (EarlyFinish <= 0) {Set EarlyFinishGrp = "z"} Elseif (EarlyFinish > 0) && (EarlyFinish <= 15) {Set EarlyFinishGrp = "y"} Elseif (EarlyFinish > 15) && (EarlyFinish <= 30) {Set EarlyFinishGrp = "x"}
+ 	Elseif (EarlyFinish > 30) && (EarlyFinish <= 45) {Set EarlyFinishGrp = "w"} Elseif (EarlyFinish > 45) && (EarlyFinish <= 60) {Set EarlyFinishGrp = "v"} Else {Set EarlyFinishGrp = "u"}
+ Quit
+]]></Implementation>
+</Method>
+
+<Method name="SWARHRTHR1005Fetch">
+<Description>
+This is the Fetch component of the %Library.Query. 
+This should never have to change. It is designed to fetch the row for each subscript of the ^CacheTemp
+global and return this row to the Crystal Report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,&Row:%Library.List,&AtEnd:%Library.Integer=0]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // This fetch method should never have to change. 
+ // repid - Report ID
+ // ind   - sequence index which represents each row
+
+ New repid,ind
+
+ // Restore QHandle
+ Set AtEnd=$li(QHandle,1)
+ Set repid=$li(QHandle,2)
+ Set ind=$li(QHandle,3)
+
+ Set ind=$ORDER(^CacheTemp(..#CACHETEMPSUBSCRIPT,repid,ind))
+ If ind="" {	// if there are no more rows, finish fetching
+	 Set AtEnd=1
+	 Set Row=""
+ }
+ Else      {	// fetch row
+ 	Set Row=^CacheTemp(..#CACHETEMPSUBSCRIPT,repid,ind)
+ }
+
+ // Save QHandle
+ s QHandle=$lb(AtEnd,repid,ind)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="SWARHRTHR1005Close">
+<Description>
+This is the Close component of the %Library.Query.
+This is standard code and should never have to change.
+This is where all the cleanup is performed, i.e. the purging of the temporary storage global ^CacheTemp.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>QHandle:%Library.Binary</FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Clean up by purging the temporary node in ^CacheTemp global
+ New repid,ind
+ Set repid=$li(QHandle,2)
+
+ //Start Monitor (if configured to capture stats)
+ i mon Do ..MonitorEnd(mon)
+
+ Kill ^CacheTemp(..#CACHETEMPSUBSCRIPT,repid)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Query name="SWARHRTHR1005">
+<Type>%Library.Query</Type>
+<FormalSpec>Hospital:%Integer,DateFrom:%Date,DateTo:%Date,Surg:%Integer,Theatre:%Integer</FormalSpec>
+<SqlProc>1</SqlProc>
+<Parameter name="CONTAINID" value="0"/>
+<Parameter name="ROWSPEC" value="ResourceRowID:%Integer,ResourceCode:%String,ResourceDesc:%String,ResourceLocCode:%String,ResourceLocDesc:%String,SessionDate:%Date,SessionStartTime:%String,SessionEndTime:%String,SessionType:%String,SessionDOW:%String,SessionSlotlength:%Integer,SessionSurgeonDR:%Integer,SessionSurgeonCode:%String,SessionSurgeonDesc:%String,ApptSchRowID:%String,ApptSchDate:%Date,ApptSchStartTime:%String,ApptSchEndTime:%String,ApptSchOrder:%Integer,ApptSchDuration:%Integer,ApptSchSurgeonCode:%String,ApptSchSurgeonDesc:%String,URNo:%String,Surname:%String,GivenName:%String,OthGivenName:%String,DOB:%Date,EpisodeNo:%String,ApptDuration:%Integer,AnaStartDate:%Date,AnaStartTime:%String,AnaFinishDate:%Date,AnaFinishTime:%String,AnaDuration:%Integer,ProAnaesthetistCode:%String,ProAnaesthetistDesc:%String,ProSurgeonCode:%String,ProSurgeonDesc:%String,ProStartDate:%Date,ProStartTime:%String,ProEndDate:%Date,ProEndTime:%String,ProDuration:%Integer,EffectiveElective:%String,ProSurgeonDR:%Integer,IrregularFlag:%String,SessionID:%String,SlotLength:%Integer,ApptSchSurgeonDR:%Integer,IrrAnaDuration:%Integer,RegAnaDuration:%Integer,IrrProDuration:%Integer,RegProDuration:%Integer,LateFinish:%String,LateFinishGrp:%String,EarlyFinish:%String,EarlyFinishGrp:%String,Result:%Integer"/>
+<Parameter name="SELECTMODE" value="ODBC"/>
+</Query>
+</Class>
+</Export>

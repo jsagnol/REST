@@ -1,0 +1,682 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.SWARH.Report.ZEN.SWARHZATD1002">
+<Description><![CDATA[
+<pre>
+***************************************************************************************************************************************
+* Report Code: SWARHZATD1002
+* Report Description: Discharge Summary - Multi Episode ZEN
+* Menu Caption: Discharge Summary - Multi Episode ZEN
+* Initial release: 31/10/2013
+* Developer: Paul Holt & Michael Welsh
+* Modified: 
+* 16/12/13 TK	Removed page-break-inside: always style from Progress Notes (DISProgressNotes) and replaced
+*               with  keep-together.within-page: 100; added keep-with-next.within-page: 1000 to section
+*               heading style to keep headings with their content
+* 26/03/14 MW	Added "<parameter field="DISRowId" />" to "Medications" & "CeasedMedications" groups to filter both 
+*				for selected episodes.
+* 27/03/14 MW 	Added conditional pagebreak before Investigations.
+* 				Added Group "ListEpisodes" to display the Episodes in the Page Footer.
+* 21/05/14 MW	Added DOB to the footer.
+* 25/07/14 PH   Added OnAfterReport to call SSDP web service once the report has printed (if DistributeToSSDP P9 has been set to 1 in 
+                the report manager definition
+* 24/02/15 PH	Discharge Date shown on report is the discharge date on the discharge summary screen (DISDate not PAADMDischgDate)
+* 05/12/16 PH	Change label Generic Medication to Medication under MEDICATION and CEASED MEDICATION
+***************************************************************************************************************************************
+</pre>]]></Description>
+<Super>Report.ZEN.Abstract</Super>
+<TimeCreated>62973,55416.259759</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2014/LIVE/cls/Custom/SWARH/Report/ZEN/SWARHZATD1002.xml#5 $</Default>
+</Parameter>
+
+<Property name="DisID">
+<Type>%String</Type>
+<Parameter name="ZENURL" value="P1"/>
+</Property>
+
+<Property name="reptype">
+<Type>%String</Type>
+<Parameter name="ZENURL" value="P2"/>
+</Property>
+
+<Property name="DocID">
+<Type>%String</Type>
+<Parameter name="ZENURL" value="P3"/>
+</Property>
+
+<Property name="ClinID">
+<Type>%String</Type>
+<Parameter name="ZENURL" value="P4"/>
+</Property>
+
+<Property name="DistributeToSSDP">
+<Type>%String</Type>
+<Parameter name="ZENURL" value="P9"/>
+</Property>
+
+<UDLText name="T">
+<Content><![CDATA[
+// internal ids for converted TMPStream
+
+]]></Content>
+</UDLText>
+
+<Property name="TMPStreamIDs">
+<Type>%String</Type>
+<InitialExpression>0</InitialExpression>
+</Property>
+
+<XData name="ReportDefinition">
+<XMLNamespace>http://www.intersystems.com/zen/report/definition</XMLNamespace>
+<Data><![CDATA[
+<report
+		 xmlns="http://www.intersystems.com/zen/report/definition"
+		 queryClass='Custom.SWARH.Report.ZEN.StoredProc.SWARHZATD1002'
+		 queryName='SWARHZATD1002'
+		 name='DischargeSummaries'>
+		 <parameter expression="..DisID" />
+		 <group name="DischargeSummary">
+			<element field="CLNAddress1" name="CLNAddress1"/>
+			<element field="CLNAddress2" name="CLNAddress2"/>
+			<element field="CLNChildSub" name="CLNChildSub"/>
+			<element field="CLNCTCITDesc" name="CLNCTCITDesc"/>
+			<element field="CLNPROVCode" name="CLNPROVCode"/>
+			<element field="CLNZIPCode" name="CLNZIPCode"/>
+			<element field="CTCITDesc" name="CTCITDesc"/>
+			<element field="CTCPTInternalType" name="CTCPTInternalType"/>
+			<element field="CTLOCCode" name="CTLOCCode"/>
+			<element field="CTLOCDesc" name="CTLOCDesc"/>
+			<element field="CTLOCNataHeadings" name="CTLOCNataHeadings"/>
+			<element field="CTPCPDesc" name="CTPCPDesc"/>
+			<element field="CTPCPTextTwo" name="CTPCPTextTwo"/>
+			<element field="CTSEXDesc" name="CTSEXDesc"/>
+			<element field="CTZIPCode" name="CTZIPCode"/>
+			<element field="DISActiveProblems" name="DISActiveProblems" escape="passthru"/>
+			<element field="DISClinicalOpinion" name="DISClinicalOpinion" escape="passthru"/>
+			<element field="DISCTPCPDesc" name="DISCTPCPDesc"/>
+			<element field="DISCTPCPTelO" name="DISCTPCPTelO"/>
+			<element field="DISDate" name="DISDate"/>
+			<element field="DISDateSql" name="DISDateSql"/>
+			<element field="DISOtherResults" name="DISOtherResults" escape="passthru"/>
+			<element field="DISParRef" name="DISParRef"/>
+			<element field="DISPrincipalDiagnosis" name="DISPrincipalDiagnosis" escape="passthru"/>
+			<element field="DISProcedures" name="DISProcedures" escape="passthru"/>
+			<element field="DISProgressNotes" name="DISProgressNotes" escape="passthru"/>
+			<element field="DISRowId" name="DISRowId"/>
+			<element field="DISStatus" name="DISStatus"/>
+			<element field="DISSuggestions" name="DISSuggestions" escape="passthru"/>
+			<element field="DISUpdateDate" name="DISUpdateDate"/>
+			<element field="DISUpdateTime" name="DISUpdateTime"/>
+			<element field="DSCLDesc" name="DSCLDesc"/>
+			<element field="FAMDDesc" name="FAMDDesc"/>
+			<element field="FAMDForename" name="FAMDForename"/>
+			<element field="FAMDTTLCode" name="FAMDTTLCode"/>
+			<element field="HOSPDesc" name="HOSPDesc"/>
+			<element field="HOSPPhone" name="HOSPPhone"/>
+			<element field="IPATDesc" name="IPATDesc"/>
+			<element field="MRADMGPConsent" name="MRADMGPConsent"/>
+			<element field="MRADMRowId" name="MRADMRowId"/>
+			<element field="PAADMAdmDate" name="PAADMAdmDate"/>
+			<element field="PAADMAdmDateSql" name="PAADMAdmDateSql"/>
+			<element field="PAADMADMNo" name="PAADMADMNo"/>
+			<element field="PAADMAdmTime" name="PAADMAdmTime"/>
+			<element field="PAADMDischgDate" name="PAADMDischgDate"/>
+			<element field="PAADMDischgTime" name="PAADMDischgTime"/>
+			<element field="PAADMHospitalDR" name="PAADMHospitalDR"/>
+			<element field="PAPERForeignAddress" name="PAPERForeignAddress"/>
+			<element field="PAPERStName" name="PAPERStName"/>
+			<element field="PAPERTelH" name="PAPERTelH"/>
+			<element field="PAPMIDOB" name="PAPMIDOB"/>
+			<element field="PAPMIName" name="PAPMIName"/>
+			<element field="PAPMIName2" name="PAPMIName2"/>
+			<element field="PAPMIName3" name="PAPMIName3"/>
+			<element field="PAPMINo" name="PAPMINo"/>
+			<element field="PAPMIRowId" name="PAPMIRowId"/>
+			<element field="RapidNo" name="RapidNo"/>
+			<element field="REFDAddress" name="REFDAddress"/>
+			<element field="REFDCITDesc" name="REFDCITDesc"/>
+			<element field="REFDDesc" name="REFDDesc"/>
+			<element field="REFDPROVCode" name="REFDPROVCode"/>
+			<element field="REFDZIPCode" name="REFDZIPCode"/>
+			<element field="REFREFDDR" name="REFREFDDR"/>
+			<element field="RESSTDesc" name="RESSTDesc"/>
+			<element field="SSUSRGivenName" name="SSUSRGivenName"/>
+			<element field="SSUSRInitials" name="SSUSRInitials"/>
+			<element field="SSUSRName" name="SSUSRName"/>
+			<element field="SSUSRSurname" name="SSUSRSurname"/>
+			<element field="TelH" name="TelH"/>
+			<element field="verno" name="verno"/>
+			<element field="VSTDesc" name="VSTDesc"/>
+			<element field="WARDCode" name="WARDCode"/>
+			<attribute field="NumResults" name="NumResults"/>
+			<element expression="$ZDATE($NOW(),4)" name="PrintDate"/>
+						
+			<group name ="allergies" 
+			 queryClass='Custom.SWARH.Report.ZEN.StoredProc.SWARHZATD1002' queryName='SWARHZATD1002Allergies'>
+			<parameter field="PAPMIRowId"/>
+			<group name="allergy">
+			<element field="ALGDesc" name="ALGDesc"/>
+			<element field="PHCGEName" name="PHCGEName"/>
+			<element field="PHCDName" name="PHCDName"/>
+			<element field="ALGRDesc" name="ALGRDesc"/>
+			<element field="INGRDesc" name="INGRDesc"/>
+			</group>
+			</group>
+			
+			<group name ="Medications" 
+			 queryClass='Custom.SWARH.Report.ZEN.StoredProc.SWARHZATD1002' queryName='SWARHZATD1002Meds'>
+			<parameter field="PAPMIRowId"/>
+			<parameter field="DISRowId" />
+			<group name="Meds">
+			<element fields="GenericName,Strength" name="GenericName" expression='%val("GenericName")_" "_%val("Strength")'/>
+			<element field="MinDose" name="MinDose"/>
+			<element field="Maxdose" name="Maxdose"/>
+			<element field="AdminRoute" name="AdminRoute"/>
+			<element field="Frequency" name="Frequency"/>
+			<element field="Status" name="Status"/>
+			<element field="IndNotes" name="IndNotes"/>
+			<element fields="Dose,DoseUOM" name="Dose" expression='%val("Dose")_" "_%val("DoseUOM")'/>
+			<element field="ItemStat" name="ItemStat"/>
+			</group>
+			</group>
+			
+			<group name ="CeasedMedications" 
+			 queryClass='Custom.SWARH.Report.ZEN.StoredProc.SWARHZATD1002' queryName='SWARHZATD1002CeasedMeds'>
+			<parameter field="PAPMIRowId"/>
+			<parameter field="DISRowId" />
+			<group name="CeasedMeds">
+			<element fields="GenericName,Strength" name="CeasedGenericName" expression='%val("GenericName")_" "_%val("Strength")'/>
+			<element field="MinDose" name="CeasedMinDose"/>
+			<element field="Maxdose" name="CeasedMaxdose"/>
+			<element field="AdminRoute" name="CeasedAdminRoute"/>
+			<element field="Frequency" name="CeasedFrequency"/>
+			<element field="Status" name="CeasedStatus"/>
+			<element field="IndNotes" name="CeasedIndNotes"/>
+			<element fields="Dose,DoseUOM" name="CeasedDose" expression='%val("Dose")_" "_%val("DoseUOM")'/>
+			<element field="ItemStat" name="CeasedItemStat"/>
+			</group>
+			</group>
+			
+			<group name ="ListEpisodes" 
+			 queryClass='Custom.SWARH.Report.ZEN.StoredProc.SWARHZATD1002' queryName='SWARHZATD1002EpisodeList'>
+			<parameter field="PAPMIRowId"/>
+			<parameter field="DISRowId" />
+			<group name="ListEpisodes">
+			<element field="EpisodeList" name="EpisodeList"/>
+			</group>
+			</group>
+			
+			<group name="alerts"  
+			queryClass='Custom.SWARH.Report.ZEN.StoredProc.SWARHZATD1002' queryName='SWARHZATD1002Alerts'>
+			<parameter field="PAPMIRowId"/>
+			<group name="alert">
+			<element fields="ALERT_Desc" name="Description" expression='$REPLACE(%val("ALERT_Desc")," ","&#160;")_" "'/>
+			<element field="ALM_ClosedDate" name="ClosedDate"/>
+			</group>
+			</group>
+			
+			<group name="copiesOfDischargeSummary" 
+			queryClass='Custom.SWARH.Report.ZEN.StoredProc.SWARHZATD1002' queryName="SWARHZATD1002DiscRefDocs">
+			<parameter field="DISRowId" />
+			<group name="copy">
+			<element field="REF_ParRef" name="REF_ParRef" />
+			<element field="REFD_Desc" name="REFD_Desc" />
+			<element field="REFD_Forename" name="REFD_Forename" />
+			<element field="REFD_Title" name="REFD_Title" />
+			<element field="raddr" name="raddr" />
+			<element field="REFD_Email" name="REFD_Email" />
+			<element field="CTCIT_Desc" name="CTCIT_Desc" />
+			<element field="CTZIP_Code" name="CTZIP_Code" />
+			<element field="PROV_Code" name="PROV_Code" />
+			<element field="REFD_Text1" name="REFD_Text1" />
+			<element field="CLN_Desc" name="CLN_Desc" />
+			<element field="CLNCTCITDesc" name="CLNCTCITDesc" />
+			<element field="CLNZIPCode" name="CLNZIPCode" />
+			<element field="CLNPROVCode" name="CLNPROVCode" />
+			<element name="SentVia" 
+				fields="CLN_PreferredContact,REFD_Forename" 
+				expression='$CASE(%val("REFD_Forename"),"":"",:$CASE(%val("CLN_PreferredContact"),"E":"EMAIL",:"PRINT"))'/>
+			<element name="address"
+				fields="raddr,CLN_Desc,addr1,addr2,CLNCTCITDesc,CLNPROVCode,CLNZIPCode" 
+				expression='$CASE(%val("addr1"), "":$ZCONVERT(%val("raddr"),"W"), :%val("CLN_Desc")_" "_$ZCONVERT(%val("addr1"),"W")_" "_$ZCONVERT(%val("addr2"),"W")_" "_$ZCONVERT(%val("CLNCTCITDesc"),"W")_" "_$ZCONVERT(%val("CLNPROVCode"),"W")_" "_%val("CLNZIPCode"))' />
+			</group>
+			</group>
+			
+			<group name="Investigations" 
+			queryClass='Custom.SWARH.Report.ZEN.StoredProc.SWARHZATD1002' queryName="SWARHZATD1002Investigations">
+			<parameter expression="..DisID"/>
+			<group name="Investigation">
+			<element field="ARCIMDesc" name="ARCIMDesc"/>
+			<element field="OEORISttDat" name="OEORISttDat"/>
+			<element field="OEORIClinicallySignificant" name="OEORIClinicallySignificant"/>
+			<element field="OEORIDepProcNotes" name="OEORIDepProcNotes"/>
+			<element field="RESSTDesc" name="RESSTDesc"/>
+			<element field="OEORICollectionDate" name="OEORICollectionDate"/>
+			<element field="SECText" name="SECText"/>
+			</group>
+			</group>
+		 </group>
+		 </report>
+]]></Data>
+</XData>
+
+<XData name="ReportDisplay">
+<XMLNamespace>http://www.intersystems.com/zen/report/display</XMLNamespace>
+<Data><![CDATA[
+<report
+		xmlns='http://www.intersystems.com/zen/report/display'
+		xmlns:swarhstyle='http://www.intersystems.com/zen/report/display/swarh/style'
+		xmlns:swarh='http://www.intersystems.com/zen/report/display/swarh'
+		name='DischargeSummaries'>
+<document 
+marginTop="8mm" marginBottom="10mm" footerHeight="10mm" headerHeight="17mm" 
+regionBeforeExtent="0mm" regionAfterExtent="0mm" width="21cm" marginLeft="1cm" marginRight="1cm">
+<class name="table.radresult" >
+<att name="keep-with-next.within-line" value="auto" />
+<att name="keep-with-previous" value="always" />
+<att name="width" value="100%" />
+<att name="table-layout" value="fixed"/>
+</class>
+</document>
+
+<pagefooter>
+
+<table>
+
+<block style="font-size: x-small;">
+<item value="Discharge Summary of "/>
+<item field="//PAPMIName2"/>
+<item value=" "/>
+<item field="//PAPMIName"/>
+<item value=",DOB: "/>
+<item field="//PAPMIDOB"/>
+<item value=",UR Number: "/>
+<item field="//PAPMINo"/>
+<item value=",Version "/>
+<item field="//verno" />
+<item value=",Printed on "/>
+<item field="//PrintDate" />
+<item value="Report ZEN.SWARHZATD1002 "/>
+<item field="//DISRowId"/>
+<item field="//EpisodeList"/>
+</block>
+
+<block width="15%">
+<item value="Page&#160;" style="font-size: x-small"/>
+<item special="page-number-of" style="font-size: x-small"/>
+</block>
+</table>
+</pagefooter>
+
+<body>
+
+<group name="/DischargeSummaries/DischargeSummary[1]">
+
+<table width="100%" style="font-size: small;">
+
+<block width="50%" style="text-align:center; font-weight: bold;">
+
+<block ifxpath='DISStatus[text()!="A"]' style="font-size: large;">
+<item value="DRAFT / NOT AUTHORISED"/>
+</block>
+<item value="Discharge Summary"  style="font-size: large;"/>
+<br/>
+<item field="HOSPDesc"/>
+<br/>
+<item value="Tel: "/>
+<item field="HOSPPhone"/>
+</block>
+
+<block style="padding-left: 0.5cm; border-left: solid black 1px; ">
+
+<table orient="row">
+
+<table orient="col">
+<item value="UR&#160;NO:" width="30%"/>
+<item field="PAPMINo"/>
+</table>
+
+<table orient="col">
+<item value="SURNAME:" width="30%"/>
+<item field="PAPMIName"/>
+</table>
+
+<table orient="col">
+<item value="GIVEN&#160;NAME:" width="30%"/>
+<item field="PAPMIName2"/>
+</table>
+
+<table orient="col">
+<item value="D.O.B.:" width="30%"/>
+<item field="PAPMIDOB" width="25%"/>
+<item value="Sex:" width="20%"/>
+<item field="CTSEXDesc" width="25%"/>
+</table>
+<item value="ATTACH LABEL IF AVAILABLE" style="text-align:center; padding-top: 0.5cm;"/>
+</table>
+</block>
+</table>
+<line pattern="solid" width="100%"/>
+
+<block style="font-size: small;">
+
+<table>
+<item value="Admission Date:" width="20%" style="font-weight:bold"/>
+<item field="PAADMAdmDate" width="30%"/>
+<item value="Treating Clinician:" width="20%" style="font-weight:bold"/>
+<item field="CTPCPDesc" width="30%"/>
+</table>
+
+<table>
+<item value="Discharge Date:" width="20%" style="font-weight:bold"/>
+<item field="DISDate" width="30%"/>
+<item value="Local GP:" width="20%" style="font-weight:bold"/>
+
+<block width="30%">
+<item field="FAMDForename" />
+<item value=" "/>
+<item field="FAMDDesc" />
+</block>
+</table>
+
+<table>
+<item value="Allergies" width="50%" style="font-weight: bold;"/>
+<item value="Current Alerts" width="50%" style="font-weight: bold;"/>
+</table>
+<table>
+
+<block width="50%">
+
+<group name="allergies/allergy">
+<item field="ALGDesc"/>
+<item field="PHCGEName"/>
+<item field="PHCDName"/>
+<item field="ALGRDesc"/>
+<item field="INGRDesc"/>
+<br/>
+</group>
+</block>
+
+<block>
+
+<group name="alerts/alert">
+<item field="Description"/>
+<br/>
+</group>
+</block>
+</table>
+		
+<line pattern="solid" width="100%"/>
+
+<!-- Principal Diagnosis -->
+<div style="padding-top:0.5cm; keep-with-next.within-page: 1000;">
+<item value="PRINCIPAL DIAGNOSIS :" style="font-weight: bold;"/>
+</div>
+<item field="DISPrincipalDiagnosis" breakOnLineFeed="true"/>
+
+<!-- Other Diagnoses -->
+<div style="padding-top:0.5cm; keep-with-next.within-page: 1000;">
+<item value="OTHER DIAGNOSES :" style="font-weight: bold;"/>
+</div>
+<item field="DISActiveProblems" breakOnLineFeed="true"/>
+
+<!-- Procedures -->
+<div style="padding-top:0.5cm; keep-with-next.within-page: 1000;">
+<item value="OPERATIONS / PROCEDURES :" style="font-weight: bold;"/>
+</div>
+<item field="DISProcedures" breakOnLineFeed="true"/>
+
+<!-- Progress Notes -->
+<div style="padding-top:0.5cm; keep-with-next.within-page: 1000;">
+<item value="TREATMENT / PROGRESS NOTES :" style="font-weight: bold;"/>
+</div>
+<div style="keep-together.within-page: 100;">
+<item field="DISProgressNotes" breakOnLineFeed="true"/>
+</div>
+	
+<!-- Complications -->
+<div style="padding-top:0.5cm; keep-with-next.within-page: 1000;">
+<item value="COMPLICATIONS :" style="font-weight: bold;"/>
+</div>
+<item field="DISOtherResults" breakOnLineFeed="true"/>
+
+<!-- Investigations -->
+<div style="padding-top:0.5cm;">
+<item value="INVESTIGATIONS :" style="font-weight: bold;"/>
+</div>
+<line ifxpath='Investigations/Investigation' pattern="solid" width="100%"/>
+
+<table ifxpath='Investigations/Investigation' style="font-size:x-small;">
+<item width="40%" style="font-weight:bold;" value="Investigation"/>
+<item width="10%" style="font-weight:bold" value="Date"/>
+<item width="13%" style="font-weight:bold" value="Status"/>
+<item width="7%" style="font-weight:bold; text-align:center" value="Inc."/>
+<item width="30%" style="font-weight:bold" value="Comment"/>
+</table>
+
+<table group="Investigations/Investigation" style="font-size:x-small;">
+<item width="40%" field="ARCIMDesc"/>
+<item width="10%" field="OEORISttDat"/>
+<item width="13%" field="RESSTDesc"/>
+<item width="7%" style="text-align:center" field="OEORIClinicallySignificant"/>
+<item width="30%" field="OEORIDepProcNotes"/>
+</table>
+<line pattern="solid" width="100%"/>
+
+<!-- Management Plan -->
+<div style="padding-top:0.5cm; keep-with-next.within-page: 1000;">
+<item value="FOLLOW UP MANAGEMENT PLAN / DISCHARGE MEDICATIONS :" style="font-weight:bold;"/>
+</div>
+<item field="DISClinicalOpinion" breakOnLineFeed="true"/>
+
+<!-- Medications -->
+<div style="padding-top:0.5cm;">
+<item value="MEDICATION:" style="font-weight: bold;"/>
+</div>
+
+<line ifxpath='Medications/Meds' pattern="solid" width="100%"/>
+
+<table ifxpath='Medications/Meds' style="font-size:small; font-weight:bold;">
+<item value="Medication" width="30%"/>
+<item value="Dose" width="15%"/>
+<item value="Route of Admin" width="15%"/>
+<item value="Frequency" width="15%"/>
+<item value="Indication/Notes" width="30%"/>
+</table>
+
+<table group="Medications/Meds" style="font-size:small;">
+<item field="GenericName" width="30%"/>
+<item field="Dose" width="15%"/>
+<item field="AdminRoute" width="15%"/>
+<item field="Frequency" width="15%"/>
+<item field="IndNotes" width="30%"/>
+</table>
+
+<!-- Ceased Medications -->
+<line ifxpath='CeasedMedications/CeasedMeds' pattern="solid" width="100%"/>
+
+<div style="padding-top:0.5cm;">
+<item value="CEASED MEDICATION:" style="font-weight: bold;"/>
+</div>
+
+<line ifxpath='CeasedMedications/CeasedMeds' pattern="solid" width="100%"/>
+
+<table ifxpath='CeasedMedications/CeasedMeds' style="font-size:small; font-weight:bold;">
+<item value="Medication" width="30%"/>
+<item value="Dose" width="15%"/>
+<item value="Route of Admin" width="15%"/>
+<item value="Frequency" width="15%"/>
+<item value="Indication/Notes" width="30%"/>
+</table>
+
+<table group="CeasedMedications/CeasedMeds" style="font-size:small;">
+<item field="CeasedGenericName" width="30%"/>
+<item field="CeasedDose" width="15%"/>
+<item field="CeasedAdminRoute" width="15%"/>
+<item field="CeasedFrequency" width="15%"/>
+<item field="CeasedIndNotes" width="30%"/>
+</table>
+
+<line pattern="solid" width="100%"/>
+
+<!-- Discharge Destination -->
+<div style="padding-top:0.5cm; keep-with-next.within-page: 1000;">
+<item value="DISCHARGE DESTINATION / INTENTION TO READMIT :" style="font-weight:bold;"/>
+</div>
+<item field="DISSuggestions" breakOnLineFeed="true" />
+
+<!-- Send Copy Of D/C Summary To -->
+<table> 
+<item value="COPY OF DISCHARGE SUMMARY TO :" width="100%" style="font-weight:bold; padding-top:0.5cm"/>
+</table>
+		
+<table group="copiesOfDischargeSummary/copy">
+<block width="100%">
+<item field="REFD_Title"/>
+<item value=" "/>
+<item field="REFD_Forename"/>
+<item value=" "/>
+<item field="REFD_Desc"/>
+<item value="; "/>
+<item field="address"/>
+</block>
+</table>
+<line pattern="solid" width="100%"/>
+
+<!-- Authorised By -->
+<table width="100%">
+<block width="70%">
+<item value="Authorised By Care Provider :  " style="font-weight: bold; padding-top:0.5cm;"/>
+<item field="DISCTPCPDesc"/>
+</block>
+<block>
+<item value="Date:  " style="font-weight: bold; padding-top:0.5cm;"/>
+<item field="DISUpdateDate"/>
+</block>
+</table>
+<br/>
+<item value="Entered By :    " style="font-weight: bold; padding-top:0.5cm;" width="%"/>
+<item field="SSUSRGivenName"/>
+<item value=" "/>
+<item field="SSUSRSurname" />
+</block>
+
+<!-- Conditional Pagebreak -->
+<!--<pagebreak ifxpath='ARCIMDesc[text()!=""]'/>
+<block ifxpath='ARCIMDesc[text()!=""]'> 
+<group name="/DischargeSummaries/DischargeSummary">
+<table width="100%">
+<line pattern="solid" width="100%"/>
+</table>
+<table width="100%">
+<item value="Investigation" style="font-weight:bold; font-size:small" width="40%"/>
+<item value="Date of result" style="font-weight:bold; font-size:small" width="20%"/>
+<item value="Result" style="font-weight:bold; font-size:small" width="40%"/>
+</table>
+<div style="padding-top:0.25cm;"> 
+<table width="100%" rowAcrossPages="false">
+<item field="InvestigationDescription[1]/text" style="font-weight:bold; font-size:small" width="40%"/>
+<item field="OEORICollectionDate" style="font-weight:bold; font-size:small" width="20%"/>
+<item field="RESSTDesc" style="font-weight:bold; font-size:small" width="40%"/>
+</table>
+</div>
+<table width="100%">
+<line pattern="solid" width="100%"/>
+</table>
+<item style="font-family: monospace; page-break-inside: avoid; keep-together:always;" 
+breakOnLineFeed="true" insert-zero-width-spaces="true" literalSpaces="true" field="InvestigationDetails/SECText" />-->
+<!--<item style="font-family: monospace;" field="InvestigationDetails/SECText" breakOnLineFeed="false" copyhtml="true" />-->
+
+<!--<table orient='col' width="100%" table-layout="fixed">
+<item value=" " width="5%"/>
+<table orient='col' width="95%" class='radresult' group="InvestigationDetails" >
+<item field="SECText" />
+</table>
+</table>
+-->
+<!--</group>
+</block>-->
+
+<!-- Conditional Pagebreak -->
+<pagebreak ifxpath='@NumResults!=0'/>
+<block>
+<group name="Investigations/Investigation">
+<block ifxpath='OEORIClinicallySignificant[text()="Yes"]'>
+<table width="100%">
+<line pattern="solid" width="100%"/>
+</table>
+<table width="100%">
+<item value="Investigation" style="font-weight:bold; font-size:small" width="40%"/>
+<item value="Date of result" style="font-weight:bold; font-size:small" width="20%"/>
+<item value="Result" style="font-weight:bold; font-size:small" width="40%"/>
+</table>
+<div style="padding-top:0.25cm;"> 
+<table width="100%" rowAcrossPages="false">
+<item field="ARCIMDesc" style="font-weight:bold; font-size:small" width="40%"/>
+<item field="OEORICollectionDate" style="font-weight:bold; font-size:small" width="20%"/>
+<item field="RESSTDesc" style="font-weight:bold; font-size:small" width="40%"/>
+</table>
+</div>
+<table width="100%">
+<line pattern="solid" width="100%"/>
+</table>
+<item style="font-family: monospace; page-break-inside: avoid; keep-together:always;" 
+breakOnLineFeed="true" insert-zero-width-spaces="true" literalSpaces="true" field="SECText" />
+</block>
+</group>
+</block>
+</group>
+
+</body>
+</report>
+]]></Data>
+</XData>
+
+<Method name="buildTMPStreamIDs">
+<FormalSpec>TMPStreamID:%String</FormalSpec>
+<ReturnType>%Status</ReturnType>
+<Implementation><![CDATA[
+ if TMPStreamID'="",..TMPStreamIDs'="" set ..TMPStreamIDs=..TMPStreamIDs_","
+ if TMPStreamID'="" set ..TMPStreamIDs=..TMPStreamIDs_TMPStreamID
+ quit $$$OK
+]]></Implementation>
+</Method>
+
+<UDLText name="T">
+<Content><![CDATA[
+// PH OnAfterReport method - distribute to SSDP if flag set to 1 in report manager definition
+
+]]></Content>
+</UDLText>
+
+<UDLText name="T">
+<Content><![CDATA[
+// check if MHR doctor/clinic is in the distribution list and send to HIPS
+
+]]></Content>
+</UDLText>
+
+<Method name="%OnAfterReport">
+<ReturnType>%Status</ReturnType>
+<Implementation><![CDATA[
+	set tStatus = $$$OK
+	set PDFFilepathName = ..OutputFileName
+	if ..ReportDir'=""||($$$GETPARAMETER("REPORTDIR")'="") s PDFFilepathName=##class(%File).NormalizeFilename(PDFFilepathName,$s(..ReportDir'="":..ReportDir,1:$$$GETPARAMETER("REPORTDIR")))
+	if (($FIND(PDFFilepathName,"Dummy")=0) && (PDFFilepathName'="")){
+		set doc = ##class(User.PACRefDoctor).%OpenId(..DocID)
+ 		if doc && (doc.REFDCode = "MHR") {
+	 		// Send to HIPS for MyHealthRecord
+ 			set tStatus = ##class(Custom.SWARH.HIPS.Utils).CheckAndSendToHIPS(..DisID, PDFFilepathName)  //quit:$$$ISERR(tSC) tSC
+		} elseif (..DistributeToSSDP="1"){
+			set tStatus=##class(Custom.SWARH.SSDP.Utils).DistributeToSSDP(..DisID,PDFFilepathName)  //quit:$$$ISERR(tSC) tSC
+		}
+	}
+	quit tStatus
+]]></Implementation>
+</Method>
+</Class>
+</Export>

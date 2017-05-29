@@ -1,0 +1,339 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.AUXX.Report.ZEN.StoredProc.DischargesListByWard">
+<ProcedureBlock>0</ProcedureBlock>
+<Super>Report.Abstract</Super>
+<TimeCreated>60866,51712</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/AUXX/Report/ZEN/StoredProc/DischargesListByWard.xml#1 $</Default>
+</Parameter>
+
+<UDLText name="T">
+<Content><![CDATA[
+// Report Name: Trak Discharges List by Ward <br>
+
+]]></Content>
+</UDLText>
+
+<UDLText name="T">
+<Content><![CDATA[
+// Report Code: AUXX.ATD0009 <br>
+
+]]></Content>
+</UDLText>
+
+<UDLText name="T">
+<Content><![CDATA[
+// LOGTRAK Number: 72143 <br>
+
+]]></Content>
+</UDLText>
+
+<Method name="DischargesListByWardClose">
+<Description>
+This is the Close component of the %Library.Query.
+This is standard code and should never have to change.
+This is where all the cleanup is performed, i.e. the purging of the temporary storage global ^CacheTemp.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>QHandle:%Library.Binary</FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Clean up by purging the temporary node in ^CacheTemp global
+ New repid
+ Set repid=$li(QHandle,2)
+  
+  //Start Monitor (if configured to capture stats)
+ i mon Do ..MonitorEnd(mon)
+
+  Kill ^CacheTemp("TRAK",repid)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="DischargesListByWardExecute">
+<Description>
+This is the Execute section for the %Library.Query. 
+All of the logic will be performed here.
+A new node for the ^CacheTemp global will be created and each subscript of this global will contain
+a row for the report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,DateFrom:%Library.Date,DateTo:%Library.Date,Hospital:%Library.String,Ward:%Library.String]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Get reportid i.e. use $INCREMENT to add another node to ^CacheTemp global. 
+ // We use ^CacheTemp global because it will always use memory before disk
+ New repid,ind, END, index, counter
+ 
+ // Set sub = $h_$j
+ // Use $Increment to get the next node
+ Set repid=$I(^CacheTemp("TRAK"))
+ 
+  //Start Monitor (if configured to capture stats)
+ s mon=..MonitorBegin()
+ 
+ // Build data into ^CacheTemp("TRAK",ReportID)
+ // e.g. Set ^CacheTemp("TRAK",ReportID,Index)=$LB(f1,f2,f3)
+ New PAADMRowID,PAADMAdmNo,PAADMAdmDate,PAADMDischgDate,PAADMDischgTime,
+        ADSOURowID,ADSOUCode,ADSOUDesc,DDESTCode,CTDSPCode,CTDSPDesc,
+        PAPMIRowID,PAPMIName,PAPMIName2,PAPMIName3,PAPMIVIPFlag,PAPMIDOB,
+        PAPERAge,CTSEXCode,CTPCPRowID,CTPCPDesc,WARDLocationDR,WARDRowID,
+        WARDCode,WARDDesc,CTLOCRowID,CTLOCCode,CTLOCDesc,HOSPRowID,
+        HOSPDesc,SIGNFRowID,SIGNFCode,SIGNFDesc,IPATRowID,IPATCode,IPATDesc,
+        LOS,CurrentPayor,PAPMINo,DDESTDesc,AdmDate,SiteCode
+     
+ Set (PAADMRowID,PAADMAdmNo,PAADMAdmDate,PAADMDischgDate,PAADMDischgTime,
+        ADSOURowID,ADSOUCode,ADSOUDesc,DDESTCode,CTDSPCode,CTDSPDesc,
+        PAPMIRowID,PAPMIName,PAPMIName2,PAPMIName3,PAPMIVIPFlag,PAPMIDOB,
+        PAPERAge,CTSEXCode,CTPCPRowID,CTPCPDesc,WARDLocationDR,WARDRowID,
+        WARDCode,WARDDesc,CTLOCRowID,CTLOCCode,CTLOCDesc,HOSPRowID,
+        HOSPDesc,SIGNFRowID,SIGNFCode,SIGNFDesc,IPATRowID,IPATCode,
+        IPATDesc,LOS,CurrentPayor,PAPMINo,DDESTDesc,AdmDate,SiteCode) = ""
+ 
+ s ind=1, END = 0
+
+ // Convert date to cache format
+ s DateFrom=..ConvertDateToCache(DateFrom)
+ s DateTo=..ConvertDateToCache(DateTo)
+
+ // Strip white space/control chars from blank variables
+  if Hospital '= "" {set Hospital = $ZSTRIP(Hospital,"*WC")}
+  if Ward '= "" {set Ward = $ZSTRIP(Ward,"*WC")}
+
+ while END = 0 
+ {
+     do GetDischarges
+ }
+  
+  // Build QHandle (AtEnd,ReportID,Index)
+ Set QHandle=$lb(0,repid,0)
+ Quit $$$OK 
+  
+ //Get all discharges for the hospital(s) within the given date range
+GetDischarges
+ &sql(declare GetDischarges cursor for
+    select distinct
+        %EXACT(paadm_rowid),
+        paadm_admno,
+        paadm_admdate,
+        paadm_dischgdate,
+        paadm_dischgtime,
+        paadm_admsrc_dr->adsou_rowid,
+        paadm_admsrc_dr->adsou_code,
+        paadm_admsrc_dr->adsou_desc,
+        paadm_mainmradm_dr->mradm_DischDestin_DR->DDEST_Code,
+        paadm_mainmradm_dr->mradm_DischType_dr->CTDSP_code,
+        paadm_mainmradm_dr->mradm_DischType_dr->CTDSP_Desc,
+        paadm_papmi_dr->papmi_rowid,
+        paadm_papmi_dr->papmi_name,
+        paadm_papmi_dr->papmi_name2,
+        paadm_papmi_dr->papmi_name3,
+        PAADM_PAPMI_dr->PAPMI_VIPFlag,
+        PAADM_PAPMI_dr->PAPMI_DOB,
+        PAADM_PAPMI_dr->PAPMI_PAPER_DR->paper_age,
+        PAADM_PAPMI_dr->PAPMI_sex_dr->ctsex_code,
+        PAADM_DischgDoc_DR->CTPCP_RowID,
+        PAADM_DischgDoc_DR->CTPCP_Desc,
+        PAADM_CurrentWard_DR->WARD_LocationDR,
+        PAADM_CurrentWard_dr->ward_rowid,
+        PAADM_CurrentWard_dr->ward_code,
+        PAADM_CurrentWard_dr->ward_desc,
+        PAADM_depcode_dr->ctloc_rowid,
+        PAADM_depcode_dr->ctloc_code,
+        PAADM_depcode_dr->ctloc_desc,
+        PAADM_currentward_dr->ward_locationdr->ctloc_hospital_dr,
+        PAADM_currentward_dr->ward_locationdr->ctloc_hospital_dr->hosp_desc,
+        PAADM_CurrentWard_DR->ward_locationdr->CTLOC_SignifFacility_DR->SignF_RowId,
+        PAADM_CurrentWard_DR->ward_locationdr->CTLOC_SignifFacility_DR->SignF_Code,
+        PAADM_CurrentWard_DR->ward_locationdr->CTLOC_SignifFacility_DR->SignF_Desc,
+        PAADM_inpatadmtype_dr->Ipat_RowID,
+        PAADM_inpatadmtype_dr->Ipat_Code,
+        PAADM_inpatadmtype_dr->Ipat_Desc,
+        PAADM_PAPMI_dr->PAPMI_No,
+        paadm_mainmradm_dr->mradm_DischDestin_DR->DDEST_Desc
+    FROM SQLUSER.pa_adm
+    WHERE paadm_visitstatus = 'D'
+    AND paadm_dischgdate between :DateFrom and :DateTo
+    AND paadm_type = 'I'  
+    AND (({fn CONCAT( ',', {fn CONCAT((:Hospital),',')})} [ {fn CONCAT( ',', {fn CONCAT((paadm_CurrentWard_dr->WARD_LocationDR->ctloc_hospital_dr->hosp_rowid),',')})}) OR (:Hospital IS NULL))
+    AND (({fn CONCAT( ',', {fn CONCAT((:Ward),',')})} [ {fn CONCAT( ',', {fn CONCAT((PAADM_CurrentWard_dr->WARD_RowId),',')})}) OR (:Ward IS NULL))
+ )
+        
+ &sql(open GetDischarges)
+ 
+ do FetchDischarges
+ 
+ while END = 0
+ {
+	 do GetSiteCode
+     do GetInsuranceDetails
+     do GetLOS
+     do FormatDates
+     do FormatTimes
+     do BuildRow
+     do FetchDischarges
+ }
+ 
+ &sql(close GetDischarges)
+ 
+ quit
+
+FetchDischarges
+ //fetch rows into cursor
+ &sql(fetch GetDischarges INTO 
+        :PAADMRowID,:PAADMAdmNo,:PAADMAdmDate,:PAADMDischgDate,:PAADMDischgTime,
+        :ADSOURowID,:ADSOUCode,:ADSOUDesc,:DDESTCode,:CTDSPCode,
+        :CTDSPDesc,:PAPMIRowID,:PAPMIName,:PAPMIName2,:PAPMIName3,
+        :PAPMIVIPFlag,:PAPMIDOB,:PAPERAge,:CTSEXCode,:CTPCPRowID,
+        :CTPCPDesc,:WARDLocationDR,:WARDRowID,:WARDCode,:WARDDesc,
+        :CTLOCRowID,:CTLOCCode,:CTLOCDesc,:HOSPRowID,:HOSPDesc,
+        :SIGNFRowID,:SIGNFCode,:SIGNFDesc,:IPATRowID,:IPATCode,
+        :IPATDesc,:PAPMINo,:DDESTDesc)
+
+	 if SQLCODE '= 0 set END = 1
+
+ Quit
+
+GetSiteCode
+ s (SiteCode)=""
+ &sql(SELECT
+ SiteCode
+	INTO :SiteCode
+	FROM websys.configuration
+)
+     i SiteCode="SWARH" s DDESTCode=CTDSPCode
+
+ Quit
+
+
+GetInsuranceDetails	
+ set (CurrentPayor,PayorData)=""
+ set AdmIns=0
+ i $g(PAADMRowID)="" q
+ s AdmDate=$p(^PAADM(PAADMRowID),"^",6)
+            
+ f  s AdmIns=$o(^PAADM(PAADMRowID,"INS",AdmIns)) q:AdmIns=""  s PayorData=^(AdmIns) d  q:CurrentPayor'=""
+ .i $p(PayorData,"^",3)=AdmDate s payor=$p(PayorData,"^",1)
+ .i $p(PayorData,"^",3)="" s CurrentPayor=$p(PayorData,"^",1)
+            
+ i CurrentPayor'="" s CurrentPayor=$p($g(^ARC("INST",CurrentPayor)),"^",1)
+ quit
+
+GetLOS
+ s LOS=##class(Custom.AUXX.Report.ZEN.StoredProc.DischargesListByWard).LengthOfStay(PAADMRowID)
+
+ quit
+
+FormatDates
+ // Convert the dates to ODBC date format
+ If PAADMAdmDate  Set PAADMAdmDate=..ConvertDateToODBC(PAADMAdmDate)
+ If PAADMDischgDate Set PAADMDischgDate=..ConvertDateToODBC(PAADMDischgDate)
+ If PAPMIDOB Set PAPMIDOB=..ConvertDateToODBC(PAPMIDOB) 
+ 
+ quit
+
+FormatTimes
+ // Convert the dates to ODBC date format
+ If PAADMDischgTime Set PAADMDischgTime=..ConvertTimeToODBC(PAADMDischgTime)
+ If PAADMDischgTime = 0 set PAADMDischgTime = "00:00:00"
+  
+ quit
+
+BuildRow
+ // build the row
+ Set ^CacheTemp("TRAK",repid,$ZCVT(HOSPDesc,"U")_" "_$ZCVT(WARDDesc,"U")_" "_PAADMDischgDate_" "_$ZCVT(PAPMIName,"U")_" "_$ZCVT(PAPMIName2,"U")_" "_$ZCVT(PAPMIName3,"U")_ind)=$LB(PAADMRowID,PAADMAdmNo,PAADMAdmDate,PAADMDischgDate,PAADMDischgTime,ADSOURowID,ADSOUCode,ADSOUDesc,DDESTCode,CTDSPCode,CTDSPDesc,PAPMIRowID,PAPMIName,PAPMIName2,PAPMIName3,PAPMIVIPFlag,PAPMIDOB,PAPERAge,CTSEXCode,CTPCPRowID,CTPCPDesc,WARDLocationDR,WARDRowID,WARDCode,WARDDesc,CTLOCRowID,CTLOCCode,CTLOCDesc,HOSPRowID,HOSPDesc,SIGNFRowID,SIGNFCode,SIGNFDesc,IPATRowID,IPATCode,IPATDesc,LOS,CurrentPayor,PAPMINo,DDESTDesc,SiteCode)
+ Set ind=ind+1
+ quit
+]]></Implementation>
+</Method>
+
+<Method name="DischargesListByWardFetch">
+<Description>
+This is the Fetch component of the %Library.Query. 
+This should never have to change. It is designed to fetch the row for each subscript of the ^CacheTemp</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,&Row:%Library.List,&AtEnd:%Library.Integer=0]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // This fetch method should never have to change. 
+
+ // ind   - sequence index which represents each row
+
+ New repid,ind
+
+ // Restore QHandle
+ Set AtEnd=$li(QHandle,1)
+ Set repid=$li(QHandle,2)
+ Set ind=$li(QHandle,3)
+
+ Set ind=$o(^CacheTemp("TRAK",repid,ind))
+ If ind="" {    // if there are no more rows, finish fetching
+ Set AtEnd=1
+ Set Row=""
+ }
+ Else      {    // fetch row
+ Set Row=^CacheTemp("TRAK",repid,ind)
+ }
+
+ // Save QHandle
+ s QHandle=$lb(AtEnd,repid,ind)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Query name="DischargesListByWard">
+<Type>%Library.Query</Type>
+<FormalSpec>DateFrom:%Library.Date,DateTo:%Library.Date,Hospital:%Library.String,Ward:%Library.String</FormalSpec>
+<SqlProc>1</SqlProc>
+<Parameter name="CONTAINID" value="0"/>
+<Parameter name="ROWSPEC" value="PAADMRowID:%Library.String,PAADMAdmNo:%Library.String,PAADMAdmDate:%Library.Date,PAADMDischgDate:%Library.Date,PAADMDischgTime:%Library.Time,ADSOURowID:%Library.String,ADSOUCode:%Library.String,ADSOUDesc:%Library.String,DDESTCode:%Library.String,CTDSPCode:%Library.String,CTDSPDesc:%Library.String,PAPMIRowID:%Library.String,PAPMIName:%Library.String,PAPMIName2:%Library.String,PAPMIName3:%Library.String,PAPMIVIPFlag:%Library.String,PAPMIDOB:%Library.Date,PAPERAge:%Library.String,CTSEXCode:%Library.String,CTPCPRowID:%Library.String,CTPCPDesc:%Library.String(MAXLEN=255),WARDLocationDR:%Library.String,WARDRowID:%Library.String,WARDCode:%Library.String,WARDDesc:%Library.String,CTLOCRowID:%Library.String,CTLOCCode:%Library.String,CTLOCDesc:%Library.String,HOSPRowID:%Library.String,HOSPDesc:%Library.String,SIGNFRowID:%Library.String,SIGNFCode:%Library.String,SIGNFDesc:%Library.String,IPATRowID:%Library.String,IPATCode:%Library.String,IPATDesc:%Library.String,LOS:%Library.Integer,CurrentPayor:%Library.String,PAPMINo:%Library.String,DDESTDesc:%Library.String,SiteCode:%String"/>
+</Query>
+
+<Method name="LengthOfStay">
+<Description>
+Calculates Length Of Stay</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>PAADMRowId:%Integer</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+ n LOS,LEAVE,END
+ n ZADMLGoingOutDate,ZADMLActualDateReturn
+ s LOS=0
+ i PAADMRowId'="" {
+	 &sql( DECLARE LEAVE CURSOR FOR
+	 SELECT
+	 ADML_GoingOutDate,
+	 ADML_ActualDateReturn
+	 FROM sqluser.PA_AdmLeave
+	 WHERE ADML_ParRef=:PAADMRowId
+ 	 ORDER BY ADML_GoingOutDate)
+ 
+	 &sql(OPEN LEAVE)
+
+	 s (ZADMLGoingOutDate,ZADMLActualDateReturn)=0
+	 s (LOS,LEAVE,END)=0
+	 s LOS=PAADMDischgDate-PAADMAdmDate
+	 d FetchLOS
+
+	 WHILE 'END {
+     	s LEAVE=0
+     	i $g(ZADMLActualDateReturn),$g(ZADMLGoingOutDate) s LEAVE=ZADMLActualDateReturn-ZADMLGoingOutDate
+     	s LOS=LOS-LEAVE
+     	d FetchLOS
+ 	}
+    
+ 	i LOS=0 s LOS=1
+ }
+
+ q LOS
+
+FetchLOS
+ &sql(FETCH LEAVE INTO :ZADMLGoingOutDate,:ZADMLActualDateReturn)
+ i SQLCODE s END=1 &sql(CLOSE LEAVE)
+ q
+]]></Implementation>
+</Method>
+</Class>
+</Export>

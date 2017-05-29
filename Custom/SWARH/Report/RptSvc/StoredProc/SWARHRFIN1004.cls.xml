@@ -1,0 +1,291 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.SWARH.Report.RptSvc.StoredProc.SWARHRFIN1004">
+<Description><![CDATA[
+<pre>
+***************************************************************************************************************************************
+* Report Code: SWARHRFIN1004
+* Report Description: Community Receipts Report returns receipts issued for the report period.
+* 	This class is used by SWARHFIN1004s (Summary) and SWARHFIN1004d (Detailed) reporting services reports.
+* Menu Caption: Community Receipts Report
+* Initial release:04/03/2015 Developer: Michael Welsh 
+* Modified:	
+***************************************************************************************************************************************
+</pre>]]></Description>
+<ProcedureBlock>0</ProcedureBlock>
+<Super>Custom.SWARH.Report.ZEN.StoredProc.Abstract</Super>
+<TimeCreated>59388,55236.125</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/SWARH/Report/RptSvc/StoredProc/SWARHRFIN1004.xml#1 $</Default>
+</Parameter>
+
+<Method name="SWARHRFIN1004Execute">
+<Description>
+This is the Execute section for the %Library.Query. 
+All of the logic will be performed here.
+A new node for the ^CacheTemp global will be created and each subscript of this global will contain
+a row for the report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,Hospital:%Integer,DateFrom:%Date,DateTo:%Date,SumDet:%String,CashierLoc:%Integer,Specialty:%String]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Get reportid i.e. use $INCREMENT to add another node to ^CacheTemp global. 
+ // We use ^CacheTemp global because it will always use memory before disk
+ New repid,ind
+
+ // Use $Increment to get the next node
+ Set repid=$INCREMENT(^CacheTemp(..#CACHETEMPSUBSCRIPT))
+ 
+ New ReceiptRowID,ReceiptNo,ReceiptDate,PatientID,AdmissionDR,EpisodeNo,EpSpecRowID,EpSpecCode,EpSpecDesc,BillNo,BillAmount,ReceiptAmount
+ 	,PayModeRowID,PayModeCode,PayModeDesc,LocationRowID,LocationCode,LocationDesc,GLCCCRowID,GLCCCCode,GLCCCDesc,CashierName
+ 	,HospCode,PayorGrpCode,InsCode,InsDesc,PATIENTBILLPAYOR,CONTACTPAYOR,CONTACTPLAN,DepRowID,DepCode,DepDesc,BILLSERVICECODE
+ 	,BILLSERVICEDESC,BILLINGSUBGROUP,URNo,Surname,GivenName,OtherGivenName,DOB,SEX,Address,Address2,City,PostCode
+ 	,BillItmAmount,BillItmDate,BillItmServiceCode,BillItemServiceDesc,BillDate,OutstandingTotal,InvoiceAmount,CashierShift
+  
+ New MappedValue,ActualValue,preReceiptNo,preBillNo
+
+ Set (ReceiptNo,ReceiptDate,AdmissionDR,EpisodeNo,EpSpecCode,EpSpecDesc,BillNo,PayModeCode,PayModeDesc,LocationCode,LocationDesc,GLCCCCode,GLCCCDesc,CashierName,HospCode,PayorGrpCode,InsCode,InsDesc,PATIENTBILLPAYOR,CONTACTPAYOR,CONTACTPLAN,DepCode,DepDesc
+ 	,BILLSERVICECODE,BILLSERVICEDESC,BILLINGSUBGROUP,URNo,Surname,GivenName,OtherGivenName,DOB,SEX,Address,Address2,City,PostCode
+ 	,BillItmDate,BillItmServiceCode,BillItemServiceDesc,BillDate,CashierShift) = ""
+ 	
+ Set (MappedValue,ActualValue,preReceiptNo,preBillNo) = ""
+ 
+ Set (ReceiptRowID,PatientID,EpSpecRowID,BillAmount,ReceiptAmount,PayModeRowID,LocationRowID,GLCCCRowID,DepRowID,BillItmAmount,OutstandingTotal,InvoiceAmount)= 0
+ 
+ Set ind=1, END=0
+
+ //Start Monitor (if configured to capture stats)
+ Set mon=..MonitorBegin()
+ 
+ //Convert ODBC dates to cache format
+ Set DateFrom=..ConvertDateToCache(DateFrom)
+ Set DateTo=..ConvertDateToCache(DateTo)
+ 
+ &SQL(DECLARE SWARHRFIN1004 CURSOR FOR
+	SELECT
+        Receipts.ARRCP_RowID AS ReceiptRowID
+        ,Receipts.ARRCP_Number AS ReceiptNo
+        ,Receipts.ARRCP_Date AS ReceiptDate
+
+        ,RcptAlloc.ARRAL_ADMISSION_DR->PAADM_PAPMI_DR AS PatientID
+        ,RcptAlloc.ARRAL_ADMISSION_DR AS AdmissionDR
+        ,RcptAlloc.ARRAL_ADMISSION_DR->PAADM_AdmNo AS EpisodeNo
+
+        ,RcptAlloc.ARRAL_ADMISSION_DR->PAADM_DepCode_DR->CTLOC_RowID AS EpSpecRowID
+        ,RcptAlloc.ARRAL_ADMISSION_DR->PAADM_DepCode_DR->CTLOC_Code AS EpSpecCode
+        ,RcptAlloc.ARRAL_ADMISSION_DR->PAADM_DepCode_DR->CTLOC_Desc AS EpSpecDesc
+
+        ,RcptAlloc.ARRAL_ARPBIL_DR->ARPBL_BillNo AS BillNo
+        ,PatientBill.ARPBL_Totalallowed AS BillAmount
+        ,Receipts.ARRCP_PayAmount AS ReceiptAmount
+
+        ,PayMode.PAYM_PayMode_DR->CTPM_RowId AS PayModeRowID
+        ,PayMode.PAYM_PayMode_DR->CTPM_Code AS PayModeCode
+        ,PayMode.PAYM_PayMode_DR->CTPM_Desc AS PayModeDesc
+
+        ,Receipts.ARRCP_Location_DR->CTLOC_RowID AS LocationRowID
+        ,Receipts.ARRCP_Location_DR->CTLOC_Code AS LocationCode
+        ,Receipts.ARRCP_Location_DR->CTLOC_Desc AS LocationDesc
+        
+        ,Receipts.ARRCP_Location_DR->CTLOC_GLCCC_DR->GLCCC_RowID AS GLCCCRowID
+        ,Receipts.ARRCP_Location_DR->CTLOC_GLCCC_DR->GLCCC_Code AS GLCCCCode
+        ,Receipts.ARRCP_Location_DR->CTLOC_GLCCC_DR->GLCCC_Desc AS GLCCCDesc
+
+        ,Receipts.ARRCP_AddUserID->SSUSR_Name AS CashierName
+
+        ,Receipts.ARRCP_Location_DR->CTLOC_Hospital_DR->HOSP_Code AS HospCode
+        ,RcptAlloc.ARRAL_ARPBIL_DR->ARPBL_AuxInsType_DR->AUXIT_InsType_DR->INST_PayorGroup_DR->PGRP_Code AS PayorGrpCode
+        ,RcptAlloc.ARRAL_ARPBIL_DR->ARPBL_AuxInsType_DR->AUXIT_Code AS InsCode
+        ,RcptAlloc.ARRAL_ARPBIL_DR->ARPBL_AuxInsType_DR->AUXIT_Desc AS InsDesc
+        ,RcptAlloc.ARRAL_ARPBIL_DR->ARPBL_INSURANCETYPE_DR->INST_DESC AS PATIENTBILLPAYOR
+
+        ,RcptAlloc.ARRAL_ADMISSION_DR->PAADM_PAPMI_DR->PAPMI_No AS URNo
+        ,RcptAlloc.ARRAL_ADMISSION_DR->PAADM_PAPMI_DR->PAPMI_Name AS Surname
+        ,RcptAlloc.ARRAL_ADMISSION_DR->PAADM_PAPMI_DR->PAPMI_Name2 AS GivenName
+        ,RcptAlloc.ARRAL_ADMISSION_DR->PAADM_PAPMI_DR->PAPMI_Name3 AS OtherGivenName
+        ,RcptAlloc.ARRAL_ADMISSION_DR->PAADM_PAPMI_DR->PAPMI_DOB AS DOB
+        ,RcptAlloc.ARRAL_ADMISSION_DR->PAADM_PAPMI_DR->PAPMI_PAPER_DR->PAPER_Sex_DR->CTSEX_Code AS SEX
+        ,RcptAlloc.ARRAL_ADMISSION_DR->PAADM_PAPMI_DR->PAPMI_PAPER_DR->PAPER_StName AS Address
+        ,RcptAlloc.ARRAL_ADMISSION_DR->PAADM_PAPMI_DR->PAPMI_PAPER_DR->PAPER_ForeignAddress AS Address2
+        ,RcptAlloc.ARRAL_ADMISSION_DR->PAADM_PAPMI_DR->PAPMI_PAPER_DR->PAPER_CityCode_DR->CTCIT_Desc AS City
+        ,RcptAlloc.ARRAL_ADMISSION_DR->PAADM_PAPMI_DR->PAPMI_PAPER_DR->PAPER_Zip_DR->CTZIP_Code AS PostCode
+        
+		,PatBillGrpCharges.ITM_LineTotal AS BillItmAmount
+        ,PatBillGrpCharges.ITM_Date AS BillItmDate
+        ,PatBillGrpCharges.ITM_ARCIM_DR->ARCIM_Code AS BillItmServiceCode
+        ,PatBillGrpCharges.ITM_ARCIM_DR->ARCIM_Desc AS BillItemServiceDesc
+        ,PatientBill.ARPBL_DatePrinted AS BillDate
+        ,PatientBill.ARPBL_AmountToPay AS OutstandingTotal
+        ,PatientBill.ARPBL_Totalallowed AS InvoiceAmount
+        
+        ,ssuser.SSUSR_CashierShift AS CashierShift
+
+	FROM
+        SQLUser.AR_Receipts Receipts
+                LEFT OUTER JOIN SQLUser.AR_RcptAlloc RcptAlloc ON (RcptAlloc.ARRAL_ARRCP_ParRef = Receipts.ARRCP_RowId)
+                LEFT OUTER JOIN SQLUser.AR_RcptPayMode PayMode ON (PayMode.PAYM_ParRef = Receipts.ARRCP_RowId)
+                LEFT OUTER JOIN SQLUser.AR_PatientBill PatientBill ON (PatientBill.ARPBL_RowID = RcptAlloc.ARRAL_ARPBIL_DR)
+                LEFT OUTER JOIN SQLUser.AR_PatBillGroup PatBillGrp ON (PatBillGrp.BGRP_ParRef = PatientBill.ARPBL_RowID)
+                LEFT OUTER JOIN SQLUser.AR_PatBillGroupCharges PatBillGrpCharges ON (PatBillGrpCharges.ITM_ParRef = PatBillGrp.BGRP_RowID)
+                LEFT OUTER JOIN(
+                	SELECT DISTINCT SSUSR_DefaultDept_DR,SSUSR_CashierShift 
+                	FROM SQLUser.SS_USER 
+                	WHERE SSUSR_CashierShift = 'Y')
+                	ssuser ON ssuser.SSUSR_DefaultDept_DR = Receipts.ARRCP_Location_DR
+	WHERE
+        Receipts.ARRCP_Location_DR->CTLOC_Hospital_DR->HOSP_RowId = :Hospital
+	AND
+        Receipts.ARRCP_Date BETWEEN :DateFrom AND :DateTo
+    AND
+    	(PatientBill.ARPBL_PAADM_DR->PAADM_DepCode_DR->CTLOC_RowID = :Specialty OR (:Specialty IS NULL))
+    AND
+    	(Receipts.ARRCP_Location_DR->CTLOC_RowID = :CashierLoc OR (:CashierLoc IS NULL)) --- Cashier Loaction
+	AND
+        (PayMode.PAYM_InvalidFlag <> 'Y' OR (PayMode.PAYM_InvalidFlag IS NULL)))
+                
+ &SQL(OPEN SWARHRFIN1004)
+ 
+ //FETCH FIRST ROW
+ Do FetchRow
+  
+ while END=0 {
+	 
+	 If preReceiptNo = ReceiptNo {set ReceiptAmount = 0} 
+	 If preBillNo = BillNo {set BillAmount = 0, OutstandingTotal= 0}
+  
+	 Do GetMappedValue
+	 Do FormatDates, FormatTimes, FormatStrings
+  	 Set sort = ind
+	 Set ^CacheTemp(..#CACHETEMPSUBSCRIPT,repid,sort)=$LISTBUILD(ReceiptRowID,ReceiptNo,ReceiptDate,PatientID,AdmissionDR,EpisodeNo,EpSpecRowID,EpSpecCode
+	 ,EpSpecDesc,BillNo,BillAmount,ReceiptAmount,PayModeRowID,PayModeCode,PayModeDesc,LocationRowID,LocationCode,LocationDesc
+	 ,GLCCCRowID,GLCCCCode,GLCCCDesc,CashierName,HospCode,PayorGrpCode,InsCode,InsDesc,PATIENTBILLPAYOR
+	 ,URNo,Surname,GivenName,OtherGivenName,DOB,SEX,Address,Address2,City,PostCode,BillItmAmount,BillItmDate,BillItmServiceCode
+	 ,BillItemServiceDesc,BillDate,OutstandingTotal,InvoiceAmount,CashierShift,MappedValue,ActualValue)
+	 
+	 Set preReceiptNo = ReceiptNo
+	 Set preBillNo = BillNo
+	 Set ind=ind+1
+	 
+	 //Fetch next row
+ 	 Do FetchRow  	 
+ }
+
+ &SQL(CLOSE SWARHRFIN1004)
+ 
+ // Build QHandle (AtEnd,ReportID,Index)
+ Set QHandle=$LISTBUILD(0,repid,0)
+
+ Quit $$$OK
+
+FetchRow
+ &sql(FETCH SWARHRFIN1004 INTO :ReceiptRowID,:ReceiptNo,:ReceiptDate,:PatientID,:AdmissionDR,:EpisodeNo,:EpSpecRowID,:EpSpecCode
+	 ,:EpSpecDesc,:BillNo,:BillAmount,:ReceiptAmount,:PayModeRowID,:PayModeCode,:PayModeDesc,:LocationRowID,:LocationCode,:LocationDesc
+	 ,:GLCCCRowID,:GLCCCCode,:GLCCCDesc,:CashierName,:HospCode,:PayorGrpCode,:InsCode,:InsDesc,:PATIENTBILLPAYOR
+	 ,:URNo,:Surname,:GivenName,:OtherGivenName,:DOB,:SEX,:Address,:Address2,:City,:PostCode,:BillItmAmount,:BillItmDate
+	 ,:BillItmServiceCode,:BillItemServiceDesc,:BillDate,:OutstandingTotal,:InvoiceAmount,:CashierShift)
+
+ if SQLCODE '= 0 set END = 1
+ q
+ 
+FormatDates
+	Set ReceiptDate =..ConvertDateToODBC(ReceiptDate)
+	Set DOB =..ConvertDateToODBC(DOB)
+	Set BillItmDate =..ConvertDateToODBC(BillItmDate)
+	Set BillDate =..ConvertDateToODBC(BillDate)
+ Quit
+ 
+FormatTimes
+ Quit
+ 
+FormatStrings
+	Set Address = $ZSTRIP(Address,"*C") //Removes control characters (0-31,127-159)
+ 	Set Address = $ZSTRIP(Address,"*",$C(34,35,39,44,46)) //Removes 34-Quotes,35-Hash,39-Single quote,44-Comma,46-Period
+ 	Set Address = $ZCONVERT(Address,"U")
+	Set Address2 = $ZSTRIP(Address2,"*C")
+ 	Set Address2 = $ZSTRIP(Address2,"*",$C(34,35,39,44,46)) 
+ Quit
+ 
+GetMappedValue
+	s ActualValue = HospCode_"/"_PayorGrpCode_"//"_GLCCCCode_"/"
+	&SQL(SELECT NATC_MappedValue
+    INTO
+    	:MappedValue
+	FROM
+        SQLUser.PAC_NationalCodes
+	WHERE
+		NATC_TableName = 'GLC_CC'
+	AND
+		NATC_FieldName = 'GLCCC_Desc'
+	AND
+		NATC_ActualValue = :ActualValue)
+ Quit
+]]></Implementation>
+</Method>
+
+<Method name="SWARHRFIN1004Fetch">
+<Description>
+This is the Fetch component of the %Library.Query. 
+This should never have to change. It is designed to fetch the row for each subscript of the ^CacheTemp
+global and return this row to the Crystal Report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,&Row:%Library.List,&AtEnd:%Library.Integer=0]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // This fetch method should never have to change. 
+ // repid - Report ID
+ // ind   - sequence index which represents each row
+
+ New repid,ind
+
+ // Restore QHandle
+ Set AtEnd=$LIST(QHandle,1)
+ Set repid=$LIST(QHandle,2)
+ Set ind=$LIST(QHandle,3)
+
+ Set ind=$ORDER(^CacheTemp(..#CACHETEMPSUBSCRIPT,repid,ind))
+ If ind="" {	// if there are no more rows, finish fetching
+	 Set AtEnd=1
+	 Set Row=""
+ }
+ Else      {	// fetch row
+ 	Set Row=^CacheTemp(..#CACHETEMPSUBSCRIPT,repid,ind)
+ }
+
+ // Save QHandle
+ Set QHandle=$LISTBUILD(AtEnd,repid,ind)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="SWARHRFIN1004Close">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)
+This is the Close component of the %Library.Query.
+This is standard code and should never have to change.
+This is where all the cleanup is performed, i.e. the purging of the temporary storage global ^CacheTemp.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>QHandle:%Library.Binary</FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Clean up by purging the temporary node in ^CacheTemp global
+ New repid,ind
+ Set repid=$LIST(QHandle,2)
+
+ Kill ^CacheTemp(..#CACHETEMPSUBSCRIPT,repid)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Query name="SWARHRFIN1004">
+<Type>%Library.Query</Type>
+<FormalSpec>Hospital:%Integer,DateFrom:%Date,DateTo:%Date,SumDet:%String,CashierLoc:%Integer,Specialty:%String</FormalSpec>
+<SqlProc>1</SqlProc>
+<Parameter name="CONTAINID" value="0"/>
+<Parameter name="ROWSPEC" value="ReceiptRowID:%Integer,ReceiptNo:%String,ReceiptDate:%Date,PatientID:%Integer,AdmissionDR:%Integer,EpisodeNo:%String,EpSpecRowID:%Integer,EpSpecCode:%String,EpSpecDesc:%String,BillNo:%String,BillAmount:%Float,ReceiptAmount:%Float,PayModeRowID:%Integer,PayModeCode:%String,PayModeDesc:%String,LocationRowID:%Integer,LocationCode:%String,LocationDesc:%String,GLCCCRowID:%Integer,GLCCCCode:%String,GLCCCDesc:%String,CashierName:%String,HospCode:%String,PayorGrpCode:%String,InsCode:%String,InsDesc:%String,PATIENTBILLPAYOR:%String,URNo:%String,Surname:%String,GivenName:%String,OtherGivenName:%String,DOB:%Date,SEX:%String,Address:%String,Address2:%String,City:%String,PostCode:%String,BillItmAmount:%Float,BillItmDate:%Date,BillItmServiceCode:%String,BillItemServiceDesc:%String,BillDate:%Date,OutstandingTotal:%Float,InvoiceAmount:%Float,CashierShift:%String,MappedValue:%String,ActualValue:%String"/>
+<Parameter name="SELECTMODE" value="ODBC"/>
+</Query>
+</Class>
+</Export>

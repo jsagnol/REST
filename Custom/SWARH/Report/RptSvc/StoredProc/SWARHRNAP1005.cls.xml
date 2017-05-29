@@ -1,0 +1,298 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.SWARH.Report.RptSvc.StoredProc.SWARHRNAP1005">
+<Description><![CDATA[
+<pre>
+**************************************************************************************************************************************
+* Report Code: SWARHRNAP1005
+* Report Description: Active Episodes by Main Health Condition
+* Menu Caption: 
+* Initial release: 
+* Developer: Michael Welsh
+* Modified: JS
+* Modified: 2015/09/17 - Ross Gladman - Added support for multiple specialties & programs
+**************************************************************************************************************************************
+</pre>]]></Description>
+<ProcedureBlock>0</ProcedureBlock>
+<Super>Custom.SWARH.Report.ZEN.StoredProc.Abstract</Super>
+<TimeCreated>60905,54849</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/SWARH/Report/RptSvc/StoredProc/SWARHRNAP1005.xml#1 $</Default>
+</Parameter>
+
+<Method name="SWARHRNAP1005Close">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)
+This is the Close component of the %Library.Query.
+This is standard code and should never have to change.
+This is where all the cleanup is performed, i.e. the purging of the temporary storage global ^CacheTemp.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>QHandle:%Library.Binary</FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Clean up by purging the temporary node in ^CacheTemp global
+ New repid,ind
+ Set repid=$li(QHandle,2)
+
+ //Start Monitor (if configured to capture stats)
+ i mon Do ..MonitorEnd(mon)
+
+ Kill ^CacheTemp("TRAK",repid)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="SWARHRNAP1005Execute">
+<Description>
+This is the Execute section for the %Library.Query. 
+All of the logic will be performed here.
+A new node for the ^CacheTemp global will be created and each subscript of this global will contain
+a row for the report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,Hospital:%Integer,DateFrom:%Date,DateTo:%Date,Specialty:%String,Program:%String,Clinician:%String]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+		   
+ New repid,ind
+
+ Set repid=$I(^CacheTemp("TRAK"))
+ 
+ New URNo,EpisodeNo,Surname,GivenName,MidName,Street,City,PostCode,PhoneH,AdmDate,DchDate,RefLetterDate,RefReceivedDate,SpecialtyCode,SpecialtyDesc,VisitStatus,CategCode
+ 	,RefStatusCode,RefStatusDesc,ProgramCode,ProgramDesc,ClinicianCode,ClinicianDesc,RefReasonCode,RefReasonDesc,LOS,VinahMainHealthCond
+ Set (URNo,EpisodeNo,Surname,GivenName,MidName,Street,City,PostCode,PhoneH,AdmDate,DchDate,RefLetterDate,RefReceivedDate,SpecialtyCode,SpecialtyDesc,VisitStatus,CategCode
+ 	,RefStatusCode,RefStatusDesc,ProgramCode,ProgramDesc,ClinicianCode,ClinicianDesc,RefReasonCode,RefReasonDesc,VinahMainHealthCond) = ""
+ Set (LOS)=0
+ s ind=1, END=0
+
+ //Start Monitor (if configured to capture stats)
+ s mon=..MonitorBegin()
+ 
+ //Convert ODBC dates to cache format
+ s DateFrom=$$intdate^SSUTIL4(DateFrom)
+ s DateTo=$$intdate^SSUTIL4(DateTo)
+ 
+ i $g(Program)'="" s Program=$zstrip(Program,"*CW")
+ i $g(Clinician)'="" s Clinician=$zstrip(Clinician,"*CW")
+ 
+  s PAADMRowID=0
+	f {
+	    s (HospID,DEPCodeDR,NFMICategDepartDR,PAADMAdmDocCodeDR,PAADMVisitStatus,PAADMAdmDocCodeDR,PAADMWaitListDR,WLReferralReasonDR,EffectiveDischargeDate)=""
+    	
+    	;loop through all outpatient/NA episodes
+	 	s PAADMRowID=$o(^PAADMi("PAADM_Type","O",PAADMRowID)) q:PAADMRowID="" 
+ 	
+	 	;Filter Hospital
+	 	s HospID=$P($G(^PAADM(PAADMRowID,2)),"^",85) 
+	 	i HospID'=Hospital {continue}
+
+	 	;Filter Specialty
+	 	s DEPCodeDR=$P($G(^PAADM(PAADMRowID)),"^",4) 
+	 	; i DEPCodeDR'=Specialty {i Specialty'="" {continue}} - Single Specialty
+		If (","_Specialty_",")'[(","_DEPCodeDR_",") { ; - Multiple Specialities
+	 	  If Specialty'="" {continue}
+	 	}
+ 	
+	 	;Filter Program
+	 	s NFMICategDepartDR=$P($G(^PAADM(PAADMRowID,"ADM2")),"^",104)
+		; i NFMICategDepartDR'=Program {i Program'="" {continue}} ; - Single Program
+		If (","_Program_",")'[(","_NFMICategDepartDR_",") { ; - Multiple Programs
+			If Program'="" {Continue}
+		}
+		
+		;Filter Cancelled or Pending Episodes
+		s PAADMVisitStatus = $P($G(^PAADM(PAADMRowID)),"^",20)
+		i ((PAADMVisitStatus="C") || (PAADMVisitStatus="P")) {continue}
+		
+		;Filter Clinician
+		s PAADMAdmDocCodeDR = $P($G(^PAADM(PAADMRowID)),"^",9)
+		i PAADMAdmDocCodeDR'=Clinician {
+			i Clinician'="" {continue}
+		}
+		
+		;Filter episodes with no wldr or referral reason
+		;s PAADMWaitListDR= $P($G(^PAADM(PAADMRowID,1)),"^",18)
+ 		;i 'PAADMWaitListDR {continue}
+        ;s WLReferralReasonDR = $P($G(^PAWL(PAADMWaitListDR)),"^",159)
+        ;s WLReferralReasonDR = $P($G(^PAC("REFREA",PAADMWaitListDR)),"^",2)
+        ;i 'WLReferralReasonDR {continue}
+		
+		;Filter outside date parameters
+		s OPAdmDate = ..GetOPAdmDate(PAADMRowID)
+		i 'OPAdmDate {continue}
+		s PAADMDischgDate=$P($G(^PAADM(PAADMRowID)),"^",17)
+		i ((OPAdmDate<=DateTo) && ((PAADMDischgDate>=DateFrom) || (PAADMDischgDate="")))
+		{
+				d FillData
+				d BuildRow
+		}		
+	}
+	
+  // Build QHandle (AtEnd,ReportID,Index)
+ Set QHandle=$lb(0,repid,0)
+ Quit $$$OK
+
+FillData
+ s PAADMPAPMIDR = $P($G(^PAADM(PAADMRowID)),"^",1)
+ s URNo = $S($G(XFUNC("CLASS"))="OP":$p($g(^PAPER(PAADMPAPMIDR,"PAT",1)),"^",2),1:$p($g(^PAPER(PAADMPAPMIDR,"PAT",1)),"^",1))
+ s EpisodeNo = $P($G(^PAADM(PAADMRowID)),"^",81)
+ s Surname = $P($G(^PAPER(PAADMPAPMIDR,"ALL")),"^",1)
+ s GivenName = $P($G(^PAPER(PAADMPAPMIDR,"ALL")),"^",2)
+ s MidName = $P($G(^PAPER(PAADMPAPMIDR,"ALL")),"^",19)
+ s Street = $zstrip($p($g(^PAPER(PAADMPAPMIDR,"PER","ADD",1)),"^",1),"*C")
+ 
+ ;Get City Info
+ s PAPERZipDR = $P($G(^PAPER(PAADMPAPMIDR,"PER",1)),"^",7)
+ s City = ""
+ s PostCode = ""
+ i PAPERZipDR {
+         s PostCode = $P($G(^CT("ZIP",PAPERZipDR)),"^",1)
+         s City = $P($G(^CT("ZIP",PAPERZipDR)),"^",2)
+ }
+ 
+ s PhoneH = $P($G(^PAPER(PAADMPAPMIDR,"PER",1)),"^",11)
+ s AdmDate = OPAdmDate
+ s DchDate = PAADMDischgDate
+ s RefLetterDate = $P($G(^PAADM(PAADMRowID)),"^",46) 
+ s RefReceivedDate = $P($G(^PAADM(PAADMRowID,2)),"^",9) 
+ 
+ ;Get Specialty Info
+ s SpecialtyCode = ""
+ s SpecialtyDesc = ""
+ i DEPCodeDR { 
+         s SpecialtyCode = $P($G(^CTLOC(DEPCodeDR)),"^",1)
+         s SpecialtyDesc = $P($G(^CTLOC(DEPCodeDR)),"^",2) 
+ }
+ 
+ s VisitStatus = PAADMVisitStatus
+ 
+ ;Get Referral Status Info
+ s RefStatusCode = ""
+ s RefStatusDesc = ""
+ s RefStatDR = $P($G(^PAADM(PAADMRowID,2)),"^",14) 
+ i RefStatDR {
+         s RefStatusCode = $P($G(^PAC("RST",RefStatDR)),"^",1)
+         s RefStatusDesc = $P($G(^PAC("RST",RefStatDR)),"^",2)   
+ }
+ 
+ ;Get Program Info
+ s ProgramCode = ""
+ s ProgramDesc = ""
+ s CategCode = ""
+ i NFMICategDepartDR {
+         s ProgramCode = $P($G(^CT("NFMI",$P(NFMICategDepartDR,"||",1),"DEP",$P(NFMICategDepartDR,"||",2))),"^",1)
+         s ProgramDesc = $P($G(^CT("NFMI",$P(NFMICategDepartDR,"||",1),"DEP",$P(NFMICategDepartDR,"||",2))),"^",2)
+         s DepParRef=$P(NFMICategDepartDR,"||",1)
+                 i DepParRef{
+                         s NFMIGovSubCatDR=$P($G(^CT("NFMI",DepParRef)),"^",5)
+                         i NFMIGovSubCatDR { s CategCode=$P($G(^CT("GOVCAT",$P(NFMIGovSubCatDR,"||",1),"SUB",$P(NFMIGovSubCatDR,"||",2))),"^",1) }
+                 }
+ }
+ 
+ ;Get CTPCP Info
+ s PAADMAdmDocCodeDR = $P($G(^PAADM(PAADMRowID)),"^",9)
+ s ClinicianCode = ""
+ s ClinicianDesc = ""
+ i PAADMAdmDocCodeDR {
+         s ClinicianCode = $P($G(^CTPCP(PAADMAdmDocCodeDR,1)),"^",1) 
+         s ClinicianDesc = $P($G(^CTPCP(PAADMAdmDocCodeDR,1)),"^",2)
+ }
+ 
+ ;Get Referral Info
+ ;s RefReasonCode = $P($G(^PAC("REFREA",WLReferralReasonDR)),"^",1)
+ ;s RefReasonDesc =  $P($G(^PAC("REFREA",WLReferralReasonDR)),"^",2)   
+ 
+ i DchDate="" {
+	 s LOS = DateTo-AdmDate  
+ } else {
+	 s LOS = DchDate-AdmDate
+ }
+  
+ ;Get VINAH Info
+ s VinahMainHealthCond = ""
+ s qid=$o(^questionnaire.QAUXXVINAHI("IndexPAAdmID",PAADMRowID,""))
+ s vinah=##class(questionnaire.QAUXXVINAH).%OpenId(qid)
+ i vinah {s VinahMainHealthCond=vinah.QSACS29}	
+ q
+ 
+BuildRow	 
+ s (MainHealthCond) = ""
+ s (EpisodeCount) = 0
+ s MainHealthCond = ##Class(websys.CustomTypeItem).GetDescriptionFromCode("VINAHHealthConditions",VinahMainHealthCond) 
+ s EpisodeCount = EpisodeCount +1
+ d FormatDates, FormatTimes, FormatStrings
+ s sort = ind
+ s ^CacheTemp("TRAK",repid,sort)=$LB(URNo,EpisodeNo,Surname,GivenName,MidName,Street,City,PostCode,PhoneH,AdmDate,DchDate,RefLetterDate,RefReceivedDate,SpecialtyCode
+ 	,SpecialtyDesc,VisitStatus,CategCode,RefStatusCode,RefStatusDesc,ProgramCode,ProgramDesc,ClinicianCode,ClinicianDesc,RefReasonCode,RefReasonDesc,LOS
+ 	,VinahMainHealthCond,MainHealthCond,EpisodeCount)
+ s ind=ind+1
+ q
+ 
+FormatDates
+ s AdmDate=..ConvertDateToODBC(AdmDate)
+ s DchDate=..ConvertDateToODBC(DchDate)
+ s RefLetterDate=..ConvertDateToODBC(RefLetterDate)
+ s RefReceivedDate=..ConvertDateToODBC(RefReceivedDate)
+ q
+ 
+FormatTimes
+ //s Time=$ZT(Time,2)
+ q
+
+FormatStrings // Cleanup specified strings
+ s Surname = $ZCONVERT(Surname,"U") 
+ s GivenName = $ZCONVERT(GivenName,"W")
+ s MidName = $ZCONVERT(MidName,"W")
+ s Street = $ZCONVERT($ZSTRIP(Street,"*C"),"W")
+ s City = $ZCONVERT($ZSTRIP(City,"*C"),"W")
+ q
+]]></Implementation>
+</Method>
+
+<Method name="SWARHRNAP1005Fetch">
+<Description>
+This is the Fetch component of the %Library.Query. 
+This should never have to change. It is designed to fetch the row for each subscript of the ^CacheTemp
+global and return this row to the Crystal Report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,&Row:%Library.List,&AtEnd:%Library.Integer=0]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // This fetch method should never have to change. 
+ // repid - Report ID
+ // ind   - sequence index which represents each row
+
+ New repid,ind
+
+ // Restore QHandle
+ Set AtEnd=$li(QHandle,1)
+ Set repid=$li(QHandle,2)
+ Set ind=$li(QHandle,3)
+
+ Set ind=$o(^CacheTemp("TRAK",repid,ind))
+ If ind="" {	// if there are no more rows, finish fetching
+	 Set AtEnd=1
+	 Set Row=""
+ }
+ Else      {	// fetch row 
+ 	Set Row=^CacheTemp("TRAK",repid,ind)
+ }
+
+ // Save QHandle 
+ s QHandle=$lb(AtEnd,repid,ind)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Query name="SWARHRNAP1005">
+<Type>%Library.Query</Type>
+<FormalSpec>Hospital:%Integer,DateFrom:%Date,DateTo:%Date,Specialty:%String,Program:%String,Clinician:%String</FormalSpec>
+<SqlProc>1</SqlProc>
+<Parameter name="CONTAINID" value="0"/>
+<Parameter name="ROWSPEC" value="URNo:%String,EpisodeNo:%String,Surname:%String,GivenName:%String,MidName:%String,Street:%String,City:%String,PostCode:%String,PhoneH:%String,AdmDate:%Date,DchDate:%Date,RefLetterDate:%Date,RefReceivedDate:%Date,SpecialtyCode:%String,SpecialtyDesc:%String,VisitStatus:%String,CategCode:%String,RefStatusCode:%String,RefStatusDesc:%String,ProgramCode:%String,ProgramDesc:%String,ClinicianCode:%String,ClinicianDesc:%String,RefReasonCode:%String,RefReasonDesc:%String,LOS:%Integer,VinahMainHealthCond:%String,MainHealthCond:%String,EpisodeCount:%Integer"/>
+<Parameter name="SELECTMODE" value="ODBC"/>
+</Query>
+</Class>
+</Export>

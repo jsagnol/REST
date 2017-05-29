@@ -1,0 +1,255 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.AUXX.Report.ZEN.StoredProc.ProjectedAppts">
+<ProcedureBlock>0</ProcedureBlock>
+<Super>Report.Abstract</Super>
+<TimeCreated>61474,38095.973524</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/AUXX/Report/ZEN/StoredProc/ProjectedAppts.xml#1 $</Default>
+</Parameter>
+
+<UDLText name="T">
+<Content><![CDATA[
+// Report Name: Trak Projected Appointments 
+
+]]></Content>
+</UDLText>
+
+<UDLText name="T">
+<Content><![CDATA[
+// Report Code: AUXX.BKG0007 
+
+]]></Content>
+</UDLText>
+
+<UDLText name="T">
+<Content><![CDATA[
+// Logauxx Number: 72221 
+
+]]></Content>
+</UDLText>
+
+<Method name="AppointmentClose">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>QHandle:%Binary</FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+	s user=""
+	s work=""
+	New repid
+	Set repid=$LIST(QHandle,2)
+	
+	//Start Monitor (if configured to capture stats)
+	i mon Do ..MonitorEnd(mon)
+	
+	Kill ^CacheTemp(repid)
+	Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="AppointmentExecute">
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,DateFrom:%Library.Date,DateTo:%Library.Date,Hospital:%String,Location:%Library.String,CareProvider:%Library.String]]></FormalSpec>
+<ReturnType>%Status</ReturnType>
+<Implementation><![CDATA[
+ // Get reportid i.e. use $INCREMENT to add another node to ^CacheTemp global. 
+ // We use ^CacheTemp global because it will always use memory before disk
+ New repid,ind
+
+ // Use $Increment to get the next node
+ Set repid=$I(^CacheTemp("TRAK"))
+
+ //If Performance Stats Flag is checked in Config Mgr store initial values for performance monitor
+ //Start Monitor (if configured to capture stats)
+ 	s mon=..MonitorBegin()
+ 
+	new APPTPAPMIDR, RESDesc, RESCTLOCRowID, RESCTLOCDesc, DOWName, ASDate, ASSessStartTime, ASRowId, PAPMINo, PAPMIName, PAPMIName2, PAPMIName3, HOSPDesc, APPTReasonOverBookDR, RESRowId, SESSRowId, SESSDesc, SGCode, APPTStatus, OverbookFlag, SessTimeStamp, currentdate,SESSTypeDesc,Clinic,SERDesc,Service,ClinicLoc,Room,Clinic1, Clinic2
+	new LastDate, LastSess, LastCount, CancelFlag, CancelCount,CancelCount2,DateDays,DateSecs,DayOfWeek,DayNo
+	set (APPTPAPMIDR, RESDesc, RESCTLOCDesc, ASDate, DOWName, ASRowId, ASSessStartTime, PAPMINo, PAPMIName, PAPMIName2, PAPMIName3, HOSPDesc, APPTReasonOverBookDR, RESRowId, SESSRowId, SESSDesc, SGCode, APPTStatus, OverbookFlag, LastDate, LastSess, CancelFlag,SESSTypeDesc,Clinic,SERDesc,Service,ClinicLoc,Room,Clinic1, Clinic)=""
+	set (RESCTLOCRowID,SessTimeStamp,LastCount,CancelCount,CancelCount2,DateDays,DateSecs,DayOfWeek,DayNo)=0
+
+	// Use $Increment to get the next node
+	s ind=1
+	s currentdate=$p($h,",",1)
+	s Hospital=$zstrip(Hospital,"*CW")
+	s Location=$zstrip(Location,"*CW")
+	s CareProvider=$zstrip(CareProvider,"*CW")
+
+	n user,work
+	s user=$lb(0), work=$lb(0)
+	
+	//Convert ODBC dates to cache format
+	s DateFrom=..ConvertDateToCache(DateFrom)
+	s DateTo=..ConvertDateToCache(DateTo)
+
+	&sql(DECLARE Appointments CURSOR FOR
+	SELECT
+		RES_RowId,
+		RES_CTPCP_DR->CTPCP_Desc,
+		RES_CTLOC_DR->CTLOC_RowID,
+		RES_CTLOC_DR->CTLOC_Desc,
+		AS_RBEffDateSession_DR->Sess_DOW_DR->DOW_Name,
+		AS_Date,
+		AS_SessStartTime,
+		AS_RowId,
+		RES_CTLOC_DR->CTLOC_Hospital_DR->Hosp_Desc,
+		AS_RBEffDateSession_DR->Sess_RowId,
+		AS_RBEffDateSession_DR->Sess_Desc,
+		TO_NUMBER(AS_Date),
+		TO_NUMBER(AS_SessStartTime),
+		{fn DayOfWeek(AS_Date) },
+		AS_RBEffDateSession_DR->SESS_SessionType_DR->SESS_Desc,
+		AS_RBEffDateSession_DR->SESS_Clinic_DR->CTLOC_Desc,
+		AS_RBEffDateSession_DR->SESS_Room_DR->CTLOC_Desc
+	FROM SQLUser.RB_Resource, SQLUser.RB_ApptSchedule
+	WHERE AS_Date BETWEEN :DateFrom AND :DateTo
+	AND  RES_Type='Care Provider'
+	AND  RES_RowId = AS_RES_ParRef
+	AND  AS_Date >= :currentdate
+	AND (({fn CONCAT( ',', {fn CONCAT((:Hospital),',')})} [ {fn CONCAT( ',', {fn CONCAT((RES_CTLOC_DR->CTLOC_Hospital_DR->HOSP_RowId),',')})}) OR (:Hospital IS NULL))
+	AND (({fn CONCAT( ',', {fn CONCAT((:Location),',')})} [ {fn CONCAT( ',', {fn CONCAT((RES_CTLOC_DR->CTLOC_ROWID),',')})}) OR (:Location IS NULL))
+	AND (({fn CONCAT( ',', {fn CONCAT((:CareProvider),',')})} [ {fn CONCAT( ',', {fn CONCAT((RES_CTPCP_DR->CTPCP_RowId),',')})}) OR (:CareProvider IS NULL)))
+	&sql( OPEN Appointments )
+	do FetchNext
+	while 'SQLCODE{
+		do CheckCancel
+		if CancelFlag = "N" {
+			do GetPatient
+			if ASDate Set ASDate=..ConvertDateToODBC(ASDate)
+			if ASSessStartTime Set ASSessStartTime=..ConvertTimeToODBC(ASSessStartTime)
+			set PAPMIName=$zstrip(PAPMIName,"*C")
+			set PAPMIName2=$zstrip(PAPMIName2,"*C")
+			set PAPMIName3=$zstrip(PAPMIName3,"*C")
+			set Clinic=SESSTypeDesc 
+			if Clinic '="" {set Clinic=Clinic_" / "_SESSDesc}
+			else  {set Clinic=SESSDesc} 
+			set Clinic1=ClinicLoc 
+			if Clinic1 '="" {set Clinic1=Clinic1_" / "_Room}
+			else  {set Clinic1=Room}
+			set Clinic2=Clinic
+			if Clinic2 '="" {set Clinic2=Clinic2_" / "_Clinic1}
+			else  {set Clinic2=Clinic1}			
+			set OverbookFlag = ""
+			if APPTReasonOverBookDR '= "" {set OverbookFlag = "Y"}
+		    set Service=SERDesc 
+			if Service '="" {set Service=Service_" / "_SGCode}
+			else  {set Service=SERDesc}
+			set ^CacheTemp(repid,$ZCVT(HOSPDesc,"U")_" "_$ZCVT(RESCTLOCDesc,"U")_" "_$ZCVT(RESDesc,"U")_" "_ASDate_" "_ASSessStartTime_ind)=$LB(RESDesc, RESCTLOCRowID, RESCTLOCDesc, DOWName, ASDate, ASSessStartTime, ASRowId, PAPMINo, PAPMIName, PAPMIName2, PAPMIName3, HOSPDesc, OverbookFlag, SESSRowId, SESSDesc, SGCode, APPTStatus, SessTimeStamp,RESRowId,SESSTypeDesc,Clinic,Service,SERDesc,ClinicLoc,Room,Clinic2,Clinic1)
+			set ind=ind+1
+		}
+		do FetchNext
+	}
+
+	&SQL(CLOSE Appointments)
+	
+	// Build QHandle (AtEnd,ReportID,Index)
+	Set QHandle=$lb(0,repid,0)
+
+	Quit $$$OK 
+	
+FetchNext
+	&sql(FETCH Appointments INTO :RESRowId, :RESDesc, :RESCTLOCRowID, :RESCTLOCDesc, :DOWName, :ASDate, :ASSessStartTime, :ASRowId, :HOSPDesc, :SESSRowId, :SESSDesc, :DateDays, :DateSecs, :DayOfWeek, :SESSTypeDesc, :ClinicLoc, :Room)
+	quit
+	
+CheckCancel
+	set CancelFlag = "N"
+	set (CancelCount,CancelCount2) = 0
+	set DayNo = DayOfWeek - 1
+	if DayNo < 1 {set DayNo = 7}
+	set SessTimeStamp = (DateDays * 86400) + (DateSecs)
+	if (LastDate = ASDate) && (LastSess = SESSRowId) {
+		set CancelCount = LastCount
+	} else {
+		&sql(SELECT count(*) INTO CancelCount
+			FROM SQLUser.RB_ResEffDateSessNotAvail
+			WHERE NA_ParRef = :SESSRowId
+			AND :ASDate between NA_DateFrom and NA_DateTo)
+	}
+	if CancelCount > 0 {
+		set CancelFlag = "Y"
+	}
+	if CancelFlag = "N" {
+		&sql(SELECT count(*) INTO CancelCount2
+			FROM SQLUser.RB_NotAvail	
+			WHERE NA_RES_DR = :RESRowId
+			AND  :SessTimeStamp >= ((TO_NUMBER(NA_FrDate) * 86400) + TO_NUMBER(NA_FrTime))
+			AND  :SessTimeStamp < ((TO_NUMBER(NA_ToDate) * 86400) + TO_NUMBER(NA_ToTime)) 
+			AND (({fn CONCAT( ',', {fn CONCAT((NA_DaysOfTheWeek),',')})} [ {fn CONCAT( ',', {fn CONCAT((:DayNo),',')})}) OR (NA_DaysOfTheWeek IS NULL))
+			)
+		if CancelCount2 > 0 {
+			set CancelFlag = "Y"
+			set SessTimeStamp = 1
+		}
+	}
+	do StorePrev
+	set SQLCODE = 0
+	quit
+	
+StorePrev
+	set LastDate = ASDate
+	set LastSess = SESSRowId
+	set LastCount = CancelCount
+	quit
+
+GetPatient
+	set (PAPMINo, PAPMIName, PAPMIName2, PAPMIName3, APPTReasonOverBookDR, SGCode, APPTStatus,SERDesc) = ""
+	if ASRowId '= "" {
+		&sql(SELECT
+			APPT_PAPMI_DR->PAPMI_No,
+			APPT_PAPMI_DR->PAPMI_Name,
+			APPT_PAPMI_DR->PAPMI_Name2,
+			APPT_PAPMI_DR->PAPMI_Name3,
+			APPT_ReasonOverBook_DR,
+			APPT_RBCServ_DR->SER_ServGroup_DR->SG_Desc,
+			APPT_Status,
+			APPT_RBCServ_DR->SER_Desc
+			INTO :PAPMINo, :PAPMIName, :PAPMIName2, :PAPMIName3, :APPTReasonOverBookDR, :SGCode, :APPTStatus, :SERDesc
+			FROM SQLUser.RB_APPOINTMENT
+		WHERE APPT_AS_ParRef = :ASRowId
+		AND APPT_Status = 'P')
+	}
+	set SQLCODE = 0
+	quit
+]]></Implementation>
+</Method>
+
+<Method name="AppointmentFetch">
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,&Row:%Library.List,&AtEnd:%Library.Integer=0]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+	// This fetch method should never have to change.
+
+	New repid,ind
+
+	// Restore QHandle
+	Set AtEnd=$li(QHandle,1)
+	Set repid=$li(QHandle,2)
+	Set ind=$li(QHandle,3)
+
+	Set ind=$o(^CacheTemp(repid,ind))
+	If ind="" {	// if there are no more rows, finish fetching
+		Set AtEnd=1
+		Set Row=""
+	} Else      {	// fetch row
+		Set Row=^CacheTemp(repid,ind)
+	}
+
+	// Save QHandle
+	s QHandle=$lb(AtEnd,repid,ind)
+	Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Query name="Appointment">
+<Type>%Library.Query</Type>
+<FormalSpec>DateFrom:%Library.Date,DateTo:%Library.Date,Hospital:%String,Location:%Library.String,CareProvider:%Library.String</FormalSpec>
+<SqlProc>1</SqlProc>
+<Parameter name="CONTAINID" value="0"/>
+<Parameter name="ROWSPEC" value="RESDesc:%Library.String,RESCTLOCRowID:%Library.Integer,RESCTLOCDesc:%Library.String,DOWName:%Library.String,ASDate:%Library.Date,ASSessStartTime:%Library.String,ASRowId:%Library.String,PAPMINo:%Library.String,PAPMIName:%Library.String,PAPMIName2:%Library.String,PAPMIName3:%Library.String,HOSPDesc:%Library.String,OverbookFlag:%Library.String,SESSRowId:%Library.String,SESSDesc:%Library.String,SGCode:%Library.String,APPTStatus:%Library.String,SessTimeStamp:%Library.String,RESRowId:%Library.String,SESSTypeDesc:%Library.String,Clinic:%Library.String,Service:%Library.String,SERDesc:%Library.String,ClinicLoc:%Library.String,Room:%Library.String,Clinic2:%Library.String,Clinic1:%Library.String"/>
+</Query>
+</Class>
+</Export>

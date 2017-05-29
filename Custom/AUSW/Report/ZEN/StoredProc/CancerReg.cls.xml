@@ -1,0 +1,267 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.AUSW.Report.ZEN.StoredProc.CancerReg">
+<ProcedureBlock>0</ProcedureBlock>
+<Super>Report.Abstract</Super>
+<TimeCreated>61801,51485.810149</TimeCreated>
+<LegacyInstanceContext>1</LegacyInstanceContext>
+
+<Parameter name="SrcVer">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/AUSW/Report/ZEN/StoredProc/CancerReg.xml#1 $</Default>
+</Parameter>
+
+<UDLText name="T">
+<Content><![CDATA[
+// Report Name: Trak Cancer Registrations <br>
+
+]]></Content>
+</UDLText>
+
+<UDLText name="T">
+<Content><![CDATA[
+// Report Code: Trak.CDG0010 <br>
+
+]]></Content>
+</UDLText>
+
+<UDLText name="T">
+<Content><![CDATA[
+// TRC Number: 153406 <br>
+
+]]></Content>
+</UDLText>
+
+<Method name="GetCancerRecsClose">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>QHandle:%Library.Binary</FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Clean up by purging the temporary node in ^CacheTemp global
+ New repid
+ Set repid=$li(QHandle,2)
+ 
+   //Start Monitor (if configured to capture stats)
+ i mon Do ..MonitorEnd(mon)
+ 
+ Kill ^CacheTemp("TRAK",repid)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="GetCancerRecsExecute">
+<ClassMethod>1</ClassMethod>
+<CodeMode>code</CodeMode>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,DateFrom:%Date,DateTo:%Date,Hospital:%String]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+
+ // Get reportid i.e. use $INCREMENT to add another node to ^CacheTemp global. 
+ // We use ^CacheTemp global because it will always use memory before disk
+ New repid,ind
+
+ // Use $Increment to get the next node
+ Set repid=$I(^CacheTemp("TRAK"))
+
+  //Start Monitor (if configured to capture stats)
+ s mon=..MonitorBegin()
+ 
+ 
+
+ // Build data into ^CacheTemp(ReportID)
+ // e.g. Set ^CacheTemp(ReportID,Index)=$LB(f1,f2,f3)
+ New Number,String,Date,Time,c,n
+ n TUMCancerRegDR,PACRRowId,PACRRegNumber,PACRRegDate,PAPERName,PAPERName2,PAPMINo,PAPERDOB,CTSEXCode,PAADMADMNo,PAADMAdmDate,PAADMDischgDate,CTPCPDesc,CTLOCDesc,HOSPDesc,TUMFirstDiagnosisDate,TUMDateFirstDiagEstimated,TUMRegistrationatScreening,TUMLastUpdateDate,ssusrinitials,PrimaryCode,MorphologyCode,Primary,Morphology,TUMdiagnosedwhere,LATERCode,LATERdesc,FVPCode,FVPDesc,CANTTCode,CANTTDesc,DEGDIFCode,DEGDIFDesc,DMOCCode,DMOCDesc,TUMRowId,TUMPrimarySiteCancer,TUMMorphologyText,METCode,MCodes,CDRCode,CLDRCodes,TUMDateMetastatSpread,EpisodeNo
+ s (TUMCancerRegDR,PACRRowId,CTLOCDesc,PACRRegNumber,PACRRegDate,PAPERName,PAPERName2,PAPMINo,PAPERDOB,CTSEXCode,PAADMADMNo,PAADMAdmDate,PAADMDischgDate,CTPCPDesc,HOSPDesc,TUMFirstDiagnosisDate,TUMDateFirstDiagEstimated,TUMRegistrationatScreening,TUMLastUpdateDate,ssusrinitials,PrimaryCode,MorphologyCode,Primary,Morphology,TUMdiagnosedwhere,LATERCode,LATERdesc,FVPCode,FVPDesc,CANTTCode,CANTTDesc,DEGDIFCode,DEGDIFDesc,DMOCCode,DMOCDesc,TUMRowId,TUMPrimarySiteCancer,TUMMorphologyText,METCode,MCodes,CDRCode,CLDRCodes,TUMDateMetastatSpread,EpisodeNo)=""
+ s ind=1
+
+ //Convert ODBC dates to cache format
+ s DateFrom=$$intdate^SSUTIL4(DateFrom)
+ s DateTo=$$intdate^SSUTIL4(DateTo)
+
+ // Strip white space/control chars from blank variables
+ i $g(Hospital)'="" s Hospital=$zstrip(Hospital,"*C")
+
+ &sql(declare GetCancerRecs cursor for
+SELECT 
+ TUM_CancerReg_DR,
+ ADM_PAADM_DR->PAADM_Hospital_DR->HOSP_Desc,
+ TUM_FirstDiagnosisDate,
+ TUM_DateFirstDiagEstimated,
+ TUM_RegistrationatScreening,
+ TUM_LastUpdateDate,
+ TUM_LastUpdateUser_DR->ssusr_initials,
+ TUM_PathologicDiagnosis_DR->mrcid_Code PrimaryCode,
+ TUM_morphology_dr->mrcid_code MorphologyCode,
+ TUM_PathologicDiagnosis_DR->mrcid_desc,
+ TUM_morphology_dr->mrcid_desc Morphology,
+ TUM_diagnosedwhere,
+ TUM_laterality_DR->LATER_Code,
+ TUM_laterality_DR->LATER_desc,
+ TUM_FirstDiagnosisPlace_dr->FVP_Code,
+ TUM_FirstDiagnosisPlace_dr->FVP_Desc,
+ TUM_CurrTreatmentCancer_DR->CANTT_Code,
+ TUM_CurrTreatmentCancer_DR->CANTT_Desc,
+ TUM_DegreeDifferent_DR->DEGDIF_Code,
+ TUM_DegreeDifferent_DR->DEGDIF_Desc,
+ TUM_DiagnMethodCancer_DR->DMOC_Code,
+ TUM_DiagnMethodCancer_DR->DMOC_Desc,
+ TUM_RowId,
+ TUM_PrimarySiteCancer,
+ TUM_MorphologyText,
+ TUM_DateMetastatSpread
+ FROM
+ SQLUser.PA_Tumor PA_Tumor,SQLUser.PA_CancerRegLinkAdm
+ WHERE TUM_CancerReg_DR=ADM_ParRef and 
+ TUM_CancerReg_DR->PACR_REGDATE between :DateFrom and :DateTo and TUM_Active='Y' and 
+ (({fn CONCAT( ',', {fn CONCAT((:Hospital),',')})} [ {fn CONCAT( ',', {fn CONCAT((ADM_PAADM_DR->PAADM_Hospital_DR->HOSP_RowId),',')})}) OR (:Hospital IS NULL))
+ )
+ &sql(open GetCancerRecs)
+
+
+ //fetch first row
+ &sql(fetch GetCancerRecs into :PACRRowId,:HOSPDesc,:TUMFirstDiagnosisDate,:TUMDateFirstDiagEstimated,:TUMRegistrationatScreening,:TUMLastUpdateDate,:ssusrinitials,:PrimaryCode,:MorphologyCode,:Primary,:Morphology,:TUMdiagnosedwhere,:LATERCode,:LATERdesc,:FVPCode,:FVPDesc,:CANTTCode,:CANTTDesc,:DEGDIFCode,:DEGDIFDesc,:DMOCCode,:DMOCDesc,:TUMRowId,:TUMPrimarySiteCancer,:TUMMorphologyText,:TUMDateMetastatSpread)
+
+ while 'SQLCODE{
+ &sql(SELECT
+ PACR_RegNumber,
+ PACR_RegDate,
+ PACR_Person_DR->PAPER_Name,
+ PACR_Person_DR->PAPER_Name2,
+ PACR_Person_DR->PAPER_PAPMI_DR->PAPMI_No,
+ PACR_Person_DR->PAPER_DOB,
+ PACR_Person_DR->PAPER_SEX_DR->CTSEX_Code
+ INTO
+ :PACRRegNumber,:PACRRegDate,:PAPERName,:PAPERName2,:PAPMINo,:PAPERDOB,:CTSEXCode
+ FROM
+ SQLUser.PA_CancerReg,SQLUser.PA_CancerRegLinkAdm
+ WHERE PACR_RowId=:PACRRowId and PACR_RowID=*ADM_ParRef
+ and (({fn CONCAT( ',', {fn CONCAT((:Hospital),',')})} [ {fn CONCAT( ',', {fn CONCAT((ADM_PAADM_DR->PAADM_Hospital_DR->HOSP_RowId),',')})}) OR (:Hospital IS NULL))
+ )
+
+ d FormatDates
+ d GetMCodes
+ d GetCLDRCodes
+ d GetEpisodeNo
+
+ // build the row
+ Set ^CacheTemp("TRAK",repid,HOSPDesc_" "_PACRRegNumber_" "_TUMRowId_ind)=$LB(PACRRowId,PACRRegNumber,PACRRegDate,PAPERName,PAPERName2,PAPMINo,PAPERDOB,CTSEXCode,HOSPDesc,TUMFirstDiagnosisDate,TUMDateFirstDiagEstimated,TUMRegistrationatScreening,TUMLastUpdateDate,ssusrinitials,PrimaryCode,MorphologyCode,Primary,Morphology,TUMdiagnosedwhere,LATERCode,LATERdesc,FVPCode,FVPDesc,CANTTCode,CANTTDesc,DEGDIFCode,DEGDIFDesc,DMOCCode,DMOCDesc,TUMRowId,TUMPrimarySiteCancer,TUMMorphologyText,TUMDateMetastatSpread,MCodes,CLDRCodes,EpisodeNo)
+ s ind=ind+1
+ //fetch rows
+ &sql(fetch GetCancerRecs into :PACRRowId,:HOSPDesc,:TUMFirstDiagnosisDate,:TUMDateFirstDiagEstimated,:TUMRegistrationatScreening,:TUMLastUpdateDate,:ssusrinitials,:PrimaryCode,:MorphologyCode,:Primary,:Morphology,:TUMdiagnosedwhere,:LATERCode,:LATERdesc,:FVPCode,:FVPDesc,:CANTTCode,:CANTTDesc,:DEGDIFCode,:DEGDIFDesc,:DMOCCode,:DMOCDesc,:TUMRowId,:TUMPrimarySiteCancer,:TUMMorphologyText,:TUMDateMetastatSpread)
+ }
+
+ &sql(close GetCancerRecs)
+
+ // Build QHandle (AtEnd,ReportID,Index)
+ Set QHandle=$lb(0,repid,0)
+
+
+ Quit $$$OK
+
+ Quit
+
+FormatDates
+ // Convert the dates to ODBC date format
+ If PACRRegDate Set PACRRegDate=..ConvertDateToODBC(PACRRegDate)
+ If TUMFirstDiagnosisDate Set TUMFirstDiagnosisDate=..ConvertDateToODBC(TUMFirstDiagnosisDate)
+ If TUMLastUpdateDate Set TUMLastUpdateDate=..ConvertDateToODBC(TUMLastUpdateDate)
+ If PAPERDOB Set PAPERDOB=..ConvertDateToODBC(PAPERDOB)
+ If TUMDateMetastatSpread set TUMDateMetastatSpread=..ConvertDateToODBC(TUMDateMetastatSpread)
+ Quit
+
+GetMCodes
+ Set (METCode,MCodes) = ""
+
+	&sql(DECLARE GetMCodes CURSOR FOR SELECT
+	MET_Metastatic_DR->MRCID_Code
+	FROM SQLUser.PA_TumorMetatstatic
+	WHERE	MET_ParRef=:TUMRowId
+	ORDER BY MET_ChildSub asc)
+	
+	&SQL(OPEN GetMCodes)
+	&SQL(FETCH GetMCodes INTO :METCode)
+	while 'SQLCODE {	
+	i METCode'="" s MCodes=$s(MCodes="":"",1:MCodes_", ")_METCode
+		s (METCode)=""
+		&SQL(FETCH GetMCodes INTO :METCode)
+	}
+	&SQL(CLOSE GetMCodes)
+
+GetCLDRCodes
+ Set (CDRCode,CLDRCodes) = ""
+	&sql(DECLARE GetCLDRCodes CURSOR FOR 
+	SELECT CDR_ClinDiagReason_DR->CLDR_Code
+	FROM SQLUser.PA_TumorClinDiagReason
+	WHERE	CDR_ParRef=:TUMRowId)
+	
+	&SQL(OPEN GetCLDRCodes)
+	&SQL(FETCH GetCLDRCodes INTO :CDRCode)
+	while 'SQLCODE {	
+	i CDRCode'="" s CLDRCodes=$s(CLDRCodes="":"",1:CLDRCodes_", ")_CDRCode
+		s (CDRCode)=""
+		&SQL(FETCH GetCLDRCodes INTO :CDRCode)
+	}
+	&SQL(CLOSE GetCLDRCodes)
+
+GetEpisodeNo
+ Set (PAADMAdmNo,EpisodeNo) = ""
+	&sql(DECLARE GetEpisodeNo CURSOR FOR 
+	SELECT ADM_PAADM_DR->PAADM_AdmNo
+	FROM SQLUser.PA_CancerreglinkAdm
+	WHERE	ADM_ParRef=:PACRRowId
+	order by ADM_PAADM_DR->PAADM_AdmNo)
+	
+	&SQL(OPEN GetEpisodeNo)
+	&SQL(FETCH GetEpisodeNo INTO :PAADMAdmNo)
+	while 'SQLCODE {	
+	i PAADMAdmNo'="" s EpisodeNo=$s(EpisodeNo="":"",1:EpisodeNo_", ")_PAADMAdmNo
+		s (PAADMAdmNo)=""
+		&SQL(FETCH GetEpisodeNo INTO :PAADMAdmNo)
+	}
+	&SQL(CLOSE GetEpisodeNo)
+]]></Implementation>
+</Method>
+
+<Method name="GetCancerRecsFetch">
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,&Row:%Library.List,&AtEnd:%Library.Integer=0]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // This fetch method should never have to change. 
+
+ // repid - Report ID
+ // ind   - sequence index which represents each row
+
+ New repid,ind
+
+ // Restore QHandle
+ Set AtEnd=$li(QHandle,1)
+ Set repid=$li(QHandle,2)
+ Set ind=$li(QHandle,3)
+
+ Set ind=$o(^CacheTemp("TRAK",repid,ind))
+ If ind="" {	// if there are no more rows, finish fetching
+ Set AtEnd=1
+ Set Row=""
+ }
+ Else      {	// fetch row
+ Set Row=^CacheTemp("TRAK",repid,ind)
+ }
+
+ // Save QHandle
+ s QHandle=$lb(AtEnd,repid,ind)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Query name="GetCancerRecs">
+<Type>%Library.Query</Type>
+<FormalSpec>DateFrom:%Date,DateTo:%Date,Hospital:%String</FormalSpec>
+<SqlProc>1</SqlProc>
+<Parameter name="CONTAINID" value="0"/>
+<Parameter name="ROWSPEC" value="PACRRowId:%String,PACRRegNumber:%String(MAXLEN=255),PACRRegDate:%Date,PAPERName:%String(MAXLEN=255),PAPERName2:%String(MAXLEN=255),PAPMINo:%String(MAXLEN=255),PAPERDOB:%Date,CTSEXCode:%String(MAXLEN=255),HOSPDesc:%String(MAXLEN=255),TUMFirstDiagnosisDate:%Date,TUMDateFirstDiagEstimated:%String(MAXLEN=255),TUMRegistrationatScreening:%String(MAXLEN=255),TUMLastUpdateDate:%Date,ssusrinitials:%String(MAXLEN=255),PrimaryCode:%String(MAXLEN=255),MorphologyCode:%String(MAXLEN=255),Primary:%String(MAXLEN=255),Morphology:%String(MAXLEN=255),TUMdiagnosedwhere:%String(MAXLEN=255),LATERCode:%String(MAXLEN=255),LATERdesc:%String(MAXLEN=255),FVPCode:%String(MAXLEN=255),FVPDesc:%String(MAXLEN=255),CANTTCode:%String(MAXLEN=255),CANTTDesc:%String(MAXLEN=255),DEGDIFCode:%String(MAXLEN=255),DEGDIFDesc:%String(MAXLEN=255),DMOCCode:%String(MAXLEN=255),DMOCDesc:%String(MAXLEN=255),TUMRowId:%String,TUMPrimarySiteCancer:%String,TUMMorphologyText:%String,TUMDateMetastatSpread:%Date,MCodes:%String,CLDRCodes:%String,EpisodeNo:%String(MAXLEN=255)"/>
+</Query>
+</Class>
+</Export>

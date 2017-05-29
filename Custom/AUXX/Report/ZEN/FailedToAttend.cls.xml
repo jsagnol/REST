@@ -1,0 +1,188 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.AUXX.Report.ZEN.FailedToAttend">
+<Super>Custom.AUXX.Report.ZEN.Abstract</Super>
+<TimeCreated>61543,54494.035066</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/AUXX/Report/ZEN/FailedToAttend.xml#1 $</Default>
+</Parameter>
+
+<UDLText name="T">
+<Content><![CDATA[
+// Report Name: Failed to Attend List
+
+]]></Content>
+</UDLText>
+
+<UDLText name="T">
+<Content><![CDATA[
+// Report Code: AUXX.BKG0004
+
+]]></Content>
+</UDLText>
+
+<UDLText name="T">
+<Content><![CDATA[
+// Logauxx Number: 72218
+
+]]></Content>
+</UDLText>
+
+<Property name="DateFrom">
+<Type>%String</Type>
+<Parameter name="ZENURL" value="P1"/>
+</Property>
+
+<Property name="DateTo">
+<Type>%String</Type>
+<Parameter name="ZENURL" value="P2"/>
+</Property>
+
+<Property name="Facility">
+<Type>%String</Type>
+<Parameter name="ZENURL" value="P3"/>
+</Property>
+
+<Property name="Specialty">
+<Type>%String</Type>
+<Parameter name="ZENURL" value="P4"/>
+</Property>
+
+<Property name="Clinician">
+<Type>%String</Type>
+<Parameter name="ZENURL" value="P5"/>
+</Property>
+
+<XData name="ReportDefinition">
+<XMLNamespace>http://www.intersystems.com/zen/report/definition</XMLNamespace>
+<Data><![CDATA[
+<report xmlns='http://www.intersystems.com/zen/report/definition'
+   queryClass='Custom.AUXX.Report.ZEN.StoredProc.FailedToAttend' queryName='FailedToAttend' name='FailedToAttend'>
+  <parameter expression='..DateFrom'/>
+  <parameter expression='..DateTo'/>
+  <parameter expression='..Facility'/>
+  <parameter expression='..Specialty'/>
+  <parameter expression='..Clinician'/>
+  <attribute name='ReportTitle' expression='$$$Text("@FailedtoAttend@Failed to Attend")'/>
+  <attribute name='timestamp' expression='$ZDATETIME($H, 2, 2)'/>
+  <attribute name='username' expression='..Username'/>
+  <attribute name='facility' expression="..GetHospListDesc(..Facility)"/>
+  <attribute name='specialty' expression="..GetSpecialtyListDesc(..Specialty)"/> 
+  <attribute name="Clinician" expression="..GetCareProvListDesc(..Clinician)"/>
+  <attribute name="datefrom" expression="..DisplayDate(..DateFrom)"/>
+  <attribute name="dateto" expression="..DisplayDate(..DateTo)"/>
+
+   <group name="facility" breakOnField="HospDesc">
+   <attribute name="description" field="HospDesc" />
+   	<aggregate name='HospCnt' type='CUSTOM' field='APPTRowId' class='%ZEN.Report.Aggregate.CountDistinct'/>
+   <group name="specialty" breakOnField="CTLOCDesc">
+   <attribute name="description" field="CTLOCDesc" />
+   	<aggregate name='LocnCnt' type='CUSTOM' field='APPTRowId' class='%ZEN.Report.Aggregate.CountDistinct'/>
+   <group name="Clinician" breakOnField="RESDesc">
+   <attribute name="description" field="RESDesc" />
+   	<aggregate name='ProvCnt' type='CUSTOM' field='APPTRowId' class='%ZEN.Report.Aggregate.CountDistinct'/>
+         <group name='Detail'>
+ 	    <attribute field='SERDesc' name='SERDesc'/> 
+	    <attribute field='REFPRIDesc' name='REFPRIDesc'/>
+        <attribute field='PAPMINo' name='PAPMINo'/>
+        <attribute fields='PAPMIName,PAPMIName2,PAPMIName3' name='PatientName' expression='..DisplayName(%val("PAPMIName"),%val("PAPMIName2"),%val("PAPMIName3"))'/>
+ 	    <attribute field='ASDate' name='ASDate' expression='..DisplayDate(%val)'/>   
+        <attribute field='ASSessStartTime' name='ASSessStartTime'/>       
+        <attribute field='RNSDesc' name='RNSDesc'/>
+         </group>
+         </group>
+         </group>
+         </group>
+</report>
+]]></Data>
+</XData>
+
+<XData name="ReportDisplay">
+<XMLNamespace>http://www.intersystems.com/zen/report/display</XMLNamespace>
+<Data><![CDATA[
+<report xmlns='http://www.intersystems.com/zen/report/display'
+xmlns:auxxstyle='http://www.intersystems.com/zen/report/display/auxx/style'
+xmlns:auxx='http://www.intersystems.com/zen/report/display/auxx'
+   name='FailedToAttend'>
+<document width= "#(..ReportWidth)#" height="#(..ReportHeight)#" marginLeft="#(..DocMarginLeft)#" marginRight="#(..DocMarginRight)#" 
+marginTop="#(..DocMarginTop)#" marginBottom="#(..DocMarginBottom)#" footerHeight="#(..DocFooterHeight)#" headerHeight="#(..DocHeaderHeight)#" 
+regionBeforeExtent="#(..DocHeaderHeight)#" regionAfterExtent="#(..DocFooterHeight)#" >
+<auxxstyle:auxxgroupheader/>
+<auxxstyle:auxxgroupsummary/>
+<auxxstyle:auxxhospitalheader/>
+<auxxstyle:auxxpagefooter/>
+<auxxstyle:auxxpageheader/>
+<auxxstyle:auxxparameterheader/>
+<auxxstyle:auxxreporttitle/>
+<auxxstyle:auxxtablecolumn/>
+</document>
+<auxx:PageHeader pagetitle='@ReportTitle'/>
+<auxx:ReportFooter username='@username' timestamp='@timestamp'/>
+<body>
+<!-- REPORT HEADER -->
+<auxx:ReportHeader reporttitle='@ReportTitle'/>
+<auxx:ReportParameterHeader label='@Facility:@Facility:' field='@facility' xcondition="string-length(@facility)>0"/>
+<auxx:ReportParameterHeader label='@Specialty:@Specialty:' field='@specialty' xcondition="string-length(@specialty)>0"/>
+<auxx:ReportParameterHeader label='@Clinician:@Clinician:' field='@Clinician'  xcondition="string-length(@Clinician)>0"/>
+<auxx:ReportDateHeader datefrom="@datefrom" dateto="@dateto" />
+<line pattern="solid" width="100%"/>
+<auxx:NoResults xcondition="not(facility)" />
+<group name='facility' pagebreak='true'>
+<auxx:GroupHospitalHeader label="@Facility:@Facility:" field="@description"/>
+<line pattern="empty" lineHeight="2mm" />
+<group name='specialty'>
+<auxx:GroupHeader label="@Specialty:@Specialty:" field="@description"/>
+<line pattern="empty" lineHeight="2mm" />
+<group name='Clinician'>
+<auxx:GroupHeader label="@Clinician:@Clinician:" field="@description"/>
+<line pattern="empty" lineHeight="2mm" />
+   <table class='auxxtablecolumn' orient='col' group='Detail'>
+   	<item field='@SERDesc' width="20%" caption='@AppointmentType@Appointment Type'/>
+    <item field='@REFPRIDesc' width="14%" caption='@ReferralPriority@Referral Priority'/>
+	<item field='@PAPMINo' width="10%" caption='@URN@URN'/>
+    <item field='@PatientName' width="20%" caption='@Name@Name'/>
+	<item field='@ASDate' width="9%" caption='@Date@Date'/>
+    <item field='@ASSessStartTime' width='5%' caption='@Time@Time'/>
+    <item field='@RNSDesc' width='22%' caption='@Reason@Reason'/>
+     </table>
+     <line pattern="empty" lineHeight="4mm" />
+   <table class='auxxgroupsummary'>
+	    <item value='@Totalsfor:@Totals for: ' width="7%" style='font-weight:bold;text-align:left'/>
+        <item field='@description' width="20%" style="font-weight:bold;text-align:left"/>
+	    <item value='@Failed-to-AttendAppointments:@Failed-to-Attend Appointments:' width="20%"/>
+	    <item value='' width="1%" />
+        <item field='ProvCnt' width="12%" style="font-weight:bold;text-align:left"/>
+	    <item value='' width="40%" />
+   </table>
+     <line pattern="empty" lineHeight="4mm" />
+
+    </group>
+    <table class='auxxgroupsummary'>
+	    <item value='@Totalsfor:@Totals for: ' width="7%" style='font-weight:bold;text-align:left'/>
+        <item field='@description' width="20%" style="font-weight:bold;text-align:left"/>
+	    <item value='@Failed-to-AttendAppointments:@Failed-to-Attend Appointments:' width="20%"/>
+	    <item value='' width="1%" />
+        <item field='LocnCnt' width="12%" style="font-weight:bold;text-align:left"/>
+	    <item value='' width="40%" />
+     </table> 
+       <line pattern="empty" lineHeight="4mm" />
+
+      </group>
+      <table class='auxxgroupsummary'>
+	     <item value='@Totalsfor:@Totals for: ' width="7%" style='font-weight:bold;text-align:left'/>
+         <item field='@description' width="20%" style="font-weight:bold;text-align:left"/>
+	     <item value='@Failed-to-AttendAppointments:@Failed-to-Attend Appointments:' width="20%" style='text-align:left'/>
+	     <item value='' width="1%" />
+         <item field='HospCnt' width="12%" style="font-weight:bold;text-align:left"/>
+	     <item value='' width="40%" />
+       </table> 
+   </group>
+  </body>
+</report>
+]]></Data>
+</XData>
+</Class>
+</Export>

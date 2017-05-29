@@ -1,0 +1,230 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.SWARH.Report.RptSvc.StoredProc.SWARHRATD1060">
+<Description><![CDATA[
+<pre>
+***************************************************************************************************************************************
+* Report Code: SWARHRATD1060
+* Report Description: Returns all episodes discharged during the selected date range that have had a movement in the selected ward code
+* Menu Caption: Ward Movements
+* Initial release:10/07/2015 Developer: Michael Welsh
+* Modified:18/01/2017 - MW. Updated LOS adding a 1 to zero LOS's.
+* 
+***************************************************************************************************************************************
+</pre>]]></Description>
+<ProcedureBlock>0</ProcedureBlock>
+<Super>Custom.SWARH.Report.RptSvc.StoredProc.Abstract</Super>
+<TimeCreated>60905,54849</TimeCreated>
+
+<Method name="SWARHRATD1060Close">
+<Description>
+This is the Close component of the %Library.Query.
+This is standard code and should never have to change.
+This is where all the cleanup is performed, i.e. the purging of the temporary storage global ^CacheTemp.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>QHandle:%Library.Binary</FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Clean up by purging the temporary node in ^CacheTemp global
+ New repid,ind
+ Set repid=$li(QHandle,2)
+
+ //Start Monitor (if configured to capture stats)
+ i mon Do ..MonitorEnd(mon)
+
+ Kill ^CacheTemp("TRAK",repid)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="SWARHRATD1060Execute">
+<Description>
+This is the Execute section for the %Library.Query. 
+All of the logic will be performed here.
+A new node for the ^CacheTemp global will be created and each subscript of this global will contain
+a row for the report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,Hospital:%Integer,DateFrom:%Date,DateTo:%Date,Ward:%Integer]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Get reportid i.e. use $INCREMENT to add another node to ^CacheTemp global. 
+ // We use ^CacheTemp global because it will always use memory before disk
+ New repid,ind
+
+  // Use $Increment to get the next node
+ Set repid=$I(^CacheTemp("TRAK"))
+ 
+ New PAADMRowId,URNo,EpisodeNo,Surname,GivenName,OtherGivenName,AdmDate,AdmTime,DischgDate,DischgTime,WardCode,WardDesc
+ 	,TRANSStartDate,TRANSEndDate,TransLOS,InsType,PGRPCode,PGRPDesc,LeaveDays,prevPAADMRowId
+ 	,Status,Type
+ 
+ Set (URNo,EpisodeNo,Surname,GivenName,OtherGivenName,AdmDate,AdmTime,DischgDate,DischgTime,WardCode,WardDesc
+ 	,TRANSStartDate,TRANSEndDate,InsType,PGRPCode,PGRPDesc,Status,Type)=""
+ 
+ Set (PAADMRowId,TransLOS,LeaveDays,prevPAADMRowId)=0
+ 
+ s ind=1, END=0
+
+ //Start Monitor (if configured to capture stats)
+ s mon=..MonitorBegin()
+
+ //Convert ODBC dates to cache format
+ s DateFrom=..ConvertDateToCache(DateFrom)
+ s DateTo=..ConvertDateToCache(DateTo)
+ 
+ &SQL(DECLARE SWARHRATD1060 CURSOR FOR 
+	SELECT
+        adm.PAADM_RowId AS PAADMRowId
+        ,adm.PAADM_PAPMI_DR->PAPMI_No AS URNo
+        ,adm.PAADM_AdmNo AS EpisodeNo
+        ,adm.PAADM_PAPMI_DR->PAPMI_Name AS Surname
+        ,adm.PAADM_PAPMI_DR->PAPMI_Name2 AS GivenName
+        ,adm.PAADM_PAPMI_DR->PAPMI_Name3 AS OtherGivenName
+        ,adm.PAADM_AdmDate AS AdmDate
+        ,adm.PAADM_AdmTime AS AdmTime
+        ,adm.PAADM_DischgDate AS DischgDate
+        ,adm.PAADM_DischgTime AS DischgTime
+        ,trans.TRANS_Ward_DR->WARD_Code AS WardCode
+        ,trans.TRANS_Ward_DR->WARD_Desc AS WardDesc
+        ,trans.TRANS_StartDate AS TRANSStartDate
+        ,trans.TRANS_EndDate AS TRANSEndDate
+        ,CASE WHEN DateDiff('d',trans.TRANS_StartDate,trans.TRANS_EndDate) = 0 THEN 1
+        	ELSE DateDiff('d',trans.TRANS_StartDate,trans.TRANS_EndDate) END as LOS
+        ,trans.TRANS_Status_DR->REQST_Desc AS Status
+        ,trans.TRANS_TransType_DR->TRANSTYP_Desc AS Type
+	FROM
+        SQLUser.PA_Adm adm
+			LEFT OUTER JOIN SQLUser.PA_AdmTransaction trans ON (trans.TRANS_ParRef = adm.PAADM_RowId)
+	WHERE
+        adm.PAADM_Hospital_DR = :Hospital
+	AND
+        adm.PAADM_DischgDate BETWEEN :DateFrom AND :DateTo
+	AND
+        trans.TRANS_Ward_DR = :Ward
+	AND
+        adm.PAADM_Type = 'I'
+	AND
+        adm.PAADM_VisitStatus = 'D'
+    AND
+        trans.TRANS_TransType_DR->TRANSTYP_Desc = 'Move'
+    AND
+        trans.TRANS_Status_DR->REQST_Desc = 'Done'
+    ORDER BY
+    	 adm.PAADM_RowId    	
+    ) 
+
+ &SQL(OPEN SWARHRATD1060)
+ 
+ //FETCH FIRST ROW
+ d FetchRow
+ 
+  
+ while END=0 {
+  
+	 d FormatDates
+  	 d FormatTimes
+  	 d FetchEpisodeDetails
+  	 
+  	 If (prevPAADMRowId '= PAADMRowId) {s LeaveDays=..GetLeaveDaysForEpisode(PAADMRowId)} Else {s LeaveDays = 0}
+  	   	 
+	 s sort = ind		// don't sort - uncomment this line if you've sorted in the query
+ 
+	 s ^CacheTemp("TRAK",repid,sort)=$LB(PAADMRowId,URNo,EpisodeNo,Surname,GivenName,OtherGivenName,AdmDate,AdmTime,DischgDate
+	 	,DischgTime,WardCode,WardDesc,TRANSStartDate,TRANSEndDate,TransLOS,InsType,PGRPCode,PGRPDesc,LeaveDays,Status,Type)
+	 s ind=ind+1
+	 s prevPAADMRowId = PAADMRowId
+ 
+	 //fetch rows
+	 d FetchRow
+ }
+
+ &SQL(CLOSE SWARHRATD1060)
+ 
+ // Build QHandle (AtEnd,ReportID,Index)
+ Set QHandle=$lb(0,repid,0)
+
+ Quit $$$OK
+
+FetchRow
+ &sql(FETCH SWARHRATD1060 INTO :PAADMRowId,:URNo,:EpisodeNo,:Surname,:GivenName,:OtherGivenName,:AdmDate,:AdmTime,:DischgDate
+	 	,:DischgTime,:WardCode,:WardDesc,:TRANSStartDate,:TRANSEndDate,:TransLOS,:Status,:Type)
+ 
+ if SQLCODE '= 0 set END = 1
+ q
+ 
+FormatDates
+ s AdmDate=..ConvertDateToODBC(AdmDate)
+ s DischgDate=..ConvertDateToODBC(DischgDate)
+ s TRANSStartDate=..ConvertDateToODBC(TRANSStartDate)
+ s TRANSEndDate=..ConvertDateToODBC(TRANSEndDate)
+ q
+ 
+FormatTimes
+ s AdmTime=..ConvertTimeToODBC(AdmTime)
+ s DischgTime=..ConvertTimeToODBC(DischgTime)
+ q
+ 
+FetchEpisodeDetails
+ s InsType=..GetPrimaryInsTypeForEpisode(PAADMRowId)
+ &sql(
+ 	SELECT 
+ 		INST_PayorGroup_DR->PGRP_Code,INST_PayorGroup_DR->PGRP_Desc
+ 	INTO :PGRPCode,:PGRPDesc
+ 	FROM SQLUser.ARC_InsuranceType
+ 	WHERE INST_RowID = :InsType
+ 	)
+]]></Implementation>
+</Method>
+
+<Method name="SWARHRATD1060Fetch">
+<Description>
+This is the Fetch component of the %Library.Query. 
+This should never have to change. It is designed to fetch the row for each subscript of the ^CacheTemp
+global and return this row to the Crystal Report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,&Row:%Library.List,&AtEnd:%Library.Integer=0]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // This fetch method should never have to change. 
+
+ // repid - Report ID
+ // ind   - sequence index which represents each row
+
+ New repid,ind
+
+ // Restore QHandle
+ Set AtEnd=$li(QHandle,1)
+ Set repid=$li(QHandle,2)
+ Set ind=$li(QHandle,3)
+
+ Set ind=$o(^CacheTemp("TRAK",repid,ind))
+ If ind="" {	// if there are no more rows, finish fetching
+	 Set AtEnd=1
+	 Set Row=""
+ }
+ Else      {	// fetch row
+ 	Set Row=^CacheTemp("TRAK",repid,ind)
+ }
+
+ // Save QHandle
+ s QHandle=$lb(AtEnd,repid,ind)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Query name="SWARHRATD1060">
+<Type>%Library.Query</Type>
+<FormalSpec>Hospital:%Integer,DateFrom:%Date,DateTo:%Date,Ward:%Integer</FormalSpec>
+<SqlProc>1</SqlProc>
+<Parameter name="CONTAINID" value="0"/>
+<Parameter name="ROWSPEC" value="PAADMRowId:%Integer,URNo:%String,EpisodeNo:%String,Surname:%String,GivenName:%String,OtherGivenName:%String,AdmDate:%Date,AdmTime:%String,DischgDate:%Date,DischgTime:%String,WardCode:%String,WardDesc:%String,TRANSStartDate:%Date,TRANSEndDate:%Date,TransLOS:%Integer,InsType:%String,PGRPCode:%String,PGRPDesc:%String,LeaveDays:%Integer,Status:%String,Type:%String"/>
+<Parameter name="SELECTMODE" value="ODBC"/>
+</Query>
+
+<Parameter name="SrcVer">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)</Description>
+<Default>$Id$</Default>
+</Parameter>
+</Class>
+</Export>

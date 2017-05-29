@@ -1,0 +1,187 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.SWARH.Report.RptSvc.StoredProc.SWARHRTHR1001">
+<Description><![CDATA[
+<pre>
+**************************************************************************************************************************************
+* Report Code: SWARHRTHR1001
+* Report Description: Theatre Room Stats.
+* Menu Caption: Theatre Stats
+* Initial release:   Developer: Zac Newman
+* Modified: 
+* 
+**************************************************************************************************************************************
+</pre>]]></Description>
+<ProcedureBlock>0</ProcedureBlock>
+<Super>Custom.SWARH.Report.RptSvc.StoredProc.Abstract</Super>
+<TimeCreated>60905,54849</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/SWARH/Report/RptSvc/StoredProc/SWARHRTHR1001.xml#1 $</Default>
+</Parameter>
+
+<Method name="SWARHRTHR1001QueryClose">
+<Description>
+This is the Close component of the %Library.Query.
+This is standard code and should never have to change.
+This is where all the cleanup is performed, i.e. the purging of the temporary storage global ^CacheTemp.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>QHandle:%Library.Binary</FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Clean up by purging the temporary node in ^CacheTemp global
+ New repid,ind
+ Set repid=$li(QHandle,2)
+
+ //Start Monitor (if configured to capture stats)
+ i mon Do ..MonitorEnd(mon)
+
+ Kill ^CacheTemp("TRAK",repid)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="SWARHRTHR1001QueryExecute">
+<Description>
+This is the Execute section for the %Library.Query. 
+All of the logic will be performed here.
+A new node for the ^CacheTemp global will be created and each subscript of this global will contain
+a row for the report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,Hospital:%Library.String,DateFrom:%Library.Date,DateTo:%Library.Date]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Get reportid i.e. use $INCREMENT to add another node to ^CacheTemp global. 
+ // We use ^CacheTemp global because it will always use memory before disk
+ New repid,ind
+
+  // Use $Increment to get the next node
+ Set repid=$I(^CacheTemp("TRAK"))
+ 
+ New PAADMADMNo,PAPMINo,RBOPTimeOper,PAPMIName,PAPMIName2,WARDCode,CTSEXGender,PAPERAgeYr
+ New RBOPDateOper,RBOPDateBook,RESDesc,CTPCPDesc,Anaesthetist,RBOPStatus,RBOPProcsOpers
+
+ Set (PAADMADMNo,PAPMINo,RBOPTimeOper,PAPMIName,PAPMIName2,WARDCode,CTSEXGender,PAPERAgeYr)=""
+ Set (RBOPDateOper,RBOPDateBook,RESDesc,CTPCPDesc,Anaesthetist,RBOPStatus,RBOPProcsOpers)=""
+
+
+ s ind=1, END=0
+
+ //Start Monitor (if configured to capture stats)
+ s mon=..MonitorBegin()
+ s Hospital=$zstrip(Hospital,"*CW")
+ //Convert ODBC dates to cache format
+ s DateFrom=..ConvertDateToCache(DateFrom)
+ s DateTo=..ConvertDateToCache(DateTo)
+ 
+ &SQL(DECLARE SWARHRTHR1001Cursor CURSOR FOR 
+				 SELECT 
+				RBOP_PAADM_DR->PAADM_ADMNo, 
+				RBOP_PAADM_DR->PAADM_PAPMI_DR->PAPMI_No,
+				RBOP_TimeOper, 
+				RBOP_PAADM_DR->PAADM_PAPMI_DR->PAPMI_Name, 
+				RBOP_PAADM_DR->PAADM_PAPMI_DR->PAPMI_Name2, 
+				RBOP_PAADM_DR->PAADM_CurrentWard_DR->WARD_Code,
+				RBOP_PAADM_DR->PAADM_PAPMI_DR->PAPMI_Sex_DR->CTSEX_Gender,
+				RBOP_PAADM_DR->PAADM_PAPMI_DR->PAPMI_PAPER_DR->PAPER_AgeYr,
+				RBOP_DateOper, 
+				RBOP_DateBook, 
+				RBOP_Resource_DR->RES_Desc, 
+				RBOP_Surgeon_DR->CTPCP_Desc,
+				(RBOP_Anaesthetist_DR->CTPCP_Desc)As Anaesthetist,
+				RBOP_Status,
+				RBOP_ProcsOpers
+				from SQLUSER.RB_OperatingRoom
+
+		WHERE RBOP_DateOper between :DateFrom and :DateTo
+			AND RBOP_PAADM_DR->PAADM_Hospital_DR = :Hospital
+		Order by RES_Desc)
+ &SQL(OPEN SWARHRTHR1001Cursor)
+ 
+ //FETCH FIRST ROW
+ d FetchRow
+  
+ while END=0 {
+  
+	 d FormatDates
+  	 d FormatTimes
+  	 
+	 s sort = ind	
+	 s ^CacheTemp("TRAK",repid,sort)=$LB(PAADMADMNo,PAPMINo,RBOPTimeOper,PAPMIName,PAPMIName2,WARDCode,CTSEXGender,PAPERAgeYr,RBOPDateOper,RBOPDateBook,RESDesc,CTPCPDesc,Anaesthetist,RBOPStatus,RBOPProcsOpers)
+	 s ind=ind+1
+ 
+	 //fetch rows
+	 d FetchRow
+ }
+
+ &SQL(CLOSE SWARHRTHR1001Cursor)
+ 
+ // Build QHandle (AtEnd,ReportID,Index)
+ Set QHandle=$lb(0,repid,0)
+
+ Quit $$$OK
+
+FetchRow
+ &sql(FETCH SWARHRTHR1001Cursor INTO :PAADMADMNo,:PAPMINo,:RBOPTimeOper,:PAPMIName,:PAPMIName2,:WARDCode,:CTSEXGender,:PAPERAgeYr,:RBOPDateOper,:RBOPDateBook,:RESDesc,:CTPCPDesc,:Anaesthetist,:RBOPStatus,:RBOPProcsOpers)
+ if SQLCODE '= 0 set END = 1
+ q
+ 
+FormatDates
+ s RBOPDateOper=..ConvertDateToODBC(RBOPDateOper)
+ s RBOPDateBook=..ConvertDateToODBC(RBOPDateBook)
+ s RBOPProcsOpers = $LISTTOSTRING(RBOPProcsOpers, $CHAR(13)_$CHAR(10))
+ q
+ 
+FormatTimes
+ s RBOPTimeOper=..ConvertTimeToODBC(RBOPTimeOper)
+ q
+]]></Implementation>
+</Method>
+
+<Method name="SWARHRTHR1001QueryFetch">
+<Description>
+This is the Fetch component of the %Library.Query. 
+This should never have to change. It is designed to fetch the row for each subscript of the ^CacheTemp
+global and return this row to the Crystal Report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,&Row:%Library.List,&AtEnd:%Library.Integer=0]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // This fetch method should never have to change. 
+ // repid - Report ID
+ // ind   - sequence index which represents each row
+
+ New repid,ind
+
+ // Restore QHandle
+ Set AtEnd=$li(QHandle,1)
+ Set repid=$li(QHandle,2)
+ Set ind=$li(QHandle,3)
+
+ Set ind=$o(^CacheTemp("TRAK",repid,ind))
+ If ind="" {	// if there are no more rows, finish fetching
+	 Set AtEnd=1
+	 Set Row=""
+ }
+ Else      {	// fetch row
+ 	Set Row=^CacheTemp("TRAK",repid,ind)
+ }
+
+ // Save QHandle
+ s QHandle=$lb(AtEnd,repid,ind)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Query name="SWARHRTHR1001Query">
+<Type>%Library.Query</Type>
+<FormalSpec>Hospital:%Library.String,DateFrom:%Library.Date,DateTo:%Library.Date</FormalSpec>
+<SqlProc>1</SqlProc>
+<Parameter name="CONTAINID" value="0"/>
+<Parameter name="ROWSPEC" value="PAADMADMNo:%Library.String,PAPMINo:%Library.String,RBOPTimeOper:%Library.Time,PAPMIName:%Library.String,PAPMIName2:%Library.String,WARDCode:%Library.String,CTSEXGender:%Library.String,PAPERAgeYr:%Library.Integer,RBOPDateOper:%Library.Date,RBOPDateBook:%Library.Date,RESDesc:%Library.String,CTPCPDesc:%Library.String,Anaesthetist:%Library.String,RBOPStatus:%Library.String,RBOPProcsOpers:%Library.String"/>
+<Parameter name="SELECTMODE" value="ODBC"/>
+</Query>
+</Class>
+</Export>

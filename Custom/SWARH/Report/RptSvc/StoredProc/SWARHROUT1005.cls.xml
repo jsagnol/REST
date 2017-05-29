@@ -1,0 +1,325 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.SWARH.Report.RptSvc.StoredProc.SWARHROUT1005">
+<Description>
+Class for SWARHROUT1005 Report</Description>
+<ProcedureBlock>0</ProcedureBlock>
+<Super>Custom.SWARH.Report.ZEN.StoredProc.Abstract</Super>
+<TimeCreated>62335,45574.688786</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/SWARH/Report/RptSvc/StoredProc/SWARHROUT1005.xml#1 $</Default>
+</Parameter>
+
+<UDLText name="T">
+<Content><![CDATA[
+/*
+ * ---START TEMPLATE COMMENT BLOCK---
+ * SWARH ZEN Report Template
+ * Use Tools->Copy Class in Studio to copy this template to your new Stored Procedure class,
+ * giving it your relevant Stored Procedure name (as per SWARH naming conventions), keeping itin the Custom.SWARH.Report.ZEN.StoredProc package.
+ * Find and Replace "AAATemplateStoredProcQuery" with your appropriate stored procedure name as per SWARH naming conventions
+ *
+ * All places in this class requiring modification are tagged with "TEMPLATE MODIFY" comments; search for this tag and 
+ * remove the comments as you go to ensure you've made all required changes.
+ *
+ * Modification Steps Required:
+ * 1.  Change Query name and prefix of Execute, Close and Fetch methods to desired query name:
+ *     eg. Query <MyQueryName>, ClassMethod <MyQueryName>Execute, ClassMethod <MyQueryName>Fetch, ClassMethod <MyQueryName>Close
+ * 2.  Alter the SQL query in <MyQueryName>Execute to perform the desired SQL query (use WinSQL or the Ensemble Management Portal to test your query)
+ * 3.  Alter the parameters of the Query <MyQuery> and the <MyQueryName>Execute method to suit your query's requirements
+ * 4.  In the <MyQueryName>Execute method, set up variables for your query's output fields; each variable name will be specified in at least 5 places
+ *   1.   Declare under an n/New line (eg. 'New MyField')
+ *   2.   Initialised under an s/Set line (set to "" for string/date/time fields or 0 for numeric fields) (eg. Set (MyField,MyOtherField)=""
+ *   3&4. Placed in the two 'fetch ... into ' line's output variable lists- eg. 'fetch MyReportCursor INTO :MyField,:MyOtherField'
+ *        (output fields need to be specified in the same order as they are specified in the SELECT statement)
+ *	 5.   In the ^CacheTemp row assignment $LB list, at the appropriate index for the output column.
+ *        eg. 's ^CacheTemp("TRAK",repid,sort)=$LB(MyField,MyOtherField,...) 
+ * 5.  Add appropriate conversion assignments under the FormatDates label for any date or time fields
+ * 6.  Build up the sort string on the 's sort = ' line, with desired fields to sort the output rowset on.
+ *     To ignore uppercase/lowercase characters, you need to wrap each variable in a $ZCVT(<variable>,"U") to convert it to uppercase.
+ *     Sorting here is supposedly faster than using an ORDER BY in most circumstances.
+ *     Build the string as: 's sort = $ZCVT(SortField1,"U")_" "_$ZCVT(SortField2,"U")_" "_..._" "_ind'
+ *     The sort string  should always end with 'ind', and if no sorting is required outside the SQL query, simply specify 'set sort = ind'
+ * 7.  Set up output field names and types in ROWSPEC:
+ *     Alter the ROWSPEC (under Query) to match desired output field names and types, in the correct order (as specified in the ^CacheTemp
+ *     row assignment $LB list from step 4.5).
+ * 8.  Fill out Report Name and Code in detail comment below
+ * 9.  Test the stored procedure using WinSQL (execute "CALL <Custom_SWARH_Report_ZEN_StoredProc_AAATemplateStoredProcClass.AAAAATemplateStoredProcQuery(Params) or the Ensemble System Management Portal:
+ *		 (under SQL->[select namespace]->SQL Schemas->[click "Procedures" against Custom_SWARH_Report_ZEN_StoredProc schema]->[click "Run" against appropriate stored procedure])
+ * 10. Finally, remove this comment block and you're done!
+ * ---END TEMPLATE COMMENT BLOCK---
+ */
+]]></Content>
+</UDLText>
+
+<UDLText name="T">
+<Content><![CDATA[
+/*
+ * Report Name: ICU Attendances <br>
+ * Report Code: SWARHROUT1005 <br>
+ * SWARH Developer: Phuong-Dung HOANG <br>
+ */
+]]></Content>
+</UDLText>
+
+<Method name="SWARHROUT1005QueryClose">
+<Description>
+This is the Close component of the %Library.Query.
+This is standard code and should never have to change.
+This is where all the cleanup is performed, i.e. the purging of the temporary storage global ^CacheTemp.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>QHandle:%Library.Binary</FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Clean up by purging the temporary node in ^CacheTemp global
+ New repid,ind
+ Set repid=$li(QHandle,2)
+
+ //Start Monitor (if configured to capture stats)
+ i mon Do ..MonitorEnd(mon)
+
+ Kill ^CacheTemp("TRAK",repid)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="SWARHROUT1005QueryExecute">
+<Description>
+This is the Execute section for the %Library.Query. 
+All of the logic will be performed here.
+A new node for the ^CacheTemp global will be created and each subscript of this global will contain
+a row for the report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,Hospital:%Library.Integer,DateFrom:%Date,DateTo:%Date]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Get reportid i.e. use $INCREMENT to add another node to ^CacheTemp global. 
+ // We use ^CacheTemp global because it will always use memory before disk
+ New repid,ind
+
+  // Use $Increment to get the next node
+ Set repid=$I(^CacheTemp("TRAK"))
+ 
+ New Number,String,Date,Time,c,n
+
+ /* TEMPLATE MODIFY: Define and initialise appropriate column variables to describe output rowset columns */
+ New PAPMINo,PAPMIName,PAPMIName2,PAPMIName3,PAADMAdmNo,PAADMType,APPTRBCServDR,CTLOCDesc,HOSPRowId,HOSPDesc,SGCode,
+ AttendancesNew,AttendancesReview,AttendancesOthers,Cancellations,DNA,DNACL,DNCOther,IPAttendances,SGDesc,OUTCDesc,
+ ASDate,ASSessStartTime,ASSessEndTime,APPTStatus,ApptStatusDesc,Attendances,APPTArrivalTime,APPTSeenDate,APPTSeenTime,RFCDesc,RFCCode,APPTReasonForCancellation,
+ APPTCancelDate,APPTCancelTime,APPTCancelDateTime,APPTStartDateTime,DiffMinutes,APPTPatientNotAttending,RNSDesc
+ Set (APPTRBCServDR,HOSPRowId,DiffMinutes,AttendancesNew,AttendancesReview,AttendancesOthers,Cancellations,DNA,DNACL,DNAOther,IPAttendances)=0
+ Set (PAPMINo,PAPMIName,PAPMIName2,PAPMIName3,PAADMAdmNo,PAADMType,CTLOCDesc,HOSPDesc,SGCode,SGDesc,OUTCDesc,
+ ASDate,ASSessStartTime,ASSessEndTime,APPTStatus,ApptStatusDesc,APPTArrivalTime,APPTSeenDate,APPTSeenTime,RFCDesc,RFCCode,APPTReasonForCancellation,
+ APPTCancelDate,APPTCancelTime,APPTCancelDateTime,APPTStartDateTime,APPTPatientNotAttending,RNSDesc)=""
+
+ s ind=1
+
+ //Convert ODBC dates to cache format
+ //s DateFrom=$$intdate^SSUTIL4(DateFrom)
+ s DateFrom=..ConvertDateToCache(DateFrom)
+ //s DateTo=$$intdate^SSUTIL4(DateTo)
+ s DateTo=..ConvertDateToCache(DateTo)
+
+ //Start Monitor (if configured to capture stats)
+ s mon=..MonitorBegin()
+ 
+ /* TEMPLATE MODIFY: Clean up parameter variables - $zstrip(<variable>,"*CW") strips all control characters and whitespace, "<>W" just strips leading/trailing whitespace */
+
+ /*
+  * TEMPLATE MODIFY:
+  *		1. Change name of cursor to something more descriptive than MyReportCursor (need to change in 4 places; here, 2x "fetch" expressions and close expression below)
+  *		2. Change SQL query to query desired data, passing valid parameters as defined in Query and Execute method arguments.
+  *		3. Pass appropriate parameters using :<ParameterVariableName> - eg. :Hospital
+  */
+ &SQL(DECLARE SWARHROUT1005Cursor CURSOR FOR 
+ select APPT_PAPMI_DR->PAPMI_No, APPT_PAPMI_DR->PAPMI_Name, APPT_PAPMI_DR->PAPMI_Name2, APPT_PAPMI_DR->PAPMI_Name3,
+APPT_Adm_DR->PAADM_AdmNo, APPT_Adm_DR->PAADM_Type,
+
+APPT_RBCServ_DR, 
+APPT_RBCServ_DR->SER_CTLOC_DR->CTLOC_Desc, 
+APPT_RBCServ_DR->SER_CTLOC_DR->CTLOC_Hospital_DR, 
+APPT_RBCServ_DR->SER_CTLOC_DR->CTLOC_Hospital_DR->HOSP_Desc,
+
+APPT_RBCServ_DR->SER_ServGroup_DR->SG_Code,
+case APPT_RBCServ_DR->SER_ServGroup_DR->SG_Code when 'N' then 1 else 0 end as AttendancesNew,
+case APPT_RBCServ_DR->SER_ServGroup_DR->SG_Code when 'R' then 1 else 0 end as AttendancesReview,
+case APPT_RBCServ_DR->SER_ServGroup_DR->SG_Code when 'N' then 0 when 'R' then 0 else 1 end as AttendancesOthers,
+case APPT_Status when 'X' then 1 else 0 end as Cancellations,
+case APPT_Status when 'N' then 1 else 0 end as DNA,
+
+case APPT_Status when 'X' then 1 else 0 end as DNACL,
+case APPT_Status when 'N' then 1 else 0 end as DNAOther,
+
+case APPT_Adm_DR->PAADM_Type when 'I' then 1 else 0 end as IPAttendances,
+
+APPT_RBCServ_DR->SER_ServGroup_DR->SG_Desc,
+APPT_Outcome_DR->OUTC_Desc,
+APPT_AS_ParRef->AS_Date,
+APPT_AS_ParRef->AS_SessStartTime,
+APPT_AS_ParRef->AS_SessEndTime,
+APPT_Status,
+
+case APPT_Status when 'D' then 'Attended'
+when 'N' then 'DNA'
+when 'X' then 'Cancelled'
+when 'A' then 'Arrived'
+when 'S' then 'Arrived Not Seen'
+when 'P' then 'Booked'
+when 'C' then 'Closed'
+when 'T' then 'T'
+when 'H' then 'H'
+end as ApptStatusDesc,
+
+case APPT_Status when 'D' then 1 else 0 end as Attendances,
+
+APPT_ArrivalTime,APPT_SeenDate,APPT_SeenTime,
+APPT_ReasonForCancel_DR->RFC_Desc,
+APPT_ReasonForCancel_DR->RFC_Code,
+APPT_ReasonForCancellation,
+APPT_CancelDate,APPT_CancelTime,
+{fn concat({fn concat(cast({fn convert(APPT_CancelDate,SQL_DATE)} as char(10)),' ')},cast({fn convert(APPT_CancelTime,SQL_TIME)} as char(8)))} as CancelDateTime,
+{fn concat({fn concat(cast({fn convert(APPT_AS_ParRef->AS_Date,SQL_DATE)} as char(10)),' ')},cast({fn convert(APPT_AS_ParRef->AS_SessStartTime,SQL_TIME)} as char(8)))} as ApptStartDateTime,
+datediff('minute',
+{fn concat({fn concat(cast({fn convert(APPT_CancelDate,SQL_DATE)} as char(10)),' ')},cast({fn convert(APPT_CancelTime,SQL_TIME)} as char(8)))},
+{fn concat({fn concat(cast({fn convert(APPT_AS_ParRef->AS_Date,SQL_DATE)} as char(10)),' ')},cast({fn convert(APPT_AS_ParRef->AS_SessStartTime,SQL_TIME)} as char(8)))}
+) as DiffMinutes,
+
+APPT_PatientNotAttending,
+APPT_ReasonNotShow->RNS_Desc
+FROM SQLUser.RB_Appointment
+WHERE APPT_RBCServ_DR->SER_CTLOC_DR->CTLOC_Hospital_DR=:Hospital AND APPT_AS_ParRef->AS_Date between :DateFrom and :DateTo)
+ &SQL(OPEN SWARHROUT1005Cursor)
+ 
+
+ /* TEMPLATE MODIFY: Rename cursor to something moreChange fetch INTO parameter list to match column variable names */
+ //FETCH FIRST ROW
+ &sql(fetch SWARHROUT1005Cursor INTO :PAPMINo,:PAPMIName,:PAPMIName2,:PAPMIName3,:PAADMAdmNo,:PAADMType,:APPTRBCServDR,:CTLOCDesc,:HOSPRowId,
+ :HOSPDesc,:SGCode,:AttendancesNew,:AttendancesReview,:AttendancesOthers,:Cancellations,:DNA,:DNACL,:DNAOther,:IPAttendances,:SGDesc,:OUTCDesc,:ASDate,:ASSessStartTime,:ASSessEndTime,:APPTStatus,
+ :ApptStatusDesc,:Attendances,:APPTArrivalTime,:APPTSeenDate,:APPTSeenTime,:RFCDesc,:RFCCode,:APPTReasonForCancellation,
+ :APPTCancelDate,:APPTCancelTime,:APPTCancelDateTime,:APPTStartDateTime,:DiffMinutes,:APPTPatientNotAttending,:RNSDesc)
+  
+ while 'SQLCODE{
+  
+ d FormatDates
+ d CheckCancelNotice
+ d CheckAttendanceType
+  
+ /* TEMPLATE MODIFY: Build the sort string here from column variables. Convert strings to uppercase ($ZCVT(<field>,"U") and separate with spaces */
+ s sort = ind		// don't sort - uncomment this line if you've sorted in the query
+ //s sort = $ZCVT(HOSPDesc,"U")_" "_$ZCVT(WARDDesc,"U")_" "_$ZCVT(ROOMCode,"U")_" "_$ZCVT(BEDCode,"U")_" "_$ZCVT(CTRLGDesc,"U")_" "_$ZCVT(PAPERName,"U")_" "_$ZCVT(PAPERName2,"U")_" "_$ZCVT(PAPERName3,"U")_ind
+ 
+ /* TEMPLATE MODIFY: Build the list of fields by placing correct column variable names in the $LB() here. */
+ s ^CacheTemp("TRAK",repid,sort)=$LB(PAPMINo,PAPMIName,PAPMIName2,PAPMIName3,PAADMAdmNo,PAADMType,APPTRBCServDR,CTLOCDesc,HOSPRowId,HOSPDesc,
+ SGCode,AttendancesNew,AttendancesReview,AttendancesOthers,Cancellations,DNA,DNACL,DNAOther,IPAttendances,SGDesc,OUTCDesc,
+ ASDate,ASSessStartTime,ASSessEndTime,APPTStatus,ApptStatusDesc,Attendances,APPTArrivalTime,APPTSeenDate,APPTSeenTime,RFCDesc,RFCCode,APPTReasonForCancellation,
+ APPTCancelDate,APPTCancelTime,APPTCancelDateTime,APPTStartDateTime,DiffMinutes,APPTPatientNotAttending,RNSDesc)
+ s ind=ind+1
+ 
+ /* TEMPLATE MODIFY: Change field variables to match row columns - copy FETCH FIRST ROW from above */
+ //fetch rows
+ &sql(fetch SWARHROUT1005Cursor INTO :PAPMINo,:PAPMIName,:PAPMIName2,:PAPMIName3,:PAADMAdmNo,:PAADMType,:APPTRBCServDR,:CTLOCDesc,:HOSPRowId,:HOSPDesc,
+ :SGCode,:AttendancesNew,:AttendancesReview,:AttendancesOthers,:Cancellations,:DNA,:DNACL,:DNAOther,:IPAttendances,:SGDesc,:OUTCDesc,:ASDate,:ASSessStartTime,:ASSessEndTime,:APPTStatus,:ApptStatusDesc,:Attendances,
+ :APPTArrivalTime,:APPTSeenDate,:APPTSeenTime,:RFCDesc,:RFCCode,:APPTReasonForCancellation,
+ :APPTCancelDate,:APPTCancelTime,:APPTCancelDateTime,:APPTStartDateTime,:DiffMinutes,:APPTPatientNotAttending,:RNSDesc)}
+
+ &SQL(CLOSE SWARHROUT1005Cursor)
+ 
+ // Build QHandle (AtEnd,ReportID,Index)
+ Set QHandle=$lb(0,repid,0)
+
+ Quit $$$OK
+
+FormatDates
+ /* TEMPLATE MODIFY: Add an entry to perform a date format for all date/time fields here */
+ //s AdmDate=..ConvertDateToODBC(AdmDate)
+ //s DischgDate=..ConvertDateToODBC(DischgDate)
+ //s TRANSStartDate=..ConvertDateToODBC(TRANSStartDate)
+ s ASDate=..ConvertDateToODBC(ASDate)
+ s APPTSeenDate=..ConvertDateToODBC(APPTSeenDate)
+ s APPTCancelDate=..ConvertDateToODBC(APPTCancelDate)
+ s APPTCancelTime=..ConvertTimeToODBC(APPTCancelTime)
+ s ASSessStartTime=..ConvertTimeToODBC(ASSessStartTime)
+ s ASSessEndTime=..ConvertTimeToODBC(ASSessEndTime)
+ s APPTArrivalTime=..ConvertTimeToODBC(APPTArrivalTime)
+ s APPTSeenTime=..ConvertTimeToODBC(APPTSeenTime)
+ 
+CheckCancelNotice
+ // Specify appointment status if cancelled (less than 24 hour notice or greater than 24 hour notice)
+ if (APPTStatus="X") {
+	 if (DiffMinutes>1440) {
+		s ApptStatusDesc="DNA-CL"
+		s DNACL=1
+	 }
+	 else {
+		 s ApptStatusDesc="Cancelled > 24h"
+		 s DNACL=0
+	 }
+ }
+ 
+CheckAttendanceType
+ // type of appointment is only relevant for appointments that have been attended to for the statistics report
+ if (Attendances'=1) {
+	 s AttendancesNew=0
+	 s AttendancesReview=0
+	 s AttendancesOthers=0
+ }
+]]></Implementation>
+</Method>
+
+<Method name="SWARHROUT1005QueryFetch">
+<Description>
+This is the Fetch component of the %Library.Query. 
+This should never have to change. It is designed to fetch the row for each subscript of the ^CacheTemp
+global and return this row to the Crystal Report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,&Row:%Library.List,&AtEnd:%Library.Integer=0]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // This fetch method should never have to change. 
+
+ // repid - Report ID
+ // ind   - sequence index which represents each row
+
+ New repid,ind
+
+ // Restore QHandle
+ Set AtEnd=$li(QHandle,1)
+ Set repid=$li(QHandle,2)
+ Set ind=$li(QHandle,3)
+
+ Set ind=$o(^CacheTemp("TRAK",repid,ind))
+ If ind="" {	// if there are no more rows, finish fetching
+ Set AtEnd=1
+ Set Row=""
+ }
+ Else      {	// fetch row
+ Set Row=^CacheTemp("TRAK",repid,ind)
+ }
+
+ // Save QHandle
+ s QHandle=$lb(AtEnd,repid,ind)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<UDLText name="T">
+<Content><![CDATA[
+/* TEMPLATE MODIFY: Rename Stored Proc query to <MyStoredProcName> 
+ * TEMPLATE MODIFY: Change parameters to match desired stored procedure parameters
+ * TEMPLATE MODIFY: Change ROWSPEC list to match desired output column names and column data types */
+]]></Content>
+</UDLText>
+
+<Query name="SWARHROUT1005Query">
+<Type>%Library.Query</Type>
+<FormalSpec>Hospital:%Library.Integer,DateFrom:%Date,DateTo:%Date</FormalSpec>
+<SqlProc>1</SqlProc>
+<Parameter name="CONTAINID" value="0"/>
+<Parameter name="ROWSPEC" value="PAPMINo:%String(MAXLEN=10),PAPMIName:%String(MAXLEN=255),PAPMIName2:%String(MAXLEN=255),PAPMIName3:%String(MAXLEN=255),PAADMAdmNo:%String(MAXLEN=50),PAADMType:%String(MAXLEN=3),APPTRBCServDR:%Integer,CTLOCDesc:%String(MAXLEN=255),HOSPRowId:%Integer,HOSPDesc:%String(MAXLEN=255),SGCode:%String(MAXLEN=10),AttendancesNew:%Integer,AttendancesReview:%Integer,AttendancesOthers:%Integer,Cancellations:%Integer,DNA:%Integer,DNACL:%Integer,DNAOther:%Integer,IPAttendances:%Integer,SGDesc:%String(MAXLEN=255),OUTCDesc:%String(MAXLEN=255),ASDate:%Date,ASSessStartTime:%String(MAXLEN=255),ASSessEndTime:%String(MAXLEN=10),APPTStatus:%String(MAXLEN=255),ApptStatusDesc:%String(MAXLEN=255),Attendances:%Integer,APPTArrivalTime:%String(MAXLEN=10),APPTSeenDate:%Date,APPTSeenTime:%String(MAXLEN=255),RFCDesc:%String(MAXLEN=255),RFCCode:%String(MAXLEN=255),APPTReasonForCancellation:%String(MAXLEN=255),APPTCancelDate:%Date,APPTCancelTime:%String(MAXLEN=255),APPTCancelDateTime:%String(MAXLEN=255),APPTStartDateTime:%String(MAXLEN=255),DiffMinutes:%Integer,APPTPatientNotAttending:%String(MAXLEN=255),RNSDesc:%String(MAXLEN=255)"/>
+<Parameter name="SELECTMODE" value="ODBC"/>
+</Query>
+</Class>
+</Export>

@@ -1,0 +1,233 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.SWARH.Report.RptSvc.StoredProc.SWARHRATD1019">
+<Description>
+Class for SWARHRATD1019 DRG by WARD</Description>
+<ClassType/>
+<ProcedureBlock>0</ProcedureBlock>
+<Super>%Library.RegisteredObject</Super>
+<TimeCreated>60905,54849</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/SWARH/Report/RptSvc/StoredProc/SWARHRATD1019.xml#1 $</Default>
+</Parameter>
+
+<Method name="SWARHRATD1019Close">
+<Description>
+This is the Close component of the %Library.Query.
+This is standard code and should never have to change.
+This is where all the cleanup is performed, i.e. the purging of the temporary storage global ^CacheTemp.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>QHandle:%Library.Binary</FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Clean up by purging the temporary node in ^CacheTemp global
+ New repid
+ Set repid=$li(QHandle,2)
+ Kill ^CacheTemp(repid)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="SWARHRATD1019Execute">
+<Description>
+This is the Execute section for the %Library.Query. 
+All of the logic will be performed here.
+A new node for the ^CacheTemp global will be created and each subscript of this global will contain
+a row for the report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,Hospital:%Integer,DateFrom:%Date,DateTo:%Date,pWard:%String]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+	
+ k ^zbernard	
+ // Get reportid i.e. use $INCREMENT to add another node to ^CacheTemp global. 
+ // We use ^CacheTemp global because it will always use memory before disk
+ New repid,ind
+
+ // Use $Increment to get the next node
+ Set repid=$I(^CacheTemp)
+ s ^zBernard("1")=(1)
+
+ // Build data into ^CacheTemp(ReportID)
+ // e.g. Set ^CacheTemp(ReportID,Index)=$LB(f1,f2,f3)
+ New Number,String,Date,Time,c,n
+ New PAPMINo,PAADMADMNo,PAPMIName,PAPMIName2,PAADMType,PAADMAdmDate,PAADMAdmTime,PAADMDischgDate,PAADMDischgTime,PAADMHospitalDR,HOSPDesc,
+ DRGCode,DRGDesc,CTCode,CTDesc,LOS,LastWardCode,LastWardDesc,AdmWardCode,AdmWardDesc,DRGVERCode,DRGVERDesc,DRGVERDFrom,DRGVERDTo,
+ StateLOS,OverNightWeight,SamedayWeight,DRGGroup,DchDate,DchTime
+ s (PAADMHospitalDR,LOS,StateLOS,OverNightWeight,SamedayWeight)=0
+ s (PAPMINo,PAADMADMNo,PAPMIName,PAPMIName2,PAADMType,PAADMAdmDate,PAADMAdmTime,PAADMDischgDate,PAADMDischgTime,HOSPDesc,
+ DRGCode,DRGDesc,CTCode,CTDesc,LOS,LastWardCode,LastWardDesc,AdmWardCode,AdmWardDesc,DRGVERCode,DRGVERDesc,DRGVERDFrom,DRGVERDTo,
+ DRGGroup,DchDate,DchTime)="" 
+  
+ s ind=1
+
+ //Convert ODBC dates to cache format
+ s DateFrom=$$intdate^SSUTIL4(DateFrom)
+ s DateTo=$$intdate^SSUTIL4(DateTo)
+ 
+ //s ^bernard("2")=(2)
+ 
+ &sql(declare SWARHRATD1019 cursor for
+SELECT DISTINCT
+    B.PAPMI_No,
+    A.PAADM_ADMNo,
+    {fn UCASE(%EXACT(B.PAPMI_Name))},
+    UCASE(B.PAPMI_Name2),
+    A.PAADm_Type,
+    A.PAADM_AdmDate,
+    A.PAADM_AdmTime,
+    A.PAADM_DischgDate,
+    A.PAADM_DischgTime,
+    A.PAADM_Hospital_DR,
+    A.PAADM_Hospital_DR->HOSP_Desc,
+    D.DRG_Code As DRGCode,
+    D.DRG_Desc As DRGDesc,
+    C.MRADM_CareType_DR->CareTyp_Code As CTCode,
+    C.MRADM_CareType_DR->CareTyp_Desc As CTDesc,
+    CASE WHEN A.PAADM_DischgDate is null THEN datediff("d",A.PAADM_AdmDate,getdate()) ELSE
+    (CASE WHEN datediff("d",A.PAADM_AdmDate,A.PAADM_DischgDate)=0 THEN 1 ELSE datediff("d",A.PAADM_AdmDate,A.PAADM_DischgDate) END) END as LOS,
+    A.PAADM_CurrentWard_DR->Ward_Code As LastWardCode,
+    A.PAADM_CurrentWard_DR->Ward_Desc As LastWardDesc,
+    F.TRANS_Ward_DR->Ward_Code As AdmWardCode,
+    F.TRANS_Ward_DR->Ward_Desc As AdmWardDesc,
+    E.VER_Version_DR->DRGVER_Code As DRGVERCode,
+    E.VER_Version_DR->DRGVER_Desc As DRGVERDesc,
+    E.VER_Version_DR->DRGVER_DateFrom As DRGVERDFrom,
+    E.VER_Version_DR->DRGVER_DateTo As DRGVERDTo,
+    G.TAR_DayHospitalTariff As StateLOS,
+    G.TAR_ReabilitaionLimitDay As OverNightWeight,
+    G.TAR_LimitDay AS SamedayWeight,
+    Left(D.DRG_Code,3) As DRGGroup,
+    To_Char(A.PAADM_DischgDate,'DD/MM/YYYY') As DchDate,
+    Cast(A.PAADM_DischgTime As VARCHAR(5)) As DchTime
+
+ FROM SQLUser.PA_Adm A
+        LEFT OUTER JOIN SQLUser.PA_PatMas B ON A.PAADM_PAPMI_DR = B.PAPMI_RowId
+        LEFT OUTER JOIN SQLUser.MR_Adm C ON A.PAADM_MainMRADM_DR = C.MRADM_RowId
+        LEFT OUTER JOIN SQLUser.MRC_DRGCodes D ON C.MRADM_DRG_DR = D.DRG_RowID
+        LEFT OUTER JOIN SQLUser.MRC_DRGCodesVersion E ON D.DRG_RowId = E.VER_ParRef
+        LEFT OUTER JOIN SQLUser.PA_AdmTransaction F ON A.PAADM_RowID = F.TRANS_ParRef
+        LEFT OUTER JOIN SQLUser.BLC_DRG_Tariff G ON D.DRG_RowID = G.TAR_DRG_DR
+
+ WHERE
+        A.PAADM_Hospital_DR = :Hospital
+        AND A.PAADM_DischgDate  BETWEEN :DateFrom AND :DateTo
+        AND A.PAADM_Type='I' -- Inpatient Episodes ONLY
+ 		AND A.PAADM_VisitStatus ='D'
+        AND (F.TRANS_Ward_DR->Ward_Code = :pWard OR (:pWard IS NULL))
+        AND A.PAADM_AdmDate = F.TRANS_StartDate
+        AND A.PAADM_AdmTime = F.TRANS_StartTime
+        AND D.DRG_Code <> ''
+
+ 	
+ )
+
+ 
+ &sql(open SWARHRATD1019)
+ 
+  //fetch first row
+ &sql(fetch SWARHRATD1019 into :PAPMINo,:PAADMADMNo,:PAPMIName,:PAPMIName2,:PAADMType,:PAADMAdmDate,:PAADMAdmTime,:PAADMDischgDate,:PAADMDischgTime,
+ :PAADMHospitalDR,:HOSPDesc,:DRGCode,:DRGDesc,:CTCode,:CTDesc,:LOS,:LastWardCode,:LastWardDesc,:AdmWardCode,:AdmWardDesc,:DRGVERCode,:DRGVERDesc,
+ :DRGVERDFrom,:DRGVERDTo,:StateLOS,:OverNightWeight,:SamedayWeight,:DRGGroup,:DchDate,:DchTime)
+ 
+
+ while 'SQLCODE{
+ 
+ d FormatDates
+ d FormatTimes
+
+ // build the row
+ Set ^CacheTemp(repid,ind)=$LB(PAPMINo,PAADMADMNo,PAPMIName,PAPMIName2,PAADMType,PAADMAdmDate,PAADMAdmTime,PAADMDischgDate,PAADMDischgTime,
+ PAADMHospitalDR,HOSPDesc,DRGCode,DRGDesc,CTCode,CTDesc,LOS,LastWardCode,LastWardDesc,AdmWardCode,AdmWardDesc,DRGVERCode,DRGVERDesc,DRGVERDFrom,
+ DRGVERDTo,StateLOS,OverNightWeight,SamedayWeight,DRGGroup,DchDate,DchTime)
+ s ind=ind+1
+ //fetch rows
+ &sql(fetch SWARHRATD1019 into :PAPMINo,:PAADMADMNo,:PAPMIName,:PAPMIName2,:PAADMType,:PAADMAdmDate,:PAADMAdmTime,:PAADMDischgDate,:PAADMDischgTime,
+ :PAADMHospitalDR,:HOSPDesc,:DRGCode,:DRGDesc,:CTCode,:CTDesc,:LOS,:LastWardCode,:LastWardDesc,:AdmWardCode,:AdmWardDesc,:DRGVERCode,:DRGVERDesc,
+ :DRGVERDFrom,:DRGVERDTo,:StateLOS,:OverNightWeight,:SamedayWeight,:DRGGroup,:DchDate,:DchTime)
+ }
+
+ //s ^zBernard("3")=(3)
+ &sql(close SWARHRATD1019)
+
+ // Build QHandle (AtEnd,ReportID,Index)
+ Set QHandle=$lb(0,repid,0)
+
+ //s ^zBernard("4")=(4)
+
+ Quit $$$OK
+
+
+FormatDates
+ // Convert the dates to ODBC date format
+ If PAADMAdmDate Set PAADMAdmDate=$ZD(PAADMAdmDate,3)
+ If PAADMDischgDate Set PAADMDischgDate=$ZD(PAADMDischgDate,3)
+ If DRGVERDFrom Set DRGVERDFrom=$ZD(DRGVERDFrom,3)
+ If DRGVERDTo Set DRGVERDTo=$ZD(DRGVERDTo,3)
+ Quit
+
+FormatTimes
+ // Convert the times to ODBC time format
+ If PAADMAdmTime Set PAADMAdmTime=$ZT(PAADMAdmTime,1)
+ If PAADMDischgTime Set PAADMDischgTime=$ZT(PAADMDischgTime,1)
+ Quit
+]]></Implementation>
+</Method>
+
+<Method name="SWARHRATD1019Fetch">
+<Description>
+This is the Fetch component of the %Library.Query. 
+This should never have to change. It is designed to fetch the row for each subscript of the ^CacheTemp
+global and return this row to the Crystal Report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,&Row:%Library.List,&AtEnd:%Library.Integer=0]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // This fetch method should never have to change. 
+
+ // repid - Report ID
+ // ind   - sequence index which represents each row
+
+ New repid,ind
+
+ // Restore QHandle
+ Set AtEnd=$li(QHandle,1)
+ Set repid=$li(QHandle,2)
+ Set ind=$li(QHandle,3)
+
+ Set ind=$o(^CacheTemp(repid,ind))
+ If ind="" {	// if there are no more rows, finish fetching
+ Set AtEnd=1
+ Set Row=""
+ }
+ Else      {	// fetch row
+ Set Row=^CacheTemp(repid,ind)
+ }
+
+ // Save QHandle
+ s QHandle=$lb(AtEnd,repid,ind)
+
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Query name="SWARHRATD1019">
+<Description>
+GHA List reports Stored Procedure
+It expects 2 parameter of type date and will return a list of records:
+Field1 - Integer
+Field2 - String(MAXLEN=255)
+Field3 - Date
+Field4 - Time 																										</Description>
+<Type>%Library.Query</Type>
+<FormalSpec>Hospital:%Integer,DateFrom:%Date,DateTo:%Date,pWard:%String</FormalSpec>
+<SqlProc>1</SqlProc>
+<Parameter name="CONTAINID" value="0"/>
+<Parameter name="ROWSPEC" value="PAPMINo:%String(MAXLEN=255),PAADMADMNo:%String(MAXLEN=255),PAPMIName:%String(MAXLEN=255),PAPMIName2:%String(MAXLEN=255),PAADMType:%String(MAXLEN=255),PAADMAdmDate:%Date,PAADMAdmTime:%Time,PAADMDischgDate:%Date,PAADMDischgTime:%Time,PAADMHospitalDR:%Integer,HOSPDesc:%String(MAXLEN=255),DRGCode:%String(MAXLEN=255),DRGDesc:%String(MAXLEN=255),CTCode:%String(MAXLEN=255),CTDesc:%String(MAXLEN=255),LOS:%Integer,LastWardCode:%String(MAXLEN=255),LastWardDesc:%String(MAXLEN=255),AdmWardCode:%String(MAXLEN=255),AdmWardDesc:%String(MAXLEN=255),DRGVERCode:%String(MAXLEN=255),DRGVERDesc:%String(MAXLEN=255),DRGVERDFrom:%Date,DRGVERDTo:%Date,StateLOS:%Float,OverNightWeight:%Float,SamedayWeight:%Float,DRGGroup:%String(MAXLEN=255),DchDate:%String(MAXLEN=255),DchTime:%String(MAXLEN=255)"/>
+<Parameter name="SELECTMODE" value="ODBC"/>
+</Query>
+</Class>
+</Export>

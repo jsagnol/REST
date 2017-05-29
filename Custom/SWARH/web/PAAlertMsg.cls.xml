@@ -1,0 +1,166 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.SWARH.web.PAAlertMsg">
+<Description><![CDATA[
+<h1>Custom.SWARH.web.PAAlertMsg</h1>
+
+<p>
+	Additional utility methods relating to patient alerts.
+</p>
+
+<dl>
+	<dt> Initial Release:	</dt><dd> 2016-02-04</dd>
+	<dt> Author:			</dt><dd> Timshel Knoll-Miller</dd>
+</dl>
+
+<h2>Change log:</h2>
+<table>
+<thead>
+<tr><th> Date		</th><th> Initials	</th><th> Change Description </th></tr> </thead><tbody>
+<tr><td> 2016-02-04	</td><td> TKM		</td><td> Initial version </td></tr>
+</tbody></table>]]></Description>
+<Super>%RegisteredObject</Super>
+<TimeCreated>63932,47120.818861</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/SWARH/web/PAAlertMsg.xml#1 $</Default>
+</Parameter>
+
+<Method name="AlertCategoryHasTag">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>alertcatid:%Integer,tagid:%Integer</FormalSpec>
+<ReturnType>%Boolean</ReturnType>
+<Implementation><![CDATA[
+	set hastag = 0
+
+	set alertcattagids = $piece(^PAC("ALERTCAT",alertcatid), "^", 8)
+	if (alertcattagids '= "") {
+		set alertcattagcount = $listlength(alertcattagids)
+		for i=1:1:alertcattagcount {
+			if $listget(alertcattagids, i) = tagid {
+				set hastag = 1
+				quit
+			}
+		}
+	}
+	quit hastag
+]]></Implementation>
+</Method>
+
+<Method name="HasActiveAlertsWithoutCategoryTag">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>patientid:%String="",ExcludedCodeTableTag:%String</FormalSpec>
+<ReturnType>%Boolean</ReturnType>
+<Implementation><![CDATA[
+	set excludedtagid = ##class(web.CTCodeTableTag).GetIdFromCodeOrDescription(ExcludedCodeTableTag)
+	quit:'excludedtagid ##class(web.PAAlertMsg).GotActiveAlerts(patientid)
+	
+#;	;# Iterate through alert categories and find ones with excluded code table tag
+#;	set alertcatid = 0
+#;	set alertcats = ""
+#;	for  {
+#;		// For each alert category
+#;		set alertcatid = $order(^PAC("ALERTCAT", alertcatid))
+#;		quit:alertcatid=""
+#;		
+#;#;		set alertcat = ##class(User.PACAlertCategory).%OpenId(alertcatid)
+#;#;		set alertcatcode = alertcat.ALERTCATCode
+#;		set alertcatcode = $piece(^PAC("ALERTCAT", alertcatid), "^", 1)
+#;
+#;		// Check whether it has ExcludedCodeTableTag
+#;		if ('..AlertCategoryHasTag(alertcatid, excludedtagid) && (##class(web.PAAlertMsg).GetAlertCategory(patientid, alertcatcode))) {
+#;			set hasalert = 1
+#;			quit
+#;		}
+#;	}
+	
+	// Rather than the above, which can potentially iterate over a patient's alerts multiple times
+	// (once for each alert category, until a category with an alert is found); this should be more
+	// efficient - loop over the alerts once and return true as soon as an alert is found which is
+	// not in an excluded category.
+
+	// First, assume no alerts
+	set hasalert = 0
+	
+	set almchild = ""
+	for  {
+		set almchild = $order(^PAPERi("ALM_CloseFlag", "N", patientid, almchild))
+		quit:(almchild="")
+
+		// We've found an alert; assume this is not an excluded alert until we can find otherwise.
+		set hasalert = 1
+		
+		// Index entry without data is not really an alert. Skip.
+		continue:'$data(^PAPER(patientid, "ALM", almchild))
+		
+		set alertid = $piece(^PAPER(patientid, "ALM", almchild),"^", 9) // PAAlertMsg.ALMAlertDR
+		// Alert without an alert type: not really an alert. Skip.
+		continue:alertid=""
+		
+		set alertcatid = $piece(^PAC("ALERT", alertid), "^", 5) // PACPatientAlert.ALERTAlertCategoryDR
+		// Alert without category; return true.
+		quit:alertcatid=""
+
+		if (..AlertCategoryHasTag(alertcatid, excludedtagid)) {
+			// Alert's category has excluded tag; ignore alert
+			set hasalert = 0
+		}
+
+		// If we've found a valid, non-excluded alert, break from loop and return true.
+		quit:hasalert
+	}
+	
+	quit hasalert
+]]></Implementation>
+</Method>
+
+<Method name="AlertIcon">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>PatientID:%String="",AlertCode:%String</FormalSpec>
+<ReturnType>%Boolean</ReturnType>
+<Implementation><![CDATA[
+	s img=0
+	s (AlertCodeID,ClosedFlag,AlertCodeDR,currentWardId,currentWardCode)=""
+	
+	s AlertCodeID=$o(^PAC("ALERT",0,"Code",AlertCode,AlertCodeID))
+	i AlertCodeID="" q 0
+	s submask=0
+	for {
+		set submask=$o(^PAPER(PatientID,"ALM",submask))
+		quit:((submask="") || (img=1))
+		s AlertCodeDR=$p(^PAPER(PatientID,"ALM",submask),"^",9)
+		s ClosedFlag=$p(^PAPER(PatientID,"ALM",submask),"^",7)
+		i (AlertCodeDR=AlertCodeID) && (ClosedFlag="N") s img=1
+	}	
+	q img
+]]></Implementation>
+</Method>
+
+<Method name="AlertIconList">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>PatientID:%String="",AlertCodeList:%String</FormalSpec>
+<ReturnType>%Boolean</ReturnType>
+<Implementation><![CDATA[
+	s AlertCode=""
+	s img=0
+	set i=1
+	
+	for {
+		quit:i>$length(AlertCodeList,",")
+		s showAlert=0
+		s AlertCode=$p(AlertCodeList,",",i)
+		s AlertCode=$ZSTRIP(AlertCode,"*C")
+		s showAlert=..AlertIcon(PatientID, AlertCode)
+		i (showAlert=1) {
+			s img=1
+			quit
+		}
+		set i=$i(i)
+	}	
+	q img
+]]></Implementation>
+</Method>
+</Class>
+</Export>

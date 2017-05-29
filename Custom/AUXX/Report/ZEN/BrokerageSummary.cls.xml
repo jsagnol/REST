@@ -1,0 +1,216 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.AUXX.Report.ZEN.BrokerageSummary">
+<Super>Custom.AUXX.Report.ZEN.Abstract</Super>
+<TimeCreated>61583,38648.81142</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/AUXX/Report/ZEN/BrokerageSummary.xml#1 $</Default>
+</Parameter>
+
+<UDLText name="T">
+<Content><![CDATA[
+// Report Name: Trak BrokerageSummary <br>
+
+]]></Content>
+</UDLText>
+
+<UDLText name="T">
+<Content><![CDATA[
+// Report Code: AUXX.BRO0007 <br>
+
+]]></Content>
+</UDLText>
+
+<UDLText name="T">
+<Content><![CDATA[
+// TRC Number: 99235 <br>
+
+]]></Content>
+</UDLText>
+
+<Property name="MRClinicalPathwaysID">
+<Type>%String</Type>
+<Parameter name="ZENURL" value="P1"/>
+</Property>
+
+<XData name="ReportDefinition">
+<XMLNamespace>http://www.intersystems.com/zen/report/definition</XMLNamespace>
+<Data><![CDATA[
+<report xmlns='http://www.intersystems.com/zen/report/definition'
+   queryClass='Custom.AUXX.Report.ZEN.StoredProc.BrokerageSummary' queryName='GetPlanDetails' name='BrokerageSummary'>
+  <parameter expression='..MRClinicalPathwaysID'/>
+  <attribute name='ReportTitle' expression='$$$Text("@BrokerageSummary@Brokerage Summary")'/>
+  <attribute name='timestamp' expression='$ZDATETIME($H, 2, 2)'/>  
+  <attribute name='username' expression='..Username'/>
+  
+  <group name="CarePlan" breakOnField="CPWDesc">
+  <attribute name="description" field="CPWDesc" />
+   <attribute field='CPWDesc' name='CPWDesc'/>
+  <attribute field='Goal' name='Goal'/>
+  <attribute field='CPWDate' name='CPWDate' expression='..DisplayDate(%val)'/>
+  <attribute fields='PAPMIName,PAPMIName2,PAPMIName3' name='PatientName' expression='..DisplayName(%val("PAPMIName"),%val("PAPMIName2"),%val("PAPMIName3"))'/>
+   <aggregate name='TotPriceTotalCost' type='SUM' field='PriceTotalCost'/>
+   <aggregate name='TotSchedCost' type='SUM' field='SchedCost'/>
+   <aggregate name='TotEstUOM' type='SUM' field='EstUOM'/>
+   <aggregate name='TotCostUOM' type='SUM' field='SumTotalUOM'/>
+
+    <group name='Group' breakOnField="Group" >
+  <attribute name="description" field="Group" />     
+
+      <group name='Detail'>
+        <attribute field='Program' name='Program'/>
+		<attribute field='OEORISttdat' name='OEORISttdat' expression='..DisplayDate(%val)'/>
+       <attribute field='CPWProblemEndDate' name='CPWProblemEndDate' expression='..DisplayDate(%val)'/>
+       <attribute field='NGODesc' name='NGODesc'/>
+       <attribute field='arcimdesc' name='arcimdesc'/>
+       <attribute field='OEORIPhQtyOrd' name='OEORIPhQtyOrd'/>
+       <attribute field='BaseUnit' name='BaseUnit'/>
+       <attribute field='ARPBLDatePrinted' name='ARPBLDatePrinted' expression='..DisplayDate(%val)'/>
+       <attribute field='CostUOM' name='CostUOM'/>
+       <attribute field='PHCDUDesc1' name='PHCDUDesc1'/>
+       <attribute field='OEORINumberperWeek' name='OEORINumberperWeek'/>
+       <attribute field='OEORIApplyTimeFrame' name='OEORIApplyTimeFrame'/>
+       <attribute field='Sched' name='Sched'/>
+       <attribute field='WeeklyCost' name='WeeklyCost'/>
+       <attribute field='PriceTotalCost' name='PriceTotalCost'/>
+        <attribute field='INSTCode' name='INSTCode'/>
+        <attribute field='AUXITCode' name='AUXITCode'/> 
+        <attribute field='EstUOM' name='EstUOM'/>    
+        <attribute field='SumTotalUOM' name='SumTotalUOM'/>
+        <attribute field='SchedCost' name='SchedCost'/>
+        <attribute field='IsAdHoc' name='IsAdHoc'/>
+    </group>
+ </group>
+ </group>
+  </report>
+]]></Data>
+</XData>
+
+<XData name="ReportDisplay">
+<XMLNamespace>http://www.intersystems.com/zen/report/display</XMLNamespace>
+<Data><![CDATA[
+<report xmlns='http://www.intersystems.com/zen/report/display'
+xmlns:auxxstyle='http://www.intersystems.com/zen/report/display/auxx/style'
+xmlns:auxx='http://www.intersystems.com/zen/report/display/auxx'
+  name='BrokerageSummary'>
+<document width= "#(..ReportWidth)#" height="#(..ReportHeight)#" marginLeft="#(..DocMarginLeft)#" marginRight="#(..DocMarginRight)#" 
+marginTop="#(..DocMarginTop)#" marginBottom="#(..DocMarginBottom)#" footerHeight="#(..DocFooterHeight)#" headerHeight="#(..DocHeaderHeight)#" 
+regionBeforeExtent="#(..DocHeaderHeight)#" regionAfterExtent="#(..DocFooterHeight)#">
+<auxxstyle:auxxgroupheader/>
+<auxxstyle:auxxgroupsummary/>
+<auxxstyle:auxxhospitalheader/>
+<auxxstyle:auxxpagefooter/>
+<auxxstyle:auxxpageheader/>
+<auxxstyle:auxxparameterheader/>
+<auxxstyle:auxxreporttitle/>
+<auxxstyle:auxxtablecolumn/>
+</document>
+<auxx:PageHeader pagetitle='@ReportTitle'/>
+<auxx:ReportFooter username='@username' timestamp='@timestamp'/>
+
+<body>
+<!-- REPORT HEADER -->
+<auxx:ReportHeader reporttitle='@ReportTitle'/>
+
+<line pattern="solid" width="100%"></line>
+<line pattern="empty" width="100%"></line> 
+<auxx:NoResults xcondition="not(CarePlan)" />
+<group name='CarePlan' pagebreak="true">
+<table class='auxxtablecolumn' >
+ <item value='@CarePlan:@Care Plan:' width="13%" style="font-weight:bold"/>
+ <item field='@CPWDesc' width="87%" />
+  </table>
+<line pattern="empty" lineHeight="2mm" />
+
+<table class='auxxtablecolumn' >
+ <item value='@Goal:@Goal:' width="13%" style="font-weight:bold"/>
+ <item field='@Goal' width="87%" />
+  </table>
+<line pattern="empty" lineHeight="2mm" />
+<table class='auxxtablecolumn' >
+ <item value='@CarePlanStartDate:@Care Plan Start Date:' width="13%" style="font-weight:bold"/>
+ <item field='@CPWDate' width="87%" />
+  </table>
+  <line pattern="empty" lineHeight="2mm" />
+<table class='auxxtablecolumn' >
+ <item value='@ClientName:@Client Name:' width="13%" style="font-weight:bold"/>
+ <item field='@PatientName' width="87%" />
+  </table>
+<line pattern="empty" width="100%"></line> 
+
+<group name='Group'>
+<table class='auxxtablecolumn' >
+<auxx:GroupHeader label="" field="@description" />
+<line pattern="empty" lineHeight="2mm" />
+</table>
+
+     <table class='auxxtablecolumn'  group='Detail'  >
+        <item field='@NGODesc' width="10%" caption='@Vendor@Vendor' />
+            <item field='' width=".5%"/> 
+      <item field='@arcimdesc' width="10.5%" caption="@OrderItem@Order Item"/>
+      <item field='@IsAdHoc' width="1%"/>
+      <item field='@Program' width="8%" caption="Program"/>
+        <item field='@OEORISttdat' width="8%" caption='@StartDate@Start Date' />
+        <item field='@CPWProblemEndDate' width="8%" caption='@EndDate@End Date'/>
+        <item field='@OEORIPhQtyOrd' width="3.5%" caption='@Qty@Qty' formatNumber="###,##0" style="text-align:right"/> 
+         <item field='@BaseUnit' width="4.5%" caption='@UOM(mins)@UOM (mins)' style="text-align:right"/> 
+         <item field='@CostUOM' width="6%" caption='@CostUOM@Cost UOM' formatNumber="###,##0.00" style="text-align:right" ifxpath='@CostUOM&amp;gt;0'/> 
+           <item field='' width="0.5%"/> 
+        <item field='@PHCDUDesc1' width="7%" caption='@Duration@Duration'/>       
+         <item field='@OEORINumberperWeek' width="5%" caption='@No.PerWeek@No. Per Week' formatNumber="###,##0" style="text-align:right"/> 
+          <item field='' width="1%"/> 
+        <item field='@OEORIApplyTimeFrame' width="7%" caption='@TimeFrame@Time Frame' />
+        <item field='@Sched' width="7%"  caption='@Scheduled@Scheduled' />
+        <item field='@WeeklyCost' width="6%" formatNumber="###,##0.00" style="text-align:right" caption='@WeeklyCost@Weekly Cost'/>
+        <item field='@PriceTotalCost' width="6%" formatNumber="###,##0.00" style="text-align:right" caption='@TotalCost@Total Cost' ifxpath='@PriceTotalCost&amp;gt;0'/>
+ </table>
+ <line pattern="empty" width="100%"></line> 
+
+<!--
+<line pattern="empty" width="100%"></line> 
+
+ 	 <table class='auxxtablecolumn' orient='col' >
+	  <item value='@EstimatedTotalCarePlanCost:@Estimated Total Care Plan Cost:' width="20%" style='font-weight:bold'/>
+	  <item field="TotSchedCost" width="10%" style='font-weight:bold;text-align:right' formatNumber="###,###,##0.00" />
+      <item value='' width="70%" />
+     </table>
+<line pattern="empty" width="100%"></line> 
+
+ 	 <table class='auxxtablecolumn' orient='col' >
+	  <item value='@TotalCarePlanCost:@Total Care Plan Cost:' width="20%" style='font-weight:bold'/>
+	  <item field="TotPriceTotalCost" width="10%" style='font-weight:bold;text-align:right' formatNumber="###,###,##0.00" />
+      <item value='' width="70%" />
+     </table>
+
+<line pattern="empty" width="100%"></line> 
+
+ 	 <table class='auxxtablecolumn' orient='col' >
+	  <item value='@EstimatedTotalUOM(mins):@Estimated Total UOM (mins):' width="20%" style='font-weight:bold'/>
+	  <item field="TotEstUOM" width="10%" style='font-weight:bold;text-align:right' formatNumber="###,###,##0" />
+      <item value='' width="70%" />
+     </table>
+
+<line pattern="empty" width="100%"></line> 
+
+ 	 <table class='auxxtablecolumn' orient='col' >
+	  <item value='@TotalUOM(mins):@Total UOM (mins):' width="20%" style='font-weight:bold'/>
+	  <item field="TotCostUOM" width="10%" style='font-weight:bold;text-align:right' formatNumber="###,###,##0" />
+      <item value='' width="70%" />
+     </table>
+ -->
+ 
+   </group> 
+ 	 <table class='auxxtablecolumn' orient='col' >
+	  <item value='* Denotes Ad Hoc Item' width="100%"/>
+     </table>
+
+ </group>
+</body>
+</report>
+]]></Data>
+</XData>
+</Class>
+</Export>

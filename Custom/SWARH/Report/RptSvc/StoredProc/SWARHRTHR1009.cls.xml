@@ -1,0 +1,190 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.SWARH.Report.RptSvc.StoredProc.SWARHRTHR1009">
+<ProcedureBlock>0</ProcedureBlock>
+<Super>Custom.SWARH.Report.RptSvc.StoredProc.Abstract</Super>
+<TimeCreated>60905,54849</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/SWARH/Report/RptSvc/StoredProc/SWARHRTHR1009.xml#1 $</Default>
+</Parameter>
+
+<UDLText name="T">
+<Content><![CDATA[
+/*
+ * Report Name: Theatre Procedure Details
+ * Report Code: SWARH.R.THR1009
+ * SWARH Developer: Zac Newman
+ ****** UPDATES ******
+ * 2013/07/05 – Procedure Statistics (This report was not counting secondary procedures, Public and Private patients were not calculating properly, these issues have been resolved)
+ */
+]]></Content>
+</UDLText>
+
+<Method name="SWARHRTHR1009QueryClose">
+<Description>
+This is the Close component of the %Library.Query.
+This is standard code and should never have to change.
+This is where all the cleanup is performed, i.e. the purging of the temporary storage global ^CacheTemp.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>QHandle:%Library.Binary</FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ New repid,ind
+ Set repid=$li(QHandle,2)
+
+ i mon Do ..MonitorEnd(mon)
+
+ Kill ^CacheTemp("TRAK",repid)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="SWARHRTHR1009QueryExecute">
+<Description>
+This is the Execute section for the %Library.Query. 
+All of the logic will be performed here.
+A new node for the ^CacheTemp global will be created and each subscript of this global will contain
+a row for the report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,Hospital:%Library.String,DateFrom:%Date,DateTo:%Date]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+
+ New repid,ind
+
+ Set repid=$I(^CacheTemp("TRAK"))
+
+ New ANAOPStatePPPDR,SPPPCode,SPPPDesc,ProcCount,EmergProcCount,ElectProcCount,PrivateProcCount
+ New PublicProcCount,YProcCount,YEmergProcCount,YElectProcCount,YPrivateProcCount,YPublicProcCount
+ Set (ANAOPStatePPPDR,SPPPCode,SPPPDesc)=""
+ Set (ProcCount,EmergProcCount,ElectProcCount,PrivateProcCount,PublicProcCount,YProcCount,YEmergProcCount,YElectProcCount,YPrivateProcCount,YPublicProcCount)=0
+
+ s ind=1, END=0
+ s mon=..MonitorBegin()
+ 
+ s Hospital=$zstrip(Hospital,"*CW")
+ //Convert ODBC dates to cache format
+ s DateFrom=..ConvertDateToCache(DateFrom)
+ s DateTo=..ConvertDateToCache(DateTo)
+ s YearDate = ..ConvertDateToCache($PIECE($ZDATE($HOROLOG,3),"-")_"-01-01")
+
+ &SQL(DECLARE SWARHRTHR1009Cursor CURSOR FOR 
+	SELECT 
+	   		AN.ANAOP_StatePPP_DR,
+	   		PPP.SPPP_Code,
+		   	%SQLSTRING(PPP.SPPP_Desc) AS SPPP_Desc,
+			COUNT(AN.ANAOP_RowId) + COUNT(ANAS.SPR_RowId) AS ProcCount,
+			SUM(CASE WHEN AN.ANAOP_EffectiveElective = 'EM' OR (ANAS.SPR_RowId is not null) THEN 1 ELSE 0 END) AS EmergProcCount,
+			SUM(CASE WHEN AN.ANAOP_EffectiveElective = 'EL' OR (ANAS.SPR_RowId is not null) THEN 1 ELSE 0 END) AS ElectProcCount,
+			SUM(CASE WHEN PAI.INS_InsType_DR->INST_PayorGroup_DR->PGRP_Code != 'M' OR (ANAS.SPR_RowId is not null) THEN 1 ELSE 0 END) AS PrivateProcCount,
+			SUM(CASE WHEN PAI.INS_InsType_DR->INST_PayorGroup_DR->PGRP_Code = 'M' OR (ANAS.SPR_RowId is not null) THEN 1 ELSE 0 END) AS PublicProcCount,
+				YProcCount,
+			YEmergProcCount,
+			YElectProcCount,
+			YPrivateProcCount,
+			YPublicProcCount
+	FROM SQLUser.OR_Anaest_Operation AN
+			INNER JOIN SQLUser.OR_Anaesthesia A ON AN.ANAOP_Par_Ref = A.ANA_RowId
+			INNER JOIN SQLUser.PA_Adm PA ON PA.PAADM_RowID = A.ANA_PAADM_ParRef
+			LEFT JOIN SQLUser.RB_OperatingRoom RB on A.ANA_RBOperatingRoom_DR = RB.RBOP_RowId
+			LEFT JOIN SQLUser.PA_AdmInsurance PAI ON RB.RBOP_PAADM_DR = PAI.INS_ParRef
+			LEFT JOIN SQLUser.PAC_StatePPP PPP ON PPP.SPPP_RowId = AN.ANAOP_StatePPP_DR
+			LEFT JOIN SQLUSer.OR_An_Oper_SecProc ANAS ON AN.ANAOP_RowId = ANAS.SPR_ParRef
+			LEFT JOIN (
+						SELECT 
+								YAN.ANAOP_StatePPP_DR,
+						   		YPPP.SPPP_Code,
+							   	%SQLSTRING(YPPP.SPPP_Desc) AS YSPPP_Desc,
+								COUNT(YAN.ANAOP_RowId) + COUNT(YANAS.SPR_RowId) AS YProcCount,
+								SUM(CASE WHEN YAN.ANAOP_EffectiveElective = 'EM' OR (YANAS.SPR_RowId is not null) THEN 1 ELSE 0 END) AS YEmergProcCount,
+								SUM(CASE WHEN YAN.ANAOP_EffectiveElective = 'EL' OR (YANAS.SPR_RowId is not null) THEN 1 ELSE 0 END) AS YElectProcCount,
+								SUM(CASE WHEN YPAI.INS_InsType_DR->INST_PayorGroup_DR->PGRP_Code != 'M' OR (YANAS.SPR_RowId is not null) THEN 1 ELSE 0 END) AS YPrivateProcCount,
+								SUM(CASE WHEN YPAI.INS_InsType_DR->INST_PayorGroup_DR->PGRP_Code = 'M' OR (YANAS.SPR_RowId is not null) THEN 1 ELSE 0 END) AS YPublicProcCount
+						FROM SQLUser.OR_Anaest_Operation YAN
+								INNER JOIN SQLUser.OR_Anaesthesia YA ON YAN.ANAOP_Par_Ref = YA.ANA_RowId
+								INNER JOIN SQLUser.PA_Adm YPA ON YPA.PAADM_RowID = YA.ANA_PAADM_ParRef
+								LEFT JOIN SQLUser.RB_OperatingRoom YRB on YA.ANA_RBOperatingRoom_DR = YRB.RBOP_RowId
+								LEFT JOIN SQLUser.PA_AdmInsurance YPAI ON YRB.RBOP_PAADM_DR = YPAI.INS_ParRef
+								LEFT JOIN SQLUser.PAC_StatePPP YPPP ON YPPP.SPPP_RowId = YAN.ANAOP_StatePPP_DR
+								LEFT JOIN SQLUSer.OR_An_Oper_SecProc YANAS ON YAN.ANAOP_RowId = YANAS.SPR_ParRef
+						WHERE YAN.ANAOP_Status = 'D'
+								AND YPA.PAADM_Hospital_DR = :Hospital
+					  			AND YA.ANA_Date > :YearDate
+						GROUP BY  YAN.ANAOP_StatePPP_DR,YPPP.SPPP_Desc) YAN
+								ON (AN.ANAOP_StatePPP_DR=YAN.ANAOP_StatePPP_DR)
+	
+	WHERE AN.ANAOP_Status = 'D'
+			AND PAADM_Hospital_DR = :Hospital
+  			AND A.ANA_Date between :DateFrom and :DateTo
+	GROUP BY  AN.ANAOP_StatePPP_DR, PPP.SPPP_Code, PPP.SPPP_Desc, YProcCount, YEmergProcCount, YElectProcCount, YPrivateProcCount, YPublicProcCount
+	ORDER BY  AN.ANAOP_StatePPP_DR
+)
+ &SQL(OPEN SWARHRTHR1009Cursor)
+ 
+ //FETCH FIRST ROW
+ d FetchRow
+  
+ while END=0 {
+	 s sort = ind
+	 s ^CacheTemp("TRAK",repid,sort)=$LB(ANAOPStatePPPDR,SPPPCode,SPPPDesc,ProcCount,EmergProcCount,ElectProcCount,PrivateProcCount,PublicProcCount,YProcCount,YEmergProcCount,YElectProcCount,YPrivateProcCount,YPublicProcCount)
+	 s ind=ind+1
+ 
+	 //fetch rows
+	 d FetchRow
+ }
+
+ &SQL(CLOSE SWARHRTHR1009Cursor)
+ 
+ // Build QHandle (AtEnd,ReportID,Index)
+ Set QHandle=$lb(0,repid,0)
+
+ Quit $$$OK
+
+FetchRow
+ &sql(fetch SWARHRTHR1009Cursor INTO :ANAOPStatePPPDR,:SPPPCode,:SPPPDesc,:ProcCount,:EmergProcCount,:ElectProcCount,:PrivateProcCount,:PublicProcCount,:YProcCount,:YEmergProcCount,:YElectProcCount,:YPrivateProcCount,:YPublicProcCount)
+ if SQLCODE '= 0 set END = 1
+ q
+]]></Implementation>
+</Method>
+
+<Method name="SWARHRTHR1009QueryFetch">
+<Description>
+This is the Fetch component of the %Library.Query. 
+This should never have to change. It is designed to fetch the row for each subscript of the ^CacheTemp
+global and return this row to the Crystal Report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,&Row:%Library.List,&AtEnd:%Library.Integer=0]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ New repid,ind
+
+ Set AtEnd=$li(QHandle,1)
+ Set repid=$li(QHandle,2)
+ Set ind=$li(QHandle,3)
+
+ Set ind=$o(^CacheTemp("TRAK",repid,ind))
+ If ind="" {
+	 Set AtEnd=1
+	 Set Row=""
+ }
+ Else      {	// fetch row
+ 	Set Row=^CacheTemp("TRAK",repid,ind)
+ }
+ s QHandle=$lb(AtEnd,repid,ind)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Query name="SWARHRTHR1009Query">
+<Type>%Library.Query</Type>
+<FormalSpec>Hospital:%Library.String,DateFrom:%Date,DateTo:%Date</FormalSpec>
+<SqlProc>1</SqlProc>
+<Parameter name="CONTAINID" value="0"/>
+<Parameter name="ROWSPEC" value="ANAOPStatePPPDR:%Library.Integer,SPPPCode:%Library.String,SPPPDesc:%Library.String,ProcCount:%Library.Integer,EmergProcCount:%Library.Integer,ElectProcCount:%Library.Integer,PrivateProcCount:%Library.Integer,PublicProcCount:%Library.Integer,YProcCount:%Library.Integer,YEmergProcCount:%Library.Integer,YElectProcCount:%Library.Integer,YPrivateProcCount:%Library.Integer,YPublicProcCount:%Library.Integer"/>
+<Parameter name="SELECTMODE" value="ODBC"/>
+</Query>
+</Class>
+</Export>

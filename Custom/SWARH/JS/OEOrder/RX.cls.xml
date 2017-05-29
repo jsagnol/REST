@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.SWARH.JS.OEOrder.RX">
+<Description>
+Component JavaScript for: OEOrder.RX</Description>
+<Modified>0</Modified>
+<Super>websys.AbstractJavaScript</Super>
+<TimeCreated>63537,10516.371038</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+This Parameter is updated by Perforce</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/SWARH/JS/OEOrder/RX.xml#1 $</Default>
+</Parameter>
+
+<Method name="JSContent">
+<Description>
+ </Description>
+<Language>javascript</Language>
+<ClientMethod>1</ClientMethod>
+<Implementation><![CDATA[
+		// Have a blocking prompt if: Priority is Discharge, PBS Category requires an Authorisation
+		var fnDesc			= 'Custom.SWARH.JS.OEOrder.RX.pbsAuthorisationPopup(): ';
+		var promptTxt		= 'The item you have ordered is an Authority Drug and requires that you complete the Authority details under the \'Authority Prescription\' link below\n\r\n\rDo you want to go straight to the Authorisation Prescription page?';
+		var priorityEl		= document.getElementById('OECPRDesc'); 					// 'Priority'
+		var pbsCatEl		= document.getElementById('PBSCategory');  					// 'PBS Category'
+		var updateEl		= document.getElementById('Update');						// 'Save&Close'
+		var authLinkEl		= document.getElementById('AuthorityPrescription');			// 'Authority Prescription'
+		var auswAuthPresEl	= updateEl;													// This is used by OEOrder.AuthorityPrescription to relay back that valid data was entered
+		
+		try {
+			// Handle clicks on Update button.
+			updateEl['data-origonclick']	= updateEl.onclick;							// Create a copy of the original onclick handler code so we can call it later
+			updateEl.onclick				= function(ev){								// Replace the onclick handler so that we can check to see if the auth prescription link has been clicked first
+				var target = (ev.target) ? ev.target : ev.srcElement;
+				if (target['data-authvalid'] == true) {									// If the Authority Prescription link has had some valid data put in it then run the original onclick handler
+					target['data-origonclick']();										// 
+				} else {																// Hasn't been clicked, check to see if auth is required
+					if (!!priorityEl && !!pbsCatEl && (typeof auswPBSAuthorityDescs !== 'undefined') && isNaN(auswPBSAuthorityDescs) && auswPBSAuthorityDescs.length>0 && (typeof auswDischargeDesc !== 'undefined') && auswDischargeDesc.length>0) {
+						//SWARH.log(fnDesc+'All required variables are available, proceding with check');
+						var pbsCatObj = {};
+						for(var i=0; i<auswPBSAuthorityDescs.length;i++){				// Convert array to object so we can use 'in' on it
+							pbsCatObj[auswPBSAuthorityDescs[i]]="";
+						}		
+						if ((pbsCatEl.value in pbsCatObj) && priorityEl.value == auswDischargeDesc) {	// If it is one of the authorisation required categories & is Discharge priority 
+							//SWARH.log(fnDesc+'This drug requires PBS authorisation');
+							if (confirm(promptTxt) == true) authLinkEl.onclick();		// Show prompt if this is a PBS authorisation item
+						} else {
+						//	SWARH.log(fnDesc+'Drug does not meet out criteria, no special authorisation required - Continuing');
+							target['data-origonclick']();
+						}
+					} else {
+						SWARH.log(fnDesc+'Required variables sanity check failed');
+						target['data-origonclick']();
+					}
+				}				
+			};
+		} catch (error) {
+			SWARH.log(fnDesc+'Caught Exception - '+error);
+		}
+]]></Implementation>
+</Method>
+</Class>
+</Export>

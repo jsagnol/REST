@@ -1,0 +1,219 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.SWARH.Extracts.StoredProc.SWARHEVMO1002">
+<Description><![CDATA[
+<pre>
+**************************************************************************************************************************************
+* Extract Code: SWARHEVMO1002
+* Extract Description:  
+* Menu Caption: Docpay VMO Extract
+* Initial release:  Developer: Michael Welsh
+* Modified: 
+* 
+**************************************************************************************************************************************
+</pre>]]></Description>
+<ProcedureBlock>0</ProcedureBlock>
+<Super>Custom.SWARH.Report.RptSvc.StoredProc.Abstract</Super>
+<TimeCreated>60905,54849</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/SWARH/Extracts/StoredProc/SWARHEVMO1002.xml#1 $</Default>
+</Parameter>
+
+<Method name="SWARHDocpayClose">
+<Description>
+This is the Close component of the %Library.Query.
+This is standard code and should never have to change.
+This is where all the cleanup is performed, i.e. the purging of the temporary storage global ^CacheTemp.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>QHandle:%Library.Binary</FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Clean up by purging the temporary node in ^CacheTemp global
+ New repid,ind
+ Set repid=$li(QHandle,2)
+
+ //Start Monitor (if configured to capture stats)
+ //i mon Do ..MonitorEnd(mon)
+
+ Kill ^CacheTemp("TRAK",repid)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="SWARHDocpayExecute">
+<Description>
+This is the Execute section for the %Library.Query. 
+All of the logic will be performed here.
+A new node for the ^CacheTemp global will be created and each subscript of this global will contain
+a row for the report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,Hospital:%Integer,DateFrom:%Date,DateTo:%Date]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Get reportid i.e. use $INCREMENT to add another node to ^CacheTemp global. 
+ // We use ^CacheTemp global because it will always use memory before disk
+ New repid,ind
+
+  // Use $Increment to get the next node
+ Set repid=$I(^CacheTemp("TRAK"))
+ 
+ New patno,admno,surname,givenname,dob,sex,zip,admdate,admtime,admtype,fincode,InsDesc,InsType,InsCode,InsCode2,disdate,distime,disdest,admdatetime,disdatetime
+  
+ Set (patno,admno,surname,givenname,dob,sex,zip,admdate,admtime,admtype,fincode,InsDesc,InsType,InsCode,InsCode2,disdate,distime,disdest,admdatetime,disdatetime)=""
+
+ s ind=1, END=0
+
+ //Start Monitor (if configured to capture stats)
+ //s mon=..MonitorBegin()
+ 
+ s Hospital=$zstrip(Hospital,"*CW")
+
+ //Convert ODBC dates to cache format
+ s DateFrom=..ConvertDateToCache(DateFrom)
+ s DateTo=..ConvertDateToCache(DateTo)
+ 
+ &SQL(DECLARE SWARHDocpayCursor CURSOR FOR
+ 	SELECT
+    	adm.PAADM_PAPMI_DR->PAPMI_No AS patno
+        ,adm.PAADM_ADMNo AS admno
+        ,adm.PAADM_PAPMI_DR->PAPMI_Name AS surname
+        ,adm.PAADM_PAPMI_DR->PAPMI_Name2 AS givenname
+        ,adm.PAADM_PAPMI_DR->PAPMI_DOB AS dob
+        ,adm.PAADM_PAPMI_DR->PAPMI_Sex_DR->CTSEX_Code AS sex
+        ,adm.PAADM_PAPMI_DR->PAPMI_PAPER_DR->PAPER_Zip_DR->CTZIP_Code AS zip
+        ,adm.PAADM_AdmDate AS admdate
+        ,adm.PAADM_AdmTime AS admtime
+        ,adm.PAADM_InPatAdmType_DR->IPAT_Code AS admtype
+        ,UCASE(C.INS_instype_dr->INST_PayorGroup_DR->PGRP_Code) AS fincode
+        ,UCASE(C.INS_Instype_DR->INST_Desc) AS InsDesc
+        ,UCASE(C.INS_AuxInsType_DR->AUXIT_Desc) AS InsType
+        ,UCASE(C.INS_AuxInsType_DR->AUXIT_Code) AS InsCode
+        ,{fn LEFT(UCASE(C.INS_AuxInsType_DR->AUXIT_Code),2)} AS InsCode2
+        ,adm.PAADM_DischgDate AS disdate
+        ,adm.PAADM_DischgTime AS distime
+        ,adm.PAADM_MainMRADM_DR->MRADM_DischDestin_DR->DDEST_Code AS disdest
+	FROM
+        SQLUser.PA_Adm adm
+    	    LEFT JOIN SQLUser.PA_AdmInsurance C ON (adm.PAADM_RowID = C.INS_ParRef AND C.INS_ChildSub=(SELECT MAX(INS_ChildSub) FROM SQLUSER.PA_AdmInsurance WHERE INS_ParRef = adm.PAADM_RowID))
+	WHERE
+        adm.PAADM_Hospital_DR = :Hospital  
+	AND
+        adm.PAADM_AdmDate BETWEEN :DateFrom AND :DateTo
+	AND
+        adm.PAADM_Type = 'I'
+    ORDER BY adm.PAADM_AdmDate
+    )
+ &SQL(OPEN SWARHDocpayCursor)
+ 
+ //FETCH FIRST ROW
+ d FetchRow
+ 
+ while END=0 {
+   
+	 d FormatDates,FormatTimes,FormatDateTimes
+  	 
+	/* Resets FinancialCode if Inscode is of type Ineligible, 
+		MF - Ineligible: Asylum Seeker
+		XX - Ineligible
+		XXP - Ineligible - Psychiatric
+		XXO - Ineligible - Obstetric
+		XX B – XX Basic
+	*/
+	Set fincode = $CASE(InsCode,
+		"MF":"X",   		
+		"XX":"X",		
+		"XXP":"X",
+		"XXO":"X",	
+		"XX B":"X",		
+		:fincode) 
+		
+	If (InsCode2 = "SF") {Set fincode = "F"}
+
+	 s sort = ind		
+ 	
+	 s ^CacheTemp("TRAK",repid,sort)=$LB(patno,admno,surname,givenname,dob,sex,zip,admdatetime,admtype,fincode,disdatetime,disdest,InsDesc,InsType,InsCode)
+	 s ind=ind+1
+
+	 //fetch rows
+	 d FetchRow
+ }
+
+ &SQL(CLOSE SWARHDocpayCursor)
+ 
+ // Build QHandle (AtEnd,ReportID,Index)
+ Set QHandle=$lb(0,repid,0)
+
+ Quit $$$OK
+
+FetchRow
+ &sql(FETCH SWARHDocpayCursor INTO :patno,:admno,:surname,:givenname,:dob,:sex,:zip,:admdate,:admtime,:admtype,:fincode,:InsDesc,:InsType,:InsCode,:InsCode2,:disdate,:distime,:disdest)
+ if SQLCODE '= 0 set END = 1
+ q
+ 
+FormatDates
+ If dob s dob=$zd(dob,4,,4)
+ If admdate s admdate=$zd(admdate,4,,4)
+ If disdate s disdate=$zd(disdate,4,,4) 
+ q
+ 
+FormatTimes
+ If admtime s admtime=$zt(admtime,1)
+ if distime s distime=$zt(distime,1) 
+ q
+ 
+FormatDateTimes
+ s admdatetime = $s(admdate'="":admdate,1:"")_$s(admtime'="":" "_admtime,1:"")
+ s disdatetime = $s(disdate'="":disdate,1:"")_$s(distime'="":" "_distime,1:"")
+ q
+]]></Implementation>
+</Method>
+
+<Method name="SWARHDocpayFetch">
+<Description>
+This is the Fetch component of the %Library.Query. 
+This should never have to change. It is designed to fetch the row for each subscript of the ^CacheTemp
+global and return this row to the Crystal Report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,&Row:%Library.List,&AtEnd:%Library.Integer=0]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // This fetch method should never have to change. 
+
+ // repid - Report ID
+ // ind   - sequence index which represents each row
+
+ New repid,ind
+
+ // Restore QHandle
+ Set AtEnd=$li(QHandle,1)
+ Set repid=$li(QHandle,2)
+ Set ind=$li(QHandle,3)
+
+ Set ind=$o(^CacheTemp("TRAK",repid,ind))
+ If ind="" {	// if there are no more rows, finish fetching
+	 Set AtEnd=1
+	 Set Row=""
+ }
+ Else      {	// fetch row
+ 	Set Row=^CacheTemp("TRAK",repid,ind)
+ }
+
+ // Save QHandle
+ s QHandle=$lb(AtEnd,repid,ind)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Query name="SWARHDocpay">
+<Type>%Library.Query</Type>
+<FormalSpec>Hospital:%Integer,DateFrom:%Date,DateTo:%Date</FormalSpec>
+<SqlProc>1</SqlProc>
+<Parameter name="CONTAINID" value="0"/>
+<Parameter name="ROWSPEC" value="patno:%String,admno:%String,surname:%String,givenname:%String,dob:%String,sex:%String,zip:%String,admdatetime:%String,admtype:%String,fincode:%String,disdatetime:%String,disdest:%String,InsDesc:%String,InsType:%String,InsCode:%String"/>
+<Parameter name="SELECTMODE" value="ODBC"/>
+</Query>
+</Class>
+</Export>

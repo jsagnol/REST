@@ -1,0 +1,366 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.SWARH.SNAP.StoredProc.AppointmentSlotsAvailResourceDate">
+<ProcedureBlock>0</ProcedureBlock>
+<Super>Custom.SWARH.Report.RptSvc.StoredProc.Abstract</Super>
+<TimeCreated>60905,54849</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/SWARH/SNAP/StoredProc/AppointmentSlotsAvailResourceDate.xml#1 $</Default>
+</Parameter>
+
+<Method name="AppointmentSlotsAvailClose">
+<Description>
+This is the Close component of the %Library.Query.
+This is standard code and should never have to change.
+This is where all the cleanup is performed, i.e. the purging of the temporary storage global ^CacheTemp.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>QHandle:%Library.Binary</FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Clean up by purging the temporary node in ^CacheTemp global
+ New repid,ind
+ Set repid=$li(QHandle,2)
+
+ //Start Monitor (if configured to capture stats)
+ i mon Do ..MonitorEnd(mon)
+
+ Kill ^CacheTemp("TRAK",repid)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="AppointmentSlotsAvailExecute">
+<Description>
+This is the Execute section for the %Library.Query. 
+All of the logic will be performed here.
+A new node for the ^CacheTemp global will be created and each subscript of this global will contain
+a row for the report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,Resource:%String,DateFrom:%Date,DateTo:%Date]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+	// Get reportid i.e. use $INCREMENT to add another node to ^CacheTemp global. 
+	// We use ^CacheTemp global because it will always use memory before disk
+	New repid,ind
+
+	// Use $Increment to get the next node
+	Set repid=$I(^CacheTemp("TRAK"))
+
+	New NACache,SOVList,IsValidSlot
+	Set (NACache,SOVList,IsValidSlot)=0
+
+	New RESRowId
+	,	ASRowId
+	,	ASDate
+	,	ASSessStartTime
+	,	ASSessEndTime
+	,	SESSLoad
+	,	SESSRowId
+	,	SESSTimeStart
+	,	SESSTimeEnd
+	,	SERNoOfTimesBook
+	,	NARowId
+	,	NAFrDate
+	,	NAToDate
+	,	NAFrTime
+	,	NAToTime
+	,	NARemarks
+	,	RNAVDesc
+	,	SlotAvailable
+	,	SlotStartTime
+	,	SlotEndTime
+	,	SlotStartDateTime
+	,	SlotEndDateTime
+
+	Set (
+		RESRowId
+	,	SESSLoad
+	,	SERNoOfTimesBook
+	,	NARowId
+	,	SlotAvailable
+	)=0
+	Set (
+		ASRowId
+	,	ASDate
+	,	ASSessStartTime
+	,	ASSessEndTime
+	,	SESSRowId
+	,	SESSLoad
+	,	SESSRowId
+	,	SESSTimeStart
+	,	SESSTimeEnd
+	,	SERNoOfTimesBook
+	,	NARowId
+	,	NAFrDate
+	,	NAToDate
+	,	NAFrTime
+	,	NAToTime
+	,	NARemarks
+	,	RNAVDesc 
+	)=""
+
+	s ind=1, END=0
+
+	//Start Monitor (if configured to capture stats)
+	s mon=..MonitorBegin()
+
+	s Resource=$zstrip(Resource,"*CW")
+	//Convert ODBC dates to cache format
+	s DateFrom=..ConvertDateToCache(DateFrom)
+	s DateTo=..ConvertDateToCache(DateTo)
+ 
+ 	
+	&SQL(DECLARE AppointmentsCursor CURSOR FOR 
+	SELECT
+			slot.AS_RES_ParRef
+		,	slot.AS_RowId
+		,	slot.AS_Date
+		,	slot.AS_SessStartTime
+		,	slot.AS_SessEndTime
+		,	sess.SESS_Load
+		,	sess.SESS_RowId
+		,	sess.SESS_TimeStart
+		,	sess.SESS_TimeEnd
+		,	ser.SER_NoOfTimesBook
+		,	na.NA_RowId
+		,	na.NA_FrDate
+		,	na.NA_ToDate
+		,	na.NA_FrTime
+		,	na.NA_ToTime
+		,	na.NA_Remarks
+		,	na.NA_Reason_DR->RNAV_Desc
+	FROM SQLUser.RB_ApptSchedule slot INNER JOIN
+		 SQLUser.RB_ResEffDateSessServices ser ON (ser.SER_ParRef = slot.AS_RBEffDateSession_DR) INNER JOIN
+		 SQLUser.RB_ResEffDateSession sess ON (sess.SESS_RowId = ser.SER_ParRef) LEFT JOIN
+		 SQLUser.RB_NotAvail na ON (na.NA_RES_DR = slot.AS_RES_ParRef
+					AND (na.NA_FrDate <= slot.AS_Date AND na.NA_ToDate >= slot.AS_Date) -- NA period covers the appointment date
+					AND (na.NA_FrTime < slot.AS_SessEndTime AND na.NA_ToTime > slot.AS_SessStartTime) -- Appointment falls within the NA times
+				)
+	WHERE (ser.SER_Resource_DR = :Resource)
+	  AND (slot.AS_Date BETWEEN :DateFrom AND :DateTo)
+	)
+	&SQL(OPEN AppointmentsCursor)
+ 
+	//FETCH FIRST ROW
+	d FetchRow
+  
+	while END=0 {
+
+		Set IsValidSlot = 1
+		,	SlotAvailable = 1
+
+		//If NARowId {
+			// Check if the NA record has already been processed against this session & date combination
+			//Set NAKey = NARowId_" "_ASDate_" "_SESSRowId
+			//If '$D(NACache(NAKey)) {
+				 // Add NA record if it hasn't already been done for this date & session
+				//Set SlotStartTime = $S(SESSTimeStart>NAFrTime:SESSTimeStart,1:NAFrTime)
+				//Set SlotEndTime = $S(SESSTimeEnd<NAToTime:SESSTimeEnd,1:NAToTime)
+				//Set NACache(NAKey) = "" // NA/Date/Session combination has been added
+			//	Set SlotAvailable = 0
+			//} Else {
+				// Slot has already been covered by the NA block from prior slots
+				//Set IsValidSlot = 0
+			//}
+		//} Else {
+			//Set SlotStartTime = ASSessStartTime
+			//Set SlotEndTime = ASSessEndTime
+			
+			//Set SOVList = 0, SOVNames = ""
+			//Do FindServiceOverrides
+			//If SOVList > 0 {
+				//For i=1:1:SOVList {
+					//Set SOVService = SOVList(i)
+					//If (SOVService '= "" && $D(^RBC("SER",SOVService))) {
+						//Set SOVNames = SOVNames _ ", " _ $P($G(^RBC("SER",SOVService)),"^",6) // SER_Desc
+					//} Else {
+						//Set SOVNames = SOVNames _ ", Unknown Reason (code "_SOVService_")"
+					//}
+				//}
+				//Set NARemarks = $E(SOVNames,3,*)
+				//Set SlotAvailable = 0
+			//}
+		}
+		
+
+		If IsValidSlot {
+			Set sort = RESRowId_" "_ASDate_" "_SlotStartTime_" "_ind
+
+			Set SlotStartDateTime = ..ConvertDateTimeToODBC(ASDate, SlotStartTime)
+			Set SlotEndDateTime = ..ConvertDateTimeToODBC(ASDate, SlotEndTime)
+
+			d FormatDates
+			d FormatTimes
+
+			Set ^CacheTemp("TRAK",repid,sort)=$LB(
+													RESRowId
+												,	ASRowId
+												,	ASDate
+												,	ASSessStartTime
+												,	ASSessEndTime
+												,	SlotStartTime
+												,	SlotEndTime
+												,	SlotStartDateTime
+												,	SlotEndDateTime
+												,	SESSRowId
+												,	SESSLoad
+												,	SESSTimeStart
+												,	SESSTimeEnd
+												,	SERNoOfTimesBook
+												,	NARowId
+												,	NAFrDate
+												,	NAToDate
+												,	NAFrTime
+												,	NAToTime
+												,	NARemarks
+												,	RNAVDesc 
+												,	SlotAvailable
+												)
+			s ind=ind+1
+		}
+
+		//fetch rows
+		d FetchRow
+	//}
+
+	&SQL(CLOSE AppointmentsCursor)
+
+  
+	 // Build QHandle (AtEnd,ReportID,Index)
+	 Set QHandle=$lb(0,repid,0)
+
+	 Quit $$$OK
+
+FormatDates
+	Set ASDate = ..ConvertDateToODBC(ASDate)
+	Set NAFrDate = ..ConvertDateToODBC(NAFrDate)
+	Set NAToDate = ..ConvertDateToODBC(NAToDate)
+	q
+ 
+FormatTimes
+	Set ASSessStartTime = ..ConvertTimeToODBC(ASSessStartTime)
+	Set ASSessEndTime = ..ConvertTimeToODBC(ASSessEndTime)
+	Set SlotStartTime = ..ConvertTimeToODBC(SlotStartTime)
+	Set SlotEndTime = ..ConvertTimeToODBC(SlotEndTime)
+	Set SESSTimeStart = ..ConvertTimeToODBC(SESSTimeStart)
+	Set SESSTimeEnd = ..ConvertTimeToODBC(SESSTimeEnd)
+	Set NAFrTime = ..ConvertTimeToODBC(NAFrTime)
+	Set NAToTime = ..ConvertTimeToODBC(NAToTime)
+	q
+
+FetchRow
+	&sql(FETCH AppointmentsCursor INTO
+				:RESRowId
+			,	:ASRowId
+			,	:ASDate
+			,	:ASSessStartTime
+			,	:ASSessEndTime
+			,	:SESSLoad
+			,	:SESSRowId
+			,	:SESSTimeStart
+			,	:SESSTimeEnd
+			,	:SERNoOfTimesBook
+			,	:NARowId
+			,	:NAFrDate
+			,	:NAToDate
+			,	:NAFrTime
+			,	:NAToTime
+			,	:NARemarks
+			,	:RNAVDesc 
+	)
+	if SQLCODE '= 0 set END = 1
+	q
+FindServiceOverrides
+	Set SOVRowId = ""
+	For  {
+		Set SOVRowId = $O(^RB("SOV",0,"Sess",SESSRowId,SOVRowId))
+		Quit:SOVRowId=""
+		Set SOVDate = $P(^RB("SOV",SOVRowId),"^",3)
+		Set SOVStartTime = $P(^RB("SOV",SOVRowId),"^",4)
+		Set SOVEndTime = $P(^RB("SOV",SOVRowId),"^",5)
+		Set SOVNumberOfServices = $P(^RB("SOV",SOVRowId),"^",9)
+		Set SOVDateTo    = $P(^RB("SOV",SOVRowId),"^",10)
+		
+		Continue:((SOVDate '= "") && (SOVDate '= ASDate)) // For a different date; skip record
+		Continue:((SOVDateTo '= "") && (SOVDateTo < ASDate)) // SOV end-dated before this appointment
+		Continue:((SOVStartTime>ASSessStartTime)||(SOVEndTime<ASSessStartTime)) // SOV doesn't cover period of appointment slot start
+		Continue:(SOVNumberOfServices>0) // FIXME: Allow proper service override with 'real' services?
+		
+		Set SOVServiceDR = $P(^RB("SOV",SOVRowId),"^",17)
+		Set i = $I(SOVList)
+		Set SOVList(i) = SOVServiceDR
+		// Find 
+	}
+	Quit
+]]></Implementation>
+</Method>
+
+<Method name="ConvertHDateTimeToODBC">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>DateTime:%String</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	If DateTime Set DateTime = $ZDATETIME(DateTime,3,1)
+	Quit DateTime
+]]></Implementation>
+</Method>
+
+<Method name="ConvertTimeToODBC">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>Time:%String</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	If Time Set Time = $ZTIME(Time,1)
+	Quit Time
+]]></Implementation>
+</Method>
+
+<Method name="AppointmentSlotsAvailFetch">
+<Description>
+This is the Fetch component of the %Library.Query. 
+This should never have to change. It is designed to fetch the row for each subscript of the ^CacheTemp
+global and return this row to the Crystal Report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,&Row:%Library.List,&AtEnd:%Library.Integer=0]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // This fetch method should never have to change. 
+
+ // repid - Report ID
+ // ind   - sequence index which represents each row
+
+ New repid,ind
+
+ // Restore QHandle
+ Set AtEnd=$li(QHandle,1)
+ Set repid=$li(QHandle,2)
+ Set ind=$li(QHandle,3)
+
+ Set ind=$o(^CacheTemp("TRAK",repid,ind))
+ If ind="" {	// if there are no more rows, finish fetching
+	 Set AtEnd=1
+	 Set Row=""
+ }
+ Else      {	// fetch row
+ 	Set Row=^CacheTemp("TRAK",repid,ind)
+ }
+
+ // Save QHandle
+ s QHandle=$lb(AtEnd,repid,ind)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Query name="AppointmentSlotsAvail">
+<Type>%Library.Query</Type>
+<FormalSpec>Resource:%String,DateFrom:%Date,DateTo:%Date</FormalSpec>
+<SqlProc>1</SqlProc>
+<Parameter name="CONTAINID" value="0"/>
+<Parameter name="ROWSPEC" value="RESRowId:%Library.Integer,ASRowId:%Library.String,ASDate:%Library.Date,ASSessStartTime:%Library.Time,ASSessEndTime:%Library.Time,SlotStartTime:%Library.Time,SlotEndTime:%Library.Time,SlotStartDateTime:%Library.TimeStamp,SlotEndDateTime:%Library.TimeStamp,SESSRowId:%Library.String,SESSLoad:%Library.Integer,SESSTimeStart:%Library.Time,SESSTimeEnd:%Library.Time,SERNoOfTimesBook:%Library.Integer,NARowId:%Library.Integer,NAFrDate:%Library.Date,NAToDate:%Library.Date,NAFrTime:%Library.Time,NAToTime:%Library.Time,NARemarks:%Library.String,RNAVDesc:%Library.String,SlotAvailable:%Library.Integer"/>
+<Parameter name="SELECTMODE" value="ODBC"/>
+</Query>
+</Class>
+</Export>

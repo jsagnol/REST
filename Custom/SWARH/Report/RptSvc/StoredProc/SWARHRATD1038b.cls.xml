@@ -1,0 +1,199 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.SWARH.Report.RptSvc.StoredProc.SWARHRATD1038b">
+<Description>
+Class for SWARHRATD1038b</Description>
+<ProcedureBlock>0</ProcedureBlock>
+<Super>Custom.SWARH.Report.RptSvc.StoredProc.Abstract</Super>
+<TimeCreated>60905,54849</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/SWARH/Report/RptSvc/StoredProc/SWARHRATD1038b.xml#1 $</Default>
+</Parameter>
+
+<Method name="SWARHRATD1038bClose">
+<Description>
+This is the Close component of the %Library.Query.
+This is standard code and should never have to change.
+This is where all the cleanup is performed, i.e. the purging of the temporary storage global ^CacheTemp.
+***************************************************************************************************************************************
+* SWARH ATD Period Activity Report by Ward subreport B
+* Initial release: 24/04/2013
+* Developer: Michael Welsh
+* Subreport lists leave days for the report period. 
+* Subreport called by SWARHRATD1038
+***************************************************************************************************************************************</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>QHandle:%Library.Binary</FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Clean up by purging the temporary node in ^CacheTemp global
+ New repid
+ Set repid=$li(QHandle,2)
+ Kill ^CacheTemp(repid)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="SWARHRATD1038bExecute">
+<Description>
+This is the Execute section for the %Library.Query. 
+All of the logic will be performed here.
+A new node for the ^CacheTemp global will be created and each subscript of this global will contain
+a row for the report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,Hospital:%Integer,DateFrom:%Date,DateTo:%Date]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+	
+ k ^zbernard	
+ // Get reportid i.e. use $INCREMENT to add another node to ^CacheTemp global. 
+ // We use ^CacheTemp global because it will always use memory before disk
+ New repid,ind
+
+ // Use $Increment to get the next node
+ Set repid=$I(^CacheTemp)
+ s ^zBernard("1")=(1)
+
+ // Build data into ^CacheTemp(ReportID)
+ // e.g. Set ^CacheTemp(ReportID,Index)=$LB(f1,f2,f3)
+ New Number,String,Date,Time,c,n
+ New PAADMRowId,PAADMADMNo,ADMLGoingOutDate,ADMLActualDateReturn,LeaveBefore,LeaveAfter,LeaveLOS,PAADMHospitalDR,PAPMINo
+ s (PAADMADMNo,ADMLGoingOutDate,ADMLActualDateReturn,PAPMINo) = ""
+ s (AdmissionsCount,PAADMRowID,LeaveBefore,LeaveAfter,LeaveLOS,PAADMHospitalDR) = 0
+  
+ s ind=1
+ 
+ //Convert ODBC dates to cache format
+ s DateFrom=$$intdate^SSUTIL4(DateFrom)
+ s DateTo=$$intdate^SSUTIL4(DateTo)
+   
+ &sql(DECLARE SWARHRATD1038b CURSOR FOR
+ 	SELECT a.PAADM_RowID,
+		a.PAADM_ADMNo,
+		al.ADML_GoingOutDate,
+		al.ADML_ActualDateReturn,
+		CASE WHEN al.ADML_GoingOutDate < :DateFrom THEN datediff("d",al.ADML_GoingOutDate,:DateFrom) ELSE 0 END AS LeaveBefore,
+		CASE WHEN al.ADML_ActualDateReturn > :DateTo THEN datediff("d",:DateTo,al.ADML_ActualDateReturn)-1 ELSE 0 END AS LeaveAfter,
+		datediff("d",al.ADML_GoingOutDate,al.ADML_ActualDateReturn) AS LeaveLOS,
+		a.PAADM_Hospital_DR,
+		a.PAADM_PAPMI_DR->PAPMI_No
+		FROM SQLUser.PA_Adm a, SQLUser.PA_AdmLeave al
+		WHERE al.ADML_ParRef = a.PAADM_RowID
+		AND (a.PAADM_Hospital_DR = :Hospital)
+		AND (a.PAADM_Type = 'I' )
+		AND (a.PAADM_VisitStatus = 'D')
+		AND (a.PAADM_ADMNo NOT LIKE 'ED%')
+		AND (a.PAADM_AdmDate <= :DateTo)
+		AND (a.PAADM_DischgDate >= :DateFrom)
+		AND al.ADML_GoingOutDate <= :DateTo AND al.ADML_ActualDateReturn >= :DateFrom
+	UNION
+	SELECT a.PAADM_RowID,
+		a.PAADM_ADMNo,
+		al.ADML_GoingOutDate,
+		al.ADML_ActualDateReturn,
+		CASE WHEN al.ADML_GoingOutDate < :DateFrom THEN datediff("d",al.ADML_GoingOutDate,:DateFrom) ELSE 0 END AS LeaveBefore,
+		CASE WHEN al.ADML_ActualDateReturn > :DateTo THEN datediff("d",:DateTo,al.ADML_ActualDateReturn)-1 ELSE 0 END AS LeaveAfter,
+		datediff("d",al.ADML_GoingOutDate,al.ADML_ActualDateReturn) AS LeaveLOS,
+		a.PAADM_Hospital_DR,
+		a.PAADM_PAPMI_DR->PAPMI_No
+		FROM SQLUser.PA_Adm a, SQLUser.PA_AdmLeave al
+		WHERE al.ADML_ParRef = a.PAADM_RowID
+		AND (a.PAADM_Hospital_DR = :Hospital)
+		AND (a.PAADM_Type = 'I' )
+		AND (a.PAADM_VisitStatus = 'A')
+		AND (a.PAADM_ADMNo NOT LIKE 'ED%')
+		AND (a.PAADM_AdmDate <= :DateTo)
+		AND (a.PAADM_DischgDate IS NULL)
+		AND al.ADML_GoingOutDate <= :DateTo AND al.ADML_ActualDateReturn >= :DateFrom
+			
+		)
+ &sql(open SWARHRATD1038b)
+ 
+ //fetch first row
+ &sql(fetch SWARHRATD1038b into :PAADMRowId,:PAADMADMNo,:ADMLGoingOutDate,:ADMLActualDateReturn,:LeaveBefore,:LeaveAfter,:LeaveLOS,:PAADMHospitalDR,:PAPMINo)
+  
+ while 'SQLCODE{
+ s LeaveLOS = LeaveLOS - (LeaveBefore + LeaveAfter)
+ d FormatDates
+	 
+  // build the row
+ Set ^CacheTemp(repid,ind)=$LB(PAADMRowId,PAADMADMNo,ADMLGoingOutDate,ADMLActualDateReturn,LeaveBefore,LeaveAfter,LeaveLOS,PAADMHospitalDR,PAPMINo)
+ 
+ Set ind=ind+1
+ 
+ //fetch rows
+ &sql(fetch SWARHRATD1038b into  :PAADMRowId,:PAADMADMNo,:ADMLGoingOutDate,:ADMLActualDateReturn,:LeaveBefore,:LeaveAfter,:LeaveLOS,:PAADMHospitalDR,:PAPMINo)
+ 
+ }
+
+ &sql(close SWARHRATD1038b)
+
+ // Build QHandle (AtEnd,ReportID,Index)
+ Set QHandle=$lb(0,repid,0)
+ 
+ Quit $$$OK
+FormatDates
+ // Convert the dates to ODBC date format
+ If ADMLGoingOutDate Set ADMLGoingOutDate=$ZD(ADMLGoingOutDate,3)
+ If ADMLActualDateReturn Set ADMLActualDateReturn=$ZD(ADMLActualDateReturn,3)
+ Quit
+]]></Implementation>
+</Method>
+
+<Method name="SWARHRATD1038bFetch">
+<Description>
+This is the Fetch component of the %Library.Query. 
+This should never have to change. It is designed to fetch the row for each subscript of the ^CacheTemp
+global and return this row to the Crystal Report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,&Row:%Library.List,&AtEnd:%Library.Integer=0]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // This fetch method should never have to change. 
+
+ // repid - Report ID
+ // ind   - sequence index which represents each row
+
+ New repid,ind
+
+ // Restore QHandle
+ Set AtEnd=$li(QHandle,1)
+ Set repid=$li(QHandle,2)
+ Set ind=$li(QHandle,3)
+ 
+ Set ind=$o(^CacheTemp(repid,ind))
+  
+ If ind="" {	// if there are no more rows, finish fetching
+ Set AtEnd=1
+ Set Row=""
+ }
+ Else      {	// fetch row
+ Set Row=^CacheTemp(repid,ind)
+ }
+ 
+ // Save QHandle
+ s QHandle=$lb(AtEnd,repid,ind)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Query name="SWARHRATD1038b">
+<Description>
+GHA List reports Stored Procedure
+It expects 2 parameter of type date and will return a list of records:
+Field1 - Integer
+Field2 - String(MAXLEN=255)
+Field3 - Date
+Field4 - Time 																										</Description>
+<Type>%Library.Query</Type>
+<FormalSpec>Hospital:%Integer,DateFrom:%Date,DateTo:%Date</FormalSpec>
+<SqlProc>1</SqlProc>
+<Parameter name="CONTAINID" value="0"/>
+<Parameter name="ROWSPEC" value="PAADMRowId:%Integer,PAADMADMNo:%String,ADMLGoingOutDate:%Date,ADMLActualDateReturn:%Date,LeaveBefore:%Integer,LeaveAfter:%Integer,LeaveLOS:%Integer,PAADMHospitalDR:%Integer,PAPMINo:%String"/>
+<Parameter name="SELECTMODE" value="ODBC"/>
+</Query>
+</Class>
+</Export>

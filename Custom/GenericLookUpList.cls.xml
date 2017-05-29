@@ -1,0 +1,826 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.GenericLookUpList">
+<ClassType/>
+<ProcedureBlock>0</ProcedureBlock>
+<Super>%Library.RegisteredObject</Super>
+<TimeCreated>61579,40584</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/GenericLookUpList.xml#1 $</Default>
+</Parameter>
+
+<Query name="LookUpHospital">
+<Description>
+Lookup on Hospital returning all active services</Description>
+<Type>%Library.SQLQuery</Type>
+<FormalSpec>Hospital:%String</FormalSpec>
+<SqlQuery><![CDATA[SELECT HOSP_Desc, HOSP_RowId, HOSP_Code
+FROM SQLUser.CT_Hospital
+WHERE ((%ALPHAUP HOSP_Desc %STARTSWITH %ALPHAUP :Hospital) OR (%ALPHAUP HOSP_Code %STARTSWITH %ALPHAUP :Hospital))
+AND (HOSP_DateFrom <= CURRENT_DATE)
+AND ((HOSP_DateTo IS NULL) OR (HOSP_DateTo >= CURRENT_DATE))
+ORDER BY HOSP_Desc]]></SqlQuery>
+<Parameter name="CONTAINID" value="2"/>
+<Parameter name="ROWSPEC" value="Description:%String,HIDDEN:%String,Code:%String"/>
+</Query>
+
+<Method name="LookUpBrokerHospital">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>itmjs:%Library.String="",itmjsex:%Library.String="",Hospital:%Library.String=""</FormalSpec>
+<Implementation><![CDATA[
+ n id,code,desc,activedate
+
+ s (id,code,desc)=""
+
+ ; Try and find a matching code
+ &sql(SELECT	HOSP_Desc, HOSP_RowId, HOSP_Code
+ INTO	:desc, :id, :code
+ FROM	SQLUser.CT_Hospital
+ WHERE	((%ALPHAUP HOSP_Desc = %ALPHAUP :Hospital) OR (%ALPHAUP HOSP_Code = %ALPHAUP :Hospital))
+ AND (HOSP_DateFrom <= CURRENT_DATE)
+ AND ((HOSP_DateTo IS NULL) OR (HOSP_DateTo >= CURRENT_DATE))
+ )
+ ;
+ i SQLCODE s desc=Hospital q 0
+ s retval=itmjs_"('"_$ZCVT(desc,"O","JS")_"');"
+ i itmjsex'="""" s retval=retval_itmjsex_"('"_$ZCVT(desc,"O","JS")_"^"_id_"^"_$ZCVT(code,"O","JS")_"');"
+ &javascript<#(retval)#>
+ q 1
+]]></Implementation>
+</Method>
+
+<Query name="LookUpWardLocationForHosp">
+<Description>
+Lookup on Ward Location for Hospital</Description>
+<Type>%Library.SQLQuery</Type>
+<FormalSpec>HospitalID:%Integer,WardLocation:%String</FormalSpec>
+<SqlQuery><![CDATA[SELECT Ward_Desc, Ward_RowID, Ward_Code
+FROM SQLUser.PAC_Ward, SQLUser.CT_Loc
+WHERE ((%ALPHAUP Ward_Desc %STARTSWITH %ALPHAUP :WardLocation) OR (%ALPHAUP Ward_Code %STARTSWITH %ALPHAUP :WardLocation))
+AND CTLOC_RowID=WARD_LocationDR
+AND CTLOC_Hospital_DR=:HospitalID
+AND WARD_LocationDR->CTLOC_Type='W' and WARD_Active='Y'
+AND WARD_LocationDR->CTLOC_DateActiveTo is NULL
+
+ORDER BY Ward_Desc]]></SqlQuery>
+<Parameter name="CONTAINID" value="2"/>
+<Parameter name="ROWSPEC" value="Ward:%String,HIDDEN:%String,Code:%String"/>
+</Query>
+
+<Method name="LookUpBrokerWardLocationForHosp">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>itmjs:%Library.String="",itmjsex:%Library.String="",HospitalID:%Integer,WardLocation:%Library.String=""</FormalSpec>
+<Implementation><![CDATA[
+ n id,code,desc
+ s (id,code,desc)=""
+ ; Try and find a matching code
+ &sql(SELECT	 Ward_Desc, Ward_RowID, Ward_Code
+ INTO	:desc, :id, :code
+ FROM	SQLUser.PAC_Ward
+ WHERE	((%ALPHAUP Ward_Desc = %ALPHAUP :WardLocation) OR (%ALPHAUP Ward_Code = %ALPHAUP :WardLocation)
+ AND WARD_LocationDR->CTLOC_Hospital_DR=:HospitalID
+ AND WARD_LocationDR->CTLOC_Type='W' and WARD_Active='Y'
+ AND WARD_LocationDR->CTLOC_DateActiveTo is NULL
+ )
+ )
+ ;
+ i SQLCODE s desc=WardLocation q 0
+ s retval=itmjs_"('"_$ZCVT(desc,"O","JS")_"');"
+ i itmjsex'="""" s retval=retval_itmjsex_"('"_$ZCVT(desc,"O","JS")_"^"_id_"^"_$ZCVT(code,"O","JS")_"');"
+ &javascript<#(retval)#>
+ q 1
+]]></Implementation>
+</Method>
+
+<Query name="LookUpWardLocation">
+<Description>
+Lookup on Ward Location</Description>
+<Type>%Library.SQLQuery</Type>
+<FormalSpec>WardLocation:%String</FormalSpec>
+<SqlQuery>SELECT Ward_Desc, Ward_RowID, Ward_Code
+FROM SQLUser.PAC_Ward, SQLUser.CT_Loc
+WHERE ((%ALPHAUP Ward_Desc %STARTSWITH %ALPHAUP :WardLocation) OR (%ALPHAUP Ward_Code %STARTSWITH %ALPHAUP :WardLocation))
+AND CTLOC_RowID=WARD_LocationDR
+
+ORDER BY Ward_Desc</SqlQuery>
+<Parameter name="CONTAINID" value="2"/>
+<Parameter name="ROWSPEC" value="Ward:%String,HIDDEN:%String,Code:%String"/>
+</Query>
+
+<Method name="LookUpBrokerWardLocation">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>itmjs:%Library.String="",itmjsex:%Library.String="",WardLocation:%Library.String=""</FormalSpec>
+<Implementation><![CDATA[
+ n id,code,desc
+ s (id,code,desc)=""
+ ; Try and find a matching code
+ &sql(SELECT	 Ward_Desc, Ward_RowID, Ward_Code
+ INTO	:desc, :id, :code
+ FROM	SQLUser.PAC_Ward
+ WHERE	((%ALPHAUP Ward_Desc = %ALPHAUP :WardLocation) OR (%ALPHAUP Ward_Code = %ALPHAUP :WardLocation)
+ )
+ )
+ ;
+ i SQLCODE s desc=WardLocation q 0
+ s retval=itmjs_"('"_$ZCVT(desc,"O","JS")_"');"
+ i itmjsex'="""" s retval=retval_itmjsex_"('"_$ZCVT(desc,"O","JS")_"^"_id_"^"_$ZCVT(code,"O","JS")_"');"
+ &javascript<#(retval)#>
+ q 1
+]]></Implementation>
+</Method>
+
+<Query name="LookUpCareProvider">
+<Description>
+Lookup on Care Provider </Description>
+<Type>%Library.SQLQuery</Type>
+<FormalSpec>CareProvider:%String</FormalSpec>
+<SqlQuery>SELECT CTPCP_Desc,CTPCP_RowID,CTPCP_Code
+FROM SQLUser.CT_CareProv
+WHERE ((%ALPHAUP CTPCP_Desc %STARTSWITH %ALPHAUP :CareProvider) OR (%ALPHAUP CTPCP_Code %STARTSWITH %ALPHAUP :CareProvider))
+ORDER BY CTPCP_Desc</SqlQuery>
+<Parameter name="CONTAINID" value="2"/>
+<Parameter name="ROWSPEC" value="Care Provider:%String,HIDDEN:%String,Code:%String"/>
+</Query>
+
+<Method name="LookUpBrokerCareProvider">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>itmjs:%Library.String="",itmjsex:%Library.String="",CareProvider:%Library.String=""</FormalSpec>
+<Implementation><![CDATA[
+ n id,code,desc
+ s (id,code,desc)=""
+ ; Try and find a matching code
+ &sql(SELECT	 CTPCP_Desc,CTPCP_RowId,CTPCP_Code
+ INTO	:desc, :id, :code
+ FROM	SQLUser.CT_CareProv
+ WHERE	((%ALPHAUP CTPCP_Desc = %ALPHAUP :CareProvider) OR (%ALPHAUP CTPCP_Code = %ALPHAUP :CareProvider))
+ )
+ ;
+ i SQLCODE s desc=CareProvider q 0
+ s retval=itmjs_"('"_$ZCVT(desc,"O","JS")_"');"
+ i itmjsex'="""" s retval=retval_itmjsex_"('"_$ZCVT(desc,"O","JS")_"^"_id_"^"_$ZCVT(code,"O","JS")_"');"
+ &javascript<#(retval)#>
+ q 1
+]]></Implementation>
+</Method>
+
+<Query name="LookUpDoctor">
+<Type>%Library.SQLQuery</Type>
+<FormalSpec>HospitalID:%Integer,Doctor:%String</FormalSpec>
+<SqlQuery><![CDATA[SELECT CTPCP_Desc,CTPCP_RowID,CTPCP_Code
+FROM SQLUser.CT_CareProv
+WHERE CTPCP_CarPrvTp_DR->CTCPT_InternalType = 'DOCTOR'
+  AND ((%SQLUPPER CTPCP_Desc [ %SQLUPPER :Doctor) OR (%SQLUPPER CTPCP_Code %STARTSWITH %SQLUPPER :Doctor))
+ORDER BY CTPCP_Desc]]></SqlQuery>
+<Parameter name="CONTAINID" value="2"/>
+<Parameter name="ROWSPEC" value="Doctor Name:%String,HIDDEN:%String,Code:%String"/>
+</Query>
+
+<Method name="LookUpBrokerDoctor">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>itmjs:%Library.String="",itmjsex:%Library.String="",HospitalID:%Integer,Doctor:%Library.String=""</FormalSpec>
+<Implementation><![CDATA[
+ n id,code,desc
+ s (id,code,desc)=""
+ ; Try and find a matching code
+ &sql(SELECT	 CTPCP_Desc,CTPCP_RowId,CTPCP_Code
+ INTO	:desc, :id, :code
+ FROM	SQLUser.CT_CareProv
+ WHERE CTPCP_CarPrvTp_DR->CTCPT_InternalType = 'DOCTOR'
+   AND	((%SQLUPPER CTPCP_Desc = %SQLUPPER :Doctor) OR (%SQLUPPER CTPCP_Code = %SQLUPPER :Doctor))
+ )
+ ;
+ i SQLCODE s desc=Doctor q 0
+ s retval=itmjs_"('"_$ZCVT(desc,"O","JS")_"');"
+ i itmjsex'="""" s retval=retval_itmjsex_"('"_$ZCVT(desc,"O","JS")_"^"_id_"^"_$ZCVT(code,"O","JS")_"');"
+ &javascript<#(retval)#>
+ q 1
+]]></Implementation>
+</Method>
+
+<Query name="LookUpRefDoctor">
+<Description>
+Lookup returning all current Refdoctors</Description>
+<Type>%Library.SQLQuery</Type>
+<FormalSpec>REFDDescription:%String</FormalSpec>
+<SqlQuery><![CDATA[SELECT REFD_Desc,REFD_RowID,REFD_Code
+FROM SQLUSER.PAC_RefDoctor
+WHERE (REFD_DateActiveTo is null or REFD_DateActiveTo<CURRENT_DATE) AND 
+((%ALPHAUP REFD_Desc %STARTSWITH %ALPHAUP :REFDDescription) OR (%ALPHAUP REFD_Code %STARTSWITH %ALPHAUP :REFDDescription))
+
+ORDER BY REFD_Desc]]></SqlQuery>
+<Parameter name="CONTAINID" value="2"/>
+<Parameter name="ROWSPEC" value="REFDDesc:%String,HIDDEN:%String,REFDCode:%String"/>
+</Query>
+
+<Method name="LookUpBrokerRefDoctor">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>itmjs:%Library.String="",itmjsex:%Library.String="",REFDDescription:%Library.String=""</FormalSpec>
+<Implementation><![CDATA[
+ n id,code,desc
+ s (id,code,desc)=""
+
+ ; Try and find a matching code
+ &sql(SELECT  distinct REFD_Desc,REFD_RowId,REFD_Code
+INTO :desc, :id, :code
+FROM SQLUSER.PAC_RefDoctor
+WHERE (REFD_DateActiveTo is null or REFD_DateActiveTo<CURRENT_DATE) AND 
+((%ALPHAUP REFD_Desc %STARTSWITH %ALPHAUP :REFDDescription) OR (%ALPHAUP REFD_Code %STARTSWITH %ALPHAUP :REFDDescription))
+
+)
+
+ i SQLCODE s desc=REFDDescription q 0
+ s retval=itmjs_"('"_$ZCVT(desc,"O","JS")_"');"
+ i itmjsex'="""" s retval=retval_itmjsex_"('"_$ZCVT(desc,"O","JS")_"^"_id_"^"_$ZCVT(code,"O","JS")_"');"
+ &javascript<#(retval)#>
+ q 1
+]]></Implementation>
+</Method>
+
+<UDLText name="T">
+<Content><![CDATA[
+// for audit report 
+
+]]></Content>
+</UDLText>
+
+<Query name="LookUpURNo">
+<Type>%Library.SQLQuery</Type>
+<FormalSpec>UR:%String</FormalSpec>
+<SqlQuery>SELECT top 10 PAPMI_No, PAPMI_RowId, PAPMI_No
+FROM SQLUser.PA_PatMas
+WHERE ((%ALPHAUP PAPMI_No %STARTSWITH %ALPHAUP :UR))
+ORDER BY PAPMI_RowId</SqlQuery>
+<Parameter name="CONTAINID" value="2"/>
+<Parameter name="ROWSPEC" value="Description:%String,HIDDEN:%String,Code:%String"/>
+</Query>
+
+<Method name="LookUpBrokerURNo">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>itmjs:%Library.String="",itmjsex:%Library.String="",UR:%Library.String=""</FormalSpec>
+<Implementation><![CDATA[
+ n id,code,desc
+
+ s (id,code,desc)=""
+
+ ; Try and find a matching code
+ ; if we want to pass the rowid change to PAPMI_No, PAPMI_RowId, PAPMI_No
+ &sql(SELECT	PAPMI_No, PAPMI_RowId, PAPMI_No
+ INTO	:desc, :id, :code
+ FROM	SQLUser.PA_PatMas
+ WHERE	((%ALPHAUP PAPMI_No = %ALPHAUP :UR))
+ )
+ ;
+ i SQLCODE s desc=UR q 0
+ s retval=itmjs_"('"_$ZCVT(desc,"O","JS")_"');"
+ i itmjsex'="""" s retval=retval_itmjsex_"('"_$ZCVT(desc,"O","JS")_"^"_id_"^"_$ZCVT(code,"O","JS")_"');"
+ &javascript<#(retval)#>
+ q 1
+]]></Implementation>
+</Method>
+
+<Method name="LookUpBrokerPatientID">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>itmjs:%Library.String="",itmjsex:%Library.String="",UR:%Library.String=""</FormalSpec>
+<Implementation><![CDATA[
+ n id,code,desc
+
+ s (id,code,desc)=""
+
+ ; Try and find a matching code
+ 
+ &sql(SELECT	PAPMI_No, PAPMI_RowId, PAPMI_RowId
+ INTO	:desc, :id, :code
+ FROM	SQLUser.PA_PatMas
+ WHERE	((%ALPHAUP PAPMI_No = %ALPHAUP :UR))
+ )
+ ;
+ i SQLCODE s desc=UR q 0
+ s retval=itmjs_"('"_$ZCVT(desc,"O","JS")_"');"
+ i itmjsex'="""" s retval=retval_itmjsex_"('"_$ZCVT(desc,"O","JS")_"^"_id_"^"_$ZCVT(code,"O","JS")_"');"
+ &javascript<#(retval)#>
+ q 1
+]]></Implementation>
+</Method>
+
+<Query name="LookUpEpisodeNo">
+<Type>%Library.SQLQuery</Type>
+<FormalSpec>Episode:%String,UR:%String,HospitalID:%Integer</FormalSpec>
+<SqlQuery>SELECT PAADM_AdmNo, PAADM_RowId, PAADM_AdmNo
+FROM SQLUser.PA_Adm
+WHERE (PAADM_Hospital_Dr = :HospitalID) AND ((%ALPHAUP PAADM_AdmNo %STARTSWITH %ALPHAUP :Episode) and PAADM_PAPMI_DR=:UR)
+ORDER BY PAADM_RowId DESC</SqlQuery>
+<Parameter name="CONTAINID" value="2"/>
+<Parameter name="ROWSPEC" value="Description:%String,HIDDEN:%String,Code:%String"/>
+</Query>
+
+<Method name="LookUpBrokerEpisodeNo">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>itmjs:%Library.String="",itmjsex:%Library.String="",Episode:%Library.String="",UR:%Library.String="",HospitalID:%Integer</FormalSpec>
+<Implementation><![CDATA[
+ n id,code,desc
+
+ s (id,code,desc)=""
+
+ ; Try and find a matching code
+
+ &sql(SELECT	PAADM_AdmNo, PAADM_RowId, PAADM_AdmNo
+ INTO	:desc,:id, :code
+ FROM	SQLUser.PA_Adm
+ WHERE	(PAADM_Hospital_Dr = :HospitalID) AND ((%ALPHAUP PAADM_AdmNo = %ALPHAUP :Episode) and PAADM_PAPMI_DR=:UR)
+ )
+ ;
+ i SQLCODE s desc=Episode q 0
+ s retval=itmjs_"('"_$ZCVT(desc,"O","JS")_"');"
+ i itmjsex'="""" s retval=retval_itmjsex_"('"_$ZCVT(desc,"O","JS")_"^"_id_"^"_$ZCVT(code,"O","JS")_"');"
+ &javascript<#(retval)#>
+ q 1
+]]></Implementation>
+</Method>
+
+<Query name="LookUpRefCode">
+<Type>%Library.SQLQuery</Type>
+<FormalSpec>HospitalID:%Integer</FormalSpec>
+<SqlQuery>SELECT ARCIM_Desc, ARCIM_RowId, ARCIM_Code
+FROM SQLUser.ARC_ItmMast,
+SQLUser.ARC_ItemCat,SQLUser.ARC_ItmRecLoc
+where ARCIM_ItemCat_DR=ARCIC_RowId and ARCIC_OrdCat_DR=5 and ARCRL_ARCIM_DR=ARCIM_RowId and ARCRL_CTHospitalDR=:HospitalID</SqlQuery>
+<Parameter name="CONTAINID" value="2"/>
+<Parameter name="ROWSPEC" value="Description:%String,HIDDEN:%String,Code:%String"/>
+</Query>
+
+<Method name="LookUpBrokerRefCode">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>itmjs:%Library.String="",itmjsex:%Library.String="",HospitalID:%Integer</FormalSpec>
+<Implementation><![CDATA[
+ n id,code,desc
+
+ s (id,code,desc)=""
+
+ ; Try and find a matching code
+
+ &sql(SELECT ARCIM_Desc, ARCIM_RowId, ARCIM_Code
+ INTO	:desc,:id, :code
+ FROM	SQLUser.ARC_ItmMast,SQLUser.ARC_ItemCat,SQLUser.ARC_ItmRecLoc
+ where ARCIM_ItemCat_DR=ARCIC_RowId and ARCIC_OrdCat_DR=5 and ARCRL_ARCIM_DR=ARCIM_RowId and ARCRL_CTHospitalDR=:HospitalID
+ )
+ ;
+ i SQLCODE s desc=Episode q 0
+ s retval=itmjs_"('"_$ZCVT(desc,"O","JS")_"');"
+ i itmjsex'="""" s retval=retval_itmjsex_"('"_$ZCVT(desc,"O","JS")_"^"_id_"^"_$ZCVT(code,"O","JS")_"');"
+ &javascript<#(retval)#>
+ q 1
+]]></Implementation>
+</Method>
+
+<Query name="LookUpLocation">
+<Type>%Library.SQLQuery</Type>
+<FormalSpec>HospitalID:%Integer</FormalSpec>
+<SqlQuery>select CTLOC_Desc,CTLOC_RowId,CTLOC_Code from SQLUser.CT_Loc 
+where CTLOC_DateActiveTo is null and CTLOC_Hospital_DR=:HospitalID order by CTLOC_Code asc</SqlQuery>
+<Parameter name="CONTAINID" value="2"/>
+<Parameter name="ROWSPEC" value="Description:%String,HIDDEN:%String,Code:%String"/>
+</Query>
+
+<Method name="LookUpBrokerLocation">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>itmjs:%Library.String="",itmjsex:%Library.String="",HospitalID:%Integer</FormalSpec>
+<Implementation><![CDATA[
+ n id,code,desc
+
+ s (id,code,desc)=""
+
+ ; Try and find a matching code
+
+ &sql(SELECT CTLOC_Desc,CTLOC_RowId,CTLOC_Code INTO :desc,:id, :code from SQLUser.CT_Loc 
+where CTLOC_DateActiveTo is null and CTLOC_Hospital_DR=:HospitalID order by CTLOC_Code asc
+ )
+ ;
+ i SQLCODE s desc=Episode q 0
+ s retval=itmjs_"('"_$ZCVT(desc,"O","JS")_"');"
+ i itmjsex'="""" s retval=retval_itmjsex_"('"_$ZCVT(desc,"O","JS")_"^"_id_"^"_$ZCVT(code,"O","JS")_"');"
+ &javascript<#(retval)#>
+ q 1
+]]></Implementation>
+</Method>
+
+<Query name="LookUpStocktakeLocation">
+<Type>%Library.SQLQuery</Type>
+<FormalSpec>Location:%String,HospitalID:%Integer</FormalSpec>
+<SqlQuery>select CTLOC_Desc,CTLOC_RowId,CTLOC_Code from SQLUser.CT_Loc 
+where CTLOC_DateActiveTo is null and CTLOC_Hospital_DR=:HospitalID and
+((%ALPHAUP CTLOC_Desc %STARTSWITH %ALPHAUP :Location) OR (%ALPHAUP CTLOC_Code %STARTSWITH %ALPHAUP :Location))
+ORDER BY CTLOC_Desc asc</SqlQuery>
+<Parameter name="CONTAINID" value="2"/>
+<Parameter name="ROWSPEC" value="Description:%String,HIDDEN:%String,Code:%String"/>
+</Query>
+
+<Method name="LookUpBrokerStocktakeLocation">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>itmjs:%Library.String="",itmjsex:%Library.String="",Location:%String,HospitalID:%Integer</FormalSpec>
+<Implementation><![CDATA[
+ n id,code,desc
+
+ s (id,code,desc)=""
+
+ ; Try and find a matching code
+
+ &sql(SELECT CTLOC_Desc,CTLOC_RowId,CTLOC_Code INTO :desc,:id, :code from SQLUser.CT_Loc 
+where CTLOC_DateActiveTo is null and CTLOC_Hospital_DR=:HospitalID and
+((%ALPHAUP CTLOC_Desc %STARTSWITH %ALPHAUP :Location) OR (%ALPHAUP CTLOC_Code %STARTSWITH %ALPHAUP :Location))
+order by CTLOC_Desc asc
+ )
+ ;
+ i SQLCODE s desc=Episode q 0
+ s retval=itmjs_"('"_$ZCVT(desc,"O","JS")_"');"
+ i itmjsex'="""" s retval=retval_itmjsex_"('"_$ZCVT(desc,"O","JS")_"^"_id_"^"_$ZCVT(code,"O","JS")_"');"
+ &javascript<#(retval)#>
+ q 1
+]]></Implementation>
+</Method>
+
+<Query name="LookUpMRLocation">
+<Type>%Library.SQLQuery</Type>
+<FormalSpec>HospitalID:%Integer</FormalSpec>
+<SqlQuery>select CTLOC_Desc,CTLOC_RowId,CTLOC_Code from SQLUser.CT_Loc 
+where CTLOC_DateActiveTo is null and CTLOC_Hospital_DR=:HospitalID and CTLOC_Type='MR' order by CTLOC_Code asc</SqlQuery>
+<Parameter name="CONTAINID" value="2"/>
+<Parameter name="ROWSPEC" value="Description:%String,HIDDEN:%String,Code:%String"/>
+</Query>
+
+<Method name="LookUpBrokerMRLocation">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>itmjs:%Library.String="",itmjsex:%Library.String="",HospitalID:%Integer</FormalSpec>
+<Implementation><![CDATA[
+ n id,code,desc
+
+ s (id,code,desc)=""
+
+ ; Try and find a matching code
+
+ &sql(SELECT CTLOC_Desc,CTLOC_RowId,CTLOC_Code INTO :desc,:id, :code from SQLUser.CT_Loc 
+where CTLOC_DateActiveTo is null and CTLOC_Hospital_DR=:HospitalID and CTLOC_Type='MR' order by CTLOC_Code asc
+ )
+ ;
+ i SQLCODE s desc=Episode q 0
+ s retval=itmjs_"('"_$ZCVT(desc,"O","JS")_"');"
+ i itmjsex'="""" s retval=retval_itmjsex_"('"_$ZCVT(desc,"O","JS")_"^"_id_"^"_$ZCVT(code,"O","JS")_"');"
+ &javascript<#(retval)#>
+ q 1
+]]></Implementation>
+</Method>
+
+<Query name="LookUpSpecialty">
+<Type>%Library.SQLQuery</Type>
+<FormalSpec>HospitalID:%Integer,LocDesc:%String</FormalSpec>
+<SqlQuery> SELECT CTLOC_Desc,CTLOC_RowId,CTLOC_Code from SQLUser.CT_Loc
+ where CTLOC_DateActiveTo is null and CTLOC_Hospital_DR=:HospitalID and CTLOC_Type='E'
+ and ((%ALPHAUP CTLOC_Desc %STARTSWITH %ALPHAUP :LocDesc))
+ order by CTLOC_Desc asc</SqlQuery>
+<Parameter name="CONTAINID" value="2"/>
+<Parameter name="ROWSPEC" value="Description:%String,HIDDEN:%String,Code:%String"/>
+</Query>
+
+<Method name="LookUpBrokerSpecialty">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>itmjs:%Library.String="",itmjsex:%Library.String="",HospitalID:%Integer,LocDesc:%String</FormalSpec>
+<Implementation><![CDATA[
+ n id,code,desc
+
+ s (id,code,desc)=""
+
+ ; Try and find a matching code
+
+ &sql(SELECT CTLOC_Desc,CTLOC_RowId,CTLOC_Code INTO	:desc, :id, :code from SQLUser.CT_Loc 
+ where CTLOC_DateActiveTo is null and CTLOC_Hospital_DR=:HospitalID and CTLOC_Type='E'
+ and ((%ALPHAUP CTLOC_Desc %STARTSWITH %ALPHAUP :LocDesc))
+ order by CTLOC_Desc asc
+ )
+ ;
+ i SQLCODE s desc=Episode q 0
+ s retval=itmjs_"('"_$ZCVT(desc,"O","JS")_"');"
+ i itmjsex'="""" s retval=retval_itmjsex_"('"_$ZCVT(desc,"O","JS")_"^"_id_"^"_$ZCVT(code,"O","JS")_"');"
+ &javascript<#(retval)#>
+ q 1
+]]></Implementation>
+</Method>
+
+<Query name="LookUpResLocation">
+<Type>%Library.SQLQuery</Type>
+<FormalSpec>HospitalID:%Integer,LocDesc:%String</FormalSpec>
+<SqlQuery><![CDATA[ SELECT RES_CTLOC_DR->CTLOC_Desc,RES_CTLOC_DR,RES_CTLOC_DR->CTLOC_Code from SQLUser.RB_Resource
+ where RES_CTLOC_DR->CTLOC_DateActiveTo is null and RES_CTLOC_DR->CTLOC_Hospital_DR=:HospitalID and RES_CTLOC_DR->CTLOC_Type='E'
+ and ((%ALPHAUP RES_CTLOC_DR->CTLOC_Desc %STARTSWITH %ALPHAUP :LocDesc))
+ group by RES_CTLOC_DR
+ order by RES_CTLOC_DR->CTLOC_Desc asc]]></SqlQuery>
+<Parameter name="CONTAINID" value="2"/>
+<Parameter name="ROWSPEC" value="Description:%String,HIDDEN:%String,Code:%String"/>
+</Query>
+
+<Method name="LookUpBrokerResLocation">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>itmjs:%Library.String="",itmjsex:%Library.String="",HospitalID:%Integer,LocDesc:%String</FormalSpec>
+<Implementation><![CDATA[
+ n id,code,desc
+
+ s (id,code,desc)=""
+
+ ; Try and find a matching code
+
+ &sql(SELECT RES_CTLOC_DR->CTLOC_Desc,RES_CTLOC_DR,RES_CTLOC_DR->CTLOC_Code INTO	:desc, :id, :code
+ from SQLUser.RB_Resource
+where RES_CTLOC_DR->CTLOC_DateActiveTo is null and RES_CTLOC_DR->CTLOC_Hospital_DR=:HospitalID and RES_CTLOC_DR->CTLOC_Type='E'
+and ((%ALPHAUP RES_CTLOC_DR->CTLOC_Desc %STARTSWITH %ALPHAUP :LocDesc))
+group by RES_CTLOC_DR
+order by RES_CTLOC_DR->CTLOC_Desc asc
+ )
+ ;
+ i SQLCODE s desc=Episode q 0
+ s retval=itmjs_"('"_$ZCVT(desc,"O","JS")_"');"
+ i itmjsex'="""" s retval=retval_itmjsex_"('"_$ZCVT(desc,"O","JS")_"^"_id_"^"_$ZCVT(code,"O","JS")_"');"
+ &javascript<#(retval)#>
+ q 1
+]]></Implementation>
+</Method>
+
+<Query name="LookUpResClinician">
+<Type>%Library.SQLQuery</Type>
+<FormalSpec>HospitalID:%Integer,LocID:%Integer,ClinDesc:%String</FormalSpec>
+<SqlQuery><![CDATA[select RES_CTPCP_DR->CTPCP_Desc,RES_CTPCP_DR,RES_CTPCP_DR->CTPCP_Code from SQLUser.RB_Resource 
+where RES_CTLOC_DR->CTLOC_Hospital_DR=:HospitalID and ((RES_CTLOC_DR=:LocID ) or (:LocID is null))
+and ((%ALPHAUP RES_CTPCP_DR->CTPCP_Desc %STARTSWITH %ALPHAUP :ClinDesc))
+group by RES_CTPCP_DR
+order by RES_CTPCP_DR->CTPCP_Desc asc]]></SqlQuery>
+<Parameter name="CONTAINID" value="2"/>
+<Parameter name="ROWSPEC" value="Description:%String,HIDDEN:%String,Code:%String"/>
+</Query>
+
+<Method name="LookUpBrokerResClinician">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>itmjs:%Library.String="",itmjsex:%Library.String="",HospitalID:%Integer,LocID:%Integer,ClinDesc:%String</FormalSpec>
+<Implementation><![CDATA[
+ n id,code,desc
+
+ s (id,code,desc)=""
+
+ ; Try and find a matching code
+
+ &sql(SELECT RES_CTPCP_DR->CTPCP_Desc,RES_CTPCP_DR,RES_CTPCP_DR->CTPCP_Code INTO :desc, :id, :code 
+from SQLUser.RB_Resource 
+where RES_CTLOC_DR->CTLOC_Hospital_DR=:HospitalID and ((RES_CTLOC_DR=:LocID ) or (:LocID is null))
+and ((%ALPHAUP RES_CTPCP_DR->CTPCP_Desc %STARTSWITH %ALPHAUP :ClinDesc))
+group by RES_CTPCP_DR
+order by RES_CTPCP_DR->CTPCP_Desc asc
+ )
+ ;
+ i SQLCODE s desc=Episode q 0
+ s retval=itmjs_"('"_$ZCVT(desc,"O","JS")_"');"
+ i itmjsex'="""" s retval=retval_itmjsex_"('"_$ZCVT(desc,"O","JS")_"^"_id_"^"_$ZCVT(code,"O","JS")_"');"
+ &javascript<#(retval)#>
+ q 1
+]]></Implementation>
+</Method>
+
+<Query name="LookUpAlertCode">
+<Description>
+Lookup on Alert Code  </Description>
+<Type>%Library.SQLQuery</Type>
+<FormalSpec>WardLocation:%String</FormalSpec>
+<SqlQuery>SELECT ALERT_Desc, ALERT_Code
+FROM SQLUser.PAC_PatientAlert
+WHERE ((%ALPHAUP ALERT_Desc %STARTSWITH %ALPHAUP :AlertCode) OR (%ALPHAUP ALERT_Code %STARTSWITH %ALPHAUP :AlertCode))
+ORDER BY ALERT_Desc</SqlQuery>
+<Parameter name="CONTAINID" value="2"/>
+<Parameter name="ROWSPEC" value="Alert:%String,Code:%String"/>
+</Query>
+
+<Method name="LookUpBrokerAlertCode">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>itmjs:%Library.String="",itmjsex:%Library.String="",AlertCode:%Library.String=""</FormalSpec>
+<Implementation><![CDATA[
+ n id,code,desc
+ s (id,code,desc)=""
+ ; Try and find a matching code
+ &sql(SELECT	 ALERT_Desc, ALERT_Code, ALERT_Code
+ INTO	:desc, :code, :id
+ FROM	SQLUser.PAC_PatientAlert
+ WHERE	((%ALPHAUP ALERT_Desc = %ALPHAUP :AlertCode) OR (%ALPHAUP ALERT_Code = %ALPHAUP :AlertCode)
+ )
+ )
+ ;
+ i SQLCODE s desc=AlertCode q 0
+ s retval=itmjs_"('"_$ZCVT(desc,"O","JS")_"');"
+ i itmjsex'="""" s retval=retval_itmjsex_"('"_$ZCVT(desc,"O","JS")_"^"_id_"^"_$ZCVT(code,"O","JS")_"');"
+ &javascript<#(retval)#>
+ q 1
+]]></Implementation>
+</Method>
+
+<Query name="LookUpICDCode">
+<Type>%Library.SQLQuery</Type>
+<FormalSpec>ICDCode:%String</FormalSpec>
+<SqlQuery>SELECT MRCID_Desc, MRCID_Code, MRCID_Code
+FROM SQLUser.MRC_ICDDx
+WHERE ((%ALPHAUP MRCID_Desc %STARTSWITH %ALPHAUP :ICDCode) OR (%ALPHAUP MRCID_Code %STARTSWITH %ALPHAUP :ICDCode))
+order by MRCID_RowID asc</SqlQuery>
+<Parameter name="CONTAINID" value="2"/>
+<Parameter name="ROWSPEC" value="Description:%String,HIDDEN:%String,Code:%String"/>
+</Query>
+
+<Method name="LookUpBrokerICDCode">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>itmjs:%Library.String="",itmjsex:%Library.String="",ICDCode:%String</FormalSpec>
+<Implementation><![CDATA[
+ n id,code,desc
+
+ s (id,code,desc)=""
+
+ ; Try and find a matching code
+
+ &sql(SELECT	MRCID_Desc, MRCID_Code, MRCID_Code
+ INTO	:desc,:id, :code
+ FROM	SQLUser.MRC_ICDDx
+ WHERE ((%ALPHAUP MRCID_Desc = %ALPHAUP :ICDCode) OR (%ALPHAUP MRCID_Code = %ALPHAUP :ICDCode))
+ )
+ ;
+ i SQLCODE s desc=Episode q 0
+ s retval=itmjs_"('"_$ZCVT(desc,"O","JS")_"');"
+ i itmjsex'="""" s retval=retval_itmjsex_"('"_$ZCVT(desc,"O","JS")_"^"_id_"^"_$ZCVT(code,"O","JS")_"');"
+ &javascript<#(retval)#>
+ q 1
+]]></Implementation>
+</Method>
+
+<Query name="LookUpICDProcCode">
+<Type>%Library.SQLQuery</Type>
+<FormalSpec>ICDCode:%String</FormalSpec>
+<SqlQuery>	SELECT	OPER_Desc, OPER_Code, OPER_Code
+	FROM	SQLUser.ORC_Operation
+	WHERE ((%ALPHAUP OPER_Desc %STARTSWITH %ALPHAUP :ICDCode) OR (%ALPHAUP OPER_Code %STARTSWITH %ALPHAUP :ICDCode))
+	ORDER BY OPER_RowId ASC</SqlQuery>
+<Parameter name="CONTAINID" value="2"/>
+<Parameter name="ROWSPEC" value="Description:%String,HIDDEN:%String,Code:%String"/>
+</Query>
+
+<Method name="LookUpBrokerICDProcCode">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>itmjs:%Library.String="",itmjsex:%Library.String="",ICDCode:%String</FormalSpec>
+<Implementation><![CDATA[
+ n id,code,desc
+
+ s (id,code,desc)=""
+
+ ; Try and find a matching code
+
+ &sql(SELECT	OPER_Desc, OPER_Code, OPER_Code
+ INTO	:desc,:id, :code
+ FROM	SQLUser.ORC_Operation
+ WHERE ((%ALPHAUP OPER_Desc = %ALPHAUP :ICDCode) OR (%ALPHAUP OPER_Code = %ALPHAUP :ICDCode))
+ )
+ ;
+ i SQLCODE s desc=Episode q 0
+ s retval=itmjs_"('"_$ZCVT(desc,"O","JS")_"');"
+ i itmjsex'="""" s retval=retval_itmjsex_"('"_$ZCVT(desc,"O","JS")_"^"_id_"^"_$ZCVT(code,"O","JS")_"');"
+ &javascript<#(retval)#>
+ q 1
+]]></Implementation>
+</Method>
+
+<Query name="LookUpInjury">
+<Type>%Library.SQLQuery</Type>
+<FormalSpec>Injury:%String</FormalSpec>
+<SqlQuery>SELECT INJU_Desc, INJU_RowId, INJU_Code
+FROM SQLUser.PAC_CauseOfInjury
+WHERE ((%ALPHAUP INJU_Desc %STARTSWITH %ALPHAUP :Injury) OR (%ALPHAUP INJU_Code %STARTSWITH %ALPHAUP :Injury))
+ORDER BY INJU_RowId ASC</SqlQuery>
+<Parameter name="CONTAINID" value="2"/>
+<Parameter name="ROWSPEC" value="Description:%String,HIDDEN:%String,Code:%String"/>
+</Query>
+
+<Method name="LookUpBrokerInjury">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>itmjs:%Library.String="",itmjsex:%Library.String="",Injury:%String</FormalSpec>
+<Implementation><![CDATA[
+ n id,code,desc
+
+ s (id,code,desc)=""
+
+ ; Try and find a matching code
+
+ &sql(SELECT	INJU_Desc, INJU_RowId, INJU_Code
+ INTO	:desc,:id, :code
+ FROM	SQLUser.PAC_CauseOfInjury
+ WHERE ((%ALPHAUP INJU_Desc = %ALPHAUP :Injury) OR (%ALPHAUP INJU_Code = %ALPHAUP :Injury))
+ )
+ ;
+ i SQLCODE s desc=Episode q 0
+ s retval=itmjs_"('"_$ZCVT(desc,"O","JS")_"');"
+ i itmjsex'="""" s retval=retval_itmjsex_"('"_$ZCVT(desc,"O","JS")_"^"_id_"^"_$ZCVT(code,"O","JS")_"');"
+ &javascript<#(retval)#>
+ q 1
+]]></Implementation>
+</Method>
+
+<Query name="LookUpCareType">
+<Description>
+Lookup on CareType</Description>
+<Type>%Library.SQLQuery</Type>
+<FormalSpec>Caretype:%String</FormalSpec>
+<SqlQuery>SELECT CARETYP_Desc,CARETYP_Code
+FROM SQLUser.PAC_CareType
+WHERE ((%ALPHAUP CARETYP_Desc %STARTSWITH %ALPHAUP :Caretype) OR (%ALPHAUP CARETYP_Code %STARTSWITH %ALPHAUP :Caretype))
+ORDER BY CARETYP_Code</SqlQuery>
+<Parameter name="CONTAINID" value="2"/>
+<Parameter name="ROWSPEC" value="Description:%String,Code:%String"/>
+</Query>
+
+<Method name="LookUpBrokerCaretype">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>itmjs:%Library.String="",itmjsex:%Library.String="",Caretype:%Library.String=""</FormalSpec>
+<Implementation><![CDATA[
+ n id,code,desc
+ s (id,code,desc)=""
+ ; Try and find a matching code
+ &sql(SELECT	 CARETYP_Desc,CARETYP_RowId,CARETYP_Code
+ INTO	:desc, :id, :code
+ FROM	SQLUser.PAC_CareType
+ WHERE	((%ALPHAUP CARETYP_Desc = %ALPHAUP :Caretype) OR (%ALPHAUP CARETYP_Code = %ALPHAUP :Caretype))
+ )
+ ;
+ i SQLCODE s desc=Caretype q 0
+ s retval=itmjs_"('"_$ZCVT(desc,"O","JS")_"');"
+ i itmjsex'="""" s retval=retval_itmjsex_"('"_$ZCVT(desc,"O","JS")_"^"_id_"^"_$ZCVT(code,"O","JS")_"');"
+ &javascript<#(retval)#>
+ q 1
+]]></Implementation>
+</Method>
+
+<Query name="LookUpReligion">
+<Description>
+Lookup on Religion</Description>
+<Type>%Library.SQLQuery</Type>
+<FormalSpec>Religion:%String</FormalSpec>
+<SqlQuery>SELECT CTRLG_Desc,CTRLG_Code   
+FROM SQLUser.CT_Religion
+WHERE ((%ALPHAUP CTRLG_Desc %STARTSWITH %ALPHAUP :Religion) OR (%ALPHAUP CTRLG_Code %STARTSWITH %ALPHAUP :Religion))
+ORDER BY CTRLG_Code</SqlQuery>
+<Parameter name="CONTAINID" value="2"/>
+<Parameter name="ROWSPEC" value="Description:%String,Code:%String"/>
+</Query>
+
+<Method name="LookUpBrokerReligion">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>itmjs:%Library.String="",itmjsex:%Library.String="",Religion:%Library.String=""</FormalSpec>
+<Implementation><![CDATA[
+ n id,code,desc
+ s (id,code,desc)=""
+ ; Try and find a matching code
+ &sql(SELECT	 CTRLG_Desc,CTRLG_RowId,CTRLG_Code
+ INTO	:desc, :id, :code
+ FROM	SQLUser.CT_Religion
+ WHERE	((%ALPHAUP CTRLG_Desc = %ALPHAUP :Religion) OR (%ALPHAUP CTRLG_Code = %ALPHAUP :Religion))
+ )
+ ;
+ i SQLCODE s desc=Religion q 0
+ s retval=itmjs_"('"_$ZCVT(desc,"O","JS")_"');"
+ i itmjsex'="""" s retval=retval_itmjsex_"('"_$ZCVT(desc,"O","JS")_"^"_id_"^"_$ZCVT(code,"O","JS")_"');"
+ &javascript<#(retval)#>
+ q 1
+]]></Implementation>
+</Method>
+
+<Query name="LookUpAURDoctor">
+<Type>%Library.SQLQuery</Type>
+<FormalSpec>Doctor:%String</FormalSpec>
+<SqlQuery>SELECT CTPCP_Desc,CTPCP_Code
+FROM SQLUser.CT_CareProv
+WHERE CTPCP_TextOne is not null
+and ((%ALPHAUP CTPCP_Desc %STARTSWITH %ALPHAUP :Doctor) OR (%ALPHAUP CTPCP_Code %STARTSWITH %ALPHAUP :Doctor))</SqlQuery>
+<Parameter name="CONTAINID" value="2"/>
+<Parameter name="ROWSPEC" value="Description:%String,Code:%String"/>
+</Query>
+
+<Method name="LookUpBrokerAURDoctor">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>itmjs:%Library.String="",itmjsex:%Library.String="",Doctor:%Library.String=""</FormalSpec>
+<Implementation><![CDATA[
+ n id,code,desc
+ s (id,code,desc)=""
+ &sql(SELECT CTPCP_Desc,CTPCP_RowId,CTPCP_Code
+ INTO	:desc, :id, :code
+ FROM	SQLUser.CT_CareProv
+ WHERE CTPCP_TextOne is not null
+ and ((%ALPHAUP CTPCP_Desc = %ALPHAUP :Doctor) OR (%ALPHAUP CTPCP_Code = %ALPHAUP :Doctor))
+ )
+ ;
+ i SQLCODE s desc=Doctor q 0
+ s retval=itmjs_"('"_$ZCVT(desc,"O","JS")_"');"
+ i itmjsex'="""" s retval=retval_itmjsex_"('"_$ZCVT(desc,"O","JS")_"^"_id_"^"_$ZCVT(code,"O","JS")_"');"
+ &javascript<#(retval)#>
+ q 1
+]]></Implementation>
+</Method>
+</Class>
+</Export>

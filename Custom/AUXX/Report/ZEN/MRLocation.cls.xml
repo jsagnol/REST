@@ -1,0 +1,153 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.AUXX.Report.ZEN.MRLocation">
+<Super>Custom.AUXX.Report.ZEN.Abstract</Super>
+<TimeCreated>61520,67147.0108</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/AUXX/Report/ZEN/MRLocation.xml#1 $</Default>
+</Parameter>
+
+<UDLText name="T">
+<Content><![CDATA[
+// Report Name: AUXX Medical Records by Specialty <br>
+
+]]></Content>
+</UDLText>
+
+<UDLText name="T">
+<Content><![CDATA[
+// Report Code: AUXX.MED0005
+
+]]></Content>
+</UDLText>
+
+<Property name="DateFrom">
+<Type>%String</Type>
+<Parameter name="ZENURL" value="P1"/>
+</Property>
+
+<Property name="DateTo">
+<Type>%String</Type>
+<Parameter name="ZENURL" value="P2"/>
+</Property>
+
+<Property name="Facility">
+<Type>%String</Type>
+<Parameter name="ZENURL" value="P3"/>
+</Property>
+
+<Property name="Specialty">
+<Type>%String</Type>
+<Parameter name="ZENURL" value="P4"/>
+</Property>
+
+<XData name="ReportDefinition">
+<XMLNamespace>http://www.intersystems.com/zen/report/definition</XMLNamespace>
+<Data><![CDATA[
+<report xmlns='http://www.intersystems.com/zen/report/definition'
+   queryClass='Custom.AUXX.Report.ZEN.StoredProc.MRLocation' queryName='MRLocation' name='MRLocation'>
+  <parameter expression='..DateFrom'/>
+  <parameter expression='..DateTo'/>
+  <parameter expression='..Facility'/>
+  <parameter expression='..Specialty'/>  
+  <attribute name='datefrom' expression='..DisplayDate(..DateFrom)'/>
+  <attribute name='dateto' expression='..DisplayDate(..DateTo)'/>
+  <attribute name='facility' expression='..GetHospListDesc(..Facility)'/>
+  <attribute name='specialty' expression='..GetSpecialtyListDesc(..Specialty)'/>
+  <attribute name='ReportTitle' expression='$$$Text("@MedicalRecordsbyLocation/Specialty@Medical Records by Location/Specialty")'/>
+  <attribute name='timestamp' expression='$ZDATETIME($H, 2, 2)'/>  
+  <attribute name='username' expression='..Username'/>
+  
+  <group name="facility" breakOnField="HOSPDesc">
+ <attribute name="description" field="HOSPDesc" />
+   <aggregate name='TotalHospCount' type='CUSTOM' field='RTMAVRowId' class='%ZEN.Report.Aggregate.CountDistinct'/>
+  <group name="specialty" breakOnField="CTLOCDesc">
+ <attribute name="description" field="CTLOCDesc" />
+   <aggregate name='TotalLocnCount' type='CUSTOM' field='RTMAVRowId' class='%ZEN.Report.Aggregate.CountDistinct'/>
+      <group name='Detail'>
+       <attribute field='HOSPDesc' name='HOSPDesc'/> 
+       <attribute field='CTLOCDesc' name='CTLOCDesc'/>
+       <attribute field='RTMAVRowId' name='RTMAVRowId'/>
+       <attribute fields='PAPMIName,PAPMIName2,PAPMIName3' name='PatientName' expression='..DisplayName(%val("PAPMIName"),%val("PAPMIName2"),%val("PAPMIName3"))'/>
+       <attribute field='PAPMINo' name='PAPMINo'/>
+       <attribute field='RTMASMRNO' name='RTMASMRNO'/>
+       <attribute field='TYPCode' name='TYPCode'/>
+       <attribute field='RTMAVVolDesc' name='RTMAVVolDesc'/>
+       <attribute field='RTMVTDate' name='RTMVTDate' expression='..DisplayDate(%val)'/>
+       <attribute field='RTMVTTime' name='RTMVTTime' expression='..DisplayTime(%val)'/>
+       <attribute field='RTMVTComments' name='RTMVTComments'/>
+       <attribute field='FromLoc' name='FromLoc'/>
+       <attribute field='ToLoc' name='ToLoc'/>
+      </group>
+    </group>
+   </group>
+ </report>
+]]></Data>
+</XData>
+
+<XData name="ReportDisplay">
+<XMLNamespace>http://www.intersystems.com/zen/report/display</XMLNamespace>
+<Data><![CDATA[
+<report xmlns='http://www.intersystems.com/zen/report/display'
+xmlns:auxxstyle='http://www.intersystems.com/zen/report/display/auxx/style'
+xmlns:auxx='http://www.intersystems.com/zen/report/display/auxx'
+  name='MRLocation'>
+<document width= "#(..ReportWidth)#" height="#(..ReportHeight)#" marginLeft="#(..DocMarginLeft)#" marginRight="#(..DocMarginRight)#" 
+marginTop="#(..DocMarginTop)#" marginBottom="#(..DocMarginBottom)#" footerHeight="#(..DocFooterHeight)#" headerHeight="#(..DocHeaderHeight)#" 
+regionBeforeExtent="#(..DocHeaderHeight)#" regionAfterExtent="#(..DocFooterHeight)#" >
+<auxxstyle:auxxgroupheader/>
+<auxxstyle:auxxgroupsummary/>
+<auxxstyle:auxxhospitalheader/>
+<auxxstyle:auxxpagefooter/>
+<auxxstyle:auxxpageheader/>
+<auxxstyle:auxxparameterheader/>
+<auxxstyle:auxxreporttitle/>
+<auxxstyle:auxxtablecolumn/>
+</document>
+<auxx:PageHeader pagetitle='@ReportTitle'/>
+<auxx:ReportFooter username='@username' timestamp='@timestamp'/>
+
+<body>
+<!-- REPORT HEADER -->
+<auxx:ReportHeader reporttitle='@ReportTitle'/>
+<auxx:ReportParameterHeader label='@Facility:@Facility:' field='@facility' xcondition="string-length(@facility)>0"/>
+<auxx:ReportParameterHeader label='@CurrentLocation/Specialty:@Current Location/Specialty:' field='@specialty' xcondition="string-length(@specialty)>0"/>
+<auxx:ReportDateHeader datefrom="@datefrom" dateto="@dateto" />
+
+<line pattern="solid" width="100%"/>
+<line pattern="empty" width="100%"></line> 
+<auxx:NoResults xcondition="not(facility)" />
+<group name='facility' pagebreak="true">
+<auxx:GroupHospitalHeader label="@Facility:@Facility:" field="@description" />
+<line pattern="empty" lineHeight="1mm" />
+<group name='specialty'>
+<auxx:GroupHeader label="@CurrentLocation/Specialty:@Current Location/Specialty:" field="@description" />
+<line pattern="empty" lineHeight="2mm" />
+     <table class='auxxtablecolumn' group='Detail'>
+        <item field='@PatientName' width="17%" caption='@Name@Name'/>
+        <item field='@PAPMINo' width="10%" caption='@URN@URN'/>
+        <item field='@RTMASMRNO' width="9%" caption='@MRN@MRN'/>
+        <item field='@TYPCode' width="4%" caption='@MRType@MR Type'/>
+        <item field='@RTMAVVolDesc' width="5%" caption='@MRVolume@MR Volume'/>
+        <item field='@RTMVTDate' width="9%" caption='@MovementDate@Movement Date'/> 
+        <item field='@RTMVTTime' width="4%" caption='@Time@Time'/> 
+        <item field='@RTMVTComments' width="16%" caption='@Comments@Comments'/>
+        <item field='@FromLoc' width="13%" caption='@From@From'/>
+        <item field='@ToLoc' width="13%" caption='@To@To'/>
+     </table>
+     <line pattern="empty" width="100%"></line> 
+	<auxx:GroupSummary label="@Totalno.ofMedicalRecordsfor@Total no. of Medical Records for" group="@description" summaryvalue="TotalLocnCount" />
+	<line pattern="empty" lineHeight="4mm" />
+   </group> 
+   <line pattern="empty" width="100%"></line> 
+  <auxx:GroupSummary label="@Totalno.ofMedicalRecordsfor@Total no. of Medical Records for" group="@description" summaryvalue="TotalHospCount" />
+</group>
+</body>
+</report>
+]]></Data>
+</XData>
+</Class>
+</Export>

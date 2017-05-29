@@ -1,0 +1,300 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.SWARH.Report.RptSvc.StoredProc.SWARHRFIN1002">
+<Description><![CDATA[
+<pre>
+***************************************************************************************************************************************
+* Report Code: SWARHZFIN1002
+* Report Description: Invoices Pending (Copyied from Custom.AUSW.Report.ZEN.StoredProc.InvoicesPending)
+* Menu Caption: 
+* Initial release: 
+* Developer: Intersystems
+* Modified:	Michael Welsh
+***************************************************************************************************************************************
+</pre>]]></Description>
+<ProcedureBlock>0</ProcedureBlock>
+<Super>Custom.SWARH.Report.RptSvc.StoredProc.Abstract</Super>
+<TimeCreated>59388,55236.125</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/SWARH/Report/RptSvc/StoredProc/SWARHRFIN1002.xml#1 $</Default>
+</Parameter>
+
+<Method name="InvoicesPendingClose">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>QHandle:%Library.Binary</FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Clean up by purging the temporary node in ^CacheTemp global
+ New repid
+ Set repid=$LIST(QHandle,2)
+ 
+ //Start Monitor (if configured to capture stats)
+ If mon Do ..MonitorEnd(mon)
+
+ Kill ^CacheTemp("TRAK",repid)
+ 
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="InvoicesPendingExecute">
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,Hospital:%Integer,DateTo:%Date,AdmType:%String,Specialty:%String,Exclusion:%String]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ //Start Monitor (if configured to capture stats)
+ Set mon=..MonitorBegin()
+   
+ // Get reportid i.e. use $INCREMENT to add another node to ^CacheTemp global. 
+ // We use ^CacheTemp global because it will always use memory before disk
+ New repid,ind
+
+ // Use $Increment to get the next node
+ Set repid=$I(^CacheTemp("TRAK"))
+
+ New Number,String,Date,Time,c,n,Print,Invoice,Date,DTo,admid
+ New DateFrom,ARPBLRowId,PAPMINo,PAADMADMNo,PAPMIName,ARPBLAdmDate,ARPBLDischDate,ARPBLBillNo,ARPBLDatePrinted,ARPBLAmountToPay
+ 	,PAPMIName2,INSTCode,AUXITCode,HOSPDesc,Status,PAADMType,CTLOCRowID,CTLOCCode,CTLOCDesc,RptType
+ Set (DateFrom,ARPBLRowId,ARPBLAmountToPay,Date,DTo,CTLOCRowID)=0
+ Set (PAPMINo,PAADMADMNo,PAPMIName,ARPBLAdmDate,ARPBLDischDate,ARPBLBillNo,ARPBLDatePrinted,PAPMIName2,PAPMIName3,INSTCode,AUXITCode
+ 	,HOSPDesc,Status,admid,PAADMType,CTLOCCode,CTLOCDesc,RptType)=""
+ 
+ Set DateFrom=$PIECE($HOROLOG,",",1)-160
+ Set DateTo=..ConvertDateToCache(DateTo)
+ 
+ s ind=1
+ 
+ //i $g(Hospital)'="" s Hospital=$zstrip(Hospital,"*CW")
+ i $g(Specialty)'="" s Location=$ZSTRIP(Specialty,"*WC")
+ i $g(Exclusion)'="" s Exclusion=$ZCONVERT($ZSTRIP(Exclusion,"*WC"),"U")
+  
+ If (Specialty = "") {set RptType = "AllSpecs"} //All Specialties
+ If ((Specialty '= "") && (Exclusion = "Y")) {set RptType = "ExcSpecs"} //Excludes selected Specialty
+ If ((Specialty '= "") && (Exclusion = "")) {set RptType = "IncSpecs"}  //Includes only selected Specialty
+ 
+
+ //^ARPBL(0,"NotPrinted",{ARPBL_DateFrom},{ARPBL_RowId})
+ 		s Date=""
+		s Date=DateFrom-1
+		f {
+		s Date=$o(^ARPBL(0,"NotPrinted",Date)) q:Date=""
+	 
+			 s ARPBLRowId=""
+	 			f {
+				s ARPBLRowId=$o(^ARPBL(0,"NotPrinted",Date,ARPBLRowId)) q:ARPBLRowId=""
+				s DTo=$p($g(^ARPBL(ARPBLRowId)),"^",3)
+				i DTo<=DateTo
+				{
+					s admid=$p($g(^ARPBL(ARPBLRowId)),"^",7)
+					i $p($g(^PAADM(admid)),"^",20)'="C"
+					{
+ 						If (RptType = "AllSpecs") {do GetDataAllSpecs}
+ 						ElseIf (RptType = "ExcSpecs") {do GetDataExcSpecs}
+ 						ElseIf (RptType = "IncSpecs") {do GetDataIncSpecs}
+					}
+				}	
+	 		} 	
+ 	}
+ // Build QHandle (AtEnd,ReportID,Index)
+ Set QHandle=$lb(0,repid,0)
+
+ Quit $$$OK
+ 
+GetDataAllSpecs 
+ &sql(declare RecordsAllSpecs cursor for
+ SELECT
+ ARPBL_PAADM_DR->PAADM_PAPMI_DR->PAPMI_No,
+ ARPBL_PAADM_DR->PAADM_ADMNo,
+ ARPBL_PAADM_DR->PAADM_PAPMI_DR->PAPMI_Name,
+ ARPBL_AdmDate,
+ ARPBL_DischDate,
+ ARPBL_BillNo,
+ ARPBL_DateTo,
+ ARPBL_AmountToPay,
+ ARPBL_PAADM_DR->PAADM_PAPMI_DR->PAPMI_Name2,
+ ARPBL_PAADM_DR->PAADM_PAPMI_DR->PAPMI_Name3,
+ ARPBL_InsuranceType_DR->INST_Desc,
+ ARPBL_auxinsType_DR->AUXIT_Desc,
+ ARPBL_Hospital_DR->HOSP_Desc,
+ ARPBL_PAADM_DR->PAADM_Type,
+ ARPBL_PAADM_DR->PAADM_DepCode_DR->CTLOC_RowID,
+ ARPBL_PAADM_DR->PAADM_DepCode_DR->CTLOC_Code,
+ ARPBL_PAADM_DR->PAADM_DepCode_DR->CTLOC_Desc
+ FROM SQLUser.AR_PatientBill
+ WHERE  ARPBL_RowId=:ARPBLRowId and ARPBL_AmountToPay<>0
+ AND ARPBL_hospital_DR=:Hospital
+ AND ARPBL_PAADM_DR->PAADM_Type = :AdmType
+ )
+
+ &SQL(open RecordsAllSpecs)
+ 
+ &sql(fetch RecordsAllSpecs INTO :PAPMINo,:PAADMADMNo,:PAPMIName,:ARPBLAdmDate,:ARPBLDischDate,:ARPBLBillNo,:ARPBLDateTo,:ARPBLAmountToPay,:PAPMIName2,:PAPMIName3
+ 	,:INSTCode,:AUXITCode,:HOSPDesc,:PAADMType,:CTLOCRowID,:CTLOCCode,:CTLOCDesc)
+ 
+ while 'SQLCODE{
+	 
+ do AssignStatus, FormatDates
+ 
+ set ^CacheTemp("TRAK",repid,$ZCVT(Status,"U")_" "_PAPMIName_" "_PAPMIName2_" "_PAPMINo_ind)=$LB(PAPMINo,PAADMADMNo,PAPMIName,ARPBLAdmDate,ARPBLDischDate
+ 	,ARPBLBillNo,ARPBLDateTo,ARPBLAmountToPay,PAPMIName2,PAPMIName3,INSTCode,AUXITCode,HOSPDesc,PAADMType,CTLOCRowID,CTLOCCode,CTLOCDesc,DateFrom,Status)
+ s ind=ind+1
+ 
+ //fetch rows
+ &sql(fetch RecordsAllSpecs INTO :PAPMINo,:PAADMADMNo,:PAPMIName,:ARPBLAdmDate,:ARPBLDischDate,:ARPBLBillNo,:ARPBLDateTo,:ARPBLAmountToPay,:PAPMIName2,:PAPMIName3
+ 	,:INSTCode,:AUXITCode,:HOSPDesc,:PAADMType,:CTLOCRowID,:CTLOCCode,:CTLOCDesc)
+ }
+ 
+ &SQL(close RecordsAllSpecs)
+ q
+ 
+GetDataExcSpecs 
+ &sql(declare RecordsExcSpecs cursor for
+ SELECT
+ ARPBL_PAADM_DR->PAADM_PAPMI_DR->PAPMI_No,
+ ARPBL_PAADM_DR->PAADM_ADMNo,
+ ARPBL_PAADM_DR->PAADM_PAPMI_DR->PAPMI_Name,
+ ARPBL_AdmDate,
+ ARPBL_DischDate,
+ ARPBL_BillNo,
+ ARPBL_DateTo,
+ ARPBL_AmountToPay,
+ ARPBL_PAADM_DR->PAADM_PAPMI_DR->PAPMI_Name2,
+ ARPBL_PAADM_DR->PAADM_PAPMI_DR->PAPMI_Name3,
+ ARPBL_InsuranceType_DR->INST_Desc,
+ ARPBL_auxinsType_DR->AUXIT_Desc,
+ ARPBL_Hospital_DR->HOSP_Desc,
+ ARPBL_PAADM_DR->PAADM_Type,
+ ARPBL_PAADM_DR->PAADM_DepCode_DR->CTLOC_RowID,
+ ARPBL_PAADM_DR->PAADM_DepCode_DR->CTLOC_Code,
+ ARPBL_PAADM_DR->PAADM_DepCode_DR->CTLOC_Desc
+ FROM SQLUser.AR_PatientBill
+ WHERE  ARPBL_RowId=:ARPBLRowId and ARPBL_AmountToPay<>0
+ AND ARPBL_hospital_DR=:Hospital
+ AND ARPBL_PAADM_DR->PAADM_Type = :AdmType
+ AND NOT ARPBL_PAADM_DR->PAADM_DepCode_DR->CTLOC_RowID = :Specialty
+ )
+
+ &SQL(open RecordsExcSpecs)
+ 
+ &sql(fetch RecordsExcSpecs INTO :PAPMINo,:PAADMADMNo,:PAPMIName,:ARPBLAdmDate,:ARPBLDischDate,:ARPBLBillNo,:ARPBLDateTo,:ARPBLAmountToPay,:PAPMIName2,:PAPMIName3
+ 	,:INSTCode,:AUXITCode,:HOSPDesc,:PAADMType,:CTLOCRowID,:CTLOCCode,:CTLOCDesc)
+ 
+ while 'SQLCODE{
+	 
+ do AssignStatus, FormatDates
+ 
+ set ^CacheTemp("TRAK",repid,$ZCVT(Status,"U")_" "_PAPMIName_" "_PAPMIName2_" "_PAPMINo_ind)=$LB(PAPMINo,PAADMADMNo,PAPMIName,ARPBLAdmDate,ARPBLDischDate
+ 	,ARPBLBillNo,ARPBLDateTo,ARPBLAmountToPay,PAPMIName2,PAPMIName3,INSTCode,AUXITCode,HOSPDesc,PAADMType,CTLOCRowID,CTLOCCode,CTLOCDesc,DateFrom,Status)
+ s ind=ind+1
+ 
+ //fetch rows
+ &sql(fetch RecordsExcSpecs INTO :PAPMINo,:PAADMADMNo,:PAPMIName,:ARPBLAdmDate,:ARPBLDischDate,:ARPBLBillNo,:ARPBLDateTo,:ARPBLAmountToPay,:PAPMIName2,:PAPMIName3
+ 	,:INSTCode,:AUXITCode,:HOSPDesc,:PAADMType,:CTLOCRowID,:CTLOCCode,:CTLOCDesc)
+ }
+ 
+ &SQL(close RecordsExcSpecs)
+ q
+ 
+GetDataIncSpecs 
+ &sql(declare RecordsIncSpecs cursor for
+ SELECT
+ ARPBL_PAADM_DR->PAADM_PAPMI_DR->PAPMI_No,
+ ARPBL_PAADM_DR->PAADM_ADMNo,
+ ARPBL_PAADM_DR->PAADM_PAPMI_DR->PAPMI_Name,
+ ARPBL_AdmDate,
+ ARPBL_DischDate,
+ ARPBL_BillNo,
+ ARPBL_DateTo,
+ ARPBL_AmountToPay,
+ ARPBL_PAADM_DR->PAADM_PAPMI_DR->PAPMI_Name2,
+ ARPBL_PAADM_DR->PAADM_PAPMI_DR->PAPMI_Name3,
+ ARPBL_InsuranceType_DR->INST_Desc,
+ ARPBL_auxinsType_DR->AUXIT_Desc,
+ ARPBL_Hospital_DR->HOSP_Desc,
+ ARPBL_PAADM_DR->PAADM_Type,
+ ARPBL_PAADM_DR->PAADM_DepCode_DR->CTLOC_RowID,
+ ARPBL_PAADM_DR->PAADM_DepCode_DR->CTLOC_Code,
+ ARPBL_PAADM_DR->PAADM_DepCode_DR->CTLOC_Desc
+ FROM SQLUser.AR_PatientBill
+ WHERE  ARPBL_RowId=:ARPBLRowId and ARPBL_AmountToPay<>0
+ AND ARPBL_hospital_DR=:Hospital
+ AND ARPBL_PAADM_DR->PAADM_Type = :AdmType
+ AND ARPBL_PAADM_DR->PAADM_DepCode_DR->CTLOC_RowID = :Specialty
+ )
+
+ &SQL(open RecordsIncSpecs)
+ 
+ &sql(fetch RecordsIncSpecs INTO :PAPMINo,:PAADMADMNo,:PAPMIName,:ARPBLAdmDate,:ARPBLDischDate,:ARPBLBillNo,:ARPBLDateTo,:ARPBLAmountToPay,:PAPMIName2,:PAPMIName3
+ 	,:INSTCode,:AUXITCode,:HOSPDesc,:PAADMType,:CTLOCRowID,:CTLOCCode,:CTLOCDesc)
+ 
+ while 'SQLCODE{
+	 
+ do AssignStatus, FormatDates
+ 
+ set ^CacheTemp("TRAK",repid,$ZCVT(Status,"U")_" "_PAPMIName_" "_PAPMIName2_" "_PAPMINo_ind)=$LB(PAPMINo,PAADMADMNo,PAPMIName,ARPBLAdmDate,ARPBLDischDate
+ 	,ARPBLBillNo,ARPBLDateTo,ARPBLAmountToPay,PAPMIName2,PAPMIName3,INSTCode,AUXITCode,HOSPDesc,PAADMType,CTLOCRowID,CTLOCCode,CTLOCDesc,DateFrom,Status)
+ s ind=ind+1
+ 
+ //fetch rows
+ &sql(fetch RecordsIncSpecs INTO :PAPMINo,:PAADMADMNo,:PAPMIName,:ARPBLAdmDate,:ARPBLDischDate,:ARPBLBillNo,:ARPBLDateTo,:ARPBLAmountToPay,:PAPMIName2,:PAPMIName3
+ 	,:INSTCode,:AUXITCode,:HOSPDesc,:PAADMType,:CTLOCRowID,:CTLOCCode,:CTLOCDesc)
+ }
+ 
+ &SQL(close RecordsIncSpecs)
+ q
+ 
+AssignStatus
+ i ARPBLDischDate="" s Status="Current"
+ i ARPBLDischDate'="" s Status="Discharged"
+ q
+
+FormatDates
+ // Convert the dates to ODBC date format
+ Set ARPBLDischDate=..ConvertDateToODBC(ARPBLDischDate)
+ Set ARPBLAdmDate=..ConvertDateToODBC(ARPBLAdmDate)
+ Set ARPBLDateTo=..ConvertDateToODBC(ARPBLDateTo)
+ Quit
+]]></Implementation>
+</Method>
+
+<Method name="InvoicesPendingFetch">
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,&Row:%Library.List,&AtEnd:%Library.Integer=0]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // This fetch method should never have to change. 
+
+ New repid,ind
+
+ // Restore QHandle
+ Set AtEnd=$LI(QHandle,1)
+ Set repid=$LI(QHandle,2)
+ Set ind=$LI(QHandle,3)
+
+ Set ind=$order(^CacheTemp("TRAK",repid,ind))
+ If ind="" {	// if there are no more rows, finish fetching
+ 	Set AtEnd=1
+ 	Set Row=""
+ }  Else  {	// fetch row
+ 	Set Row=^CacheTemp("TRAK",repid,ind)
+ }
+
+ // Save QHandle
+ Set QHandle=$lb(AtEnd,repid,ind)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Query name="InvoicesPending">
+<Type>%Library.Query</Type>
+<FormalSpec>Hospital:%Integer,DateTo:%Date,AdmType:%String,Specialty:%String,Exclusion:%String</FormalSpec>
+<SqlProc>1</SqlProc>
+<Parameter name="CONTAINID" value="0"/>
+<Parameter name="ROWSPEC" value="PAPMINo:%String(MAXLEN=255),PAADMADMNo:%String(MAXLEN=255),PAPMIName:%String(MAXLEN=255),ARPBLAdmDate:%Date,ARPBLDischDate:%Date,ARPBLBillNo:%String(MAXLEN=255),ARPBLDateTo:%Date,ARPBLAmountToPay:%Float,PAPMIName2:%String(MAXLEN=255),PAPMIName3:%String(MAXLEN=255),INSTCode:%String(MAXLEN=255),AUXITCode:%String(MAXLEN=255),HOSPDesc:%String,PAADMType:%String,CTLOCRowID:%Integer,CTLOCCode:%String,CTLOCDesc:%String,DateFrom:%String,Status:%String"/>
+<Parameter name="SELECTMODE" value="ODBC"/>
+</Query>
+</Class>
+</Export>

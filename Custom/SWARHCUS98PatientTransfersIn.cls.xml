@@ -1,0 +1,179 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.SWARHCUS98PatientTransfersIn">
+<ClassType/>
+<ProcedureBlock>0</ProcedureBlock>
+<Super>%Library.RegisteredObject</Super>
+<TimeCreated>62010,32956.371484</TimeCreated>
+
+<UDLText name="T">
+<Content><![CDATA[
+//Patients Transferring In for printing in ED at Portland
+
+]]></Content>
+</UDLText>
+
+<Method name="PatientTransferInClose">
+<Description>
+This is the Close component of the %Library.Query.
+This is standard code and should never have to change.
+This is where all the cleanup is performed, i.e. the purging of the temporary storage global ^CacheTemp.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>QHandle:%Library.Binary</FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Clean up by purging the temporary node in ^CacheTemp global
+ New repid
+ Set repid=$li(QHandle,2)
+ Kill ^CacheTemp(repid)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="PatientTransferInExecute">
+<Description>
+This is the Execute section for the %Library.Query. 
+All of the logic will be performed here.
+A new node for the ^CacheTemp global will be created and each subscript of this global will contain
+a row for the report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,EpisodeID:%Integer]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Get reportid i.e. use $INCREMENT to add another node to ^CacheTemp global. 
+ // We use ^CacheTemp global because it will always use memory before disk
+ New repid,ind
+
+ // Use $Increment to get the next node
+ Set repid=$I(^CacheTemp)
+
+ // Build data into ^CacheTemp(ReportID)
+ // e.g. Set ^CacheTemp(ReportID,Index)=$LB(f1,f2,f3)
+ New Number,String,Date,Time,c,n
+ n PAADMRowID,PAADMADMNo,PAPMIName,PAPMIName2,PAPMIName3,PAPMIDOB,CTSexDesc,PAPERAgeYr,INSTDesc,PAADMFinDischDate,PAADMFinDischTime,PAADMCreateDate,PAADMCreateTime,SSUsrName,HOSPDesc,TRANSMDesc,MRADMPreHospTreatment,MRADMAmbulanceCase,TRDDESC,CTRFCDesc
+ s (PAADMRowID,PAPERAgeYr)=0
+ s (PAADMADMNo,PAPMIName,PAPMIName2,PAPMIName3,PAPMIDOB,CTSexDesc,INSTDesc,PAADMFinDischDate,PAADMFinDischTime,PAADMCreateDate,PAADMCreateTime,SSUsrName,HOSPDesc,TRANSMDesc,MRADMPreHospTreatment,MRADMAmbulanceCase,TRDDESC,CTRFCDesc)=""
+ s ind=1
+
+ &sql(declare PatientTransferIn cursor for
+select
+PAADM_RowID,
+PAADM_ADMNo,
+paadm_papmi_Dr->PAPMI_Name,
+paadm_papmi_Dr->PAPMI_Name2,
+paadm_papmi_Dr->PAPMI_Name3,
+paadm_papmi_Dr->PAPMI_DOB,
+paadm_papmi_Dr->PAPMI_Sex_DR->CTSex_Desc,
+PAADM_PAPMI_DR->PAPMI_PAPER_DR->PAPER_AgeYr,
+PAADM_PAPMI_DR->PAPMI_PAPER_DR->PAPER_InsType_DR->INST_Desc,
+paadm_FinDischDate,
+paadm_FinDischTime,
+paadm_CreateDate,
+paadm_CreateTime,
+SSUsr_Name,
+PAADM_Hospital_DR->HOSP_Desc,
+paadm_mainMRADM_DR->MRADM_Transfermeans_DR->TRANSM_Desc,
+paadm_mainMRADM_DR->MRADM_PreHospTreatment,
+paadm_mainMRADM_DR->MRADM_AmbulanceCase,
+paadm_mainMRADM_DR->MRADM_TransDest2_DR->TRD_DESC,
+paadm_RefClinic_DR->CTRFC_Desc
+from sqluser.pa_adm inner join SQLUSER.SS_User on ssUsr_Rowid = Paadm_CreateUser
+where PAADM_RowID=:EpisodeID)
+ &sql(open PatientTransferIn)
+
+
+ //fetch first row
+ &sql(fetch PatientTransferIn into :PAADMRowID,:PAADMADMNo,:PAPMIName,:PAPMIName2,:PAPMIName3,:PAPMIDOB,:CTSexDesc,:PAPERAgeYr,:INSTDesc,:PAADMFinDischDate,:PAADMFinDischTime,:PAADMCreateDate,:PAADMCreateTime,:SSUsrName,:HOSPDesc,:TRANSMDesc,:MRADMPreHospTreatment,:MRADMAmbulanceCase,:TRDDESC,:CTRFCDesc)
+
+ while 'SQLCODE{
+ d FormatDates
+ d FormatTimes
+ 
+ s MRADMPreHospTreatment=$zstrip(MRADMPreHospTreatment,"<C")
+ if $extract(MRADMPreHospTreatment,2)=$char(1) {
+	 s MRADMPreHospTreatment=$zstrip($extract(MRADMPreHospTreatment,2,$length(MRADMPreHospTreatment)),"<C")
+ }
+ s MRADMPreHospTreatment=$zstrip(MRADMPreHospTreatment,"*C")
+ 
+ 
+ // build the row
+ Set ^CacheTemp(repid,ind)=$LB(PAADMRowID,PAADMADMNo,PAPMIName,PAPMIName2,PAPMIName3,PAPMIDOB,CTSexDesc,PAPERAgeYr,INSTDesc,PAADMFinDischDate,PAADMFinDischTime,PAADMCreateDate,PAADMCreateTime,SSUsrName,HOSPDesc,TRANSMDesc,MRADMPreHospTreatment,MRADMAmbulanceCase,TRDDESC,CTRFCDesc)
+ s ind=ind+1
+ //fetch rows
+ &sql(fetch PatientTransferIn into :PAADMRowID,:PAADMADMNo,:PAPMIName,:PAPMIName2,:PAPMIName3,:PAPMIDOB,:CTSexDesc,:PAPERAgeYr,:INSTDesc,:PAADMFinDischDate,:PAADMFinDischTime,:PAADMCreateDate,:PAADMCreateTime,:SSUsrName,:HOSPDesc,:TRANSMDesc,:MRADMPreHospTreatment,:MRADMAmbulanceCase,:TRDDESC,:CTRFCDesc)
+ }
+
+ &sql(close PatientTransferIn)
+
+ // Build QHandle (AtEnd,ReportID,Index)
+ Set QHandle=$lb(0,repid,0)
+
+ Quit $$$OK
+FormatDates
+ // Convert the dates to ODBC date format
+ If PAPMIDOB Set PAPMIDOB=$ZD(PAPMIDOB,3)
+ If PAADMFinDischDate Set PAADMFinDischDate=$ZD(PAADMFinDischDate,3)
+ If PAADMCreateDate Set PAADMCreateDate=$ZD(PAADMCreateDate,3)
+ Quit
+
+FormatTimes
+ // Convert the times to ODBC time format
+ If PAADMFinDischTime Set PAADMFinDischTime=$ZT(PAADMFinDischTime,2)
+ If PAADMCreateTime Set PAADMCreateTime=$ZT(PAADMCreateTime,2)
+ Quit
+]]></Implementation>
+</Method>
+
+<Method name="PatientTransferInFetch">
+<Description>
+This is the Fetch component of the %Library.Query. 
+This should never have to change. It is designed to fetch the row for each subscript of the ^CacheTemp
+global and return this row to the Crystal Report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,&Row:%Library.List,&AtEnd:%Library.Integer=0]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // This fetch method should never have to change. 
+
+ // repid - Report ID
+ // ind   - sequence index which represents each row
+
+ New repid,ind
+
+ // Restore QHandle
+ Set AtEnd=$li(QHandle,1)
+ Set repid=$li(QHandle,2)
+ Set ind=$li(QHandle,3)
+
+ Set ind=$o(^CacheTemp(repid,ind))
+ If ind="" {	// if there are no more rows, finish fetching
+ Set AtEnd=1
+ Set Row=""
+ }
+ Else      {	// fetch row
+ Set Row=^CacheTemp(repid,ind)
+ }
+
+ // Save QHandle
+ s QHandle=$lb(AtEnd,repid,ind)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Query name="PatientTransferIn">
+<Description>
+SWARH Local Doc List Stored Proc
+It expects 2 parameter of type ADMIT date and will return a list of records:
+Field1 - Integer
+Field2 - String(MAXLEN=255)
+Field3 - Date
+Field4 - Time</Description>
+<Type>%Library.Query</Type>
+<FormalSpec>EpisodeID:%Integer</FormalSpec>
+<SqlProc>1</SqlProc>
+<Parameter name="CONTAINID" value="0"/>
+<Parameter name="ROWSPEC" value="PAADMRowID:%Integer,PAADMADMNo:%String(MAXLEN=255),PAPMIName:%String(MAXLEN=255),PAPMIName2:%String(MAXLEN=255),PAPMIName3:%String(MAXLEN=255),PAPMIDOB:%Date,CTSexDesc:%String(MAXLEN=255),PAPERAgeYr:%String(MAXLEN=255),INSTDesc:%String(MAXLEN=255),PAADMFinDischDate:%Date,PAADMFinDischTime:%String(MAXLEN=255),PAADMCreateDate:%Date,PAADMCreateTime:%String(MAXLEN=255),SSUsrName:%String(MAXLEN=255),HOSPDesc:%String(MAXLEN=255),TRANSMDesc:%String(MAXLEN=255),MRADMPreHospTreatment:%String(MAXLEN=255),MRADMAmbulanceCase:%String(MAXLEN=255),TRDDESC:%String(MAXLEN=255),CTRFCDesc:%String(MAXLEN=255)"/>
+<Parameter name="SELECTMODE" value="ODBC"/>
+</Query>
+</Class>
+</Export>

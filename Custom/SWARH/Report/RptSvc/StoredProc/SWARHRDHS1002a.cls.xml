@@ -1,0 +1,198 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.SWARH.Report.RptSvc.StoredProc.SWARHRDHS1002a">
+<Description><![CDATA[
+<pre>
+**************************************************************************************************************************************
+* Report Code: SWARHRDHS1002aa
+* Report Description: AIMS S2 305 SUB
+* Menu Caption: AIMS S2 305
+* Initial release: 
+* Developer: Jayson Sagnol
+* 
+**************************************************************************************************************************************
+</pre>]]></Description>
+<ProcedureBlock>0</ProcedureBlock>
+<Super>Custom.SWARH.Report.ZEN.StoredProc.Abstract</Super>
+<TimeCreated>60905,54849</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/SWARH/Report/RptSvc/StoredProc/SWARHRDHS1002a.xml#1 $</Default>
+</Parameter>
+
+<Method name="SWARHRDHS1002aClose">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)
+This is the Close component of the %Library.Query.
+This is standard code and should never have to change.
+This is where all the cleanup is performed, i.e. the purging of the temporary storage global ^CacheTemp.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>QHandle:%Library.Binary</FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Clean up by purging the temporary node in ^CacheTemp global
+ New repid,ind
+ Set repid=$li(QHandle,2)
+
+ //Start Monitor (if configured to capture stats)
+ i mon Do ..MonitorEnd(mon)
+
+ Kill ^CacheTemp("TRAK",repid)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="SWARHRDHS1002aExecute">
+<Description>
+This is the Execute section for the %Library.Query. 
+All of the logic will be performed here.
+A new node for the ^CacheTemp global will be created and each subscript of this global will contain
+a row for the report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,Hospital:%Integer,DateFrom:%Date,DateTo:%Date]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+		   
+ New repid,ind
+
+ Set repid=$I(^CacheTemp("TRAK"))
+ 
+ New PAADMRowId,PAADMADMNo,CTLOCRowId,CTLOCCode,CTLOCDesc,PubCompleted,Unplanned,PAADMDischgDate
+ Set (PAADMRowId,PAADMADMNo,CTLOCRowId,CTLOCCode,CTLOCDesc,PAADMDischgDate) = ""
+ Set (PubCompleted,Unplanned) = 0
+ 
+ s ind=1, END=0
+
+ //Start Monitor (if configured to capture stats)
+ s mon=..MonitorBegin()
+ 
+ //Convert ODBC dates to cache format
+ s DateFrom=$$intdate^SSUTIL4(DateFrom)
+ s DateTo=$$intdate^SSUTIL4(DateTo)
+ 
+ //s CustomKPIFrom ="AdmDate"
+ //s CustomKPITo = "DiscghDate"
+
+ &SQL(DECLARE SWARHRDHS1002a CURSOR FOR
+		 SELECT
+		    PAADM_RowId,
+		    PAADM_ADMNo,
+		    PAADM_DepCode_DR->CTLOC_RowId,
+		    PAADM_DepCode_DR->CTLOC_Code,
+		    PAADM_DepCode_DR->CTLOC_Desc,
+		    PAADM_DischgDate
+
+		 FROM SQLUser.PA_Adm
+
+		    WHERE PAADM_Type = 'O'
+		    AND PAADM_VisitStatus NOT IN ('C')
+		    AND PAADM_DischgDate between :DateFrom and :DateTo
+		    --AND PAADM_AdmDate between :DateFrom and :DateTo
+		    AND PAADM_Hospital_DR =:Hospital
+		    AND PAADM_DepCode_DR->CTLOC_Code LIKE 'PAC%'
+    )
+                
+ &SQL(OPEN SWARHRDHS1002a)
+ 
+ d FetchRow //Fetch first row
+  
+ while END=0 {
+	 s Unplanned = 0
+	 S PubCompleted=0
+	 if ..CheckUnplannedReadmVINAH(PAADMRowId){
+		s Unplanned = 1	 
+	 }
+	 If (PAADMDischgDate >= DateFrom & PAADMDischgDate <= DateTo)  {
+		 if ..GetPrimaryInsPayorGroupForEpisode(PAADMRowId)="PUB"{
+			 S PubCompleted=1
+	 	}
+	 }
+	 
+  	 s sort = ind
+	 s ^CacheTemp("TRAK",repid,sort)=$LB(PubCompleted,Unplanned)
+	 s ind=ind+1
+	 
+ 	 d FetchRow //Fetch next row
+ }
+
+ &SQL(CLOSE SWARHRDHS1002a)
+ 
+ // Build QHandle (AtEnd,ReportID,Index)
+ Set QHandle=$lb(0,repid,0)
+
+ Quit $$$OK
+
+FetchRow
+ &sql(FETCH SWARHRDHS1002a INTO :PAADMRowId,:PAADMADMNo,:CTLOCRowId,:CTLOCCode,:CTLOCDesc,:PAADMDischgDate)
+  if SQLCODE '= 0 set END = 1
+ q
+]]></Implementation>
+</Method>
+
+<Method name="SWARHRDHS1002aFetch">
+<Description>
+This is the Fetch component of the %Library.Query. 
+This should never have to change. It is designed to fetch the row for each subscript of the ^CacheTemp
+global and return this row to the Crystal Report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,&Row:%Library.List,&AtEnd:%Library.Integer=0]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // This fetch method should never have to change. 
+ // repid - Report ID
+ // ind   - sequence index which represents each row
+
+ New repid,ind
+
+ // Restore QHandle
+ Set AtEnd=$li(QHandle,1)
+ Set repid=$li(QHandle,2)
+ Set ind=$li(QHandle,3)
+
+ Set ind=$o(^CacheTemp("TRAK",repid,ind))
+ If ind="" {	// if there are no more rows, finish fetching
+	 Set AtEnd=1
+	 Set Row=""
+ }
+ Else      {	// fetch row 
+ 	Set Row=^CacheTemp("TRAK",repid,ind)
+ }
+
+ // Save QHandle 
+ s QHandle=$lb(AtEnd,repid,ind)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Query name="SWARHRDHS1002a">
+<Type>%Library.Query</Type>
+<FormalSpec>Hospital:%Integer,DateFrom:%Date,DateTo:%Date</FormalSpec>
+<SqlProc>1</SqlProc>
+<Parameter name="CONTAINID" value="0"/>
+<Parameter name="ROWSPEC" value="PubCompleted:%Integer,Unplanned:%Integer"/>
+<Parameter name="SELECTMODE" value="ODBC"/>
+</Query>
+
+<Method name="CheckUnplannedReadmVINAH">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>PAADMRowID</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	S Unplanned=0
+	&SQL(DECLARE UnplannedCursor CURSOR FOR
+		select ID from questionnaire.QAUXXVINAH WHERE QUESPAAdmDR=:PAADMRowID AND QSACS32 = 21
+		)
+	&SQL(OPEN UnplannedCursor)
+	&SQL(FETCH UnplannedCursor INTO :Unplanned)
+ 		WHILE 'SQLCODE {
+	 		s Unplanned=1
+			&sql(FETCH UnplannedCursor INTO :Unplanned)
+ 		}
+	&SQL(CLOSE UnplannedCursor)
+	q Unplanned
+]]></Implementation>
+</Method>
+</Class>
+</Export>

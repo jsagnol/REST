@@ -1,0 +1,154 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.SWARH.JS.PAAdmLeave.EditNew">
+<Description>
+Component JavaScript for: PAAdmLeave.EditNew</Description>
+<Modified>0</Modified>
+<Super>websys.AbstractJavaScript</Super>
+<TimeCreated>63537,10517.95837</TimeCreated>
+
+<Method name="JSContent">
+<Description>
+ </Description>
+<Internal>0</Internal>
+<Language>javascript</Language>
+<ClientMethod>1</ClientMethod>
+<Implementation><![CDATA[
+/*********************************************************************
+$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/SWARH/JS/PAAdmLeave/EditNew.xml#1 $
+Version 1
+
+- General custom field validation for paadmleave.editnew component
+
+REMEMBER to update the versions with initials, date and description for each modification...
+
+
+
+**********************************************************************/
+
+function CustInit() {
+	var obj;
+	BodyLoadHandler();
+	obj=document.getElementById('ADMLGoingOutDate');
+	if (obj) obj.onblur=CheckExcessLeave;
+
+	obj=document.getElementById('ADMLExpectedDateReturn');
+	if (obj) obj.onblur=CheckExcessLeave;
+
+	obj=document.getElementById('ADMLActualDateReturn');
+	if (obj) obj.onblur=CheckExcessLeave;
+
+	obj=document.getElementById('LEATYPDesc');
+	if (obj) obj.onblur=CheckExcessLeave;
+
+	obj=document.getElementById('LEATYPDesc');
+	if (obj) obj.onblur=Leave;
+}
+
+function Leave() {
+	var obj4=document.getElementById('LEATYPDesc');
+	if (obj4) var leave=obj4.value
+	if ((leave) && ((leave=="Leave without Permission")||(leave=='R')||(leave=='r'))) {
+		document.getElementById('LEACATDesc').value='Leave without Permission';
+	}
+	if ((leave) && ((leave=="Leave with Permission")||(leave=='P')||(leave=='p'))) {
+		document.getElementById('LEACATDesc').value='Temporary Leave';
+	}
+	return true;
+}
+
+
+function CheckExcessLeave() {
+	// This is the maximum number of days a patient can be on leave without discharge
+	var maxdays=7; // change the number of days here to alter the maximum allowable days on leave before discharge
+	var programlag=500000 //a lag as the program takes a number of miiliseconds to run the routine\
+	var programlag=0 //a lag as the program takes a number of miiliseconds to run the routine
+	
+	var obj1=document.getElementById('ADMLGoingOutDate');
+	if (obj1) var sdate=obj1.value
+	var obj2=document.getElementById('ADMLExpectedDateReturn');
+	if (obj2) var fdate=obj2.value
+	var obj3=document.getElementById('ADMLActualDateReturn');
+	if (obj3) var afdate=obj3.value
+	var obj4=document.getElementById('LEATYPDesc');
+	if (obj4) var leave=obj4.value
+	if ((leave) && (leave=="Leave without Permission")) {
+		var obj5=document.getElementById('CARETYPCode');
+		if (obj5) var caretype=obj5.value
+		if ((caretype)&&(caretype.charAt(0)=="5")) {
+			maxdays=365;
+			var maxflag=document.getElementById("maxFlag");
+			if (maxflag) maxflag.value="Y"
+		}
+		
+	}
+
+	var maxmillisec=maxdays*86400000+programlag //conversion to milliseconds and the lag added as the .valueOf() used later returns milliseconds
+	if ((obj1)&&(obj2)&&(obj3)) {
+		var list= SplitDateStr(obj1.value);
+		var date1 = new Date(list["yr"], list["mn"]-1, list["dy"]);
+		var date2 = new Date(list["yr"], list["mn"]-1, list["dy"]);
+		var date3 = new Date(list["yr"], list["mn"]-1, list["dy"]);
+
+		if ((sdate!="")&&(fdate!="")){
+			if (date2.valueOf()<date1.valueOf()) {
+				alert('The "Return date" must be after "Date on Leave"');
+				obj2.value="" ;
+			}
+			if (date2.valueOf()>(date1.valueOf()+maxmillisec)) {
+				alert('This patient must be discharged as the patients leave is greater than '+maxdays+' days');
+				obj2.value="" ;
+			}
+		}
+		if ((sdate!="")&&(afdate!="")){
+			if (date3.valueOf()<date1.valueOf()) {
+				alert('The "Return date" must be after "Date on Leave"');
+				obj3.value="" ;
+			}
+			if (date3.valueOf()>(date1.valueOf()+maxmillisec)) {
+				alert('Discharge and Readmit - Patient leave > '+maxdays+' days');
+				obj3.value="" ;
+				obj3.focus();
+			}
+		}
+	}
+
+}
+
+
+function SplitDateStr(strDate) {
+ 	var arrDateComponents = new Array(3);
+ 	var arrDate = strDate.split(dtseparator);
+ 	switch (dtformat) {
+  		case "YMD":
+   			arrDateComponents["yr"] = arrDate[0];
+   			arrDateComponents["mn"] = arrDate[1];
+   			arrDateComponents["dy"] = arrDate[2];
+   			break;
+  		case "MDY":
+   			arrDateComponents["yr"] = arrDate[2];
+   			arrDateComponents["mn"] = arrDate[0];
+   			arrDateComponents["dy"] = arrDate[1];
+   			break;
+  		default:
+   			arrDateComponents["yr"] = arrDate[2];
+   			arrDateComponents["mn"] = arrDate[1];
+   			arrDateComponents["dy"] = arrDate[0];
+   			break;
+ 	}
+	return arrDateComponents;
+}
+
+websys_addListener("load","onload",CustInit);
+websys_addListener("load","onblur",Leave);
+]]></Implementation>
+</Method>
+
+<Parameter name="SrcVer">
+<Description>
+This Parameter is updated by Perforce</Description>
+<Internal>0</Internal>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/SWARH/JS/PAAdmLeave/EditNew.xml#1 $</Default>
+</Parameter>
+</Class>
+</Export>

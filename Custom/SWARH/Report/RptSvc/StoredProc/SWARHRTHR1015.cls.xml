@@ -1,0 +1,207 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.SWARH.Report.RptSvc.StoredProc.SWARHRTHR1015">
+<ProcedureBlock>0</ProcedureBlock>
+<Super>Custom.SWARH.Report.RptSvc.StoredProc.Abstract</Super>
+<TimeCreated>60905,54849</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/SWARH/Report/RptSvc/StoredProc/SWARHRTHR1015.xml#1 $</Default>
+</Parameter>
+
+<UDLText name="T">
+<Content><![CDATA[
+/*
+ * Report Name: TLN - Multiple Activity
+ * Report Code: SWARH.R.THR1015
+ * SWARH Developer: Zac Newman
+ */
+]]></Content>
+</UDLText>
+
+<Method name="SWARHRTHR1015QueryClose">
+<Description>
+This is the Close component of the %Library.Query.
+This is standard code and should never have to change.
+This is where all the cleanup is performed, i.e. the purging of the temporary storage global ^CacheTemp.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>QHandle:%Library.Binary</FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Clean up by purging the temporary node in ^CacheTemp global
+ New repid,ind
+ Set repid=$li(QHandle,2)
+
+ //Start Monitor (if configured to capture stats)
+ i mon Do ..MonitorEnd(mon)
+
+ Kill ^CacheTemp("TRAK",repid)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="SWARHRTHR1015QueryExecute">
+<Description>
+This is the Execute section for the %Library.Query. 
+All of the logic will be performed here.
+A new node for the ^CacheTemp global will be created and each subscript of this global will contain
+a row for the report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,Hospital:%Library.String,DateFrom:%Date,DateTo:%Date]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ New repid,ind
+
+ Set repid=$I(^CacheTemp("TRAK"))
+ 
+ New ADMDate,ADMTime,EpNo,URNo,Surname,FirstName,OpDate,OpTime,DisDate,DisTime,RBOPProcsOpers,CTPCPDesc,Reason,SecADMDate,SecADMTime,SecProcsOpers,SecOpDate,SecOpTime,SecDoc
+ Set (ADMDate,ADMTime,EpNo,URNo,Surname,FirstName,OpDate,OpTime,DisDate,DisTime,RBOPProcsOpers,CTPCPDesc,Reason,SecADMDate,SecADMTime,SecProcsOpers,SecOpDate,SecOpTime,SecDoc)=""
+
+
+ s ind=1, END=0
+
+ //Start Monitor (if configured to capture stats)
+ s mon=..MonitorBegin()
+
+ s Hospital=$zstrip(Hospital,"*CW")
+ s DateFrom=..ConvertDateToCache(DateFrom)
+ s DateTo=..ConvertDateToCache(DateTo)
+
+ &SQL(DECLARE SWARHRTHR1015Cursor CURSOR FOR 
+SELECT
+					op1.RBOP_PAADM_DR->PAADM_AdmDate as ADMDate,
+					op1.RBOP_PAADM_DR->PAADM_AdmTime as ADMTime,
+					op1.RBOP_PAADM_DR->PAADM_ADMNo As EpNo,
+					op1.RBOP_Person_DR->PAPER_PAPMI_DR->PAPMI_No as URNo,
+					op1.RBOP_Person_DR->PAPER_Name As Surname,
+					op1.RBOP_Person_DR->PAPER_Name2 As FirstName,
+					op1.RBOP_DateOper as OpDate,
+					op1.RBOP_TimeOper as OpTime,
+					op1.RBOP_PAADM_DR->PAADM_DischgDate as DisDate,
+					op1.RBOP_PAADM_DR->PAADM_DischgTime as DisTime,
+					op1.RBOP_ProcsOpers,
+					op1.RBOP_Surgeon_DR->CTPCP_Desc,
+					CASE WHEN op1.RBOP_PAADM_DR = op2.RBOP_PAADM_DR THEN 'Multi Activity on single Episode' ELSE 'Readmit Within 7 Days' END as Reason,
+					op2.RBOP_PAADM_DR->PAADM_AdmDate as SecADMDate,
+					op2.RBOP_PAADM_DR->PAADM_AdmTime as SecADMTime,
+					op2.RBOP_ProcsOpers as SecProcsOpers,
+					op2.RBOP_DateOper as SecOpDate,
+					op2.RBOP_TimeOper as SecOpTime,
+					op2.RBOP_Surgeon_DR->CTPCP_Desc as SecDoc
+			FROM SQLUser.RB_OperatingRoom op1
+				INNER JOIN SQLUser.RB_OperatingRoom op2 on 
+					(
+						(op1.RBOP_PAADM_DR = op2.RBOP_PAADM_DR and op1.RBOP_RowId <> op2.RBOP_RowId)
+					OR	(op1.RBOP_Person_DR = op2.RBOP_Person_DR AND  op2.RBOP_DateOper <= DATEADD(dd,7,op1.RBOP_DateOper) and op1.RBOP_PAADM_DR <> op2.RBOP_PAADM_DR)
+					)
+					AND (op1.RBOP_DateOper < op2.RBOP_DateOper OR (op1.RBOP_DateOper = op2.RBOP_DateOper AND op1.RBOP_TimeOper < op2.RBOP_TimeOper))
+					AND op2.RBOP_Status = 'D'
+				LEFT JOIN SQLUser.RB_OperatingRoom op3 ON
+					((op1.RBOP_PAADM_DR = op2.RBOP_PAADM_DR AND op1.RBOP_PAADM_DR = op3.RBOP_PAADM_DR and op1.RBOP_RowId <> op3.RBOP_RowId)
+					OR	 (op1.RBOP_PAADM_DR != op2.RBOP_PAADM_DR AND op1.RBOP_Person_DR = op3.RBOP_Person_DR and op1.RBOP_PAADM_DR <> op3.RBOP_PAADM_DR))
+				AND (
+						(op1.RBOP_DateOper < op3.RBOP_DateOper OR (op1.RBOP_DateOper = op3.RBOP_DateOper AND op1.RBOP_TimeOper < op3.RBOP_TimeOper))
+					AND	(op3.RBOP_DateOper < op2.RBOP_DateOper OR (op3.RBOP_DateOper = op2.RBOP_DateOper AND op3.RBOP_TimeOper < op2.RBOP_TimeOper))
+					AND op3.RBOP_Status = 'D'
+					)
+			WHERE (op1.RBOP_Status ='D')
+				AND (op1.RBOP_DateOper between :DateFrom and :DateTo OR op2.RBOP_DateOper between :DateFrom and :DateTo)
+				AND op1.RBOP_PAADM_DR->PAADM_Hospital_DR = :Hospital
+				AND op3.RBOP_RowId IS NULL
+			ORDER BY URNo, OPDate
+)
+ &SQL(OPEN SWARHRTHR1015Cursor)
+ 
+ //FETCH FIRST ROW
+ d FetchRow
+  
+ while END=0 {
+  
+	 d FormatDates
+  	 d FormatTimes
+  	 
+	 s sort = ind
+
+	 s ^CacheTemp("TRAK",repid,sort)=$LB(ADMDate,ADMTime,EpNo,URNo,Surname,FirstName,OpDate,OpTime,DisDate,DisTime,RBOPProcsOpers,CTPCPDesc,Reason,SecADMDate,SecADMTime,SecProcsOpers,SecOpDate,SecOpTime,SecDoc)
+	 s ind=ind+1
+ 
+	 //fetch rows
+	 d FetchRow
+ }
+
+ &SQL(CLOSE SWARHRTHR1015Cursor)
+ 
+ // Build QHandle (AtEnd,ReportID,Index)
+ Set QHandle=$lb(0,repid,0)
+
+ Quit $$$OK
+
+FetchRow
+ &sql(FETCH SWARHRTHR1015Cursor INTO :ADMDate,:ADMTime,:EpNo,:URNo,:Surname,:FirstName,:OpDate,:OpTime,:DisDate,:DisTime,:RBOPProcsOpers,:CTPCPDesc,:Reason,:SecADMDate,:SecADMTime,:SecProcsOpers,:SecOpDate,:SecOpTime,:SecDoc)
+ if SQLCODE '= 0 set END = 1
+ q
+ 
+FormatDates
+ s ADMDate=..ConvertDateToODBC(ADMDate)
+ s SecADMDate=..ConvertDateToODBC(SecADMDate)
+ s OpDate=..ConvertDateToODBC(OpDate)
+ s SecOpDate=..ConvertDateToODBC(SecOpDate)
+ s DisDate=..ConvertDateToODBC(DisDate)
+ s RBOPProcsOpers = $LISTTOSTRING(RBOPProcsOpers, $CHAR(13)_$CHAR(10))
+ s SecProcsOpers = $LISTTOSTRING(SecProcsOpers, $CHAR(13)_$CHAR(10))
+ q
+ 
+FormatTimes
+ s ADMTime=..ConvertTimeToODBC(ADMTime)
+ s OpTime=..ConvertTimeToODBC(OpTime)
+ s SecADMTime=..ConvertTimeToODBC(SecADMTime)
+ s SecOpTime=..ConvertTimeToODBC(SecOpTime)
+ s DisTime=..ConvertTimeToODBC(DisTime)
+ q
+]]></Implementation>
+</Method>
+
+<Method name="SWARHRTHR1015QueryFetch">
+<Description>
+This is the Fetch component of the %Library.Query. 
+This should never have to change. It is designed to fetch the row for each subscript of the ^CacheTemp
+global and return this row to the Crystal Report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,&Row:%Library.List,&AtEnd:%Library.Integer=0]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+
+ New repid,ind
+
+ // Restore QHandle
+ Set AtEnd=$li(QHandle,1)
+ Set repid=$li(QHandle,2)
+ Set ind=$li(QHandle,3)
+
+ Set ind=$o(^CacheTemp("TRAK",repid,ind))
+ If ind="" {	// if there are no more rows, finish fetching
+	 Set AtEnd=1
+	 Set Row=""
+ }
+ Else      {	// fetch row
+ 	Set Row=^CacheTemp("TRAK",repid,ind)
+ }
+
+ // Save QHandle
+ s QHandle=$lb(AtEnd,repid,ind)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Query name="SWARHRTHR1015Query">
+<Type>%Library.Query</Type>
+<FormalSpec>Hospital:%Library.String,DateFrom:%Date,DateTo:%Date</FormalSpec>
+<SqlProc>1</SqlProc>
+<Parameter name="CONTAINID" value="0"/>
+<Parameter name="ROWSPEC" value="ADMDate:%Library.Date,ADMTime:%Library.Time,EpNo:%Library.String,URNo:%Library.Integer,Surname:%Library.String,FirstName:%Library.String,OpDate:%Library.Date,OpTime:%Library.Time,DisDate:%Library.Date,DisTime:%Library.Time,RBOPProcsOpers:%Library.String,CTPCPDesc:%Library.String,Reason:%Library.String,SecADMDate:%Library.Date,SecADMTime:%Library.Time,SecProcsOpers:%Library.String,SecOpDate:%Library.Date,SecOpTime:%Library.Time,SecDoc:%Library.String"/>
+<Parameter name="SELECTMODE" value="ODBC"/>
+</Query>
+</Class>
+</Export>

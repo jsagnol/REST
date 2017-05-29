@@ -1,0 +1,325 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.SWARH.JS.ORAnaOperation.Edit">
+<Description>
+Component JavaScript for: ORAnaOperation.Edit</Description>
+<Modified>0</Modified>
+<Super>websys.AbstractJavaScript</Super>
+<TimeCreated>63537,10516.722869</TimeCreated>
+
+<Method name="JSContent">
+<Description>
+ </Description>
+<Internal>0</Internal>
+<Language>javascript</Language>
+<ClientMethod>1</ClientMethod>
+<Implementation><![CDATA[
+/*********************************************************************
+$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/SWARH/JS/ORAnaOperation/Edit.xml#1 $
+Version 1
+
+- General custom field validation for oranaoperation.edit component
+
+REMEMBER to update the versions with initials, date and description for each modification...
+	IF		29/12/2011		- Created script to populate the PROCEntered field with the waiting list procedures - removed
+	IF		22/03/2012		- if Torniquet is entered then make date/time mandatory
+	IF		23/05/2012		- TRC101795 - fix issues with Torniquet selection
+	IF		19/12/2012		- Change to CustomDoStatusValidation function to allow event capture
+
+**********************************************************************/
+
+function CustomInit() {
+	Init();
+	/*
+	var ANARBOPId=document.getElementById("ANARBOPId")
+	if ((ANARBOPId)&&(ANARBOPId!="")) {
+		var str=tkMakeServerCall("web.RBOperRoomSecProc","ProceduresForBooking",ANARBOPId.value);
+		PopulateListType(str,"PROCEntered")
+	}
+	*/
+	
+	
+	obj=document.getElementById('ANAOPTorniquetBodySiteDR');
+	if (obj) {
+		obj.onkeydown=CustomANAOPTorniquetBodySiteDR;
+		obj.onkeyup=CustomANAOPTorniquetBodySiteDR;
+		obj.onkeypress=CustomANAOPTorniquetBodySiteDR;
+		obj.onchange=CustomANAOPTorniquetBodySiteDR;
+	}
+	
+	obj=document.getElementById('ANAOPStatus');
+	if (obj) {
+		obj.onkeydown=CustomDoStatusValidation;
+		obj.onkeyup=CustomDoStatusValidation;
+		obj.onkeypress=CustomDoStatusValidation;
+		obj.onchange=CustomDoStatusValidation;
+	}
+	
+	obj=document.getElementById('update');
+	if (obj) obj.onclick=CustomUpdateAll;
+	if (tsc['update']) websys_sckeys[tsc['update']]=CustomUpdateAll;
+
+	obj=document.getElementById('UpdateClose');
+	if (obj) obj.onclick=CustomUpdateCloseAll;
+	if (tsc['UpdateClose']) websys_sckeys[tsc['UpdateClose']]=CustomUpdateCloseAll;
+
+}
+
+function CustomUpdateAll() {
+	UpdateFields();
+	if (checkFields()) {
+		UpdateAll();
+	} else {
+		return false;
+	}
+}
+
+function CustomUpdateCloseAll() {
+	UpdateFields();
+	if (checkFields()) {
+		UpdateCloseAll();
+	} else {
+		return false;
+	}
+}
+
+function ANAOPTorniquetBodySiteDRLookupHandler(str){
+	ANAOPTorniquetBodySiteDR_ChangeHandler();
+	CustomANAOPTorniquetBodySiteDR();
+}
+
+function ANAOPStatusLookupHandler(str){
+	var lu=str.split("^");
+	var obj=document.getElementById("StatusId");
+	if (obj) obj.value=lu[2];
+
+	DoStatusValidation();
+	CustomDoStatusValidation();
+}
+
+function CustomDoStatusValidation(e){
+	try {
+		var type=websys_getType(e);
+	    var key=websys_getKey(e);
+	} catch(e) {
+		var type="";
+		var key="";
+	}
+    
+    UpdateFields();
+	
+	//alert(type+' '+key);
+	if ((type=='click')||((type=='keydown')&&(key==117))) ANAOPStatus_lookuphandler(e);
+	if (type=='blur') ANAOPStatus_lookuphandler(e);
+	if (type=="keyup") ANAOPStatus_onkeyuphandler(e);
+	if (type=="keypress") ANAOPStatus_onkeypresshandler(e);
+	if (type=="change") ANAOPStatus_changehandler(e);
+}
+
+function UpdateFields() {
+	var obj=document.getElementById('ANAOPStatus');
+	if ((obj)&&(obj.value!="")) {
+		//alert(obj.value);
+		if ((obj.value.toUpperCase()=="DONE")||(obj.value.toUpperCase()=="D")) {
+			labelMandatory("ANAOPEffectiveElective");
+			labelMandatory("ANAOPOpStartDate");
+			//labelMandatory("ANAOPOpStartTime");
+			if (document.getElementById('ANAOPOpStartTime')) document.getElementById('ANAOPOpStartTime').className = "clsRequired";
+			labelMandatory("ANAOPOpEndDate");
+			//labelMandatory("ANAOPOpEndTime");
+			if (document.getElementById('ANAOPOpEndTime')) document.getElementById('ANAOPOpEndTime').className = "clsRequired";
+			labelMandatory("ANAOPBlade");
+			labelMandatory("ANAOPBiopsyPerformed");
+			labelMandatory("ANAOPItemsReCountedByDR");
+			labelMandatory("ANAOPDiathermyBodySiteDR");
+			labelMandatory("ANAOPTorniquetBodySiteDR");
+		} else {
+			labelNormal("ANAOPEffectiveElective");
+			labelNormal("ANAOPOpStartDate");
+			//labelNormal("ANAOPOpStartTime");
+			if (document.getElementById('ANAOPOpStartTime')) document.getElementById('ANAOPOpStartTime').className = "";
+			labelNormal("ANAOPOpEndDate");
+			//labelNormal("ANAOPOpEndTime");
+			if (document.getElementById('ANAOPOpEndTime')) document.getElementById('ANAOPOpEndTime').className = "";
+			labelNormal("ANAOPBlade");
+			labelNormal("ANAOPBiopsyPerformed");
+			labelNormal("ANAOPItemsReCountedByDR");
+			labelNormal("ANAOPDiathermyBodySiteDR");
+			labelNormal("ANAOPTorniquetBodySiteDR");
+		}
+	} else {
+		labelNormal("ANAOPEffectiveElective");
+		labelNormal("ANAOPOpStartDate");
+		//labelNormal("ANAOPOpStartTime");
+		if (document.getElementById('ANAOPOpStartTime')) document.getElementById('ANAOPOpStartTime').className = "";
+		labelNormal("ANAOPOpEndDate");
+		//labelNormal("ANAOPOpEndTime");
+		if (document.getElementById('ANAOPOpEndTime')) document.getElementById('ANAOPOpEndTime').className = "";
+		labelNormal("ANAOPBlade");
+		labelNormal("ANAOPBiopsyPerformed");
+		labelNormal("ANAOPItemsReCountedByDR");
+		labelNormal("ANAOPDiathermyBodySiteDR");
+		labelNormal("ANAOPTorniquetBodySiteDR");
+	}
+}
+
+function CustomANAOPTorniquetBodySiteDR(e){
+	var type=websys_getType(e);
+    var key=websys_getKey(e);
+	
+	//alert(type+' '+key);
+	if ((type=='click')||((type=='keydown')&&(key==117))) ANAOPTorniquetBodySiteDR_lookuphandler(e);
+	if (type=='blur') ANAOPTorniquetBodySiteDR_lookuphandler(e);
+	if (type=="keyup") ANAOPTorniquetBodySiteDR_onkeyuphandler(e);
+	if (type=="keypress") ANAOPTorniquetBodySiteDR_onkeypresshandler(e);
+	if (type=="change") ANAOPTorniquetBodySiteDR_changehandler(e);
+}
+
+function ANAOPTorniquetBodySiteDR_lookupsel(value) {
+    try {
+        var obj=document.getElementById('ANAOPTorniquetBodySiteDR');
+        if (obj) {
+            obj.value=unescape(value);
+            if (obj.readOnly) {obj.className='clsReadOnly'} else {obj.className=''}
+         if (doneInit) websys_nexttab('20',obj.form);
+            obj.setAttribute('LU','0');
+        }
+    } catch(e) {};
+    //CustomANAOPTorniquetBodySiteDR();
+	var obj=document.getElementById('ANAOPTorniquetBodySiteDR');
+	if ((obj)&&(obj.value!="")) {
+		if ((obj.value.toUpperCase()=="NONE APPLIED")||(obj.value.toUpperCase()=="NA")) {
+			labelNormal("ANAOPTorniquetDateFrom");
+			labelNormal("ANAOPTorniquetTimeFrom");
+			labelNormal("ANAOPTorniquetDateTo");
+			labelNormal("ANAOPTorniquetTimeTo");
+		} else {
+			labelMandatory("ANAOPTorniquetDateFrom");
+			labelMandatory("ANAOPTorniquetTimeFrom");
+			labelMandatory("ANAOPTorniquetDateTo");
+			labelMandatory("ANAOPTorniquetTimeTo");
+		}
+	} else {
+		labelNormal("ANAOPTorniquetDateFrom");
+		labelNormal("ANAOPTorniquetTimeFrom");
+		labelNormal("ANAOPTorniquetDateTo");
+		labelNormal("ANAOPTorniquetTimeTo");
+	}
+}
+
+function ANAOPTorniquetBodySiteDR_ChangeHandler() {
+	//Used to disabled core function
+}
+
+function labelMandatory(fld) {
+	var lbl = document.getElementById('c' + fld)
+    if (lbl) {
+        lbl.className = "clsRequired";
+    }
+    var fld = document.getElementById(fld)
+    if (fld) {
+        fld.className = "clsRequired";
+    }
+}
+
+function labelNormal(fld) {
+    var lbl = document.getElementById('c' + fld)
+    if (lbl) {
+        lbl.className = "";
+    }
+    var fld = document.getElementById(fld)
+    if (fld) {
+        fld.className = "";
+    }
+}
+//Copied from core code to change validation on ANAOPTorniquetBodySiteDR
+function checkFields(){
+	var msg="";
+
+	var objSId = document.getElementById("StatusId");
+	var objCnclRsn = document.getElementById("ANAOPCancelReason");
+	if (objSId && objSId.value == "A" && objCnclRsn && objCnclRsn.value == "") {
+		msg="'" + t['ANAOPCancelReason'] + "' " + t['XMISSING'];
+	}
+
+	var objTBS = document.getElementById("ANAOPTorniquetBodySiteDR");
+
+	var objTDFrom = document.getElementById("ANAOPTorniquetDateFrom");
+	if (objTBS && ((objTBS.value != "")&&(objTBS.value!="None Applied")) && objTDFrom && objTDFrom.value == "") {
+		if (msg!="") msg=msg + "\n" + "'" + t['ANAOPTorniquetDateFrom'] + "' " + t['XMISSING'];
+		if (msg=="") msg="'" + t['ANAOPTorniquetDateFrom'] + "' " + t['XMISSING'];
+	}
+
+	var objTDTo = document.getElementById("ANAOPTorniquetDateTo");
+	if (objTBS && ((objTBS.value != "")&&(objTBS.value!="None Applied")) && objTDTo && objTDTo.value == "") {
+		if (msg!="") msg=msg + "\n" + "'" + t['ANAOPTorniquetDateTo'] + "' " + t['XMISSING'];
+		if (msg=="") msg="'" + t['ANAOPTorniquetDateTo'] + "' " + t['XMISSING'];
+	}
+
+	var objTTFrom = document.getElementById("ANAOPTorniquetTimeFrom");
+	if (objTBS && ((objTBS.value != "")&&(objTBS.value!="None Applied")) && objTTFrom && objTTFrom.value == "") {
+		if (msg!="") msg=msg + "\n" + "'" + t['ANAOPTorniquetTimeFrom'] + "' " + t['XMISSING'];
+		if (msg=="") msg="'" + t['ANAOPTorniquetTimeFrom'] + "' " + t['XMISSING'];
+	}
+
+	var objTTTo = document.getElementById("ANAOPTorniquetTimeTo");
+	if (objTBS && ((objTBS.value != "")&&(objTBS.value!="None Applied")) && objTTTo && objTTTo.value == "") {
+		if (msg!="") msg=msg + "\n" + "'" + t['ANAOPTorniquetTimeTo'] + "' " + t['XMISSING'];
+		if (msg=="") msg="'" + t['ANAOPTorniquetTimeTo'] + "' " + t['XMISSING'];
+	}
+	
+	var objLL = document.getElementById("ANAOPDeptOp");
+	var objDept=document.getElementById("ANAOPDeptOpDR");
+	var objLoc=document.getElementById("ANAOPCTLOCDR");
+	if (objLL && (objDept || objLoc)) {
+		if (msg!="") msg=msg + "\n" + "'"+t["ANAOPDeptOp"]+"'"+t["LegacyError"]+" '"+t["ANAOPCTLOCDR"]+"' or '"+t["ANAOPDeptOpDR"]+"'";
+		if (msg=="") msg="'" + "'"+t["ANAOPDeptOp"]+"'"+t["LegacyError"]+" '"+t["ANAOPCTLOCDR"]+"' or '"+t["ANAOPDeptOpDR"]+"'";
+	}
+
+
+	/// Checking for "red borders"
+	var invalidElements=getElementsByClassName('clsInvalid');
+	for (var i=0;i<invalidElements.length;i++) {
+		msg=msg+((msg!="")?"\n":"")+t[invalidElements[i].name]+": "+t['XINVALID'];
+	}
+
+	var clsRequiredElements=getElementsByClassName('clsRequired');
+	var ReqFieldStr=""
+	for (var i=0;i<clsRequiredElements.length;i++) {
+		var lbl=clsRequiredElements[i].id;
+		//alert(clsRequiredElements[i].id);
+		if (lbl=='ANAOPOpStartTime') var lbl='cANAOPOpStartTime'
+		if (lbl=='ANAOPOpEndTime') var lbl='cANAOPOpEndTime'
+		var assFldStr=lbl.substring(1,lbl.length)
+		var objFld=document.getElementById(assFldStr);
+		if ((objFld)&&(objFld.value=="")) {
+			if (ReqFieldStr!="") ReqFieldStr=ReqFieldStr+", "+t[objFld.name];
+			if (ReqFieldStr=="") ReqFieldStr=t[objFld.name]
+		}
+	}
+	if (ReqFieldStr!="") {
+		msg=msg+((msg!="")?"\n":"")+t['REQF']+": "+ReqFieldStr;
+	}
+
+	if (msg!=""){
+		alert(msg)
+		return false;
+	}
+	return true;
+
+}
+
+
+websys_removeListener("load","onload",Init);
+websys_addListener("load","onload",CustomInit);
+]]></Implementation>
+</Method>
+
+<Parameter name="SrcVer">
+<Description>
+This Parameter is updated by Perforce</Description>
+<Internal>0</Internal>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/SWARH/JS/ORAnaOperation/Edit.xml#1 $</Default>
+</Parameter>
+</Class>
+</Export>

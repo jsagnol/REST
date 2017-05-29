@@ -1,0 +1,380 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.AUXX.Report.ZEN.StoredProc.PRSChecker2">
+<ProcedureBlock>0</ProcedureBlock>
+<Super>Report.Abstract</Super>
+<TimeCreated>60803,55645.715722</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/AUXX/Report/ZEN/StoredProc/PRSChecker2.xml#1 $</Default>
+</Parameter>
+
+<UDLText name="T">
+<Content><![CDATA[
+// Report Name: Trak PRS Checker 2 Report <br>
+
+]]></Content>
+</UDLText>
+
+<UDLText name="T">
+<Content><![CDATA[
+// Report Code: AUXX.ATD0002 <br>
+
+]]></Content>
+</UDLText>
+
+<UDLText name="T">
+<Content><![CDATA[
+// Logtrak Number:  <br>
+
+]]></Content>
+</UDLText>
+
+<UDLText name="T">
+<Content><![CDATA[
+// TRC Number:  70181 <br>
+
+]]></Content>
+</UDLText>
+
+<UDLText name="T">
+<Content><![CDATA[
+// TRC 174417 - 5 May 2014: Change in WHERE clause of query, replacing R1, R2 with M
+
+]]></Content>
+</UDLText>
+
+<Method name="GetRecordsClose">
+<Final>0</Final>
+<ClassMethod>1</ClassMethod>
+<CodeMode>code</CodeMode>
+<FormalSpec>QHandle:%Library.Binary</FormalSpec>
+<Private>0</Private>
+<ReturnType>%Library.Status</ReturnType>
+<SqlProc>0</SqlProc>
+<Implementation><![CDATA[
+ // Clean up by purging the temporary node in ^CacheTemp global
+ New repid
+ Set repid=$li(QHandle,2)
+ 
+  //Close Monitor (if configured to capture stats)
+ i mon Do ..MonitorEnd(mon)
+ 
+ Kill ^CacheTemp("TRAK",repid)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="GetRecordsExecute">
+<Description>
+This is the Execute section for the %Library.Query. 
+All of the logic will be performed here.
+A new node for the ^CacheTemp global will be created and each subscript of this global will contain
+a row for the report.</Description>
+<ClassMethod>1</ClassMethod>
+<CodeMode>code</CodeMode>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,DateFrom:%Date,DateTo:%Date,Hospital:%String]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+	
+ // Use $Increment to get the next node
+ Set repid=$I(^CacheTemp("TRAK"))
+
+  //Start Monitor (if configured to capture stats)
+ s mon=..MonitorBegin()
+ 
+ // Build data into ^CacheTemp(ReportID)
+ // e.g. Set ^CacheTemp(ReportID,Index)=$LB(f1,f2,f3)
+ New Number,String,Date,Time,c,n
+ n HOSPDesc,PAADMADMNo,PAADMAdmDate,AdmDateNo,PAADMDischgDate,DisDateNo,WARDCode,CARETYPCode,PAADMRowId,PAADM2PalliativeCarePatDays,PAPMIDOB,PAPMINo,PAPMIName,PAPMIName2,PAADM2FuncAssessDateAdm,PAADM2FuncAssessDateDisch,ADSOUCode,CTDSPCode,LOS,CTCforBarthel,CTCforOnsetDays,QAUB3,QAUB4
+  n Message1,Message2,Message3,Message4,Message5,Message6,Message7,Message8,Message9,Message10,Message11,Message12,Message
+
+ s (HOSPDesc,PAADMADMNo,PAADMAdmDate,AdmDateNo,PAADMDischgDate,DisDateNo,WARDCode,CARETYPCode,PAPMIDOB,PAPMINo,PAPMIName,PAPMIName2,PAADM2FuncAssessDateAdm,PAADM2FuncAssessDateDisch,ADSOUCode,CTDSPCode,CTCforBarthel,CTCforOnsetDays,QAUB3,QAUB4)=""
+ s (Message1,Message2,Message3,Message4,Message5,Message6,Message7,Message8,Message9,Message10,Message11,Message12,Message)=""
+ s (PAADMRowId,PAADM2PalliativeCarePatDays,LOS)=0
+ s ind=1
+
+ //Convert ODBC dates to cache format
+ s DateFrom=$$intdate^SSUTIL4(DateFrom)
+ s DateTo=$$intdate^SSUTIL4(DateTo)
+
+ // Strip white space/control chars from blank variables
+ i $g(Hospital)'="" s Hospital=$zstrip(Hospital,"*C")
+ 
+ &sql(declare GetRecords cursor for
+select
+PAADM_Hospital_DR->HOSP_Desc,
+PAADM_ADMNo,
+PAADM_AdmDate,
+PAADM_AdmDate,
+PAADM_DischgDate,
+PAADM_DischgDate,
+PAADM_CurrentWard_DR->WARD_Code,
+PAADM_MainMRADM_DR->MRADM_CareType_DR->CARETYP_Code,
+PAADM_RowId,
+PAADM_PAAdm2_DR->PAADM2_PalliativeCarePatDays,
+PAADM_PAPMI_DR->PAPMI_DOB,
+PAADM_PAPMI_DR->PAPMI_No,
+PAADM_PAPMI_DR->PAPMI_Name,
+PAADM_PAPMI_DR->PAPMI_Name2,
+PAADM_PAAdm2_DR->PAADM2_FuncAssessDateAdm,
+PAADM_PAAdm2_DR->PAADM2_FuncAssessDateDisch,
+PAADM_AdmSrc_DR->ADSOU_Code,
+PAADM_MainMRADM_DR->MRADM_DischType_DR->CTDSP_Code,
+case when PAADM_MainMRADM_DR->MRADM_CareType_DR->CARETYP_Code in ('6') then PAADM_MainMRADM_DR->MRADM_CareType_DR->CARETYP_Code else '0' end,
+case when PAADM_MainMRADM_DR->MRADM_CareType_DR->CARETYP_Code in ('2', '6') then PAADM_MainMRADM_DR->MRADM_CareType_DR->CARETYP_Code else '0' end
+FROM	sqluser.PA_Adm
+WHERE	 PAADM_Type='I' and PAADM_VisitStatus='D' and
+PAADM_DischgDate between :DateFrom and :DateTo and 
+PAADM_MainMRADM_DR->MRADM_CareType_DR->CARETYP_Code IN ('2','6','7','9','8','M')
+ AND (({fn CONCAT( ',', {fn CONCAT((:Hospital),',')})} [ {fn CONCAT( ',', {fn CONCAT((PAADM_Hospital_DR->HOSP_RowId),',')})}) OR (:Hospital IS NULL))
+)
+ &sql(open GetRecords)
+
+
+ //fetch first row
+ &sql(fetch GetRecords into :HOSPDesc,:PAADMADMNo,:PAADMAdmDate,:AdmDateNo,:PAADMDischgDate,:DisDateNo,:WARDCode,:CARETYPCode,:PAADMRowId,:PAADM2PalliativeCarePatDays,:PAPMIDOB,:PAPMINo,:PAPMIName,:PAPMIName2,:PAADM2FuncAssessDateAdm,:PAADM2FuncAssessDateDisch,:ADSOUCode,:CTDSPCode,:CTCforBarthel,:CTCforOnsetDays)
+
+ while 'SQLCODE{
+ d FormatDates
+ d GetLOS
+ d GetQAUB
+
+ s (Message,Message1,Message2,Message3,Message4,Message5,Message6,Message7,Message8,Message9,Message10,Message11,Message12)=""
+
+
+ /*
+ i CARETYPCode="" s Message1=""
+ i PAADM2PalliativeCarePatDays'="" s Message1=""
+ i CARETYPCode="8",PAADM2PalliativeCarePatDays="" s Message1="Palliative Care Days Blank"
+ 
+ i CARETYPCode="" s Message2=""
+ i PAADM2PalliativeCarePatDays="" s Message2=""
+ i PAADM2PalliativeCarePatDays=LOS s Message2=""
+ i CARETYPCode="8",PAADM2PalliativeCarePatDays'="",PAADM2PalliativeCarePatDays'=LOS s Message2="Palliative Care Days not equal to Length of Stay"
+ */
+ 
+ i CTCforOnsetDays=0 s Message1=""
+ i QAUB3'="" s Message1=""
+ i CTCforOnsetDays>0,QAUB3="" s Message1="Sub-Acute fields incomplete"
+
+ i CTCforOnsetDays=0 s Message2=""
+ i QAUB4'="" s Message2=""
+ i CTCforOnsetDays>0,QAUB4="" s Message1="Sub-Acute fields incomplete"
+
+ 
+ 
+ i CARETYPCode="8" s Message3=""
+ i PAADM2FuncAssessDateAdm'="" s Message3=""
+  i CARETYPCode'="8",PAADM2FuncAssessDateAdm="" s Message3="Functional Assessment Date on Admission Blank for designated care type"
+ 
+ i CARETYPCode="8" s Message4=""
+ i PAADM2FuncAssessDateAdm="" s Message4=""
+ i ADSOUCode="SS" s Message4=""
+ i AdmDateNo-PAADM2FuncAssessDateAdm<=7 s Message4=""
+ i CARETYPCode'="8",PAADM2FuncAssessDateAdm'="",AdmDateNo-PAADM2FuncAssessDateAdm>7,ADSOUCode'="SS" s Message4="Functional Assessment Date on Admission over 7 days before Admission date for designated care type and episode is not a statistical admission"
+
+ i CARETYPCode="8" s Message5=""
+ i PAADM2FuncAssessDateAdm="" s Message5=""
+ i PAADM2FuncAssessDateDisch="" s Message5=""
+ i PAADM2FuncAssessDateAdm>AdmDateNo s Message5=""
+ i CARETYPCode'="8",PAADM2FuncAssessDateAdm-AdmDateNo>=-7,PAADM2FuncAssessDateAdm-AdmDateNo<0 s Message5="Functional Assessment Date on Admission is up to 7 days before admission date for designated Care Type"
+
+ i CARETYPCode="8" s Message6=""
+ i PAADM2FuncAssessDateAdm="" s Message6=""
+ i PAADM2FuncAssessDateAdm-AdmDateNo>7 s Message6=""
+ i PAADM2FuncAssessDateAdm-AdmDateNo<=0 s Message6=""
+ i CARETYPCode'="8",PAADM2FuncAssessDateAdm'="",PAADM2FuncAssessDateAdm-AdmDateNo>0,PAADM2FuncAssessDateAdm-AdmDateNo<8 s Message6="Functional Assessment Date on Admission is up to 7 days after admission date for designated Care Type"
+ 
+ i PAADM2FuncAssessDateDisch'="" s Message7=""
+ i CARETYPCode="8" s Message7=""
+ i CARETYPCode'="8",PAADM2FuncAssessDateDisch="" s Message7="Functional Assessment Date on Separation Blank for designated care type"
+
+ i CARETYPCode="8" s Message8=""
+ i PAADM2FuncAssessDateDisch="" s Message8=""
+ i PAADM2FuncAssessDateDisch-DisDateNo<=7 s Message8=""
+ i CTDSPCode'="S" s Message8=""
+ i CARETYPCode'="8", PAADM2FuncAssessDateDisch'="",PAADM2FuncAssessDateDisch-DisDateNo>7,CTDSPCode'="S" s Message8="Functional Assessment Date on Separation over 7 days after Separation date for designated care type and episode is not a statistical discharge"
+
+ i CARETYPCode="8" s Message9=""
+ i PAADM2FuncAssessDateDisch="" s Message9=""
+ i PAADM2FuncAssessDateDisch-DisDateNo<=0 s Message9=""
+ i PAADM2FuncAssessDateDisch-DisDateNo>7 s Message9=""
+ i CARETYPCode'="8",PAADM2FuncAssessDateDisch'="",PAADM2FuncAssessDateDisch-DisDateNo>0,PAADM2FuncAssessDateDisch-DisDateNo<8 s Message9="Functional Assessment Date on Separation is up to 7 days after separation date for designated Care Type"
+
+ i CARETYPCode="8" s Message10=""
+ i PAADM2FuncAssessDateDisch="" s Message10=""
+ i DisDateNo-PAADM2FuncAssessDateDisch<=3 s Message10=""
+ i CARETYPCode'="8",PAADM2FuncAssessDateDisch'="",DisDateNo-PAADM2FuncAssessDateDisch>3 s Message10="Functional Assessment Date on Separation is over 3 days before separation date for designated Care Type"
+ 
+  // build the row
+ ;s Message=Message1_$CHAR(10)_$CHAR(13)_Message2_$CHAR(10)_$CHAR(13)_Message3_$CHAR(10)_$CHAR(13)_Message4_$CHAR(10)_$CHAR(13)_Message5_$CHAR(10)_$CHAR(13)_Message6_$CHAR(10)_$CHAR(13)_Message7_$CHAR(10)_$CHAR(13)_Message8_$CHAR(10)_$CHAR(13)_Message9_$CHAR(10)_$CHAR(13)_Message10_$CHAR(10)_$CHAR(13)_Message11_$CHAR(10)_$CHAR(13)_Message12
+
+ i Message1'="" s Message=Message1
+ i Message2'="" s Message=Message_$s(Message'="":$c(13,10),1:"")_Message2
+ i Message3'="" s Message=Message_$s(Message'="":$c(13,10),1:"")_Message3
+ i Message4'="" s Message=Message_$s(Message'="":$c(13,10),1:"")_Message4
+ i Message5'="" s Message=Message_$s(Message'="":$c(13,10),1:"")_Message5
+ i Message6'="" s Message=Message_$s(Message'="":$c(13,10),1:"")_Message6
+ i Message7'="" s Message=Message_$s(Message'="":$c(13,10),1:"")_Message7
+ i Message8'="" s Message=Message_$s(Message'="":$c(13,10),1:"")_Message8
+ i Message9'="" s Message=Message_$s(Message'="":$c(13,10),1:"")_Message9
+ i Message10'="" s Message=Message_$s(Message'="":$c(13,10),1:"")_Message10
+ i Message11'="" s Message=Message_$s(Message'="":$c(13,10),1:"")_Message11
+ i Message12'="" s Message=Message_$s(Message'="":$c(13,10),1:"")_Message12
+
+ // build the row
+ ;s x1=$TR(Message,$C(13,10))
+ ;i $G(x1)'="" 
+ i Message'="" Set ^CacheTemp("TRAK",repid,HOSPDesc_ind)=$LB(HOSPDesc,PAADMADMNo,PAADMAdmDate,AdmDateNo,PAADMDischgDate,DisDateNo,WARDCode,CARETYPCode,PAADMRowId,PAADM2PalliativeCarePatDays,PAPMIDOB,PAPMINo,PAPMIName,PAPMIName2,PAADM2FuncAssessDateAdm,PAADM2FuncAssessDateDisch,ADSOUCode,CTDSPCode,CTCforBarthel,CTCforOnsetDays,LOS,QAUB3,QAUB4,Message1,Message2,Message3,Message4,Message5,Message6,Message7,Message8,Message9,Message10,Message11,Message12,Message)
+ s ind=ind+1
+ //fetch rows
+ &sql(fetch GetRecords into :HOSPDesc,:PAADMADMNo,:PAADMAdmDate,:AdmDateNo,:PAADMDischgDate,:DisDateNo,:WARDCode,:CARETYPCode,:PAADMRowId,:PAADM2PalliativeCarePatDays,:PAPMIDOB,:PAPMINo,:PAPMIName,:PAPMIName2,:PAADM2FuncAssessDateAdm,:PAADM2FuncAssessDateDisch,:ADSOUCode,:CTDSPCode,:CTCforBarthel,:CTCforOnsetDays)
+ }
+
+
+ &sql(close GetRecords)
+
+ // Build QHandle (AtEnd,ReportID,Index)
+ Set QHandle=$lb(0,repid,0)
+
+
+ Quit $$$OK
+
+
+FormatDates
+ // Convert the dates to ODBC date format
+ If PAADMAdmDate Set PAADMAdmDate=..ConvertDateToODBC(PAADMAdmDate)
+ If PAADMDischgDate Set PAADMDischgDate=..ConvertDateToODBC(PAADMDischgDate)
+ If PAPMIDOB Set PAPMIDOB=..ConvertDateToODBC(PAPMIDOB)
+ ;If PAADM2FuncAssessDateAdm Set PAADM2FuncAssessDateAdm=..ConvertDateToODBC(PAADM2FuncAssessDateAdm)
+ ;If PAADM2FuncAssessDateDisch Set PAADM2FuncAssessDateDisch=..ConvertDateToODBC(PAADM2FuncAssessDateDisch)
+ Quit
+
+GetLOS
+ s LOS=##class(Custom.AUXX.Report.ZEN.StoredProc.PRSChecker2).LengthOfStay(PAADMRowId)
+
+ quit
+ 
+GetQAUB
+ Set (QAUB3,QAUB4) = ""
+
+ &sql(SELECT
+ QAUB3,QAUB4
+ INTO :QAUB3,:QAUB4
+ FROM QUESTIONNAIRE.qaub
+ WHERE	QUESPAADMDR=:PAADMRowId
+ order by QUESDate DESC, QUESTime DESC 	  	      			
+)
+ Quit
+]]></Implementation>
+</Method>
+
+<Method name="GetRecordsFetch">
+<Description>
+This is the Fetch component of the %Library.Query. 
+This should never have to change. It is designed to fetch the row for each subscript of the ^CacheTemp
+global and return this row to the Crystal Report.</Description>
+<Final>0</Final>
+<ClassMethod>1</ClassMethod>
+<CodeMode>code</CodeMode>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,&Row:%Library.List,&AtEnd:%Library.Integer=0]]></FormalSpec>
+<Private>0</Private>
+<ReturnType>%Library.Status</ReturnType>
+<SqlProc>0</SqlProc>
+<Implementation><![CDATA[
+ // This fetch method should never have to change. 
+
+ // repid - Report ID
+ // ind   - sequence index which represents each row
+
+ New repid,ind
+
+ // Restore QHandle
+ Set AtEnd=$li(QHandle,1)
+ Set repid=$li(QHandle,2)
+ Set ind=$li(QHandle,3)
+
+ Set ind=$o(^CacheTemp("TRAK",repid,ind))
+ If ind="" {	// if there are no more rows, finish fetching
+ Set AtEnd=1
+ Set Row=""
+ }
+ Else      {	// fetch row
+ Set Row=^CacheTemp("TRAK",repid,ind)
+ }
+
+ // Save QHandle
+ s QHandle=$lb(AtEnd,repid,ind)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Query name="GetRecords">
+<Type>%Library.Query</Type>
+<FormalSpec>DateFrom:%Date,DateTo:%Date,Hospital:%String</FormalSpec>
+<SqlProc>1</SqlProc>
+<Parameter name="CONTAINID" value="0"/>
+<Parameter name="ROWSPEC" value="HOSPDesc:%String,PAADMADMNo:%String(MAXLEN=255),PAADMAdmDate:%Date,AdmDateNo:%String,PAADMDischgDate:%Date,DisDateNo:%String,WARDCode:%String(MAXLEN=255),CARETYPCode:%String(MAXLEN=255),PAADMRowId:%Integer,PAADM2PalliativeCarePatDays:%Integer,PAPMIDOB:%Date,PAPMINo:%String(MAXLEN=255),PAPMIName:%String(MAXLEN=255),PAPMIName2:%String(MAXLEN=255),PAADM2FuncAssessDateAdm:%String,PAADM2FuncAssessDateDisch:%String,ADSOUCode:%String(MAXLEN=255),CTDSPCode:%String(MAXLEN=255),CTCforBarthel:%String,CTCforOnsetDays:%String,LOS:%Integer,QAUB3:%String,QAUB4:%String,Message1:%String,Message2:%String,Message3:%String,Message4:%String,Message5:%String,Message6:%String,Message7:%String,Message8:%String,Message9:%String,Message10:%String,Message11:%String,Message12:%String,Message:%String(MAXLEN=9999)"/>
+</Query>
+
+<Method name="LengthOfStay">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>PAADMRowId:%Integer</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+ n LOS,LEAVE,END
+ n ZPAADMDischgDate,ZPAADMDate,ZADMLGoingOutDate,ZADMLActualDateReturn
+ s LOS=""
+ i PAADMRowId'="" {
+
+ &sql( DECLARE LEAVE CURSOR FOR
+ SELECT
+ PAADM_AdmDate, 
+ PAADM_DischgDate,
+ ADML_GoingOutDate,
+ ADML_ActualDateReturn
+ FROM   sqluser.PA_AdmLeave, sqluser.PA_Adm
+ WHERE  PAADM_RowId=*ADML_ParRef
+ AND    PAADM_RowId=:PAADMRowId
+ ORDER BY ADML_GoingOutDate
+ )
+ ;
+ &sql(OPEN LEAVE)
+
+ s (ZADMLGoingOutDate,ZADMLActualDateReturn)=0
+
+ s (LOS,LEAVE)=0
+ s END=0
+
+ d FetchLOS
+ i $g(ZPAADMDischgDate)="" s ZPAADMDischgDate=$p($h,",",1)
+ i $g(ZPAADMDate) {
+     i ZPAADMDate<ZPAADMDischgDate
+     s LOS=ZPAADMDischgDate-ZPAADMDate
+ ;
+ WHILE 'END {
+    s LEAVE=0
+    i $g(ZADMLActualDateReturn),$g(ZADMLGoingOutDate) s LEAVE=ZADMLActualDateReturn-ZADMLGoingOutDate
+    s LOS=LOS-LEAVE
+    d FetchLOS
+ }
+    
+ i LOS=0 s LOS=1
+
+ }
+
+ q LOS
+
+
+FetchLOS
+ &sql(FETCH LEAVE INTO :ZPAADMDate,:ZPAADMDischgDate,:ZADMLGoingOutDate,:ZADMLActualDateReturn)
+ i SQLCODE s END=1 &sql(CLOSE LEAVE)
+ q
+}
+]]></Implementation>
+</Method>
+</Class>
+</Export>

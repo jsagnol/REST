@@ -1,0 +1,319 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.AUSW.Report.ZEN.StoredProc.IPAudit">
+<ProcedureBlock>0</ProcedureBlock>
+<Super>Report.Abstract</Super>
+<TimeCreated>63279,54423.139948</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/AUSW/Report/ZEN/StoredProc/IPAudit.xml#1 $</Default>
+</Parameter>
+
+<UDLText name="T">
+<Content><![CDATA[
+// Report Name: ED Audit <br>
+
+]]></Content>
+</UDLText>
+
+<UDLText name="T">
+<Content><![CDATA[
+// Report Code: AUSW. <br>
+
+]]></Content>
+</UDLText>
+
+<UDLText name="T">
+<Content><![CDATA[
+// TRC Number: 172991 <br>
+
+]]></Content>
+</UDLText>
+
+<Method name="GetRecordsClose">
+<Description>
+This is the Close component of the %Library.Query.
+This is standard code and should never have to change.
+This is where all the cleanup is performed, i.e. the purging of the temporary storage global ^CacheTemp.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>QHandle:%Library.Binary</FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Clean up by purging the temporary node in ^CacheTemp global
+ New repid
+ Set repid=$li(QHandle,2)
+ 
+  //Close Monitor (if configured to capture stats)
+           i mon Do ..MonitorEnd(mon)
+
+   Kill ^CacheTemp("TRAK",repid)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="GetRecordsExecute">
+<Description>
+This is the Execute section for the %Library.Query. 
+All of the logic will be performed here.
+A new node for the ^CacheTemp global will be created and each subscript of this global will contain
+a row for the report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,DateFrom:%Date,DateTo:%Date,Hospital:%String,URN:%String]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Get reportid i.e. use $INCREMENT to add another node to ^CacheTemp global. 
+ // We use ^CacheTemp global because it will always use memory before disk
+ New repid,ind
+
+ // Use $Increment to get the next node
+ 	Set repid=$I(^CacheTemp("TRAK"))
+
+ //Start Monitor (if configured to capture stats)
+ 	s mon=..MonitorBegin()
+ 	 
+
+ // Build data into ^CacheTemp(ReportID)
+ // e.g. Set ^CacheTemp(ReportID,Index)=$LB(f1,f2,f3)
+ new Number,String,Date,Time,c,n
+ new FLDFieldNo,PAPMINo,PAADMAdmNo,AUDDate,User,Group,Date,PAPMIRowId,AUDRowId,GrpID,UserID,AUDTable,PAPMIRowId,AUDTableID,TypeA,DiagEp,TypeB,InsEp,TypeC,MREp,TypeD,EpType,EpisodeNo,HospCode
+ 
+ 
+ set (Date,PAPMIRowId,AUDRowId,GrpID,UserID)=0
+ set (FLDFieldNo,PAPMINo,PAADMAdmNo,AUDDate,User,Group,AUDTable,AUDTableID,TypeA,DiagEp,TypeB,InsEp,TypeC,MREp,TypeD,EpType,EpisodeNo,HospCode)=""
+ set ind=1
+
+ //Convert ODBC dates to cache format
+ s DateFrom=..ConvertDateToCache(DateFrom)
+ s DateTo=..ConvertDateToCache(DateTo)
+  
+ // Strip white space/control chars from blank variables
+ i $g(Hospital)'="" s Hospital=$ZSTRIP(Hospital,"*WC")
+ i $g(URN)'="" s URN=$ZSTRIP(URN,"*WC")
+
+  /*
+ ^AUD(0,"PAPMI",{AUD_PAPMI_DR},{AUD_Date},{AUD_RowId})
+ 		    s PAPMINo=$p($g(^AUD(AUDRowId)),"^",10)
+		    s GrpID=$p($g(^AUD(AUDRowId)),"^",11)
+		    i GrpID'="" s Group=$p($g(^SSU("SSGRP",GrpID)),"^",1)
+		    s UserID=$p($g(^AUD(AUDRowId)),"^",7)
+		    i UserID'="" s User=$p($g(^SSU("SSUSR",UserID)),"^",2)
+		    i PAPMINo'=""
+ */
+
+	s PAPMIRowId=""
+	f {
+		s PAPMIRowId=$o(^AUD(0,"PAPMI",PAPMIRowId)) q:PAPMIRowId=""
+
+		s Date=DateFrom-1
+		f {
+		s Date=$o(^AUD(0,"PAPMI",PAPMIRowId,Date)) q:Date=""
+    	q:Date>DateTo
+ 			s AUDRowId=""
+ 			f {
+		    s AUDRowId=$o(^AUD(0,"PAPMI",PAPMIRowId,Date,AUDRowId)) q:AUDRowId=""
+		    d GetData
+		    
+			 }
+		 }
+	 }
+ 
+ Set QHandle=$lb(0,repid,0)
+
+ Quit $$$OK
+
+ // build the row
+BuildRow
+ i EpType="I" Set ^CacheTemp("TRAK",repid,$ZCVT(PAPMINo,"U")_" "_$ZCVT(AUDDate,"U")_ind)=$LB(PAPMIRowId,AUDTable,FLDFieldNo,PAPMINo,AUDDate,User,Group,AUDTableID,HospCode,PAADMAdmNo,TypeA,DiagEp,TypeB,InsEp,TypeC,MREp,TypeD,EpType,EpisodeNo)
+ s ind=ind+1
+
+ ; (AUD_PAPMI_dR=:URN OR :URN IS NULL)-DOES NOT WORK. NO IDEA WHY
+
+GetData
+ &sql(declare IPAUD cursor for
+ SELECT
+ AUD_PAPMI_dr, 
+ aud_table,
+ FLD_FieldNo,
+ aud_PAPMI_dR->PAPMI_NO,
+ AUD_Date,
+ aud_user_Dr->ssusr_name,
+ aud_group_dr->ssgrp_desc,
+ AUD_TableRowId,
+ AUD_LogonLocation_dr->CTLOC_Hospital_Dr->HOSP_Code
+ FROM SQLUSER.ss_audittrail, SQLUSER.ss_audittrailfields
+ WHERE 
+ AUD_LogonLocation_dr->CTLOC_Hospital_Dr->HOSP_RowId=:Hospital
+ AND AUD_RowId=:AUDRowId
+ AND AUD_ROWID=FLD_PARREF
+ and fld_oldvalue is not null  
+ and fld_value is not null 
+ and aud_action='U'
+ and aud_table in ('PA_AdmInsurance', 'PA_Adm', 'MR_Adm')
+ and fld_fieldno in (
+'PAADM_AdmDocCodeDR',
+'PAADM_DepCode_DR', 
+'PAADM_AdmDate',
+'PAADM_AdmTime',
+'PAADM_DischgDate',
+'PAADM_DischgTime',
+'PAADM_AdmSrc_DR',
+'PAADM_InPatAdmType_DR',
+'MRADM_CareType_DR',
+'INS_InsType_DR',
+'INS_AuxInsType_DR',
+'PAADM_AdmCateg_DR',
+'PAADM_QualifStatus_DR',
+'PAADM_DaysCarriedForward',
+'MRADM_TransDest2_DR',
+'MRADM_DischType_DR',
+'PAADM_ReasonDelDisch_DR',
+'MRADM_MentHealthStat_Dr',
+'PAADM_FundingArrangement_DR',
+'MRADM_ACAS_DR',
+'MRADM_IntentReadmit_DR',
+'MRADM_TransfDest_DR',
+'MRADM_CarerAvail_DR',
+'PAADM_AdmReason_Dr'
+) AND
+(AUD_PAPMI_dR->papmi_no=:URN OR :URN IS NULL)
+ )
+ 
+ &sql(open IPAUD)
+
+ //fetch first row
+ &sql(fetch IPAUD into :PAPMIRowId,:AUDTable,:FLDFieldNo,:PAPMINo,:AUDDate,:User,:Group,:AUDTableID,:HospCode)
+
+ while 'SQLCODE{
+	 
+ do FormatDates
+ do GetEpisodeNo
+ do GetInsEp
+ do GetMREp
+ s EpType=""
+ i ((TypeA="I")||(TypeC="I")||(TypeD="I")) {s EpType="I"}
+ s EpisodeNo=PAADMAdmNo_""_InsEp_""_MREp
+ 
+ i FLDFieldNo="PAADM_AdmDate" s FLDFieldNo="Admission Date"
+ i FLDFieldNo="PAADM_AdmTime" s FLDFieldNo="Admission Type"
+ i FLDFieldNo="PAADM_DischgDate" s FLDFieldNo="Separation Date"
+ i FLDFieldNo="PAADM_DischgTime" s FLDFieldNo="Separation Time"
+ i FLDFieldNo="PAADM_AdmSrc_DR" s FLDFieldNo="Admission Source"
+ i FLDFieldNo="PAADM_InPatAdmType_DR" s FLDFieldNo="Admission Type"
+ i FLDFieldNo="MRADM_CareType_DR" s FLDFieldNo="Care Type"
+ ;i FLDFieldNo="PAADM2_FreeText1" s FLDFieldNo="Mothers UR No"
+ i FLDFieldNo="INS_InsType_DR" s FLDFieldNo="Payor"
+ i FLDFieldNo="INS_AuxInsType_DR" s FLDFieldNo="Plan"
+ i FLDFieldNo="PAADM_AdmCateg_DR" s FLDFieldNo="Planned Length of Stay"
+ i FLDFieldNo="PAADM_QualifStatus_DR" s FLDFieldNo="Qualification Status"
+ i FLDFieldNo="PAADM_DaysCarriedForward" s FLDFieldNo="Recent hospitalisation"
+ i FLDFieldNo="MRADM_TransDest2_DR" s FLDFieldNo="Transfer Hospital"
+ i FLDFieldNo="MRADM_DischType_DR" s FLDFieldNo="Separation Mode"
+ i FLDFieldNo="PAADM_ReasonDelDisch_DR" s FLDFieldNo="Delay in Separation "
+ i FLDFieldNo="MRADM_MentHealthStat_Dr" s FLDFieldNo="Mental Health Legal Status"
+ i FLDFieldNo="PAADM_FundingArrangement_DR" s FLDFieldNo="Funding Arrangement"
+ i FLDFieldNo="MRADM_ACAS_DR" s FLDFieldNo="ACAS Status"
+ i FLDFieldNo="MRADM_IntentReadmit_DR" s FLDFieldNo="Intention to Readmit"
+ i FLDFieldNo="MRADM_TransfDest_DR" s FLDFieldNo="Transfer Destination"
+ i FLDFieldNo="MRADM_CarerAvail_DR" s FLDFieldNo="Carer Availability"
+ ;i FLDFieldNo="SEPREF_SepRef_DR" s FLDFieldNo="Separation Referral"
+ i FLDFieldNo="PAADM_AdmReason_Dr" s FLDFieldNo="Admission Criteria"
+ i FLDFieldNo="PAADM_AdmDocCodeDR" s FLDFieldNo="Doctor"
+ i FLDFieldNo="PAADM_DepCode_DR" s FLDFieldNo="Specialty"
+ do BuildRow
+	 
+
+ //fetch rows
+ &sql(fetch IPAUD into :PAPMIRowId,:AUDTable,:FLDFieldNo,:PAPMINo,:AUDDate,:User,:Group,:AUDTableID,:HospCode)
+ }
+
+ &sql(close IPAUD)
+ q
+
+FormatDates
+ // Convert the dates to ODBC date format
+ If AUDDate Set AUDDate=..ConvertDateToODBC(AUDDate)
+ Quit
+ 
+GetEpisodeNo
+  s (PAADMAdmNo,TypeA)=""
+ &sql(SELECT
+ PAADM_AdmNo,
+ PAADM_Type
+ INTO :PAADMAdmNo,:TypeA
+ FROM SQLUser.PA_Adm
+	WHERE :AUDTable='PA_Adm' and :AUDTableID=PAADM_RowId AND PAADM_Visitstatus='D'
+	)
+ 
+ Quit
+
+
+GetInsEp
+  s (InsEp,TypeC)=""
+ &sql(SELECT
+ Ins_PARREF->PAADM_AdmNo,
+ Ins_PARREF->PAADM_Type
+ INTO :InsEp,:TypeC
+ FROM SQLUser.PA_AdmInsurance
+	WHERE :AUDTable='PA_AdmInsurance' and :AUDTableID=INS_RowId AND ins_parref->PAADM_Visitstatus='D'
+	)
+ 
+ Quit
+
+GetMREp
+  s (MREp,TypeD)=""
+ &sql(SELECT
+ MRADM_ADM_DR->PAADM_AdmNo,
+ MRADM_ADM_dR->PAADM_Type
+ INTO :MREp,:TypeD
+ FROM SQLUser.MR_Adm
+	WHERE :AUDTable='MR_Adm' and :AUDTableID=MRADM_RowId AND mradm_adm_Dr->PAADM_Visitstatus='D'
+	)
+ 
+ Quit
+]]></Implementation>
+</Method>
+
+<Method name="GetRecordsFetch">
+<Description>
+This is the Fetch component of the %Library.Query. 
+This should never have to change. It is designed to fetch the row for each subscript of the ^CacheTemp
+global and return this row to the Crystal Report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,&Row:%Library.List,&AtEnd:%Library.Integer=0]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // This fetch method should never have to change. 
+
+ New repid,ind
+
+ // Restore QHandle
+ Set AtEnd=$li(QHandle,1)
+ Set repid=$li(QHandle,2)
+ Set ind=$li(QHandle,3)
+
+ Set ind=$o(^CacheTemp("TRAK",repid,ind))
+ If ind="" {	// if there are no more rows, finish fetching
+ Set AtEnd=1
+ Set Row=""
+ }
+ Else      {	// fetch row
+ Set Row=^CacheTemp("TRAK",repid,ind)
+ }
+
+ // Save QHandle
+ s QHandle=$lb(AtEnd,repid,ind)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Query name="GetRecords">
+<Type>%Library.Query</Type>
+<FormalSpec>DateFrom:%Date,DateTo:%Date,Hospital:%String,URN:%String</FormalSpec>
+<SqlProc>1</SqlProc>
+<Parameter name="CONTAINID" value="0"/>
+<Parameter name="ROWSPEC" value="PAPMIRowId:%String,AUDTable:%String,FLDFieldNo:%String,PAPMINo:%String,AUDDate:%Date,User:%String,Group:%String,AUDTableID:%String,HospCode:%String,PAADMAdmNo:%String,TypeA:%String,DiagEp:%String,TypeB:%String,InsEp:%String,TypeC:%String,MREp:%String,TypeD:%String,EpType:%String,EpisodeNo:%String"/>
+</Query>
+</Class>
+</Export>

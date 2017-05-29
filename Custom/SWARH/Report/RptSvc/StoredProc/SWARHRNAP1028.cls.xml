@@ -1,0 +1,360 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.SWARH.Report.RptSvc.StoredProc.SWARHRNAP1028">
+<Description><![CDATA[
+<pre>
+**************************************************************************************************************************************
+* Report Code: SWARHRNAP1028
+* Report Description: Returns KPI data (based on days between Refferal Received and First Appointment booked dates).
+* Menu Caption: Appointment Wait KPI
+* Initial release: 19/11/2015 Developer: Michael Welsh
+* Modified: 08/09/2016 - Developer: Ross Gladman
+*     Changed logic to obtain first booked appointment by completion date/time and not from the lowest row id
+**************************************************************************************************************************************
+</pre>]]></Description>
+<ProcedureBlock>0</ProcedureBlock>
+<Super>Custom.SWARH.Report.RptSvc.StoredProc.Abstract</Super>
+<TimeCreated>60905,54849</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/SWARH/Report/RptSvc/StoredProc/SWARHRNAP1028.xml#1 $</Default>
+</Parameter>
+
+<Method name="SWARHRNAP1028Execute">
+<Description>
+This is the Execute section for the %Library.Query. 
+All of the logic will be performed here.
+A new node for the ^CacheTemp global will be created and each subscript of this global will contain ***, KPITarget As %Integer
+a row for the report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,Hospital:%Integer,DateFrom:%Date,DateTo:%Date,Specialty:%String,Program:%String,Appointment:%String,KPITarget:%Integer]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ New repid,ind
+
+ // Use $Increment to get the next node
+ Set repid=$INCREMENT(^CacheTemp(..#CACHETEMPSUBSCRIPT))
+ 
+ New PAADMRowID,PAADMAdmNo,PAADMPAPERDR,PAADMPAADM2DR,PAADMDepCodeDR,PAADM2NFMICategDepartDR,PAADMAdmDocCodeDR
+ 	,CTLOCDesc,DEPDesc,CTPCPDesc,PAPMIName,PAPMIName2,PAPMIName3,PAPERStName,CTCITDesc,PAPERTelH,PAADMRefDate
+ 	,PAPMINo,PAADMAdmDate,PAADMDischgDate,TargetAchieved,CTLOCCode,DEPCode,WLPDesc,WLPCode,WLPRowID,WhereClause
+ 	,TargetAchievedDesc,RESCTLOCDR,AppointmentSpecialty
+ Set (PAADMRowID,PAADMAdmNo,PAADMPAPERDR,PAADMPAADM2DR,PAADMDepCodeDR,PAADM2NFMICategDepartDR,PAADMAdmDocCodeDR
+ 	,CTLOCDesc,DEPDesc,CTPCPDesc,PAPMIName,PAPMIName2,PAPMIName3,PAPERStName,CTCITDesc,PAPERTelH,PAADMRefDate
+ 	,PAPMINo,PAADMAdmDate,PAADMDischgDate,TargetAchieved,CTLOCCode,DEPCode,WLPDesc,WLPCode,WLPRowID,WhereClause
+ 	,TargetAchievedDesc,RESCTLOCDR,AppointmentSpecialty) = ""
+ 
+ Set ind=1, END=0
+
+ //Start Monitor (if configured to capture stats)
+ Set mon=..MonitorBegin()
+
+ //Convert ODBC dates to cache format
+ Set DateFrom=..ConvertDateToCache(DateFrom)
+ Set DateTo=..ConvertDateToCache(DateTo)
+ 
+ &SQL(DECLARE SWARHRNAP1028 CURSOR FOR
+ 	SELECT
+		 PAADM_RowID
+		,PAADM_ADMNo
+		,PAADM_PAPMI_DR
+		,PAADM_PAAdm2_DR
+		,PAADM_DepCode_DR
+		,PAADM_PAAdm2_DR->PAADM2_NFMICategDepart_DR
+		,PAADM_AdmDocCodeDR
+		,PAADM_DepCode_DR->CTLOC_Desc
+		,PAADM_PAAdm2_DR->PAADM2_NFMICategDepart_DR->DEP_Desc
+		,PAADM_AdmDocCodeDR->CTPCP_Desc
+		,PAADM_PAPMI_DR->PAPMI_Name
+		,PAADM_PAPMI_DR->PAPMI_Name2
+		,PAADM_PAPMI_DR->PAPMI_Name3
+		,PAADM_PAPMI_DR->PAPMI_PAPER_DR->PAPER_StName
+		,PAADM_PAPMI_DR->PAPMI_PAPER_DR->PAPER_CityCode_DR->CTCIT_Desc
+		,PAADM_PAPMI_DR->PAPMI_PAPER_DR->PAPER_TelH
+		,PAADM_RefDate
+		,PAADM_PAPMI_DR->PAPMI_No
+		,PAADM_AdmDate
+		,PAADM_DischgDate
+		,PAADM_DepCode_DR->CTLOC_Code
+		,PAADM_PAAdm2_DR->PAADM2_NFMICategDepart_DR->DEP_Code
+		,PAADM_WaitList_DR->WL_WaitListPrior_DR->WLP_Desc
+		,PAADM_WaitList_DR->WL_WaitListPrior_DR->WLP_Code
+		,PAADM_WaitList_DR->WL_WaitListPrior_DR->WLP_RowID
+		,APPT_AS_ParRef->AS_RES_ParRef->RES_CTLOC_DR
+		,APPT_AS_ParRef->AS_RES_ParRef->RES_CTLOC_DR->CTLOC_Desc AS AppointmentSpecialty
+	FROM (
+		SELECT
+			 adm.*
+			,app.*
+			,CASE WHEN MIN(app.APPT_DateComp||app.APPT_TimeComp||app.APPT_RowID %FOREACH(app.APPT_Adm_DR))=app.MinIdentifier THEN 'Y' END As FirstAppt
+		FROM
+			SQLUser.PA_Adm adm
+        INNER JOIN (
+			SELECT
+				 *
+				,APPT_DateComp||APPT_TimeComp||APPT_RowID AS MinIdentifier
+			FROM
+				SQLUser.RB_Appointment
+			) AS app ON (app.APPT_Adm_DR = adm.PAADM_RowID)
+		WHERE
+				(adm.PAADM_Hospital_DR = :Hospital)
+			AND (adm.PAADM_DateReceived BETWEEN :DateFrom AND :DateTo)
+			AND (adm.PAADM_Type = 'O') -- Outpatient
+			AND (adm.PAADM_VisitStatus <> 'C')
+			AND (({fn CONCAT( ',', {fn CONCAT((:Specialty),',')})} [ {fn CONCAT( ',', {fn CONCAT((adm.PAADM_DepCode_DR->CTLOC_RowID),',')})}) OR (:Specialty IS NULL))  -- Multiple Specialties
+			AND (({fn CONCAT( ',', {fn CONCAT((:Program),',')})} [ {fn CONCAT( ',', {fn CONCAT((adm.PAADM_PAADM2_DR->PAADM2_NFMICategDepart_DR->DEP_RowID),',')})}) OR (:Program IS NULL)) -- Multiple Programs --
+			AND (({fn CONCAT( ',', {fn CONCAT((:Appointment),',')})} [ {fn CONCAT( ',', {fn CONCAT((app.APPT_AS_ParRef->AS_RES_ParRef->RES_CTLOC_DR),',')})}) OR (:Appointment IS NULL)) -- Apointment Specialties --
+		)
+	WHERE FirstAppt IS NOT NULL
+ )
+ 
+ // -- Pre 08/09/2016 version --
+ //&SQL(DECLARE SWARHRNAP1028 CURSOR FOR
+ //SELECT
+ //		 adm.PAADM_RowID
+ //		,adm.PAADM_ADMNo
+ //		,adm.PAADM_PAPMI_DR
+ //		,adm.PAADM_PAAdm2_DR
+ //		,adm.PAADM_DepCode_DR
+ //		,adm.PAADM_PAAdm2_DR->PAADM2_NFMICategDepart_DR
+ //		,adm.PAADM_AdmDocCodeDR
+ //		,adm.PAADM_DepCode_DR->CTLOC_Desc
+ //		,adm.PAADM_PAAdm2_DR->PAADM2_NFMICategDepart_DR->DEP_Desc
+ //		,adm.PAADM_AdmDocCodeDR->CTPCP_Desc
+ //		,adm.PAADM_PAPMI_DR->PAPMI_Name
+ //		,adm.PAADM_PAPMI_DR->PAPMI_Name2
+ //		,adm.PAADM_PAPMI_DR->PAPMI_Name3
+ //		,adm.PAADM_PAPMI_DR->PAPMI_PAPER_DR->PAPER_StName
+ //		,adm.PAADM_PAPMI_DR->PAPMI_PAPER_DR->PAPER_CityCode_DR->CTCIT_Desc
+ //		,adm.PAADM_PAPMI_DR->PAPMI_PAPER_DR->PAPER_TelH
+ //		,adm.PAADM_RefDate
+ //		,adm.PAADM_PAPMI_DR->PAPMI_No
+ //		,adm.PAADM_AdmDate
+ //		,adm.PAADM_DischgDate
+ //		,adm.PAADM_DepCode_DR->CTLOC_Code
+ //		,adm.PAADM_PAAdm2_DR->PAADM2_NFMICategDepart_DR->DEP_Code
+ //		,adm.PAADM_WaitList_DR->WL_WaitListPrior_DR->WLP_Desc
+ //		,adm.PAADM_WaitList_DR->WL_WaitListPrior_DR->WLP_Code
+ //		,adm.PAADM_WaitList_DR->WL_WaitListPrior_DR->WLP_RowID
+ //		,app.APPT_AS_ParRef->AS_RES_ParRef->RES_CTLOC_DR
+ //		,app.APPT_AS_ParRef->AS_RES_ParRef->RES_CTLOC_DR->CTLOC_Desc AS AppointmentSpecialty/
+ //	FROM
+ //		SQLUser.PA_Adm adm, SQLUser.RB_Appointment app
+ //	WHERE
+ //			(app.APPT_Adm_DR = adm.PAADM_RowID)
+ //		AND --Returns first appointment booked
+ //			app.APPT_AS_ParRef = (SELECT TOP 1 x.APPT_AS_ParRef FROM SQLUser.RB_Appointment AS x WHERE x.APPT_Adm_DR = adm.PAADM_RowID ORDER BY x.APPT_TransDate||' '||x.APPT_TransTime)
+ //		AND
+ //			(adm.PAADM_Hospital_DR = :Hospital)
+ //		AND
+ //			(adm.PAADM_DateReceived BETWEEN :DateFrom AND :DateTo)
+ //		AND
+ //			(adm.PAADM_Type = 'O') -- Outpatient
+ //		AND
+ //			(adm.PAADM_VisitStatus <> 'C')
+ //		AND     
+ //			(({fn CONCAT( ',', {fn CONCAT((:Specialty),',')})} [ {fn CONCAT( ',', {fn CONCAT((adm.PAADM_DepCode_DR->CTLOC_RowID),',')})}) OR (:Specialty IS NULL))  -- Multiple Specialties
+ //		AND     
+ //			(({fn CONCAT( ',', {fn CONCAT((:Program),',')})} [ {fn CONCAT( ',', {fn CONCAT((adm.PAADM_PAADM2_DR->PAADM2_NFMICategDepart_DR->DEP_RowID),',')})}) OR (:Program IS NULL)) -- Multiple Programs --
+ //		AND
+ //			(({fn CONCAT( ',', {fn CONCAT((:Appointment),',')})} [ {fn CONCAT( ',', {fn CONCAT((app.APPT_AS_ParRef->AS_RES_ParRef->RES_CTLOC_DR),',')})}) OR (:Appointment IS NULL)) -- Apointment Specialties --
+ //)
+  
+ &SQL(OPEN SWARHRNAP1028)
+ 
+ //FETCH FIRST ROW
+ Do FetchRow
+  
+ While END=0 {
+	 
+	 do GetCustomKPIFromDate
+	 if ((CustomKPIFromDate>=DateFrom) && (CustomKPIFromDate<=DateTo))
+		{
+			do GetCustomKPIToDate
+			do GetKPITargets
+			do FormatDates			
+		}		
+	Set sort = ind	
+	
+	Set ^CacheTemp(..#CACHETEMPSUBSCRIPT,repid,sort)=$LISTBUILD(PAADMRowID,PAADMAdmNo,PAPMIPAPERDR,PAADMPAADM2DR,PAADMDepCodeDR
+ 	,PAADM2NFMICategDepartDR,PAADMAdmDocCodeDR,CTLOCDesc,DEPDesc,CTPCPDesc,PAPMIName,PAPMIName2,PAPMIName3,PAPERStName
+ 	,CTCITDesc,PAPERTelH,PAADMRefDate,PAPMINo,CustomKPIFromDate,CustomKPIToDate,CustomKPIDays,TargetAchieved,CTLOCCode
+ 	,DEPCode,WLPDesc,WLPCode,WLPRowID,RESCTLOCDR,AppointmentSpecialty,TargetAchievedDesc,KPITargetForContact)
+	 
+	 Set ind=ind+1
+ 	 
+	 //fetch rows
+	 Do FetchRow
+}
+
+ &SQL(CLOSE SWARHRNAP1028)
+ 	 	
+ // Build QHandle (AtEnd,ReportID,Index)
+ Set QHandle=$listbuild(0,repid,0)
+
+ Quit $$$OK
+ 
+FetchRow
+ &sql(FETCH SWARHRNAP1028 INTO :PAADMRowID,:PAADMAdmNo,:PAADMPAPERDR,:PAADMPAADM2DR,:PAADMDepCodeDR,:PAADM2NFMICategDepartDR
+ 	,:PAADMAdmDocCodeDR,:CTLOCDesc,:DEPDesc,:CTPCPDesc,:PAPMIName,:PAPMIName2,:PAPMIName3,:PAPERStName,:CTCITDesc,:PAPERTelH
+ 	,:PAADMRefDate,:PAPMINo,:PAADMAdmDate,:PAADMDischgDate,:CTLOCCode,:DEPCode,:WLPDesc,:WLPCode,:WLPRowID,:RESCTLOCDR,:AppointmentSpecialty)
+ 	
+ If SQLCODE '= 0 Set END = 1
+ Quit
+
+FormatDates
+ Set CustomKPIFromDate=..ConvertDateToODBC(CustomKPIFromDate)
+ Set CustomKPIToDate=..ConvertDateToODBC(CustomKPIToDate)
+ q
+ 
+GetCustomKPIFromDate
+ Set CustomKPIFromDate = ..GetReferralRecievedDate(PAADMRowID)
+ q
+ 
+GetCustomKPIToDate	 
+ Set CustomKPIToDate = ..GetFirstAppointmentBookedDate(PAADMRowID)
+ q
+ 
+GetKPITargets
+ if CustomKPIFromDate=""
+ {
+	Set CustomKPIEffectiveFromDate=DateFrom
+ }
+ else
+ {
+	Set CustomKPIEffectiveFromDate=CustomKPIFromDate
+ }
+ if CustomKPIToDate=""
+ {
+	Set CustomKPIEffectiveToDate=DateTo	 
+ }
+ else
+ {
+	Set CustomKPIEffectiveToDate=CustomKPIToDate
+ }
+
+ Set CustomKPIDays = ..GetWorkingDays(CustomKPIEffectiveFromDate,CustomKPIEffectiveToDate)
+ if CustomKPIDays=0 {Set CustomKPIDays=1}
+ 
+ 
+ s KPITargetForContact = $CASE(WLPCode,
+ 					"01":$P(KPITarget,"|",1),
+ 					"02":$P(KPITarget,"|",2),
+ 					"03":$P(KPITarget,"|",3),
+ 					:0)
+ 
+ if (KPITargetForContact>0){
+	 Set KPITargetLow=KPITargetForContact-(KPITargetForContact*.05)
+	 Set KPITargetHigh=KPITargetForContact+(KPITargetForContact*.05)
+	 
+	 if (CustomKPIDays >= KPITargetLow)&&(CustomKPIDays <= KPITargetHigh) {
+		 Set TargetAchieved = 1
+		 Set TargetAchievedDesc = "Yes"
+	 } else {
+		 if CustomKPIDays < KPITargetLow {
+			 Set TargetAchieved = 1
+			 Set TargetAchievedDesc = "Under"
+		 } else {
+		 	Set TargetAchieved = 0
+		 	Set TargetAchievedDesc = "Over"
+		 }
+	 }
+ }
+ else
+ {
+	Set TargetAchieved = -1
+	Set TargetAchievedDesc = "N/A"
+ }
+ q
+ 
+FormatTimes
+ q
+ 
+FormatAddress
+ q
+]]></Implementation>
+</Method>
+
+<Method name="SWARHRNAP1028Fetch">
+<Description>
+This is the Fetch component of the %Library.Query. 
+This should never have to change. It is designed to fetch the row for each subscript of the ^CacheTemp
+global and return this row to the Crystal Report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,&Row:%Library.List,&AtEnd:%Library.Integer=0]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // This fetch method should never have to change. 
+ // repid - Report ID
+ // ind   - sequence index which represents each row
+
+ New repid,ind
+
+ // Restore QHandle
+ Set AtEnd=$LIST(QHandle,1)
+ Set repid=$LIST(QHandle,2)
+ Set ind=$LIST(QHandle,3)
+
+ Set ind=$ORDER(^CacheTemp(..#CACHETEMPSUBSCRIPT,repid,ind))
+ If ind="" {	// if there are no more rows, finish fetching
+	 Set AtEnd=1
+	 Set Row=""
+ }
+ Else      {	// fetch row
+ 	Set Row=^CacheTemp(..#CACHETEMPSUBSCRIPT,repid,ind)
+ }
+
+ // Save QHandle
+ Set QHandle=$LISTBUILD(AtEnd,repid,ind)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="SWARHRNAP1028Close">
+<Description>
+This is the Close component of the %Library.Query.
+This is standard code and should never have to change.
+This is where all the cleanup is performed, i.e. the purging of the temporary storage global ^CacheTemp.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>QHandle:%Library.Binary</FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Clean up by purging the temporary node in ^CacheTemp global
+ New repid,ind
+ Set repid=$LIST(QHandle,2)
+
+ Kill ^CacheTemp(..#CACHETEMPSUBSCRIPT,repid)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Query name="SWARHRNAP1028">
+<Type>%Library.Query</Type>
+<FormalSpec>Hospital:%Integer,DateFrom:%Date,DateTo:%Date,Specialty:%String,Program:%String,Appointment:%String,KPITarget:%Integer</FormalSpec>
+<SqlProc>1</SqlProc>
+<Parameter name="CONTAINID" value="0"/>
+<Parameter name="ROWSPEC" value="PAADMRowID:%String,PAADMAdmNo:%String,PAADMPAPERDR:%String,PAADMPAADM2DR:%String,PAADMDepCodeDR:%String,PAADM2NFMICategDepartDR:%String,PAADMAdmDocCodeDR:%String,CTLOCDesc:%String,DEPDesc:%String,CTPCPDesc:%String,PAPMIName:%String,PAPMIName2:%String,PAPMIName3:%String,PAPERStName:%String,CTCITDesc:%String,PAPERTelH:%String,PAADMRefDate:%String,PAPMINo:%String,CustomFromDate:%String,CustomToDate:%String,CustomKPIDays:%Integer,TargetAchieved:%Integer,CTLOCCode:%String,DEPCode:%String,WLPDesc:%String,WLPCode:%String,WLPRowID:%Integer,RESCTLOCDR:%String,AppointmentSpecialty:%String,TargetAchievedDesc:%String,KPITargetForContact:%Integer"/>
+<Parameter name="SELECTMODE" value="ODBC"/>
+</Query>
+
+<Method name="GetWorkingDays">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>DateFrom:%Date,DateTo:%Date</FormalSpec>
+<ReturnType>%Integer</ReturnType>
+<Implementation><![CDATA[
+	Set EffDate=0
+	Set WorkingDays=0
+	f EffDate=DateFrom:1:DateTo
+	{
+		if ($zd(EffDate,10)>0) && ($zd(EffDate,10)<6)
+		{
+			Set WorkingDays=WorkingDays+1	
+		}
+	}
+	quit WorkingDays
+]]></Implementation>
+</Method>
+</Class>
+</Export>

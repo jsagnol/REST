@@ -1,0 +1,89 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.SWARH.Utils">
+<ClassType/>
+<ProcedureBlock>0</ProcedureBlock>
+<Super>%RegisteredObject</Super>
+<TimeCreated>63311,66456.416092</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/SWARH/Utils.xml#1 $</Default>
+</Parameter>
+
+<UDLText name="T">
+<Content><![CDATA[
+// PH - Generic Emailing method
+
+]]></Content>
+</UDLText>
+
+<Method name="SendEmail">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>FromAddress:%String,Address:%String,SubjectText:%String,MessageText:%String,MailServer:%String,CCAddress:%String=""</FormalSpec>
+<Implementation><![CDATA[
+    // Create an SMTP object and connect to a server
+    Set Mailer = ##class(%Net.SMTP).%New()
+
+    // Fill in the name of your mail server
+    Set Mailer.smtpserver = MailServer
+    
+    // Create a Message object and fill in From, To, Subject
+    Set Msg = ##class(%Net.MailMessage).%New()
+    Set Msg.From=FromAddress
+    Do Msg.To.Insert(Address)
+    If CCAddress'="" Do Msg.Cc.Insert(CCAddress)
+    Set Msg.Subject = SubjectText
+
+    // Add message content
+    Do Msg.TextData.Write(MessageText)
+    // Send the message and close objects
+    Do Mailer.Send(Msg)
+    Quit
+]]></Implementation>
+</Method>
+
+<Method name="SetLetterType">
+<ClassMethod>1</ClassMethod>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	i $g(%session.Data("LOGON.HOSPDESC"))["South West Healthcare" {
+	;i HospDesc [ "South West Healthcare" {
+		s LetterType="SWOPAPP"
+	}else{
+		s LetterType="AUOPAPP"	
+	}
+	q LetterType
+]]></Implementation>
+</Method>
+
+<UDLText name="T">
+<Content><![CDATA[
+// MW - Get Hospital's extract/report path, requires HOSP_RowID and extract/report folder 
+
+]]></Content>
+</UDLText>
+
+<Method name="GetExtractPath">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>HospRowID:%String,Folder:%String</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	s (HospCode,FilePath) = ""
+	
+	i HospRowID s HospCode=$p($g(^CT("HOSP",+HospRowID)),"^")
+	
+	i HospCode s FilePath = HospCode_"\"_Folder_"\"
+	
+	s (unixpath,winpath,errormsg)=""
+	&SQL(SELECT PATH_Path,PATH_UNIXPath INTO :winpath,:unixpath FROM SQLUser.CF_SystemFilePath WHERE %ALPHAUP(PATH_ParRef->FILE_Desc)=%ALPHAUP('TrakExtracts'))
+	i $e(unixpath,$l(unixpath))'="/",$g(unixpath)'="" s unixpath=unixpath_"/"
+	i $e(winpath,$l(winpath))'="\",$g(winpath)'="" s winpath=winpath_"\",winpath = winpath_FilePath
+	i unixpath="",winpath="" s errormsg="No filepath defined for TrakExtracts extract."
+	
+	q unixpath_"^"_winpath_"^"_errormsg
+]]></Implementation>
+</Method>
+</Class>
+</Export>

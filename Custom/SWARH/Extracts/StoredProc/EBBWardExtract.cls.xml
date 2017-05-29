@@ -1,0 +1,211 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.SWARH.Extracts.StoredProc.EBBWardExtract">
+<ProcedureBlock>0</ProcedureBlock>
+<Super>Custom.SWARH.Extracts.StoredProc.Abstract</Super>
+<TimeCreated>62539,38662.008825</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/SWARH/Extracts/StoredProc/EBBWardExtract.xml#1 $</Default>
+</Parameter>
+
+<UDLText name="T">
+<Content><![CDATA[
+/*
+ * Report Name: <SWARHReportName> <br>
+ * Report Code: SWARH.R.<SWARHReportCode> <br>
+ * SWARH Developer: your name <br>
+ */
+]]></Content>
+</UDLText>
+
+<Method name="EBBWardExtractQueryClose">
+<Description>
+This is the Close component of the %Library.Query.
+This is standard code and should never have to change.
+This is where all the cleanup is performed, i.e. the purging of the temporary storage global ^CacheTemp.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>QHandle:%Library.Binary</FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Clean up by purging the temporary node in ^CacheTemp global
+ New repid,ind
+ Set repid=$li(QHandle,2)
+
+ //Start Monitor (if configured to capture stats)
+ i mon Do ..MonitorEnd(mon)
+
+ Kill ^CacheTemp("TRAK",repid)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="EBBWardExtractQueryExecute">
+<Description>
+This is the Execute section for the %Library.Query. 
+All of the logic will be performed here.
+A new node for the ^CacheTemp global will be created and each subscript of this global will contain
+a row for the report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,HospitalID:%Library.Integer]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Get reportid i.e. use $INCREMENT to add another node to ^CacheTemp global. 
+ // We use ^CacheTemp global because it will always use memory before disk
+ New repid,ind
+
+  // Use $Increment to get the next node
+ Set repid=$I(^CacheTemp("TRAK"))
+ 
+ /* TEMPLATE MODIFY: Define and initialise appropriate column variables to describe output rowset columns */
+ New WARDRowID,HOSPRowId,WARDCode,WARDDesc,WARDNumBeds,WARDActive
+ Set (HOSPRowId,WARDNumBeds)=0
+ Set (WARDCode,WARDDesc,WARDActive)=""
+
+ s ind=1, END=0
+
+ //Start Monitor (if configured to capture stats)
+ s mon=..MonitorBegin()
+ 
+ /* TEMPLATE MODIFY: Clean up parameter variables - $zstrip(<variable>,"*CW") strips all control characters and whitespace, "<>W" just strips leading/trailing whitespace
+  * NOTE: DO NOT DO "*W" ZSTRIP FROM DATES AS IT REMOVES THE WHITESPACE BETWEEN THE DATE AND TIME AND THIS BREAKS THE QUERY! */
+ 
+ //Convert ODBC dates to cache format
+ //s DateFrom=..ConvertDateToCache(DateFrom)
+ //s DateTo=..ConvertDateToCache(DateTo)
+ 
+ /*
+  * TEMPLATE MODIFY:
+  *		1. Change name of cursor to something more descriptive than MyReportCursor (need to change in 4 places; here, 2x "fetch" expressions and close expression below)
+  *		2. Change SQL query to query desired data, passing valid parameters as defined in Query and Execute method arguments.
+  *		3. Pass appropriate parameters using :<ParameterVariableName> - eg. :Hospital
+  */
+ &SQL(DECLARE MyReportCursor CURSOR FOR 
+SELECT 
+WARD_RowID,
+WARD_LocationDR->CTLOC_Hospital_DR,
+WARD_Code, 
+WARD_Desc,
+WARD_Active
+FROM SQLUser.PAC_Ward
+WHERE WARD_LocationDR->CTLOC_Hospital_DR=:HospitalID
+AND WARD_Active='Y'
+AND WARD_LocationDR->CTLOC_DateActiveTo is null
+AND WARD_Code<>'ED'
+AND WARD_Code <> 'SYMB'
+ )
+ &SQL(OPEN MyReportCursor)
+ 
+ //FETCH FIRST ROW
+ d FetchRow
+  
+ while END=0 {
+  	 
+  	 s WARDNumBeds=$$GetBedCountForWard(WARDRowID)
+  	 
+	 /* TEMPLATE MODIFY: Build the sort string here from column variables. Convert strings to uppercase ($ZCVT(<field>,"U") and separate with spaces */
+	 s sort = ind		// don't sort - uncomment this line if you've sorted in the query
+	 //s sort = $ZCVT(HOSPDesc,"U")_" "_$ZCVT(WARDDesc,"U")_" "_$ZCVT(ROOMCode,"U")_" "_$ZCVT(BEDCode,"U")_" "_$ZCVT(CTRLGDesc,"U")_" "_$ZCVT(PAPERName,"U")_" "_$ZCVT(PAPERName2,"U")_" "_$ZCVT(PAPERName3,"U")_ind
+ 
+	 /* TEMPLATE MODIFY: Build the list of fields by placing correct column variable names in the $LB() here. */
+	 s ^CacheTemp("TRAK",repid,sort)=$LB(HOSPRowId,WARDCode,WARDDesc,WARDNumBeds,WARDActive)
+	 s ind=ind+1
+ 
+	 //fetch rows
+	 d FetchRow
+ }
+
+ &SQL(CLOSE MyReportCursor)
+ 
+ // Build QHandle (AtEnd,ReportID,Index)
+ Set QHandle=$lb(0,repid,0)
+
+ Quit $$$OK
+
+FetchRow
+ /* TEMPLATE MODIFY: Rename cursor to something moreChange fetch INTO parameter list to match column variable names */
+ &sql(FETCH MyReportCursor INTO :WARDRowID,:HOSPRowId,:WARDCode,:WARDDesc,:WARDActive)
+ if SQLCODE '= 0 set END = 1
+ q
+  
+GetBedCountForWard(WARDRowID)
+
+	Set TotalBeds = 0
+
+	// Get total bed count & bed admission count
+	Set tBedChildsub=""
+	For {
+		Set tBedChildsub = $O(^PAWARD(WARDRowID,"BED",tBedChildsub))
+		Quit:(tBedChildsub="")
+		Set tBed = ^PAWARD(WARDRowID,"BED",tBedChildsub)
+		Set tBedRcFlag = $P(tBed,"^",4) // BED_RcFlag
+		Set tBedDateFrom = $P(tBed,"^",21) // BED_DateFrom
+		Set tBedDateTo = $P(tBed,"^",22) // BED_DateTo
+
+		Continue:(tBedRcFlag'="Y")  // Skip beds not enabled
+		Continue:((tBedDateFrom>0)&&(tBedDateFrom>$H)) // Skip beds with DateFrom in future
+		Continue:((tBedDateTo>0)&&(tBedDateTo<$H)) // Skip beds with DateTo in the past
+
+		Set TotalBeds = TotalBeds + 1
+	}
+
+	Quit TotalBeds
+]]></Implementation>
+</Method>
+
+<Method name="EBBWardExtractQueryFetch">
+<Description>
+This is the Fetch component of the %Library.Query. 
+This should never have to change. It is designed to fetch the row for each subscript of the ^CacheTemp
+global and return this row to the Crystal Report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,&Row:%Library.List,&AtEnd:%Library.Integer=0]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // This fetch method should never have to change. 
+
+ // repid - Report ID
+ // ind   - sequence index which represents each row
+
+ New repid,ind
+
+ // Restore QHandle
+ Set AtEnd=$li(QHandle,1)
+ Set repid=$li(QHandle,2)
+ Set ind=$li(QHandle,3)
+
+ Set ind=$o(^CacheTemp("TRAK",repid,ind))
+ If ind="" {	// if there are no more rows, finish fetching
+	 Set AtEnd=1
+	 Set Row=""
+ }
+ Else      {	// fetch row
+ 	Set Row=^CacheTemp("TRAK",repid,ind)
+ }
+
+ // Save QHandle
+ s QHandle=$lb(AtEnd,repid,ind)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<UDLText name="T">
+<Content><![CDATA[
+/* TEMPLATE MODIFY: Rename Stored Proc query to <MyStoredProcName> 
+ * TEMPLATE MODIFY: Change parameters to match desired stored procedure parameters
+ * TEMPLATE MODIFY: Change ROWSPEC list to match desired output column names and column data types */
+]]></Content>
+</UDLText>
+
+<Query name="EBBWardExtractQuery">
+<Type>%Library.Query</Type>
+<FormalSpec>HospitalID:%Library.Integer</FormalSpec>
+<SqlProc>1</SqlProc>
+<Parameter name="CONTAINID" value="0"/>
+<Parameter name="ROWSPEC" value="HOSPRowId:%Integer,WARDCode:%String,WARDDesc:%String,WARDNumBeds:%Integer,WARDActive:%String"/>
+<Parameter name="SELECTMODE" value="ODBC"/>
+</Query>
+</Class>
+</Export>

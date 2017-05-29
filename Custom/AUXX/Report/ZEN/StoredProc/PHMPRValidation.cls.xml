@@ -1,0 +1,382 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.AUXX.Report.ZEN.StoredProc.PHMPRValidation">
+<Description>
+Report Name: PHMPR Extract Validation
+Report Code: AUXX.EXT.PHMPRV
+TRC Number: 152652</Description>
+<ProcedureBlock>0</ProcedureBlock>
+<Super>Report.Abstract</Super>
+<TimeCreated>63005,37054.33354</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/AUXX/Report/ZEN/StoredProc/PHMPRValidation.xml#1 $</Default>
+</Parameter>
+
+<Method name="ValidateClose">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>QHandle:%Library.Binary</FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Clean up by purging the temporary node in ^CacheTemp global
+ New repid
+ Set repid=$LIST(QHandle,2)
+ 
+ Kill ^CacheTemp("TRAK",repid)
+ 
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="ValidateExecute">
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,DateFrom:%String,DateTo:%String,Facility:%String,Speciality:%String,Clinician:%String,ConType:%String,ErrorType:%String]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+	// Get reportid i.e. use $INCREMENT to add another node to ^CacheTemp global. 
+ 	// We use ^CacheTemp global because it will always use memory before disk
+ 	New repid,ind
+
+ 	// Use $Increment to get the next node
+ 	Set repid=$I(^CacheTemp("TRAK"))
+ 	
+ 	//Start Monitor (if configured to capture stats)
+	s mon=..MonitorBegin()
+ 	
+ 	s DateFrom=..ConvertDateToCache(DateFrom)
+ 	s DateTo=..ConvertDateToCache(DateTo)
+ 	
+ 	s Facility=$zstrip(Facility,"*CW")
+ 	s Speciality=$zstrip(Speciality,"*CW")
+ 	s Clinician=$zstrip(Clinician,"*CW")
+ 	s ConType=$zstrip(ConType,"*CW")
+ 	s ErrorType=$zstrip(ErrorType,"*CW")
+ 	
+ 	s ind=0
+ 	f date=DateFrom:1:DateTo {
+	 	s con=0
+	 	f {
+		 	s con=$o(^PAENQi("Date",date,con))
+		 	q:con=""
+		 	s contact=##class(User.PAEnquiryContact).%OpenId(con)
+		 	i contact {
+			 	i contact.ENQHospitalDR,contact.ENQHospitalDR.%Id()=Facility {
+				 	s pass=0
+				 	i ((Speciality="")&&(Clinician="")) {
+					 	s pass=1
+				 	}
+				 	i ((Speciality'="")&&(Clinician="")) {
+					 	i contact.ENQLocationDR,(","_Speciality_",")[(","_contact.ENQLocationDR.%Id()_",") s pass=1
+				 	}
+				 	i ((Speciality="")&&(Clinician'="")) {
+					 	i contact.ENQCTCPDR,(","_Clinician_",")[(","_contact.ENQCTCPDR.%Id()_",") s pass=1
+				 	}
+				 	i ((Speciality'="")&&(Clinician'="")) {
+					 	i contact.ENQLocationDR,(","_Speciality_",")[(","_contact.ENQLocationDR.%Id()_","),contact.ENQCTCPDR,(","_Clinician_",")[(","_contact.ENQCTCPDR.%Id()_",") s pass=1
+				 	}
+				 	
+				 	i pass {
+						s typecheck=0
+						i contact.ENQGovernDepartDR.DEPParRef.NFMIGovSubCategDR.SUBCode'="" {
+							i contact.ENQGovernDepartDR.DEPParRef.NFMIGovSubCategDR.SUBCode="PHMPR" s typecheck=1
+						} else {
+							i contact.ENQInsTypeDR.INSTCode4="PH MPR" s typecheck=1
+						}
+						i typecheck {
+						 	s contype=##class(web.PAEnquiryContact).GetContactType(con)
+						 	s check="0^0^0"
+						 	i ConType="" s check="1^1^1"
+						 	i ConType'="" {
+							 	i contype=ConType,ConType="Formal" s check="1^0^0"
+							 	i contype=ConType,ConType="Casual" s check="0^1^0"
+							 	i contype=ConType,ConType="Anonymous" s check="0^1^0"
+							 	i ConType=contact.ENQRequestTypeDR.REQTYPDesc,contact.ENQRequestTypeDR.REQTYPCode="O" s check="0^0^1"
+						 	}
+						 	i $p(check,"^")=1,contact.ENQPAPERDR s ind=..DisplayType1Errors(contact,ErrorType,ind)
+						 	i $p(check,"^",2)=1 s ind=..DisplayType2Errors(contact,contype,ErrorType,ind)
+						 	i $p(check,"^",3)=1 s ind=..DisplayType2Errors(contact,contype,ErrorType,ind)
+					 	}
+				 	}
+			 	}
+		 	}
+	 	}
+ 	}
+ 		
+ 	// Build QHandle (AtEnd,ReportID,Index)
+ 	Set QHandle=$lb(0,repid,0)
+ 	Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="ValidateFetch">
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,&Row:%Library.List,&AtEnd:%Library.Integer=0]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // This fetch method should never have to change. 
+
+ New repid,ind
+
+ // Restore QHandle
+ Set AtEnd=$LI(QHandle,1)
+ Set repid=$LI(QHandle,2)
+ Set ind=$LI(QHandle,3)
+
+ Set ind=$order(^CacheTemp("TRAK",repid,ind))
+ If ind="" {	// if there are no more rows, finish fetching
+ 	Set AtEnd=1
+ 	Set Row=""
+ }  Else  {	// fetch row
+ 	Set Row=^CacheTemp("TRAK",repid,ind)
+ }
+
+ // Save QHandle
+ Set QHandle=$lb(AtEnd,repid,ind)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Query name="Validate">
+<Type>%Library.Query</Type>
+<FormalSpec>DateFrom:%String,DateTo:%String,Facility:%String,Speciality:%String,Clinician:%String,ConType:%String,ErrorType:%String</FormalSpec>
+<SqlProc>1</SqlProc>
+<Parameter name="CONTAINID" value="0"/>
+<Parameter name="ROWSPEC" value="PAENQRowId:%String,CareProv:%String,PatientNo:%String,EpisodeNo:%String,SLK:%String,Identifier:%String,ContactName:%String,ErrorWarning:%String,DisplayType:%String,Errors:%String,Warnings:%String"/>
+</Query>
+
+<Method name="DisplayType1Errors">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>contact:%CacheObject,ErrorType:%String,ind:%String</FormalSpec>
+<Implementation><![CDATA[
+	s errorwarning="",slk=""
+ 	s careprov=contact.ENQCTCPDR.CTPCPDesc
+ 	s patno=contact.ENQPAPERDR.PAPERPAPMIDR.PAPMINo
+ 	s patname=contact.ENQPAPERDR.PAPERPAPMIDR.PAPMIName_", "_contact.ENQPAPERDR.PAPERPAPMIDR.PAPMIName2_$s(contact.ENQPAPERDR.PAPERPAPMIDR.PAPMIName3'="":" "_contact.ENQPAPERDR.PAPERPAPMIDR.PAPMIName3,1:"")
+ 	s admno=contact.ENQOEOrdItemDR.OEORIOEORDParRef.OEORDAdmDR.PAADMADMNo
+ 	
+ 	s rt=0
+	f {
+		s rt=$o(^RT(0,"PAT",contact.ENQPAPERDR.%Id(),rt))
+		q:rt=""
+		s record=##class(User.RTMaster).%OpenId(rt)
+		i record {
+			i record.RTMASMRTypeDR.TYPCode="SLK" s slk=record.RTMASMRNo
+			d record.%Close()
+		}
+	}
+	s type="Registered Clients"
+
+	i ((ErrorType="")||(ErrorType="Errors")) {
+		i slk="" {
+			s errorwarning="E101 Registration Details: Site Identifiers: Statistical Linkage Key does not exist for this client"
+			s ind=$i(ind)
+			s ^CacheTemp("TRAK",repid,patno_" E101")=$LB(contact.%Id(),careprov,patno,admno,slk,"",patname,errorwarning,type,1,0)
+		}
+		i contact.ENQPAPERDR.PAPERStayingPermanently="" {
+			s errorwarning="E102 Registration Details: 'Chronic Complex Client' is a required field but has not been entered."
+			s ind=$i(ind)
+			s ^CacheTemp("TRAK",repid,patno_" E102")=$LB(contact.%Id(),careprov,patno,admno,slk,"",patname,errorwarning,type,1,0)
+		}
+		i contact.ENQPAPERDR.PAPERPAPMIDR.PAPMICHCPatient="" {
+			s errorwarning="E103 Registration Details: 'Client is Refugee' is a required field but has not been entered."
+			s ind=$i(ind)
+			s ^CacheTemp("TRAK",repid,patno_" E103")=$LB(contact.%Id(),careprov,patno,admno,slk,"",patname,errorwarning,type,1,0)
+		}
+		i (('contact.ENQPAPERDR.PAPERPAPMIDR.PAPMIPensionTypeDR)||((contact.ENQPAPERDR.PAPERPAPMIDR.PAPMIPensionTypeDR.PENSTYPECode="2")&&(contact.ENQPAPERDR.PAPERPAPMIDR.PAPMICardTypeDR.CARDCode=""))) {
+			s errorwarning="E104 Registration Details: 'DVA Card Type' is a required field but has not been entered."
+			s ind=$i(ind)
+			s ^CacheTemp("TRAK",repid,patno_" E104")=$LB(contact.%Id(),careprov,patno,admno,slk,"",patname,errorwarning,type,1,0)
+		}
+		i (('contact.ENQPAPERDR.PAPERPAPMIDR.PAPMIPensionTypeDR)||((contact.ENQPAPERDR.PAPERPAPMIDR.PAPMIPensionTypeDR.PENSTYPECode="2")&&(contact.ENQPAPERDR.PAPERPAPMIDR.PAPMIDVAnumber=""))) {
+			s errorwarning="E105 Registration Details: 'DVA Number' is required field but has not been entered."
+			s ind=$i(ind)
+			s ^CacheTemp("TRAK",repid,patno_" E105")=$LB(contact.%Id(),careprov,patno,admno,slk,"",patname,errorwarning,type,1,0)
+		}
+		i contact.ENQOEOrdItemDR.OEORIOEORDParRef.OEORDAdmDR.PAADMDateReceived="" {
+			s errorwarning="E200 Episode Details: 'Date Referral Received' is a required field but has not been entered."
+			s ind=$i(ind)
+			s ^CacheTemp("TRAK",repid,patno_" E200")=$LB(contact.%Id(),careprov,patno,admno,slk,"",patname,errorwarning,type,1,0)
+		}
+		i 'contact.ENQOEOrdItemDR.OEORIOEORDParRef.OEORDAdmDR.PAADMPAAdm2DR.PAADM2ReferralReasonDR {
+			s errorwarning="E201 Episode Details: 'Referral Reason' is a required field but has not been entered."
+			s ind=$i(ind)
+			s ^CacheTemp("TRAK",repid,patno_" E201")=$LB(contact.%Id(),careprov,patno,admno,slk,"",patname,errorwarning,type,1,0)
+		}
+		i contact.ENQOEOrdItemDR.OEORIOEORDParRef.OEORDAdmDR.PAADMReferralPriorityDR.REFPRICode="" {
+			s errorwarning="E202 Episode Details: 'Referral Priority' is a required field but has not been entered."
+			s ind=$i(ind)
+			s ^CacheTemp("TRAK",repid,patno_" E202")=$LB(contact.%Id(),careprov,patno,admno,slk,"",patname,errorwarning,type,1,0)
+		}
+		
+		i contact.ENQPAPERDR.PAPERStayingPermanently="Y" {
+			s found=0
+			s qid=0
+			f {
+				s qid=$o(^questionnaire.QAUXXPHMPRI("IndexPAPatMasID",contact.ENQPAPERDR.%Id(),qid))
+				q:qid=""
+				s ques=##class(questionnaire.QAUXXPHMPR).%OpenId(qid) 
+				i ques {
+					i ques.QUESDate<=DateTo,$s(ques.QPHMPR3="":+$h,1:ques.QPHMPR3)>=DateFrom,ques.QPHMPR5'="Y",ques.QUESPAAdmDR.PAADMHospitalDR.%Id()=contact.ENQHospitalDR.%Id() {
+						i ques.QPHMPR4'="" s found=1
+					}
+					d ques.%Close()
+				}
+			}
+			i 'found {
+				s errorwarning="E300 E.H.R Records: Questionnaires Tab: PHMPR: 'PHMPR Chronic Complex Condition' one or more of these questions have not been completed for this client."
+				s ind=$i(ind)
+				s ^CacheTemp("TRAK",repid,patno_" E300")=$LB(contact.%Id(),careprov,patno,admno,slk,"",patname,errorwarning,type,1,0)
+			}
+		}
+		i 'contact.ENQPAPERDR.PAPERPAPMIDR.PAPMIPensionTypeDR {
+			s errorwarning="E106 Registration Details: 'Pension Type' is a required field but has not been entered."
+			s ind=$i(ind)
+			s ^CacheTemp("TRAK",repid,patno_" E106")=$LB(contact.%Id(),careprov,patno,admno,slk,"",patname,errorwarning,type,1,0)
+		}
+		i 'contact.ENQPAPERDR.PAPERIndigStatDR {
+			s errorwarning="E107 Registration Details: 'Indigenous Status' is a required field but has not been entered."
+			s ind=$i(ind)
+			s ^CacheTemp("TRAK",repid,patno_" E107")=$LB(contact.%Id(),careprov,patno,admno,slk,"",patname,errorwarning,type,1,0)
+		}
+		i 'contact.ENQPAPERDR.PAPERCityCodeDR,'contact.ENQPAPERDR.PAPERZipDR,'contact.ENQPAPERDR.PAPERCTRegionDR {
+			s errorwarning="E108 Registration Details: 'Suburb/State/LGA' are required fields but have not been entered."
+			s ind=$i(ind)
+			s ^CacheTemp("TRAK",repid,patno_" E108")=$LB(contact.%Id(),careprov,patno,admno,slk,"",patname,errorwarning,type,1,0)
+		}
+		i 'contact.ENQPAPERDR.PAPERCountryBirthDR {
+			s errorwarning="E109 Registration Details: 'Country of Birth' is a required field but has not been entered."
+			s ind=$i(ind)
+			s ^CacheTemp("TRAK",repid,patno_" E109")=$LB(contact.%Id(),careprov,patno,admno,slk,"",patname,errorwarning,type,1,0)
+		}
+		i 'contact.ENQPAPERDR.PAPERPrefLanguageDR {
+			s errorwarning="E110 Registration Details: 'Preferred Language' is a required field but has not been entered."
+			s ind=$i(ind)
+			s ^CacheTemp("TRAK",repid,patno_" E110")=$LB(contact.%Id(),careprov,patno,admno,slk,"",patname,errorwarning,type,1,0)
+		}
+		i contact.ENQPAPERDR.PAPERInterpreterRequired="" {
+			s errorwarning="E111 Registration Details: 'Translator' is a required field but has not been entered."
+			s ind=$i(ind)
+			s ^CacheTemp("TRAK",repid,patno_" E111")=$LB(contact.%Id(),careprov,patno,admno,slk,"",patname,errorwarning,type,1,0)
+		}
+		
+		i contact.ENQOEOrdItemDR.OEORIOEORDParRef.OEORDAdmDR.PAADMMainMRADMDR.MRADMDischClassifDR.DSCLCode="009",contact.ENQOEOrdItemDR.OEORIOEORDParRef.OEORDAdmDR.PAADMMainMRADMDR.MRADMDischDestinDR.DDESTCode'="021" {
+			s errorwarning="E400 Discharge: 'Main Reason for Discharge' and 'Accommodation Setting after Discharge' Mismatch for this client."
+			s ind=$i(ind)
+			s ^CacheTemp("TRAK",repid,patno_" E400")=$LB(contact.%Id(),careprov,patno,admno,slk,"",patname,errorwarning,type,1,0)
+		}
+		i contact.ENQOEOrdItemDR.OEORIOEORDParRef.OEORDAdmDR.PAADMMainMRADMDR.MRADMDischClassifDR.DSCLCode'="009",contact.ENQOEOrdItemDR.OEORIOEORDParRef.OEORDAdmDR.PAADMMainMRADMDR.MRADMDischDestinDR.DDESTCode="021" {
+			s errorwarning="E401 Discharge: 'Main Reason for Discharge' and 'Accommodation Setting after Discharge' Mismatch for this client."
+			s ind=$i(ind)
+			s ^CacheTemp("TRAK",repid,patno_" E401")=$LB(contact.%Id(),careprov,patno,admno,slk,"",patname,errorwarning,type,1,0)
+		}
+		i contact.ENQOEOrdItemDR.OEORIOEORDParRef.OEORDAdmDR.PAADMMainMRADMDR.MRADMDischClassifDR.DSCLCode'="009",contact.ENQOEOrdItemDR.OEORIOEORDParRef.OEORDAdmDR.PAADMMainMRADMDR.MRADMDischDestinDR.DDESTCode="021" {
+			s errorwarning="E402 Discharge: 'Discharge Referral Destination' is a required field but has not been entered or selected code does not relate to this extract."
+			s ind=$i(ind)
+			s ^CacheTemp("TRAK",repid,patno_" E402")=$LB(contact.%Id(),careprov,patno,admno,slk,"",patname,errorwarning,type,1,0)
+		}
+	}
+	i ((ErrorType="")||(ErrorType="Warnings")) {
+		//Warning Codes
+		s attendlist=",S004,F001,G003,A007,C011,H004,M008,E003,P001,A004,O006,D013,A005,L001,O003,N003,"
+
+		i attendlist'[(","_contact.ENQOEOrdItemDR.OEORIOEORDParRef.OEORDAdmDR.PAADMSourceOfAttendDR.ATTENDCode_",") {
+			s errorwarning="W200 Episode Details: Referral Source - Selected code does not relate to this extract"
+			s ind=$i(ind)
+			s ^CacheTemp("TRAK",repid,patno_" W200")=$LB(contact.%Id(),careprov,patno,admno,slk,"",patname,errorwarning,type,0,1)
+		}
+		s dislist=",001,002,003,004,005,006,007,008,009,017,099,"
+		i contact.ENQOEOrdItemDR.OEORIOEORDParRef.OEORDAdmDR.PAADMDischgDate,dislist'[(","_contact.ENQOEOrdItemDR.OEORIOEORDParRef.OEORDAdmDR.PAADMMainMRADMDR.MRADMDischClassifDR.DSCLCode_",") {
+			s errorwarning="W401 Discharge: Selected code does not relate to this extract"
+			s ind=$i(ind)
+			s ^CacheTemp("TRAK",repid,patno_" W401")=$LB(contact.%Id(),careprov,patno,admno,slk,"",patname,errorwarning,type,0,1)
+		}
+	}
+	q ind
+]]></Implementation>
+</Method>
+
+<Method name="DisplayType2Errors">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>contact:%CacheObject,contype:%String,ErrorType:%String,ind:%String</FormalSpec>
+<Implementation><![CDATA[
+	s errorwarning=""
+	i ((contype="Anonymous")||(contype="Casual")) {
+	 	s identifier=contact.ENQContactNumber
+	 	s name=contact.ENQContactName
+		s sort="Y"
+		s type="Anonymous/Casual Clients"
+	} else {
+		s identifier=contact.ENQContactNumber
+		s name=contact.ENQNonGovOrgDR.NGODesc
+		s sort="Z"
+		s type=contact.ENQNonGovOrgDR.NGODesc_" Clients"
+	}
+	i ((ErrorType="")||(ErrorType="Errors")) {
+		i contype="Casual",contact.ENQItemCatDR.ARCICCode="" {
+			s errorwarning="E501 Anonymous Contacts: Casual Client/Organisation – 'Service' is a required field but has not been entered for this Casual Client."
+			s ind=$i(ind)
+			s ^CacheTemp("TRAK",repid,sort_identifier_" E501")=$LB(contact.%Id(),"",identifier,"","",identifier,name,errorwarning,type,1,0)
+		}
+		i contact.ENQRequestTypeDR.REQTYPCode="O",contact.ENQItemCatDR.ARCICCode="" {
+			s errorwarning="E502 Anonymous Contacts: Casual Client/Organisation – 'Organisation' is a required field but has not been entered for this Casual Client."
+			s ind=$i(ind)
+			s ^CacheTemp("TRAK",repid,sort_identifier_" E502")=$LB(contact.%Id(),"",identifier,"","",identifier,name,errorwarning,type,1,0)
+		}
+	}
+	q ind
+]]></Implementation>
+</Method>
+
+<Query name="LookUpClinicianByHospLoc">
+<Description>
+Lookup on CT_CareProv returning Care Providers by Hospital, Campus and Speciality</Description>
+<Type>%Library.SQLQuery</Type>
+<FormalSpec>CareProv:%String,Hospital:%String,Loc:%String</FormalSpec>
+<SqlQuery><![CDATA[ SELECT DISTINCT 
+ RES_CTPCP_DR->CTPCP_Desc,
+ RES_CTPCP_DR->CTPCP_RowId,
+ RES_CTPCP_DR->CTPCP_Code
+ FROM SQLUser.RB_Resource
+ WHERE ((%ALPHAUP RES_CTPCP_DR->CTPCP_Desc %STARTSWITH %ALPHAUP :CareProv) OR (%ALPHAUP RES_CTPCP_DR->CTPCP_Desc %STARTSWITH %ALPHAUP :CareProv))
+ AND (({fn CONCAT( ',', {fn CONCAT((%ALPHAUP :Hospital),',')})} [ {fn CONCAT( ',', {fn CONCAT((%ALPHAUP RES_CTLOC_DR->CTLOC_Hospital_DR),',')})}) OR (:Hospital IS NULL))
+ AND (({fn CONCAT( ',', {fn CONCAT((%ALPHAUP :Loc),',')})} [ {fn CONCAT( ',', {fn CONCAT((%ALPHAUP RES_CTLOC_DR),',')})}) OR (:Loc IS NULL))
+ AND ((RES_CTPCP_DR->CTPCP_DateActiveFrom<=CURRENT_Date))
+ AND ((RES_CTPCP_DR->CTPCP_DateActiveTo IS NULL) OR (RES_CTPCP_DR->CTPCP_DateActiveTo>=CURRENT_Date))
+ ORDER BY RES_CTPCP_DR->CTPCP_Desc]]></SqlQuery>
+<Parameter name="CONTAINID" value="2"/>
+<Parameter name="ROWSPEC" value="CTPCPDesc:%String,HIDDEN:%String,CTPCPCode:%String"/>
+</Query>
+
+<Method name="LookUpBrokerClinicianByHospLoc">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>itmjs:%Library.String="",itmjsex:%Library.String="",CareProv:%Library.String="",Hospital:%Library.String="",Loc:%Library.String=""</FormalSpec>
+<Implementation><![CDATA[
+ n id,code,desc,activedate
+ ;
+ s (id,code,desc)=""
+ s activedate=+$h
+ ;
+ ; Try and find a matching code
+ &SQL(SELECT Distinct
+ RES_CTPCP_DR->CTPCP_Desc,
+ RES_CTPCP_DR->CTPCP_RowId,
+ RES_CTPCP_DR->CTPCP_Code
+ INTO :desc, :id, :code
+ FROM SQLUser.RB_Resource
+ WHERE ((%ALPHAUP RES_CTPCP_DR->CTPCP_Desc %STARTSWITH %ALPHAUP :CareProv) OR (%ALPHAUP RES_CTPCP_DR->CTPCP_Desc %STARTSWITH %ALPHAUP :CareProv))
+ AND (({fn CONCAT( ',', {fn CONCAT((%ALPHAUP :Hospital),',')})} [ {fn CONCAT( ',', {fn CONCAT((%ALPHAUP RES_CTLOC_DR->CTLOC_Hospital_DR),',')})}) OR (:Hospital IS NULL))
+ AND (({fn CONCAT( ',', {fn CONCAT((%ALPHAUP :Loc),',')})} [ {fn CONCAT( ',', {fn CONCAT((%ALPHAUP RES_CTLOC_DR),',')})}) OR (:Loc IS NULL))
+ AND ((RES_CTPCP_DR->CTPCP_DateActiveFrom<=CURRENT_Date))
+ AND ((RES_CTPCP_DR->CTPCP_DateActiveTo IS NULL) OR (RES_CTPCP_DR->CTPCP_DateActiveTo>=CURRENT_Date)))
+ ;
+ i SQLCODE s desc=CareProv q 0
+ s retval=itmjs_"('"_$ZCVT(desc,"O","JS")_"');"
+ i itmjsex'="""" s retval=retval_itmjsex_"('"_$ZCVT(desc,"O","JS")_"^"_id_"^"_$ZCVT(code,"O","JS")_"');"
+ &javascript<#(retval)#>
+ q 1
+]]></Implementation>
+</Method>
+</Class>
+</Export>

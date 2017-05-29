@@ -1,0 +1,255 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.SWARH.Extracts.StoredProc.SWARHEPICQ1001">
+<ClassType/>
+<ProcedureBlock>0</ProcedureBlock>
+<Super>%RegisteredObject</Super>
+<TimeCreated>62573,38042.57414</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/SWARH/Extracts/StoredProc/SWARHEPICQ1001.xml#1 $</Default>
+</Parameter>
+
+<UDLText name="T">
+<Content><![CDATA[
+// $Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/SWARH/Extracts/StoredProc/SWARHEPICQ1001.xml#1 $
+
+]]></Content>
+</UDLText>
+
+<UDLText name="T">
+<Content><![CDATA[
+// Version 1
+
+]]></Content>
+</UDLText>
+
+<Method name="PICQExtractAuto">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>hospid:%String</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	; Sets the process to LOW and BATCH
+	; BATCH uses only 25% of the global buffers
+	d SET^%PRIO("LOW,BATCH")
+	
+	s repid=$i(^CacheTemp("EXTRACT"))
+	s ind=0
+	s paths=..GetFilePath("PICQ")
+	i $p(paths,"^",3)'="" w !,$p(paths,"^",3)
+	i $g(hospid)="" w !,"No Hospital Parameter."
+ 	
+ 	s DateFrom=+$h-7
+	s DateTo=+$h
+ 	i $p(paths,"^",3)="" {
+	 	i $g(hospid)'="" {
+		 	s hospcode="" s hospcode=$p(^CT("HOSP",hospid)  ,"^",1)
+		 	s dateRange = "from-"_$ZDATE(DateFrom,4,,4)_"-to-"_$ZDATE(DateTo,4,,4)
+		 	s dateRange = $REPLACE(dateRange,"/","-")
+			s filename=$s($p(paths,"^")'="":$p(paths,"^"),1:$p(paths,"^",2))_hospcode_"\"_"PICQauto_"_hospcode_"-"_dateRange_".csv"
+			s file=##class(%File).%New(filename)
+			d file.Open("WSN")
+		
+ 		
+ 			s rs=##class(%Library.ResultSet).%New("Custom.SWARH.Extracts.StoredProc.SWARHEPICQ1001a:SWARHEPICQ1001aQuery")
+ 			//s hospid="" s hospid=$o(^CT("HOSP",0,"Code",hosp,hospid))
+ 			
+ 			d rs.Execute($ZD(DateFrom,3),$ZD(DateTo,3),hospid)
+ 			s test=$get(rs.Data("UEID"))
+ 			s (firstrow,firstcolumn)=1
+ 			s linedata=""
+ 			s linecolumns=""
+ 			s numrows=0
+ 			For  {
+				If 'rs.Next() Quit
+				s numrows=$i(numrows)
+				/// write field names for header
+				if firstrow = 1 {
+					for i = 1:1:rs.GetColumnCount() {
+						if firstcolumn=1 {d file.Write(rs.GetColumnName(i))}
+						else {
+							if rs.GetColumnName(i)="DIAG" {d file.Write(..DiagProcColumns("DIAG"))}
+							elseif rs.GetColumnName(i)="PROC" {d file.Write(..DiagProcColumns("PROC"))}
+							else {d file.Write(","_rs.GetColumnName(i))}
+						}
+						s firstcolumn=0
+					}
+					d file.WriteLine("")
+				}
+				
+				set firstrow=0
+				s firstcolumn=1
+				for i = 1:1:rs.GetColumnCount() {
+					if firstcolumn=1 {
+						s linedata=linedata_$get(rs.Data(rs.GetColumnName(i)))
+						s firstcolumn=0
+					}
+					else {
+						s linedata=linedata_","_$get(rs.Data(rs.GetColumnName(i)))
+					}
+				}
+				d file.WriteLine(linedata)
+				s linedata=""
+ 			
+ 			
+ 			do rs.%Close()
+ 			
+			}
+			if (numrows=0) {
+				s linecolumns="UEID,HOSPITAL,MRN,DOA,DOS,DOB,SEX,DIAG,PROC,CARETYPE,SEPMODE,DRG,ICUDAYS,ILOS,WEIGHT,VENT,LEAVE,MSTATUS,CODERID,CODINGUPDATEDATE"
+				s linecolumns=$replace(linecolumns,"DIAG",..DiagProcColumns("DIAG"))
+				s linecolumns=$replace(linecolumns,"PROC",..DiagProcColumns("PROC"))
+				d file.WriteLine(linecolumns)
+			}
+			d file.Close()
+		}
+ 	}
+	//q result
+	q
+]]></Implementation>
+</Method>
+
+<Method name="PICQExtract">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>DateFrom:%String,DateTo:%String,hospid:%String</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	; Sets the process to LOW and BATCH
+	; BATCH uses only 25% of the global buffers
+	d SET^%PRIO("LOW,BATCH")
+	
+	s repid=$i(^CacheTemp("EXTRACT"))
+	s ind=0
+	s paths=..GetFilePath("PICQ")
+	i $p(paths,"^",3)'="" w !,$p(paths,"^",3)
+	i $g(hospid)="" w !,"No Hospital Parameter."
+ 	
+ 	i $p(paths,"^",3)="" {
+	 	i $g(hospid)'="" {
+		 	s hospcode="" s hospcode=$p(^CT("HOSP",hospid)  ,"^",1)
+		 	s dateRange = $ZSTRIP(DateFrom,"*W","-")_"-"_$ZSTRIP(DateTo,"*W","-")
+			s filename=$s($p(paths,"^")'="":$p(paths,"^"),1:$p(paths,"^",2))_hospcode_"\"_"PICQ_"_hospcode_"_"_dateRange_".csv"
+			s file=##class(%File).%New(filename)
+			d file.Open("WSN")
+		
+ 		
+ 			s rs=##class(%Library.ResultSet).%New("Custom.SWARH.Extracts.StoredProc.SWARHEPICQ1001m:SWARHEPICQ1001mQuery")
+ 			//s hospid="" s hospid=$o(^CT("HOSP",0,"Code",hosp,hospid))
+ 			
+ 			d rs.Execute(DateFrom,DateTo,hospid)
+ 			s test=$get(rs.Data("UEID"))
+ 			s (firstrow,firstcolumn)=1
+ 			s linedata=""
+ 			s linecolumns=""
+ 			s numrows=0
+ 	
+ 			For  {
+				If 'rs.Next() Quit
+				s numrows=$i(numrows)
+				/// write field names for header
+				if firstrow = 1 {
+					for i = 1:1:rs.GetColumnCount() {
+						if firstcolumn=1 {d file.Write(rs.GetColumnName(i))}
+						else {
+							if rs.GetColumnName(i)="DIAG" {d file.Write(..DiagProcColumns("DIAG"))}
+							elseif rs.GetColumnName(i)="PROC" {d file.Write(..DiagProcColumns("PROC"))}
+							else {d file.Write(","_rs.GetColumnName(i))}
+						}
+						s firstcolumn=0
+					}
+					d file.WriteLine("")
+				}
+				
+				set firstrow=0
+				s firstcolumn=1
+				for i = 1:1:rs.GetColumnCount() {
+					if firstcolumn=1 {
+						s linedata=linedata_$get(rs.Data(rs.GetColumnName(i)))
+						s firstcolumn=0
+					}
+					else {
+						s linedata=linedata_","_$get(rs.Data(rs.GetColumnName(i)))
+					}
+				}
+				d file.WriteLine(linedata)
+				s linedata=""
+ 			
+ 			
+ 			do rs.%Close()
+ 			
+			}
+			if (numrows=0) {
+				s linecolumns="UEID,HOSPITAL,MRN,DOA,DOS,DOB,SEX,DIAG,PROC,CARETYPE,SEPMODE,DRG,ICUDAYS,ILOS,WEIGHT,VENT,LEAVE,MSTATUS,CODERID,CODINGUPDATEDATE"
+				s linecolumns=$replace(linecolumns,"DIAG",..DiagProcColumns("DIAG"))
+				s linecolumns=$replace(linecolumns,"PROC",..DiagProcColumns("PROC"))
+				d file.WriteLine(linecolumns)
+			}
+			d file.Close()
+		}
+ 	}
+	//q result
+	q 
+	
+ /*num(str,length) ;left pad with 0
+ Q $E(str+(10**length),2,length+1)
+
+ 
+DiagProcColumns(type)
+ s col=""
+  i type="DIAG" {
+ 	for j = 1:1:99 {
+ 		s col=col_",D"_$$num(j,2)
+ 		s col=col_",COF"_$$num(j,2) 
+ 	}
+ }
+ i type="PROC" {
+ 	for j = 1:1:99 {
+ 		s col=col_",P"_$$num(j,2)
+ 	}
+ }
+ Q col*/
+]]></Implementation>
+</Method>
+
+<Method name="DiagProcColumns">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>type:%String</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	s col=""
+  i type="DIAG" {
+ 	for j = 1:1:99 {
+ 		s col=col_",D"_$$num(j,2)
+ 		s col=col_",COF"_$$num(j,2) 
+ 	}
+ }
+ i type="PROC" {
+ 	for j = 1:1:99 {
+ 		s col=col_",P"_$$num(j,2)
+ 	}
+ }
+ Q col
+ 
+num(str,length) ;left pad with 0
+ Q $E(str+(10**length),2,length+1)
+]]></Implementation>
+</Method>
+
+<Method name="GetFilePath">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>filetype:%String</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	s (unixpath,winpath,errormsg)=""
+	&SQL(SELECT PATH_Path,PATH_UNIXPath INTO :winpath,:unixpath FROM SQLUser.CF_SystemFilePath WHERE %ALPHAUP(PATH_ParRef->FILE_Desc)=%ALPHAUP(:filetype))
+	i $e(unixpath,$l(unixpath))'="/",$g(unixpath)'="" s unixpath=unixpath_"/"
+	i $e(winpath,$l(winpath))'="\",$g(winpath)'="" s winpath=winpath_"\"
+	i unixpath="",winpath="" s errormsg="No filepath defined for "_filetype_" extract."
+	
+	q unixpath_"^"_winpath_"^"_errormsg
+]]></Implementation>
+</Method>
+</Class>
+</Export>

@@ -1,0 +1,147 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.SWARH.JS.MRDiagnos.Edit">
+<Description>
+Component JavaScript for: MRDiagnos.Edit</Description>
+<Modified>0</Modified>
+<Super>websys.AbstractJavaScript</Super>
+<TimeCreated>63537,10516.168379</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+This Parameter is updated by Perforce</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/SWARH/JS/MRDiagnos/Edit.xml#1 $</Default>
+</Parameter>
+
+<Method name="JSContent">
+<Description>
+ </Description>
+<Language>javascript</Language>
+<ClientMethod>1</ClientMethod>
+<Implementation><![CDATA[
+// SWARH
+// 27/06/02 HP Log#24836
+//08/03 MD Copy accross from ARMC for SWARH
+
+//PRIMARY DIAGNOSIS	- Extra var required b/c new versions of Diagnosis desc has no space after sentence in VB Code table
+var PRI0 = "Review following earlier treatment"						// Z09.9A
+var PRI0S = "Review following earlier treatment "					// Z09.9A 
+var PRI1 = "Attendance for follow-up (includes injections)"			// Z09.9B
+var PRI1S = "Attendance for follow-up (includes injections) "		// Z09.9B 
+var PRI2 = "Follow-up examination following treatment"				// Z09.9C
+var PRI2S = "Follow-up examination following treatment "			// Z09.9C
+
+
+function CustomDocumentLoadHandler() {
+	BodyLoadHandler();
+
+	// HP: Enabled RepeatCusClickHandler when there's no row in MRDiagnos.ListEMR
+	var objID = document.getElementById('ID');
+	if ((objID)&&(objID.value=="")) {	
+		var el = document.getElementById('Repeat');
+		if (el) el.onclick = RepeatCusClickHandler;
+	}
+	
+	var ref=document.getElementById('refreshflag');
+	if (ref.value!="") {
+		setPrimaryDiag()
+	}
+}
+
+
+function PrimaryDiagnChangeHandler() {
+	var obj=document.getElementById('MRDIAICDCodeDR');
+	var poobj=document.getElementById('MRDIAICDCodeDRDescOnly');
+	var paobj=document.getElementById('MRDIAICDCodeDRAltDescAlias');
+	var diag="";
+
+	if ((obj)&&(obj.value!="")) { diag=obj.value }
+	else if ((poobj)&&(poobj.value!="")) { diag=poobj.value }
+	else if ((paobj)&&(paobj.value!="")) { diag=paobj.value }
+
+	if ((diag==PRI0)||(diag==PRI1)||(diag==PRI2)||
+		(diag==PRI0S)||(diag==PRI1S)||(diag==PRI2S)) {
+	//if ((obj)&&((obj.value==PRI0)||(obj.value==PRI1)||(obj.value==PRI2)||
+		//(obj.value=="Z09.9A")||(obj.value=="Z09.9B")||(obj.value=="Z09.9C"))) {
+		//alert("You must confirm the Primary Diagnosis and then enter an Additional Diagnosis to identify the condition under review / treatment");
+		setTimeout('alert("You must confirm the Primary Diagnosis and then enter an Additional Diagnosis to identify the condition under review / treatment")',50);
+	}
+}
+
+function RepeatCusClickHandler() {
+	var obj=document.getElementById('hiddenDiag');
+	if (obj) obj.value="";
+	//epr_RepeatClickHandler;
+	return Repeat_click();
+}
+
+function setPrimaryDiag() {
+		
+	var probj=document.getElementById('MRDIAICDCodeDR');
+	var sym=document.getElementById('MRDIASignSymDR');
+	var ref=document.getElementById('refreshflag');
+	var Id=document.getElementById('ID');
+	var diagRowID = document.getElementById('MRDIAICDCodeID');
+	var obj=document.getElementById('hiddenDiag');
+	var hidDiag=obj.value;
+	var lu=hidDiag.split("^");
+	var poobj=document.getElementById('MRDIAICDCodeDRDescOnly');
+	var paobj=document.getElementById('MRDIAICDCodeDRAltDescAlias');
+	
+    if ((obj)&&(obj.value!="")) {	
+		if (probj) probj.value=lu[0];
+		if (sym) sym.value=lu[1];
+		if (diagRowID) diagRowID.value=lu[2];
+		if (poobj) poobj.value=lu[3];
+		if (paobj) paobj.value=lu[4];
+		var firstRowId=document.getElementById('firstRec');
+		if ((firstRowId)&&(firstRowId.value!="")) {
+			if (Id) Id.value=firstRowId.value
+		}
+	} else {
+		if (probj) probj.value="";
+		if (poobj) poobj.value="";
+		if (paobj) paobj.value="";
+		if (Id) Id.value="";
+		if (sym) sym.value="";
+		
+	}
+}
+
+//document.body.onload=CustomDocumentLoadHandler;
+websys_removeListener("load","onload",BodyLoadHandler); 
+websys_addListener("load","onload",CustomDocumentLoadHandler);
+
+//tknoll-miller (SWARH) 2009-09-16 Load authorise script
+var authcfg = {
+   'buttons': [
+      'Update',
+      'Repeat',
+      'delete1'
+   ],
+   'fields': {
+      'username': 'UserCode',
+      'password': 'PIN'
+   }
+};
+
+//tknoll-miller (SWARH) 2009-09-16 Load authorise script
+// Scope variables
+(function() {
+   var loadScript = function(type, src) {
+      var head = document.getElementsByTagName('head')[0];
+      var script = document.createElement('script');
+      script.type = type;
+      script.src = src;
+      head.appendChild(script);
+      websys_addListener('load', 'onload', function(){document.isLoaded=true});
+      return script;
+   };
+
+   loadScript('text/javascript', '../custom/SWARH/scripts/authorise4.js');
+})();
+//end tknoll-miller (SWARH) 2009-09-16 Load authorise script
+]]></Implementation>
+</Method>
+</Class>
+</Export>

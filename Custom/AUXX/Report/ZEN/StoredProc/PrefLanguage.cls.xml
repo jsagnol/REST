@@ -1,0 +1,223 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.AUXX.Report.ZEN.StoredProc.PrefLanguage">
+<ProcedureBlock>0</ProcedureBlock>
+<Super>Report.Abstract</Super>
+<TimeCreated>61017,55943.754646</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/AUXX/Report/ZEN/StoredProc/PrefLanguage.xml#1 $</Default>
+</Parameter>
+
+<UDLText name="T">
+<Content><![CDATA[
+// Report Name: Current IP Preferred Language
+
+]]></Content>
+</UDLText>
+
+<UDLText name="T">
+<Content><![CDATA[
+// Report Code: AUXX.ATD0007
+
+]]></Content>
+</UDLText>
+
+<UDLText name="T">
+<Content><![CDATA[
+// LOGTRAK Number: 71241 
+
+]]></Content>
+</UDLText>
+
+<Method name="PatPrefLanguageClose">
+<Description>
+This is the Close component of the %Library.Query.
+This is standard code and should never have to change.
+This is where all the cleanup is performed, i.e. the purging of the temporary storage global ^CacheTemp.</Description>
+<Final>0</Final>
+<ClassMethod>1</ClassMethod>
+<CodeMode>code</CodeMode>
+<FormalSpec>QHandle:%Library.Binary</FormalSpec>
+<Private>0</Private>
+<ReturnType>%Library.Status</ReturnType>
+<SqlProc>0</SqlProc>
+<Implementation><![CDATA[
+ // Clean up by purging the temporary node in ^CacheTemp global
+ New repid
+ Set repid=$li(QHandle,2)
+ 
+ //Start Monitor (if configured to capture stats)
+ i mon Do ..MonitorEnd(mon)
+ 
+ Kill ^CacheTemp("TRAK",repid)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="PatPrefLanguageExecute">
+<Description>
+This is the Execute section for the %Library.Query. 
+All of the logic will be performed here.
+A new node for the ^CacheTemp global will be created and each subscript of this global will contain
+a row for the report.</Description>
+<ClassMethod>1</ClassMethod>
+<CodeMode>code</CodeMode>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,Hospital:%String,Language:%String]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+	
+ 	
+ // Get reportid i.e. use $INCREMENT to add another node to ^CacheTemp global. 
+ // We use ^CacheTemp global because it will always use memory before disk
+ New repid,ind
+
+ // Use $Increment to get the next node
+ Set repid=$I(^CacheTemp("TRAK"))
+
+
+
+ // Build data into ^CacheTemp(ReportID)
+ // e.g. Set ^CacheTemp(ReportID,Index)=$LB(f1,f2,f3)
+ New Number,String,Date,Time,c,n
+ n PAADMADMNo,PAADMAdmDate,CTLOCRowId,PREFLRowId,PREFLCode,PREFLDesc,WARDLocationDR,PAPERInterpreterFlag,HospRowId,HospCode,HOSPDesc,PAPERAgeYr,CTSEXCode,CTSEXDesc,PAPMIName,PAPMIName2,PAPMIName3,PAPMINo,PAADMRowId,WARDCode,CTCOUDesc,CTLOCCode,INSTCode,AdmDate
+ s (CTLOCRowId,WARDLocationDR,HospRowId,PAADMRowId,PREFLRowId)=0
+ s (PAADMADMNo,PAADMAdmDate,PREFLCode,PREFLDesc,PAPERInterpreterFlag,HospCode,HOSPDesc,PAPERAgeYr,CTSEXCode,CTSEXDesc,PAPMIName,PAPMIName2,PAPMIName3,PAPMINo,WARDCode,CTCOUDesc,CTLOCCode,INSTCode,AdmDate)=""
+ s ind=1
+ 
+ //Start Monitor (if configured to capture stats)
+ s mon=..MonitorBegin()
+ 
+ s Hospital=$zstrip(Hospital,"*CW")
+ s Language=$zstrip(Language,"*CW")
+
+
+ &sql(declare PatPrefLanguage cursor for
+select
+		PAADM_ADMNo,
+		PAADM_AdmDate,
+		PAADM_DepCode_DR->CTLOC_RowId,
+		PAADM_PAPMI_DR->PAPMI_PAPER_DR->PAPER_PrefLanguage_DR,
+		PAADM_PAPMI_DR->PAPMI_PAPER_DR->PAPER_PrefLanguage_DR->PREFL_Code,
+		PAADM_PAPMI_DR->PAPMI_PAPER_DR->PAPER_PrefLanguage_DR->PREFL_Desc,
+		PAADM_CurrentWard_DR->WARD_LocationDR,
+		case when PAADM_PAPMI_DR->PAPMI_PAPER_DR->PAPER_InterpreterRequired='N' then '' else PAADM_PAPMI_DR->PAPMI_PAPER_DR->PAPER_InterpreterRequired end as Interpreter,
+		paadm_CURRENTWARD_DR->WARD_LocationDR->CTLOC_Hospital_DR,
+		paadm_CURRENTWARD_DR->WARD_LocationDR->CTLOC_Hospital_DR->Hosp_Code,
+		paadm_CURRENTWARD_DR->WARD_LocationDR->CTLOC_Hospital_DR->Hosp_Desc, 
+		PAADM_PAPMI_DR->PAPMI_PAPER_DR->PAPER_AgeYr,
+		PAADM_PAPMI_DR->PAPMI_PAPER_DR->PAPER_Sex_DR->CTSEX_Code,
+		PAADM_PAPMI_DR->PAPMI_PAPER_DR->PAPER_Sex_DR->CTSEX_Desc,
+		PAPMI_Name, 
+		PAPMI_Name2, 
+		PAPMI_Name3,
+		PAPMI_No,
+		PAADM_RowId,
+		PAADM_CurrentWard_DR->WARD_Code,
+		PAPMI_PAPER_DR->PAPER_Country_Birth_DR->CTCOU_Desc,
+		PAADM_DepCode_DR->CTLOC_Code
+FROM	sqluser.PA_Adm, sqluser.PA_PatMas
+WHERE	PAADM_PAPMI_DR=PAPMI_RowId
+		and PAADM_Type='I' and PAADM_VisitStatus='A'
+		AND (({fn CONCAT( ',', {fn CONCAT((:Hospital),',')})} [ {fn CONCAT( ',', {fn CONCAT((paadm_CURRENTWARD_DR->WARD_LocationDR->CTLOC_hospital_dr->HOSP_RowId),',')})}) OR (:Hospital IS NULL))
+ 		AND (({fn CONCAT( ',', {fn CONCAT((:Language),',')})} [ {fn CONCAT( ',', {fn CONCAT((PAADM_PAPMI_DR->PAPMI_PAPER_DR->PAPER_PrefLanguage_DR->PREFL_RowId),',')})}) OR (:Language IS NULL))
+)
+			
+ &sql(open PatPrefLanguage)
+ 
+ //fetch first row
+ &sql(fetch PatPrefLanguage into :PAADMADMNo,:PAADMAdmDate,:CTLOCRowId,:PREFLRowId,:PREFLCode,:PREFLDesc,:WARDLocationDR,:PAPERInterpreterFlag,:HospRowId,:HospCode,:HOSPDesc,:PAPERAgeYr,:CTSEXCode,:CTSEXDesc,:PAPMIName,:PAPMIName2,:PAPMIName3,:PAPMINo,:PAADMRowId,:WARDCode,:CTCOUDesc,:CTLOCCode)
+
+ while 'SQLCODE{
+ d FormatDates
+ d GetCurrentPayor
+
+	// check for $C(0) in PAPERInterpreterFlag
+	if PAPERInterpreterFlag = $C(0) { s PAPERInterpreterFlag = "" }
+
+ 
+  // build the row
+  Set ^CacheTemp("TRAK",repid,$ZCVT(HOSPDesc,"U")_" "_$ZCVT(PREFLDesc,"U")_" "_$ZCVT(PAPMIName,"U")_" "_$ZCVT(PAPMIName2,"U")_" "_$ZCVT(PAPMIName3,"U")_ind)=$LB(PAADMADMNo,PAADMAdmDate,CTLOCRowId,PREFLRowId,PREFLCode,PREFLDesc,WARDLocationDR,PAPERInterpreterFlag,HospRowId,HospCode,HOSPDesc,PAPERAgeYr,CTSEXCode,CTSEXDesc,PAPMIName,PAPMIName2,PAPMIName3,PAPMINo,PAADMRowId,WARDCode,CTCOUDesc,CTLOCCode,INSTCode)
+ s ind=ind+1
+ //fetch rows
+ &sql(fetch PatPrefLanguage into :PAADMADMNo,:PAADMAdmDate,:CTLOCRowId,:PREFLRowId,:PREFLCode,:PREFLDesc,:WARDLocationDR,:PAPERInterpreterFlag,:HospRowId,:HospCode,:HOSPDesc,:PAPERAgeYr,:CTSEXCode,:CTSEXDesc,:PAPMIName,:PAPMIName2,:PAPMIName3,:PAPMINo,:PAADMRowId,:WARDCode,:CTCOUDesc,:CTLOCCode)
+ }
+
+ &sql(close PatPrefLanguage)
+
+ // Build QHandle (AtEnd,ReportID,Index)
+ Set QHandle=$lb(0,repid,0)
+
+ //s ^zBernard("4")=(4)
+ Quit $$$OK
+FormatDates
+ // Convert the dates to ODBC date format
+ If PAADMAdmDate Set PAADMAdmDate=..ConvertDateToODBC(PAADMAdmDate)
+ Quit
+
+GetCurrentPayor
+ set (INSTCode,PayorData)=""
+ set AdmIns=0
+ i $g(PAADMRowId)="" q
+ s AdmDate=$p(^PAADM(PAADMRowId),"^",6)
+            
+ f  s AdmIns=$o(^PAADM(PAADMRowId,"INS",AdmIns)) q:AdmIns=""  s PayorData=^(AdmIns) d  q:INSTCode'=""
+ .i $p(PayorData,"^",3)=AdmDate s payor=$p(PayorData,"^",1)
+ .i $p(PayorData,"^",3)="" s INSTCode=$p(PayorData,"^",1)
+            
+ i INSTCode'="" s INSTCode=$p($g(^ARC("INST",INSTCode)),"^",1)
+ q
+]]></Implementation>
+</Method>
+
+<Method name="PatPrefLanguageFetch">
+<Description>
+This is the Fetch component of the %Library.Query. 
+This should never have to change. It is designed to fetch the row for each subscript of the ^CacheTemp
+global and return this row to the Crystal Report.</Description>
+<Final>0</Final>
+<ClassMethod>1</ClassMethod>
+<CodeMode>code</CodeMode>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,&Row:%Library.List,&AtEnd:%Library.Integer=0]]></FormalSpec>
+<Private>0</Private>
+<ReturnType>%Library.Status</ReturnType>
+<SqlProc>0</SqlProc>
+<Implementation><![CDATA[
+ // This fetch method should never have to change. 
+
+ // repid - Report ID
+ // ind   - sequence index which represents each row
+
+ New repid,ind
+
+ // Restore QHandle
+ Set AtEnd=$li(QHandle,1)
+ Set repid=$li(QHandle,2)
+ Set ind=$li(QHandle,3)
+
+ Set ind=$o(^CacheTemp("TRAK",repid,ind))
+ If ind="" {	// if there are no more rows, finish fetching
+ Set AtEnd=1
+ Set Row=""
+ }
+ Else      {	// fetch row
+ Set Row=^CacheTemp("TRAK",repid,ind)
+ }
+
+ // Save QHandle
+ s QHandle=$lb(AtEnd,repid,ind)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Query name="PatPrefLanguage">
+<Type>%Library.Query</Type>
+<FormalSpec>Hospital:%String,Language:%String</FormalSpec>
+<SqlProc>1</SqlProc>
+<Parameter name="CONTAINID" value="0"/>
+<Parameter name="ROWSPEC" value="PAADMADMNo:%String(MAXLEN=255),PAADMAdmDate:%Date,CTLOCRowId:%Integer,PREFLRowId:%Integer,PREFLCode:%String(MAXLEN=255),PREFLDesc:%String(MAXLEN=255),WARDLocationDR:%Integer,PAPERInterpreterFlag:%String(MAXLEN=255),HospRowId:%Integer,HospCode:%String(MAXLEN=255),HOSPDesc:%String(MAXLEN=255),PAPERAgeYr:%String,CTSEXCode:%String,CTSEXDesc:%String,PAPMIName:%String(MAXLEN=255),PAPMIName2:%String(MAXLEN=255),PAPMIName3:%String(MAXLEN=255),PAPMINo:%String(MAXLEN=255),PAADMRowId:%Integer,WARDCode:%String(MAXLEN=255),CTCOUDesc:%String(MAXLEN=255),CTLOCCode:%String(MAXLEN=255),INSTCode:%String(MAXLEN=255)"/>
+</Query>
+</Class>
+</Export>

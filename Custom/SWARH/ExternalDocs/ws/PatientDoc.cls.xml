@@ -1,0 +1,246 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.SWARH.ExternalDocs.ws.PatientDoc">
+<Description><![CDATA[
+This web service class allows access to custom SWARH class <i>Custom.SWARH.ExternalDocs.PatientDoc</i> 
+used to add documents to TrakCare. Documents appear in TrakCare under 'Scanned Documents' tab. 
+Documents are stored in websys.Document table (websys.Document### where ### is AVI, BMP, PDF, etc. 
+See documentation on websys.Document class for more info). </br>
+Document to add must be supplied either by UNC path in sFileName argument or as SOAP attachment (
+leave sFileName argument blank in this case).</br>
+A.K. 2016]]></Description>
+<ProcedureBlock>1</ProcedureBlock>
+<Super>%SOAP.WebService</Super>
+<TimeCreated>64086,51428.420706</TimeCreated>
+
+<Parameter name="SERVICENAME">
+<Description><![CDATA[
+Name of the WebService.</br>
+Note: This is the default name created by Ensemble when creating a web client.]]></Description>
+<Default>PatientDoc</Default>
+</Parameter>
+
+<Parameter name="NAMESPACE">
+<Description>
+TODO: change this to actual SOAP namespace.
+SOAP Namespace for the WebService</Description>
+<Default>http://tempuri.org</Default>
+</Parameter>
+
+<Parameter name="USECLASSNAMESPACES">
+<Description>
+Namespaces of referenced classes will be used in the WSDL.</Description>
+<Default>1</Default>
+</Parameter>
+
+<Method name="Add">
+<Description><![CDATA[
+<p>Add method is used to add documents to TrakCare via webservice.</p>
+Arguments:</br>
+<ol>
+<li><b>sFileName</b> - optional. Must be UNC path. If supplied, method doesn't try to download attachment</li>
+<li><b>sFileExtention</b> - specifies what type of file to create. It is used afterwards by websys.Document class to determine storage table and associated application to open the file</li>
+<li><b>sAPIuser</b> - TRAK user with rights to use API</li>
+<li><b>sAPIpassword</b> - password for <b>sAPIuser</b></li>
+<li><b>sEpisode</b> - TRAK episode ID. Optional, but must be used if <b>sUR</b> is not supplied. If it is supplied, then episode is used to attach the document to. If <b>sEpisode</b> is not supplied, then <b>sUR, sFirstName, sLastName, sDOB, sGender</b> are used to determine/create the default episode</li>
+<li><b>sUR</b> - UR. Optional, but must be used if sEpisode is not supplied.</li>
+<li><b>sFirstName</b> - person's first name</li>
+<li><b>sLastName</b> - person's last name</li>
+<li><b>sDOB</b> - person's date of birth, must be in ODBC format: yyyy-mm-dd</li>
+<li><b>sGender</b> - person's gender (from HL7 code table)</li>
+<li><b>Validation</b> - validation control word; it specifies what to validate against UR. Value of 0 requests to verify that UR does exist. Value of 15 validates sFirstName, sLastName, sDOB and sGender against UR. See help on <i>Custom.SWARH.ExternalDocs.PatientDoc.ValidatePerson</i> for more details.</li>
+<li><b>sDateCreated</b> - document created date. Should come from HL7 message. If omitted, current date is used</li>
+<li><b>sTimeCreated</b> - document created time. Should come from HL7 message. If omitted, current time is used</li>
+<li><b>sDocumentDescription</b> - document description which comes from HL7 message. Can be blank.</li>
+<li><b>sDocType</b> - optional. If supplied, should be description (DOCTYPE_Desc) from the Trak code table: <i>SQLUser.PAC_DocumentType</i></li>
+<li><b>sDocSubType</b> - optional. If supplied, should be description (SADST_Desc) from the Trak Code table: <i>SQLUser.PAC_ScanAdminDocSubType</i></li>
+</ol>
+It returns $$$OK when document was added successfully. If $$$OK is not returned, then some kind of error has occured.
+In case when UR/patient details validation has failed - %SOAP.fault object is returned with local error code and fault description.
+<ol>
+<li>10001 - UR doesn't exist
+<li>10002 - First name doesn't match UR
+<li>10004 - Last name doesn't match UR
+<li>10006 - First name and last name don't match UR
+<li>10008 - DOB doesn't match UR
+<li>10010 - First name and DOB don't match UR
+<li>10012 - Last name and DOB don't match UR
+<li>10014 - First name, last name and DOB don't match UR
+<li>10016 - Gender doesn't match UR
+<li>10018 - First name and gender don't match UR
+<li>10020 - Last name and gender don't match UR
+<li>10022 - First name, last name and gender don't match UR
+<li>10024 - DOB and gender don't match UR
+<li>10026 - First name, DOB and gender don't match UR
+<li>10028 - Last name, DOB and gender don't match UR
+<li>10030 - First name, last name, DOB and gender don't match UR
+</ol>
+A.K. 2016]]></Description>
+<FormalSpec>sFileName:%String="",sFileExtension:%String,sAPIuser:%String,sAPIpassword:%String,sEpisode:%String="",sUR:%String="",sFirstName:%String="",sLastName:%String="",sDOB:%String="",sGender:%String="",Validation:%Integer=15,sDateCreated:%String,sTimeCreated:%String,sDocumentDescription:%String="",sDocType:%String="",sDocSubType:%String="",sAlert:%String="",sAlertCategory:%String="",sAlertMessage:%String=""</FormalSpec>
+<ReturnType>%String</ReturnType>
+<WebMethod>1</WebMethod>
+<Implementation><![CDATA[
+	Set LocalErr00 = "Directory C:\temp\SOAPattach doesn't exist, can't be created or not accessible."
+	Set LocalErr01 = "Patient validation has failed."
+	Set LocalErr02 = "Failed to add patient alert."
+	Set LocalErr03 = "Failed to add patient document."
+	Set LocalErr = ""
+	Set ErrorDetail = ""
+	Set LocalErrCode = 0
+	
+	TRY
+	{
+		Set pdoc=##class(Custom.SWARH.ExternalDocs.PatientDoc).%New()
+		//Check person UR validation here:
+		Set PatientValid = pdoc.ValidatePerson(sUR,sFirstName,sLastName,sDOB,sGender,Validation)
+		
+		if (PatientValid = 0)
+		{
+			Set ValidCheck = pdoc.ValidatePerson(sUR,sFirstName,sLastName,sDOB,sGender,0)
+			if (ValidCheck = 0)
+			{
+				Set ErrorDetail = " UR: "_sUR_" doesn't exist!"
+				Set LocalErr = LocalErr01
+				Set LocalErrCode = 1
+				THROW LocalErr
+			}
+			
+			Set ValidCheck = pdoc.ValidatePerson(sUR,sFirstName,sLastName,sDOB,sGender,1)
+			if (ValidCheck = 0)
+			{
+				Set ErrorDetail = " First name '"_sFirstName_"' doesn't match UR "_sUR_"!"
+				Set LocalErrCode = LocalErrCode + 2
+			}
+			Set ValidCheck = pdoc.ValidatePerson(sUR,sFirstName,sLastName,sDOB,sGender,2)
+			if (ValidCheck = 0)
+			{
+				Set ErrorDetail = ErrorDetail_" Last name '"_sLastName_"' doesn't match UR "_sUR_"!"
+				Set LocalErrCode = LocalErrCode + 4
+			}
+			Set ValidCheck = pdoc.ValidatePerson(sUR,sFirstName,sLastName,sDOB,sGender,4)
+			if (ValidCheck = 0)
+			{
+				Set ErrorDetail = ErrorDetail_" DOB '"_sDOB_"' doesn't match UR "_sUR_"!"
+				Set LocalErrCode = LocalErrCode + 8
+			}
+			Set ValidCheck = pdoc.ValidatePerson(sUR,sFirstName,sLastName,sDOB,sGender,8)
+			if (ValidCheck = 0)
+			{
+				Set ErrorDetail = ErrorDetail_" Gender '"_sGender_"' doesn't match UR "_sUR_"!"
+				Set LocalErrCode = LocalErrCode + 16
+			}
+			
+			//Set ErrorDetail = ErrorDetail_$c(13,10)  //Append CR and LF to the end of Error Detail
+			Set LocalErr = LocalErr01
+			THROW LocalErr
+		}
+		
+		if (sFileName = "")
+		{
+			//assume 1 attachment; ignore any others
+			Set attach=..Attachments.GetAt(1)
+			//Set file=##class(%FileCharacterStream).%New()
+			Set file=##class(%FileBinaryStream).%New()
+		
+	
+			//Check if temp directory chain exists for storing attachment file
+			Set dir = ##class(%Library.File).%New()
+			Set dirExists = dir.DirectoryExists("C:\temp\SOAPattach")
+			if (dirExists=0)
+			{
+				Set dirExists = dir.CreateDirectory("C:\temp\SOAPattach")
+			}
+		
+			if (dirExists = 1)
+			{
+				Set UTCtimestamp = $piece($ztimestamp,",",1)_$piece($piece($ztimestamp,",",2),".",1)_$piece($ztimestamp,".",2)
+				Set attemptFilename = "C:\temp\SOAPattach\tmp"_UTCtimestamp_"."_sFileExtension
+				Set chkfile=##class(%Library.File).%New()
+			
+				//check unlikely occurence if file exists
+				while (chkfile.Exists(attemptFilename))
+				{
+					Set UTCtimestamp = UTCtimestamp - 1
+					Set attemptFilename = "C:\temp\SOAPattach\tmp"_UTCtimestamp_"."_sFileExtension
+				}
+			
+				Set file.Filename = attemptFilename
+				Do file.Read()		//it seems this is needed to make sure AtEnd is not 1
+
+				//copy attachment into file
+ 				Set status=file.CopyFrom(attach.Body)
+				If $$$ISERR(status) {do $System.Status.DisplayError(status)}
+  				Set status= file.%Save()
+			}
+			else
+			{
+				Set LocalErr = LocalErr00
+				Set LocalErrCode = LocalErrCode + 32
+				THROW LocalErr
+			}
+			
+			Set sFileName = file.Filename
+		}
+	
+		Set result = pdoc.Add(sFileName, sAPIuser, sAPIpassword, sEpisode, sUR, sDateCreated, sTimeCreated, sDocumentDescription, sDocType, sDocSubType)
+		
+		if ((result = $$$OK))
+		{
+			if (sAlert '= "")
+			{
+				set result = pdoc.CreateAlert(sUR, sAPIuser, sAPIpassword, sAlert, sAlertCategory, sAlertMessage)
+				if (result '= $$$OK)
+				{
+					Set LocalErr = LocalErr02
+					Set LocalErrCode = 128
+					THROW LocalErr
+				}
+			}
+		}
+		else
+		{
+			Set LocalErr = LocalErr03
+			Set LocalErrCode = 256
+			THROW LocalErr
+		}
+		
+	}
+	CATCH err
+	{
+		//WRITE !,"Error = ",LocalErr
+		//WRITE !,"Error code=",err.Code
+        //WRITE !,"Error name=",$ZCVT(err.Name,"O","HTML")
+        //WRITE !,"Error data=",err.Data
+        //THROW $$$ERROR()
+        //Quit
+        
+        //<detail> element must contain element(s) or whitespace
+        //specify this element by passing valid XML as string argument to MakeFault() 
+        set mydetail="<mymessage>"_LocalErr_"</mymessage>"
+
+        set fault=..MakeFault($$$FAULTServer,"Error",mydetail)
+        
+        // ReturnFault must be called to send the fault to the client.
+        // ReturnFault will not return here.
+        set fault.faultcode = 10000 + LocalErrCode
+        set fault.faultstring = LocalErr
+        set fault.detail = ErrorDetail
+       
+        Do ..ReturnFault(fault)
+        
+        Quit
+
+	}
+	
+	//Quit "Add"
+	Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Parameter name="SrcVer">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2014/LIVE/cls/Custom/SWARH/ExternalDocs/ws/PatientDoc.xml#1 $</Default>
+</Parameter>
+</Class>
+</Export>

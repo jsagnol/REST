@@ -1,0 +1,271 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.SWARH.Report.RptSvc.StoredProc.SWARHRPMI1004">
+<Description><![CDATA[
+<pre>
+***************************************************************************************************************************************
+* Report Code:SWARHRPMI1004
+* Report Description: PMI Data Export
+* Menu Caption:Reports/PMI/PMI Data
+* Notes: This is a complete replacement of the existing StoredProc as it was very inefficient & contained typos causing incorrect
+*        data in some cases.  Change from original required as ISC changed the RAPID number location from PAPER_ID to residing in the
+*        MRN list with a type code of 'RAPID'
+* Initial Release:2016-07-19	Developer:rpgladman
+***************************************************************************************************************************************
+</pre>]]></Description>
+<ProcedureBlock>0</ProcedureBlock>
+<Super>Custom.SWARH.Report.RptSvc.StoredProc.Abstract</Super>
+<TimeCreated>60905,54849</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/SWARH/Report/RptSvc/StoredProc/SWARHRPMI1004.xml#1 $</Default>
+</Parameter>
+
+<Method name="SWARHRPMI1004Execute">
+<Description>
+This is the Execute section for the %Library.Query.
+All of the logic will be performed here.
+A new node for the ^CacheTemp global will be created and each subscript of this global will contain
+a row for the report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,Hospital:%Library.Integer,Program:%Library.String,Specialty:%Library.String,EpisodeType:%Library.String,DateType:%Library.String,DateFrom:%Library.Date,DateTo:%Library.Date]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Get reportid i.e. use $INCREMENT to add another node to ^CacheTemp global.
+ // We use ^CacheTemp global because it will always use memory before disk
+ New repid,ind
+
+ // Use $Increment to get the next node
+ Set repid=$INCREMENT(^CacheTemp(..#CACHETEMPSUBSCRIPT))
+
+ New PAPMINo, PAPMIName, PAPMIName2, PAPMIName3, CTSEXDesc, PAPERDob, PAPEREstDOB, INDSTDesc, ASSISDesc, CTRLGDesc
+ New CTMARDesc, CTCOUDesc, CTNATDesc, PREFLDesc, PAPERInterpreterRequired, PAPERRemark, PAPERStName, PAPERAddress2
+ New PROVDesc, CTCITDesc, CTZIPCode, CTRGDesc, PAPERTelH, PAPERTelO, PAPERMobPhone, PAPERFax, PAPEREmail
+ New PAPERContactNotes, PAPERPreferredContactMethod, PAPERCanLeaveMessagesOn, REFDDesc, REFDForename, INSTDesc
+ New AUXITDesc, PAPMIHealthFundNo, PENSTYPEDesc, PAPERGovernCardNo, PAPERPensionCardExpiryDate, PAPMIMedicare, PAPMIMedicareCode
+ New MEDSUFDesc, PAPMIMedicareExpDate, PAPMICardTypeDR, PAPMIDVAnumber, PAPERDVAExpiryDate, PAPMIConcessionCardNo
+ New PAPMIConcessionCardExpDate, CONCCARDDesc, PAPERID, PAPERDeceased, PAPERDeceasedDate, PAPMIEstimatedDeathDate
+ New PAPERLocationOfDeath, PAPERWhoNotified, EMPLSTDesc, DEPCHLDesc, LIVARRDesc, ACCOMSDesc, CARAVLDesc, PAPERCommunicationNeedsDR
+ New RESIDDesc, PAPERStayingPermanently, PAPMICHCPatient
+ 
+ Set (PAPMINo) = ""
+ Set (PAPMIName, PAPMIName2, PAPMIName3, CTSEXDesc, PAPERDob, PAPEREstDOB, INDSTDesc, ASSISDesc, CTRLGDesc) = ""
+ Set (CTMARDesc, CTCOUDesc, CTNATDesc, PREFLDesc, PAPERInterpreterRequired, PAPERRemark, PAPERStName, PAPERAddress2) = ""
+ Set (PROVDesc, CTCITDesc, CTZIPCode, CTRGDesc, PAPERTelH, PAPERTelO, PAPERMobPhone, PAPERFax, PAPEREmail) = ""
+ Set (PAPERContactNotes, PAPERPreferredContactMethod, PAPERCanLeaveMessagesOn, REFDDesc, REFDForename, INSTDesc) = ""
+ Set (AUXITDesc, PAPMIHealthFundNo, PENSTYPEDesc, PAPERGovernCardNo, PAPERPensionCardExpiryDate, PAPMIMedicare, PAPMIMedicareCode) = ""
+ Set (MEDSUFDesc, PAPMIMedicareExpDate, PAPMICardTypeDR, PAPMIDVAnumber, PAPERDVAExpiryDate, PAPMIConcessionCardNo) = ""
+ Set (PAPMIConcessionCardExpDate, CONCCARDDesc, PAPERID, PAPERDeceased, PAPERDeceasedDate, PAPMIEstimatedDeathDate) = ""
+ Set (PAPERLocationOfDeath, PAPERWhoNotified, EMPLSTDesc, DEPCHLDesc, LIVARRDesc, ACCOMSDesc, CARAVLDesc, PAPERCommunicationNeedsDR) = ""
+ Set (RESIDDesc, PAPERStayingPermanently, PAPMICHCPatient) = ""
+
+ Set ind=1, END=0
+
+ //Start Monitor (if configured to capture stats)
+ Set mon=..MonitorBegin()
+
+ //Convert ODBC dates to cache format
+ Set DateFrom=..ConvertDateToCache(DateFrom)
+ Set DateTo=..ConvertDateToCache(DateTo)
+
+ &SQL(DECLARE SWARHRPMI1004 CURSOR FOR
+   SELECT
+     PAPMI.PAPMI_No                                                 AS PAPMINo
+    ,PAPMI.PAPMI_Name                                               AS PAPMIName
+    ,PAPMI.PAPMI_Name2                                              AS PAPMIName2
+    ,PAPMI.PAPMI_Name3                                              AS PAPMIName3
+    ,PAPMI.PAPMI_PAPER_DR->PAPER_Sex_DR->CTSEX_Desc                 AS CTSEXDesc
+    ,PAPMI.PAPMI_PAPER_DR->PAPER_Dob                                AS PAPERDob
+    ,PAPMI.PAPMI_PAPER_DR->PAPER_EstDOB                             AS PAPEREstDOB
+    ,PAPMI.PAPMI_PAPER_DR->PAPER_IndigStat_DR->INDST_Desc           AS INDSTDesc
+    ,PAPMI.PAPMI_PAPER_DR->PAPER_AusSouthSeaIslander_DR->ASSIS_Desc AS ASSISDesc
+    ,PAPMI.PAPMI_PAPER_DR->PAPER_Religion_DR->CTRLG_Desc            AS CTRLGDesc
+    ,PAPMI.PAPMI_PAPER_DR->PAPER_Marital_DR->CTMAR_Desc             AS CTMARDesc
+    ,PAPMI.PAPMI_PAPER_DR->PAPER_Country_Birth_DR->CTCOU_Desc       AS CTCOUDesc
+    ,PAPMI.PAPMI_PAPER_DR->PAPER_Nation_DR->CTNAT_Desc              AS CTNATDesc
+    ,PAPMI.PAPMI_PAPER_DR->PAPER_PrefLanguage_DR->PREFL_Desc        AS PREFLDesc
+    ,PAPMI.PAPMI_PAPER_DR->PAPER_InterpreterRequired                AS PAPERInterpreterRequired
+    ,PAPMI.PAPMI_PAPER_DR->PAPER_Remark                             AS PAPERRemark
+    ,PAPMI.PAPMI_PAPER_DR->PAPER_StName                             AS PAPERStName
+    ,PAPMI.PAPMI_PAPER_DR->PAPER_Address2                           AS PAPERAddress2
+    ,PAPMI.PAPMI_PAPER_DR->PAPER_CT_Province_DR->PROV_Desc          AS PROVDesc
+    ,PAPMI.PAPMI_PAPER_DR->PAPER_CityCode_DR->CTCIT_Desc            AS CTCITDesc
+    ,PAPMI.PAPMI_PAPER_DR->PAPER_Zip_DR->CTZIP_Code                 AS CTZIPCode
+    ,PAPMI.PAPMI_PAPER_DR->PAPER_CT_Region_DR->CTRG_Desc            AS CTRGDesc
+    ,PAPMI.PAPMI_PAPER_DR->PAPER_TelH                               AS PAPERTelH
+    ,PAPMI.PAPMI_PAPER_DR->PAPER_TelO                               AS PAPERTelO
+    ,PAPMI.PAPMI_PAPER_DR->PAPER_MobPhone                           AS PAPERMobPhone
+    ,PAPMI.PAPMI_PAPER_DR->PAPER_Fax                                AS PAPERFax
+    ,PAPMI.PAPMI_PAPER_DR->PAPER_Email                              AS PAPEREmail
+    ,PAPMI.PAPMI_PAPER_DR->PAPER_ContactNotes                       AS PAPERContactNotes
+    ,PAPMI.PAPMI_PAPER_DR->PAPER_PreferredContactMethod             AS PAPERPreferredContactMethod
+    ,PAPMI.PAPMI_PAPER_DR->PAPER_CanLeaveMessagesOn                 AS PAPERCanLeaveMessagesOn
+    ,PAPMI.PAPMI_PAPER_DR->PAPER_FamilyDoctor_DR->REFD_Desc         AS REFDDesc
+    ,PAPMI.PAPMI_PAPER_DR->PAPER_FamilyDoctor_DR->REFD_Forename     AS REFDForename
+    ,PAPMI.PAPMI_PAPER_DR->PAPER_InsType_DR->INST_Desc              AS INSTDesc
+    ,PAPMI.PAPMI_PAPER_DR->PAPER_AuxInsType_DR->AUXIT_Desc          AS AUXITDesc
+    ,PAPMI.PAPMI_HealthFundNo                                       AS PAPMIHealthFundNo
+    ,PAPMI.PAPMI_PensionType_DR->PENSTYPE_Desc                      AS PENSTYPEDesc
+    ,PAPMI.PAPMI_PAPER_DR->PAPER_GovernCardNo                       AS PAPERGovernCardNo
+    ,PAPMI.PAPMI_PAPER_DR->PAPER_PensionCardExpiryDate              AS PAPERPensionCardExpiryDate
+    ,PAPMI.PAPMI_Medicare                                           AS PAPMIMedicare
+    ,PAPMI.PAPMI_MedicareCode                                       AS PAPMIMedicareCode
+    ,PAPMI.PAPMI_MedicareSuffix_DR->MEDSUF_Desc                     AS MEDSUFDesc
+    ,PAPMI.PAPMI_MedicareExpDate                                    AS PAPMIMedicareExpDate
+    ,PAPMI.PAPMI_CardType_DR                                        AS PAPMICardTypeDR
+    ,PAPMI.PAPMI_DVAnumber                                          AS PAPMIDVAnumber
+    ,PAPMI.PAPMI_PAPER_DR->PAPER_DVAExpiryDate                      AS PAPERDVAExpiryDate
+    ,PAPMI.PAPMI_ConcessionCardNo                                   AS PAPMIConcessionCardNo
+    ,PAPMI.PAPMI_ConcessionCardExpDate                              AS PAPMIConcessionCardExpDate
+    ,PAPMI.PAPMI_PAPER_DR->PAPER_ConcessCardType_DR->CONCCARD_Desc  AS CONCCARDDesc
+    ,RTMAS.RTMAS_MRNo                                               AS PAPERID -- This is the RAPID number
+    ,PAPMI.PAPMI_PAPER_DR->PAPER_Deceased                           AS PAPERDeceased
+    ,PAPMI.PAPMI_PAPER_DR->PAPER_Deceased_Date                      AS PAPERDeceasedDate
+    ,PAPMI.PAPMI_EstimatedDeathDate                                 AS PAPMIEstimatedDeathDate
+    ,PAPMI.PAPMI_PAPER_DR->PAPER_LocationOfDeath                    AS PAPERLocationOfDeath
+    ,PAPMI.PAPMI_PAPER_DR->PAPER_WhoNotified                        AS PAPERWhoNotified
+    ,PAPMI.PAPMI_PAPER_DR->PAPER_EmploymentStat_DR->EMPLST_Desc     AS EMPLSTDesc
+    ,PAPMI.PAPMI_PAPER_DR->PAPER_DependChildren_DR->DEPCHL_Desc     AS DEPCHLDesc
+    ,PAPMI.PAPMI_PAPER_DR->PAPER_LivingArrangement_DR->LIVARR_Desc  AS LIVARRDesc
+    ,PAPMI.PAPMI_PAPER_DR->PAPER_AccomSetting_DR->ACCOMS_Desc       AS ACCOMSDesc
+    ,PAPMI.PAPMI_PAPER_DR->PAPER_CarerAvailability_DR->CARAVL_Desc  AS CARAVLDesc
+    ,PAPMI.PAPMI_PAPER_DR->PAPER_CommunicationNeeds_DR              AS PAPERCommunicationNeedsDR
+    ,PAPMI.PAPMI_PAPER_DR->PAPER_ResidenceStatus_DR->RESID_Desc     AS RESIDDesc
+    ,PAPMI.PAPMI_PAPER_DR->PAPER_StayingPermanently                 AS PAPERStayingPermanently
+    ,PAPMI.PAPMI_CHCPatient                                         AS PAPMICHCPatient
+  FROM
+    SQLUser.PA_PatMas PAPMI
+    LEFT JOIN SQLUser.PA_Adm      AS PAADM ON PAPMI.PAPMI_RowId = PAADM.PAADM_PAPMI_DR
+    LEFT JOIN SQLUser.RT_Master   AS RTMAS ON (RTMAS.RTMAS_PatNo_DR=PAPMI.PAPMI_RowId AND RTMAS_MRType_DR=(SELECT TYP_RowId FROM SQLUser.RTC_MRecordType WHERE TYP_Code='RAPID') AND RTMAS.RTMAS_Active = 'Y')
+  WHERE
+    PAADM_Hospital_DR = :Hospital
+    AND (  (:DateType='Discharge' AND PAADM_DischgDate BETWEEN :DateFrom AND :DateTo)
+        OR (:DateType='Admission' AND PAADM_AdmDate BETWEEN :DateFrom AND :DateTo)
+        OR (:DateType='Current' AND PAADM_VisitStatus = 'A'))
+    AND (({fn CONCAT( ',', {fn CONCAT((:Program),',')})} [ {fn CONCAT( ',', {fn CONCAT((PAADM_PAADM2_DR->PAADM2_NFMICategDepart_DR),',')})}) OR (:Program IS NULL)) -- Multiple Programs
+    AND (({fn CONCAT( ',', {fn CONCAT((:Specialty),',')})} [ {fn CONCAT( ',', {fn CONCAT((PAADM_DEPCODE_DR),',')})}) OR (:Specialty IS NULL))  -- Multiple Specialties
+    AND (PAADM_Type = :EpisodeType OR (:EpisodeType IS Null))
+  ORDER BY PAPMIName ASC
+	)
+
+ &SQL(OPEN SWARHRPMI1004)
+
+ //FETCH FIRST ROW
+ Do FetchRow
+
+ While END=0 {
+
+	 Do FormatDates
+  	 Do FormatTimes
+  	 Do FormatStrings
+
+	 Set sort = ind
+
+	 Set ^CacheTemp(..#CACHETEMPSUBSCRIPT,repid,sort)=$LISTBUILD(PAPMINo, PAPMIName, PAPMIName2, PAPMIName3, CTSEXDesc, PAPERDob, PAPEREstDOB, INDSTDesc, ASSISDesc, CTRLGDesc,CTMARDesc, CTCOUDesc, CTNATDesc, PREFLDesc, PAPERInterpreterRequired, PAPERRemark, PAPERStName, PAPERAddress2, PROVDesc, CTCITDesc, CTZIPCode, CTRGDesc, PAPERTelH, PAPERTelO, PAPERMobPhone, PAPERFax, PAPEREmail, PAPERContactNotes, PAPERPreferredContactMethod, PAPERCanLeaveMessagesOn, REFDDesc, REFDForename, INSTDesc, AUXITDesc, PAPMIHealthFundNo, PENSTYPEDesc, PAPERGovernCardNo, PAPERPensionCardExpiryDate, PAPMIMedicare, PAPMIMedicareCode, MEDSUFDesc, PAPMIMedicareExpDate, PAPMICardTypeDR, PAPMIDVAnumber, PAPERDVAExpiryDate, PAPMIConcessionCardNo,PAPMIConcessionCardExpDate, CONCCARDDesc, PAPERID, PAPERDeceased, PAPERDeceasedDate, PAPMIEstimatedDeathDate,PAPERLocationOfDeath, PAPERWhoNotified, EMPLSTDesc, DEPCHLDesc, LIVARRDesc, ACCOMSDesc, CARAVLDesc, PAPERCommunicationNeedsDR, RESIDDesc, PAPERStayingPermanently, PAPMICHCPatient)
+	 Set ind=ind+1
+
+	 //fetch rows
+	 Do FetchRow
+ }
+
+ &SQL(CLOSE SWARHRPMI1004)
+
+ // Build QHandle (AtEnd,ReportID,Index)
+ Set QHandle=$listbuild(0,repid,0)
+
+ Quit $$$OK
+
+FetchRow
+ &sql(FETCH SWARHRPMI1004 INTO :PAPMINo,:PAPMIName,:PAPMIName2,:PAPMIName3,:CTSEXDesc,:PAPERDob,:PAPEREstDOB,:INDSTDesc,:ASSISDesc,:CTRLGDesc,:CTMARDesc,:CTCOUDesc,:CTNATDesc,:PREFLDesc,:PAPERInterpreterRequired,:PAPERRemark,:PAPERStName,:PAPERAddress2,:PROVDesc,:CTCITDesc,:CTZIPCode,:CTRGDesc,:PAPERTelH,:PAPERTelO,:PAPERMobPhone,:PAPERFax,:PAPEREmail,:PAPERContactNotes,:PAPERPreferredContactMethod,:PAPERCanLeaveMessagesOn,:REFDDesc,:REFDForename,:INSTDesc,:AUXITDesc,:PAPMIHealthFundNo,:PENSTYPEDesc,:PAPERGovernCardNo,:PAPERPensionCardExpiryDate,:PAPMIMedicare,:PAPMIMedicareCode,:MEDSUFDesc,:PAPMIMedicareExpDate,:PAPMICardTypeDR,:PAPMIDVAnumber,:PAPERDVAExpiryDate,:PAPMIConcessionCardNo,:PAPMIConcessionCardExpDate,:CONCCARDDesc,:PAPERID,:PAPERDeceased,:PAPERDeceasedDate,:PAPMIEstimatedDeathDate,:PAPERLocationOfDeath,:PAPERWhoNotified,:EMPLSTDesc,:DEPCHLDesc,:LIVARRDesc,:ACCOMSDesc,:CARAVLDesc,:PAPERCommunicationNeedsDR,:RESIDDesc,:PAPERStayingPermanently,:PAPMICHCPatient)
+ If SQLCODE '= 0 Set END = 1
+ Quit
+
+FormatDates
+ Set PAPERDob=..ConvertDateToODBC(PAPERDob)
+ Set PAPERPensionCardExpiryDate=..ConvertDateToODBC(PAPERPensionCardExpiryDate)
+ Set PAPMIMedicareExpDate=..ConvertDateToODBC(PAPMIMedicareExpDate)
+ Set PAPERDVAExpiryDate=..ConvertDateToODBC(PAPERDVAExpiryDate)
+ Set PAPMIConcessionCardExpDate=..ConvertDateToODBC(PAPMIConcessionCardExpDate)
+ Set PAPERDeceasedDate=..ConvertDateToODBC(PAPERDeceasedDate)
+ Quit
+
+FormatTimes //Be sure to set fields in Query output as '%String' then format Reporting Services field as Time.
+ //Set AdmTime=..ConvertTimeToHHMM(AdmTime)
+ //Set DischgTime=..ConvertTimeToHHMM(DischgTime)
+ Quit
+
+FormatStrings
+ Set PAPERStName=$ZSTRIP(PAPERStName,"*C") //Removes control characters (0-31,127-159)
+ Set PAPERStName=$ZSTRIP(PAPERStName,"*",$CHAR(34,35,39,44,46)) //Removes 34-Quotes,35-Hash,39-Single quote,44-Comma,46-Period
+ Set PAPERStName=$ZCONVERT(PAPERStName,"U") //Converts to Uppercase
+ Set PAPERRemark=$ZSTRIP(PAPERRemark,"*C")
+ Set PAPERRemark=$ZSTRIP(PAPERRemark,"*",$CHAR(34,35,39,44,46))
+ Quit
+]]></Implementation>
+</Method>
+
+<Method name="SWARHRPMI1004Fetch">
+<Description>
+This is the Fetch component of the %Library.Query.
+This should never have to change. It is designed to fetch the row for each subscript of the ^CacheTemp
+global and return this row to the Crystal Report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,&Row:%Library.List,&AtEnd:%Library.Integer=0]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // This fetch method should never have to change.
+ // repid - Report ID
+ // ind   - sequence index which represents each row
+
+ New repid,ind
+
+ // Restore QHandle
+ Set AtEnd=$LIST(QHandle,1)
+ Set repid=$LIST(QHandle,2)
+ Set ind=$LIST(QHandle,3)
+
+ Set ind=$ORDER(^CacheTemp(..#CACHETEMPSUBSCRIPT,repid,ind))
+ If ind="" {	// if there are no more rows, finish fetching
+	 Set AtEnd=1
+	 Set Row=""
+ }
+ Else      {	// fetch row
+ 	Set Row=^CacheTemp(..#CACHETEMPSUBSCRIPT,repid,ind)
+ }
+
+ // Save QHandle
+ Set QHandle=$LISTBUILD(AtEnd,repid,ind)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="SWARHRPMI1004Close">
+<Description>
+This is the Close component of the %Library.Query.
+This is standard code and should never have to change.
+This is where all the cleanup is performed, i.e. the purging of the temporary storage global ^CacheTemp.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>QHandle:%Library.Binary</FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Clean up by purging the temporary node in ^CacheTemp global
+ New repid,ind
+ Set repid=$LIST(QHandle,2)
+
+ Kill ^CacheTemp(..#CACHETEMPSUBSCRIPT,repid)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Query name="SWARHRPMI1004">
+<Type>%Library.Query</Type>
+<FormalSpec>Hospital:%Library.Integer,Program:%Library.String,Specialty:%Library.String,EpisodeType:%Library.String,DateType:%Library.String,DateFrom:%Library.Date,DateTo:%Library.Date</FormalSpec>
+<SqlProc>1</SqlProc>
+<Parameter name="CONTAINID" value="0"/>
+<Parameter name="ROWSPEC" value="PAPMINo:%Library.String,PAPMIName:%Library.String,PAPMIName2:%Library.String,PAPMIName3:%Library.String,CTSEXDesc:%Library.String,PAPERDob:%Library.Date,PAPEREstDOB:%Library.String,INDSTDesc:%Library.String,ASSISDesc:%Library.String,CTRLGDesc:%Library.String,CTMARDesc:%Library.String,CTCOUDesc:%Library.String,CTNATDesc:%Library.String,PREFLDesc:%Library.String,PAPERInterpreterRequired:%Library.String,PAPERRemark:%Library.String,PAPERStName:%Library.String,PAPERAddress2:%Library.String,PROVDesc:%Library.String,CTCITDesc:%Library.String,CTZIPCode:%Library.String,CTRGDesc:%Library.String,PAPERTelH:%Library.String,PAPERTelO:%Library.String,PAPERMobPhone:%Library.String,PAPERFax:%Library.String,PAPEREmail:%Library.String,PAPERContactNotes:%Library.String,PAPERPreferredContactMethod:%Library.String,PAPERCanLeaveMessagesOn:%Library.String,REFDDesc:%Library.String,REFDForename:%Library.String,INSTDesc:%Library.String,AUXITDesc:%Library.String,PAPMIHealthFundNo:%Library.String,PENSTYPEDesc:%Library.String,PAPERGovernCardNo:%Library.String,PAPERPensionCardExpiryDate:%Library.Date,PAPMIMedicare:%Library.String,PAPMIMedicareCode:%Library.String,MEDSUFDesc:%Library.String,PAPMIMedicareExpDate:%Library.Date,PAPMICardTypeDR:%Library.String,PAPMIDVAnumber:%Library.String,PAPERDVAExpiryDate:%Library.Date,PAPMIConcessionCardNo:%Library.String,PAPMIConcessionCardExpDate:%Library.Date,CONCCARDDesc:%Library.String,PAPERID:%Library.String,PAPERDeceased:%Library.String,PAPERDeceasedDate:%Library.Date,PAPMIEstimatedDeathDate:%Library.String,PAPERLocationOfDeath:%Library.String,PAPERWhoNotified:%Library.String,EMPLSTDesc:%Library.String,DEPCHLDesc:%Library.String,LIVARRDesc:%Library.String,ACCOMSDesc:%Library.String,CARAVLDesc:%Library.String,PAPERCommunicationNeedsDR:%Library.String,RESIDDesc:%Library.String,PAPERStayingPermanently:%Library.String,PAPMICHCPatient:%Library.String"/>
+<Parameter name="SELECTMODE" value="ODBC"/>
+</Query>
+</Class>
+</Export>

@@ -1,0 +1,747 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.AUXXUtilities">
+<ClassType/>
+<ProcedureBlock>0</ProcedureBlock>
+<Super>%RegisteredObject</Super>
+<TimeCreated>60471,58724.96519</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/AUXXUtilities.xml#1 $</Default>
+</Parameter>
+
+<UDLText name="T">
+<Content><![CDATA[
+// $Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/AUXXUtilities.xml#1 $
+
+]]></Content>
+</UDLText>
+
+<UDLText name="T">
+<Content><![CDATA[
+// Version 1
+
+]]></Content>
+</UDLText>
+
+<Method name="GetProgramSubGovCode">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>val:%String</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	s (govcode,subcode)=""
+	q:val="" "^"
+	
+	s govid=##Class(web.CTNFMICategDepart).GetIdFromCodeOrDescription(val)
+	i $g(govid)'="" {
+		s govcode=$p($g(^CT("NFMI",+govid)),"^")
+		s subid=$p($g(^CT("NFMI",+govid)),"^",5)
+		i $p(subid,"||",2)'="" {
+			s subcode=$p($g(^CT("GOVCAT",+subid,"SUB",$p(subid,"||",2))),"^")
+		}
+	}
+	q govcode_"^"_subcode
+]]></Implementation>
+</Method>
+
+<Method name="SetProgram">
+<Description>
+##class(Custom.AUXXUtilities).SetProgram($g(%request.Data("EpisodeID",1)),$g(%request.Data("ApptID",1)),$g(%request.Data("EnqID",1)))</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>EpisodeID:%String,APPTID:%String,EnqID:%String</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	s val=""
+	i $g(%request.Data("TFORM",1))="PAAdm.Edit",$g(EpisodeID) {
+		s wlid=$p($g(^PAADM(EpisodeID,1)),"^",18)
+		i wlid {
+			s val=$p($g(^PAWL(wlid,1)),"^",8)
+			i val s val=$p($g(^CT("NFMI",+val,"DEP",$p(val,"||",2))),"^",2)
+		}
+	}
+	
+	s TFORMLIST="RBAppointment.Find,MRClinicalPathways.BrokerageCarePlan,NRCarePlan.Edit,OEOrder.Normal"
+	i TFORMLIST[$g(%request.Data("TFORM",1)),$g(EpisodeID) {
+		s val=$p($g(^PAADM(EpisodeID,"ADM2")),"^",104)
+		i val s val=$p($g(^CT("NFMI",+val,"DEP",$p(val,"||",2))),"^",2)
+	}
+	
+	i $g(%request.Data("TFORM",1))="RBAppointment.Edit",$g(APPTID) {
+		s oeori=$p($g(^RBAS(+APPTID,$p(APPTID,"||",2),"APPT",$p(APPTID,"||",3))),"^",21)
+		i oeori {
+			s val=$p($g(^OEORD(+oeori,"I",$p(oeori,"||",2),"I2")),"^",75)
+			i val s val=$p($g(^CT("NFMI",+val,"DEP",$p(val,"||",2))),"^",2)
+		}
+		i val="",$g(EpisodeID) {
+			s val=$p($g(^PAADM(EpisodeID,"ADM2")),"^",104)
+			i val s val=$p($g(^CT("NFMI",+val,"DEP",$p(val,"||",2))),"^",2)
+		}
+	}
+	
+	i $g(%request.Data("TFORM",1))="PAEnquiryContact.Edit",$g(EnqID) {
+		s oeori=$p($g(^PAENQ(EnqID)),"^",42)
+		i oeori {
+			s val=$p($g(^OEORD(+oeori,"I",$p(oeori,"||",2),"I2")),"^",75)
+			i val s val=$p($g(^CT("NFMI",+val,"DEP",$p(val,"||",2))),"^",2)
+			
+			i val="" {
+				s EpisodeID=$p($g(^OEORD(+oeori)),"^")
+				i EpisodeID {
+					s val=$p($g(^PAADM(EpisodeID,"ADM2")),"^",104)
+					i val s val=$p($g(^CT("NFMI",+val,"DEP",$p(val,"||",2))),"^",2)
+				}
+			}
+		}
+		i val="",$g(EpisodeID) {
+			s val=$p($g(^PAADM(EpisodeID,"ADM2")),"^",104)
+			i val s val=$p($g(^CT("NFMI",+val,"DEP",$p(val,"||",2))),"^",2)
+		}
+	}
+	
+	q val
+]]></Implementation>
+</Method>
+
+<Method name="GetLatestRemarks">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>admid:%String</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	s remarks=""
+	q:$g(admid)="" remarks
+	s obj=##class(User.PAAdm).%OpenId(admid)
+	i obj d
+	. i ((obj.PAADMRemark.GetAt(1)="")||(obj.PAADMRemark.GetAt(1)=$c(0))) d
+	. . i obj.PAADMWaitListDR d
+	. . . s remarks=##class(websys.Conversions).LongTextLogicalToHtml(obj.PAADMWaitListDR.WLRemarks,$c(13,10))
+	. e  s remarks=##class(websys.Conversions).LongTextLogicalToHtml(obj.PAADMRemark,$c(13,10))
+	. d obj.%Close()
+	q remarks
+]]></Implementation>
+</Method>
+
+<Method name="GetPACUStatus">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>rbid:%String,admid:%String</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	s ok=0
+	q:$g(rbid)="" ok
+	q:$g(admid)="" ok
+	
+	s ana=0 f  s ana=$o(^OR(0,"RBOP",rbid,admid,ana)) q:ana=""  d
+	. i $p($g(^OR(admid,"ANA",ana)),"^",33)="D" s ok=1
+	q ok
+]]></Implementation>
+</Method>
+
+<Method name="GetMappedCode">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>TableName:%Library.String,FieldName:%Library.String,ReportType:%Library.String,ActualValue:%Library.String</FormalSpec>
+<ReturnType>%Library.String</ReturnType>
+<Implementation><![CDATA[
+	n MappedValue
+	s MappedValue=""
+	s ReportType=$o(^PAC("REPTYPE",0,"Code",$$ALPHAUP^SSUTIL4(ReportType),""))
+	
+	q:TableName="" ActualValue
+	q:FieldName="" ActualValue
+	s TableName=$$ALPHAUP^SSUTIL4(TableName)
+	s FieldName=$$ALPHAUP^SSUTIL4(FieldName)
+	
+	i $g(ReportType)'="" d
+	. s nat=0 f  s nat=$o(^PAC("NATC",0,"Table",TableName,FieldName,ReportType,nat)) q:nat=""  d
+	. . q:$p($g(^PAC("NATC",nat)),"^",2)'=""
+	. . i $p($g(^PAC("NATC",nat)),"^",8)=$g(ActualValue) s MappedValue=$p($g(^PAC("NATC",nat)),"^",9)
+	
+	i $g(MappedValue)="" s MappedValue=ActualValue
+	q MappedValue
+]]></Implementation>
+</Method>
+
+<Method name="GetFilePath">
+<Description>
+Old do not use, Use Region.AUXX.Utility.Utilities class instead</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>filetype:%String</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	s (unixpath,winpath,errormsg)=""
+	&SQL(SELECT PATH_Path,PATH_UNIXPath
+		INTO :winpath,:unixpath
+		FROM SQLUser.CF_SystemFilePath
+		WHERE PATH_ParRef->FILE_Desc=:filetype)
+	i unixpath'="" s winpath=""
+	i $e(unixpath,*)'="/",$g(unixpath)'="" s unixpath=unixpath_"/"
+	i $e(winpath,*)'="\",$g(winpath)'="" s winpath=winpath_"\"
+	
+	i unixpath="",winpath="" s errormsg="No filepath defined for "_filetype_" extract."
+	
+	q unixpath_"^"_winpath_"^"_errormsg
+]]></Implementation>
+</Method>
+
+<Method name="CheckNPPP">
+<Description>
+Called from pawaitinglist.edit</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>code:%String</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	s pass=0
+	s id=##class(web.PACStatePPP).GetIdFromCodeOrDescription(code)
+	i $g(id)'="" d
+	. s nppp=$p($g(^PAC("SPPP",id)),"^",5)
+	. i nppp'="" d
+	. . s nppp=$p($g(^PAC("NPPP",nppp)),"^",1)
+	. . i $g(nppp)'="" d
+	. . . i (",030,050,070,090,110,130,160,230,231,180,190,")[(","_nppp_",") s pass=1
+	q pass
+]]></Implementation>
+</Method>
+
+<Method name="SetWLDefaults">
+<Description>
+Called from rboperatingroom.edit</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>wlid:%String,type:%String</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	s text="",delim1=$c(2),delim2=$c(1)
+	q:$g(wlid)="" text
+	q:$g(type)="" text
+	s wlid=+wlid
+	
+	i type="OPER" d
+	. s text=$p($g(^PAWL(wlid)),"^",6)
+	. i text'="" s text=$p($g(^ORC("OPER",text)),"^",2)
+	i type="SPPP" d
+	. s text=$p($g(^PAWL(wlid)),"^",78)
+	. i text'="" s text=$p($g(^PAC("SPPP",text)),"^",2)
+	i type="SECOR" s type="SEC",wlid=$p($g(^RBOP(wlid)),"^",17)
+	i type="SEC" d
+	. s idx=0 f  s idx=$o(^PAWL(wlid,"SECOP",idx)) q:idx=""  d
+	. . s pppid=$p($g(^PAWL(wlid,"SECOP",idx)),"^",3)
+	. . i $g(pppid)'="" d
+	. . . i $g(text)'="" s text=text_$c(1)_$p($g(^PAC("SPPP",pppid)),"^",2)_$c(2)_pppid
+	. . . i $g(text)="" s text=$p($g(^PAC("SPPP",pppid)),"^",2)_$c(2)_pppid
+
+	q text
+]]></Implementation>
+</Method>
+
+<Method name="SetProcDetailsFromBooking">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>rbopid:%String</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	s text=""
+	q:rbopid="" text
+	
+	s rbop=##class(User.RBOperatingRoom).%OpenId(rbopid)
+	i rbop {
+		s text=rbop.RBOPProcsOpers.GetAt(1)
+		d rbop.%Close()
+	}
+	
+	q text
+]]></Implementation>
+</Method>
+
+<Method name="SetApptTransition">
+<ClassMethod>1</ClassMethod>
+<Implementation><![CDATA[
+	s links=$g(%request.Data("hiddenLinks",1))
+	s doc=$g(%request.Data("LetterToRefDoc",1))
+	s pat=$g(%request.Data("LetterToPatient",1))
+	s edit=$g(%request.Data("EditLetter",1))
+	
+	i $p($g(links),"&")="",$p($g(links),"&",2)="" {
+		d %request.Set("hiddenLinks",$g(edit)_"&"_$g(doc))
+	} else {
+		d %request.Set("hiddenLinks",$g(links))
+	}
+	q
+]]></Implementation>
+</Method>
+
+<Method name="GotoNextApptComp">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>type:%String,ModuleCode:%String,LetterTypeCode:%String</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	s val=0,(id,person,apptid)=""
+	s apptid=$g(%request.Data("ApptID",1))
+	i type="PAT" {
+		i $g(%request.Data("LetterToPatient",1))="on" {
+			i $g(%request.Data("EditLetter",1))="on" {
+				s %request.Data("READONLY",1)=##class(web.PALetter).ReadOnly(ModuleCode,LetterTypeCode)
+				s val=1
+			} else {
+				s id=##class(web.PALetter).Background(ModuleCode,LetterTypeCode,1)
+				s val=0
+				i apptid'="" s person=$p($g(^RBAS(+apptid,$p(apptid,"||",2),"APPT",$p(apptid,"||",2))),"^",2)
+				i $g(id),person &SQL(UPDATE SQLUser.PA_Letter SET LET_PERSON_DR=:person WHERE LET_RowId=:id)
+			}
+		}
+	} else {
+		i ($g(%request.Data("LetterToRefDoc",1))="on")||($p($g(%request.Data("hiddenLinks",1)),"&",2)="on") {
+			i ($g(%request.Data("EditLetter",1))="on")||($p($g(%request.Data("hiddenLinks",1)),"&")="on") {
+				s %request.Data("READONLY",1)=##class(web.PALetter).ReadOnly(ModuleCode,LetterTypeCode)
+				s val=1
+			} else {
+				s id=##class(web.PALetter).Background(ModuleCode,LetterTypeCode,1)
+				s val=0
+				i apptid'="" s person=$p($g(^RBAS(+apptid,$p(apptid,"||",2),"APPT",$p(apptid,"||",2))),"^",2)
+				i $g(id),person &SQL(UPDATE SQLUser.PA_Letter SET LET_PERSON_DR=:person WHERE LET_RowId=:id)
+			}
+		}
+	}
+	q val
+]]></Implementation>
+</Method>
+
+<Method name="ApptTransferLetter">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>ModuleCode:%String,LetterTypeCode:%String</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	s val=0,(id,person)=""
+	s apptid=$g(%request.Data("TransAppt",1))
+	i $g(apptid)'="" {
+		d %request.Set("ApptID",$g(apptid))
+		i $g(%request.Data("PatientLetter",1))="on",$g(LetterTypeCode)'="" {
+			s id=##class(web.PALetter).Background(ModuleCode,LetterTypeCode,1)
+			i apptid'="" s person=$p($g(^RBAS(+apptid,$p(apptid,"||",2),"APPT",$p(apptid,"||",2))),"^",2)
+			i $g(id),person &SQL(UPDATE SQLUser.PA_Letter SET LET_PERSON_DR=:person WHERE LET_RowId=:id)
+			s val=0
+		}
+	}
+	q val
+]]></Implementation>
+</Method>
+
+<Method name="SetWLTransition">
+<ClassMethod>1</ClassMethod>
+<Implementation><![CDATA[
+	s links=$g(%request.Data("hiddenLinks",1))
+	s doc=$g(%request.Data("PrintRefDocLetter",1))
+	s pat=$g(%request.Data("PrintPatientLetter",1))
+	s edit=$g(%request.Data("EditLetter",1))
+	
+	i $p($g(links),"&")="",$p($g(links),"&",2)="" {
+		d %request.Set("hiddenLinks",$g(edit)_"&"_$g(doc))
+	} else {
+		d %request.Set("hiddenLinks",$g(links))
+	}
+	q
+]]></Implementation>
+</Method>
+
+<Method name="GotoNextWLComp">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>ModuleCode:%String,LetterTypeCode1:%String,LetterTypeCode2:%String,LetterTypeCode3:%String</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	s val=0,(id,person)=""
+	s wlid=$g(%request.Data("WaitingListID",1))
+	i $g(wlid)'="" {
+		s pass=1,NADateTo=""
+		i (("AUWLNRFCP"=LetterTypeCode1)||("AUWLNRFCG"=LetterTypeCode2)) {
+			i $g(%request.Data("NADateTo",1))'="" s pass=0
+		}
+		s field="PrintPatientLetter"
+		s field2="PrintGPLetter"
+		i $g(%request.Data("TFORM",1))="PAWaitingListAdm.Edit" s field="CancelPatientLetter",field2="CancelGPLetter"
+		i $g(%request.Data(field,1))="on",$g(LetterTypeCode1)'="",pass=1 {
+			s id=##class(web.PALetter).Background(ModuleCode,LetterTypeCode1,1)
+			s person=$p($g(^PAWL(wlid)),"^",12)
+			i $g(id),person &SQL(UPDATE SQLUser.PA_Letter SET LET_PERSON_DR=:person WHERE LET_RowId=:id)
+			s val=0
+		}
+		i $g(%request.Data("PrintRefDocLetter",1))="on",$g(LetterTypeCode2)'="",pass=1 {
+			s id=##class(web.PALetter).Background(ModuleCode,LetterTypeCode2,1)
+			s person=$p($g(^PAWL(wlid)),"^",12)
+			i $g(id),person &SQL(UPDATE SQLUser.PA_Letter SET LET_PERSON_DR=:person WHERE LET_RowId=:id)
+			s val=0
+		}
+		i $p($g(^PAWL(wlid)),"^",178)="Y",$g(LetterTypeCode3)'="",pass=1,$g(%request.Data("field2",1))="on" {
+			s id=##class(web.PALetter).Background(ModuleCode,LetterTypeCode3,1)
+			s person=$p($g(^PAWL(wlid)),"^",12)
+			i $g(id),person &SQL(UPDATE SQLUser.PA_Letter SET LET_PERSON_DR=:person WHERE LET_RowId=:id)
+			s val=0
+		}
+		i $g(%request.Data("TFORM",1))="PAWaitingListAdm.Edit",$g(%request.Data("CancelGPLetter",1))="on",$g(LetterTypeCode3)'="" {
+			s id=##class(web.PALetter).Background(ModuleCode,LetterTypeCode3,1)
+			s person=$p($g(^PAWL(wlid)),"^",12)
+			i $g(id),person &SQL(UPDATE SQLUser.PA_Letter SET LET_PERSON_DR=:person WHERE LET_RowId=:id)
+			s val=0
+		}
+	}
+	q val
+]]></Implementation>
+</Method>
+
+<Method name="GotoNextWLComp2">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>type:%String,ModuleCode:%String,LetterTypeCode:%String</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	s val=0,(id,person,wlid)=""
+	s wlid=$g(%request.Data("WaitingListID",1))
+	i $g(%request.Data("PrintPatientLetter",1))="on",$g(type)="PAT" {
+		s id=##class(web.PALetter).Background(ModuleCode,LetterTypeCode,1)
+		i wlid'="" s person=$p($g(^PAWL(wlid)),"^",12)
+		i $g(id),person &SQL(UPDATE SQLUser.PA_Letter SET LET_PERSON_DR=:person WHERE LET_RowId=:id)
+		s val=0
+	}
+	i $g(%request.Data("PrintRefDocLetter",1))="on",$g(type)="DOC" {
+		s id=##class(web.PALetter).Background(ModuleCode,LetterTypeCode,1)
+		i wlid'="" s person=$p($g(^PAWL(wlid)),"^",12)
+		i $g(id),person &SQL(UPDATE SQLUser.PA_Letter SET LET_PERSON_DR=:person WHERE LET_RowId=:id)
+		s val=0
+	}
+	q val
+]]></Implementation>
+</Method>
+
+<Method name="GetINSTCode2FromPayorCode">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>val:%String</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	s code=""
+	s id=##class(web.ARCInsuranceType).GetIdFromCodeOrDescription(val)
+	i $g(id)'="" s code=$p($g(^ARC("INST",id)),"^",11)
+	q code
+]]></Implementation>
+</Method>
+
+<Method name="CheckPathwayOrders">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>val:%String</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	s check=0
+	i $g(val)'="" d
+	. s oe=0 f  s oe=$o(^OEORDi(0,"CPW",val,oe)) q:oe=""  d
+	. . s oei=0 f  s oei=$o(^OEORDi(0,"CPW",val,oe,oei)) q:oei=""  d
+	. . . i $p($g(^OEORD(oe,"I",oei,1)),"^",13)=$o(^OEC("OSTAT",0,"Code","V","")) s check=1
+	q check
+]]></Implementation>
+</Method>
+
+<Method name="CheckQuesStatus">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>val1:%String,val2:%String</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	q:$g(val2)="" 0
+	q:$g(val1)="" 0
+	
+	s flag=0
+	s currentlist=$p($g(^PA("DISSUM",val1)),"^",22)
+	s type=$s($e(val2)=4:"LOC",$e(val2)=1:"REF",$e(val2)=2:"NG")
+	i "LOC,NG"[type s typeid=$p($p(val2,$c(31)),"||",2)
+	i type="REF" s typeid=$p(val2,"^",2)
+	
+	f y=1:1:$l(currentlist,"&") d
+	. s exists=0
+	. i $p($p(currentlist,"&",y),"|")=type,$p($p(currentlist,"&",y),"|",2)=typeid d
+	. . s qid=$p($p(currentlist,"&",y),"|",3)
+	. . i $g(qid) d
+	. . . i $lg(^questionnaire.QAUXXSCTTRD(qid),13)=$o(^MRC("NNS",0,"Desc","AUTHORISED",0)) s flag=1
+	
+	q $g(flag)
+]]></Implementation>
+</Method>
+
+<Method name="Factor">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>val:%String</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	q:$g(val)="" ""
+	
+	s val=##class(web.PACReferralPeriod).GetIdFromCodeOrDescription(val)
+	i $g(val) s val=$p($g(^PAC("REFPER",val)),"^",3)
+	q $g(val)
+]]></Implementation>
+</Method>
+
+<Method name="ESISHospital">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>TransDest:%String</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	q:$g(TransDest)="" "1"
+	i $g(TransDest)'="" d
+	. s TransDestid=##class(web.PACTransferDestination).GetIdFromCodeOrDescription(TransDest)
+	. i $g(TransDestid)'="" d
+	. . i $p($g(^PAC("TRD",TransDestid)),"^",5)="E" s code=1
+	. . i $p($g(^PAC("TRD",TransDestid)),"^",5)'="E" s code=0
+	q $g(code)
+]]></Implementation>
+</Method>
+
+<Method name="EpisodeDocScanSet">
+<ClassMethod>1</ClassMethod>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	s paadmid=$g(%request.Data("EpisodeID",1))
+	q:$g(paadmid)="" 0
+	s mradmid=$p($g(^PAADM(paadmid)),"^",61)
+	;s %request.Data("mradm",1)=$g(mradmid)
+	q $g(mradmid)
+]]></Implementation>
+</Method>
+
+<Method name="RUG">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>admid:%String,type:%String</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	; ##class(Custom.AUXXUtilities).RUG($g(%request.Data("EpisodeID",1)),"")
+	q:admid=""
+	s pass=0
+	s mr=$p($g(^PAADM(admid)),"^",61)
+	i $g(mr)'="" d
+	. i type="RUG" d
+	. . i $p($g(^MR(mr,"PRO",1)),"^",59)=$o(^PAC("CARETYP",0,"Code","8",0)) s pass=1
+	. i type="BARTH" d
+	. . s codelist=",F,E,K,2,6,7,9,"
+	. . s caretype=$p($g(^MR(mr,"PRO",1)),"^",59)
+	. . i $g(caretype)'="" d
+	. . . s caretype=$p($g(^PAC("CARETYP",caretype)),"^")
+	. . . i codelist[(","_caretype_",") s pass=1
+	q pass
+]]></Implementation>
+</Method>
+
+<Method name="CareType">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>admid:%String</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	; ##class(Custom.AUXXUtilities).CareType(EpisodeID)
+	q:admid=""
+	s caretype=""
+	s mr=$p($g(^PAADM(admid)),"^",61)
+	i $g(mr)'="" d
+	. s caretype=$p($g(^MR(mr,"PRO",1)),"^",59)
+	. i $g(caretype)'="" d
+	. . s caretype=$p($g(^PAC("CARETYP",caretype)),"^")
+	q caretype
+]]></Implementation>
+</Method>
+
+<Method name="SPPP">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>val:%String</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	q:val=""
+	s val=##class(web.PACStatePPP).GetIdFromCodeOrDescription(val)
+	i $g(val)'="" d
+	. s val=$p($g(^PAC("SPPP",val)),"^",6)
+	. s val=$s($g(val)'="":val,1:"N")
+	q val
+]]></Implementation>
+</Method>
+
+<Method name="OutPatientIcon">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>SelectEpisodeID,PatientID</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+ ;notes this just looks for concurrent IP and OP episodes
+ ;we could extend it to filter by any additional criteria such as hospital,location etc. if necessery 
+ 
+ q:(SelectEpisodeID="") 0
+ i $g(SelectEpisodeID)'="" d
+ . s admtype=$p($g(^PAADM(SelectEpisodeID)),"^",2) 
+ . s visitstat=$p($g(^PAADM(SelectEpisodeID)),"^",20) 
+ i $g(SelectEpisodeID)'="",visitstat'="A"  q 0 ; we did not select current episiode
+ i $g(SelectEpisodeID)'="",admtype="E" q 0 ; we do not want this for emergency
+ i admtype="I" s reverseadmtype="O"
+ i admtype="O" s reverseadmtype="I"
+ s matched=0
+ s type="" f  s type=$o(^PAPERdr(PatientID,"ADM",type)) q:type=""  q:matched  d
+ . i type=admtype q   ;as we are looking for opposite episodes
+ . i type'=reverseadmtype q   ;as we are looking for specific type episodes
+ . s adm="" f  s adm=$o(^PAPERdr(PatientID,"ADM",type,adm)) q:adm=""  q:matched  d
+ . . s adms=$g(^PAADM(adm))
+ . . i $p(adms,"^",2)=reverseadmtype,$p(adms,"^",20)="A" s matched=1
+
+ q matched
+]]></Implementation>
+</Method>
+
+<Method name="SamePatient">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>admid:%Integer</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	s same=0,WARDRowId=""
+	
+	; Get current ward
+	q:(admid="") 0
+	i $p($g(^PAADM(admid)),"^",2)="I" d
+	. s patid=$p($g(^PAADM(admid)),"^",1)
+	. s sname=$p($g(^PAPER(patid,"ALL")),"^",1)
+	. s gname=$p($g(^PAPER(patid,"ALL")),"^",2)
+	. s WARDRowId=$p($g(^PAADM(admid)),"^",70)
+	. ; Get Current Ward / Bed if moved
+	. s TRANSChildsub=0 f  s TRANSChildsub=$o(^PAADM(admid,"TRANS",TRANSChildsub)) q:TRANSChildsub=""  d
+	. . i $p($g(^PAADM(admid,"TRANS",TRANSChildsub)),"^",1)>=$h,$p($g(^PAADM(admid,"TRANS",TRANSChildsub)),"^",3)<=$s($p($g(^PAADM(admid,"TRANS",TRANSChildsub)),"^",3)="":$h,1:$p($g(^PAADM(admid,"TRANS",TRANSChildsub)),"^",3)) d
+	. . . i $o(^PAC("REQST",0,"Code","M",0))=$p($g(^PAADM(admid,"TRANS",TRANSChildsub)),"^",12),$o(^PAC("TRANSTYP",0,"Code","D",0))=$p($g(^PAADM(admid,"TRANS",TRANSChildsub)),"^",21) d
+	. . . . s WARDRowId=$p($g(^PAADM(admid,"TRANS",TRANSChildsub)),"^",9)
+	
+	s admid1=0 f  s admid1=$o(^PAADMi("PAADM_VisitStatus","A",admid1)) q:admid1=""  d
+	. i admid'=admid1 d
+	. . s patid1=$p($g(^PAADM(admid1)),"^",1)
+	. . i patid1'="" d
+	. . . s sname1=$p($g(^PAPER(patid1,"ALL")),"^",1)
+	. . . s gname1=$p($g(^PAPER(patid1,"ALL")),"^",2)
+	. . i $zcvt(sname1,"U")=$zcvt(sname,"U"),$zcvt(gname1,"U")=$zcvt(gname,"U") d
+	. . . i $p($g(^PAADM(admid1)),"^",2)="I" d
+	. . . . s WARDRowId1=$p($g(^PAADM(admid1)),"^",70)
+	. . . . ; Get Current Ward / Bed if moved
+	. . . . s TRANSChildsub=0 f  s TRANSChildsub=$o(^PAADM(admid1,"TRANS",TRANSChildsub)) q:TRANSChildsub=""  d
+	. . . . . i $p($g(^PAADM(admid1,"TRANS",TRANSChildsub)),"^",1)>=$h,$p($g(^PAADM(admid1,"TRANS",TRANSChildsub)),"^",3)<=$s($p($g(^PAADM(admid1,"TRANS",TRANSChildsub)),"^",3)="":$h,1:$p($g(^PAADM(admid1,"TRANS",TRANSChildsub)),"^",3)) d
+	. . . . . . i $o(^PAC("REQST",0,"Code","M",0))=$p($g(^PAADM(admid1,"TRANS",TRANSChildsub)),"^",12),$o(^PAC("TRANSTYP",0,"Code","D",0))=$p($g(^PAADM(admid1,"TRANS",TRANSChildsub)),"^",21) d
+	. . . . . . . s WARDRowId1=$p($g(^PAADM(admid1,"TRANS",TRANSChildsub)),"^",9)
+	. . . . i $g(WARDRowId)'="",$g(WARDRowId1)'="" d
+	. . . . i WARDRowId=WARDRowId1 s same=1
+	
+	q same
+]]></Implementation>
+</Method>
+
+<Method name="TakingCalls">
+<Description><![CDATA[
+used for Icons Taking Phone Calls & Not Taking Phone Calls]]></Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>SelectEpisodeID,IconType</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	
+	s image=0
+	
+	i $g(SelectEpisodeID)'="" d
+	. s admtype=$p($g(^PAADM(SelectEpisodeID)),"^",2) 
+ 	. s visitstat=$p($g(^PAADM(SelectEpisodeID)),"^",20)
+ 	. i admtype'="I",visitstat'="C" q
+	. s MRADMId=$p($g(^PAADM(SelectEpisodeID)),"^",61)
+	. i MRADMId'="" d
+	. . s takingCalls=$p($g(^MR(MRADMId,"PRO","1")),"^",97)
+	. . i IconType="Checked"  d
+	. . .i takingCalls="Y" s image=1
+	. . i IconType="Unchecked" d
+	. . .i takingCalls'="Y" s image=1
+	q image
+]]></Implementation>
+</Method>
+
+<Method name="GetSTO">
+<Description>
+collect STO number from QDC questionnaire</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>admid:%String</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	q:admid="" ""
+	s stonumber=""
+	s qid=$o(^questionnaire.QAUXXQDCI("IndexPAAdmID",admid,""),-1)
+    i qid'="" {
+	    s qobj=##class(questionnaire.QAUXXQDC).%OpenId(qid)
+	    i qobj {
+		    s stonumber=qobj.QSERVTYPETNO1
+		    k qobj
+	    }
+    }
+	q stonumber
+]]></Implementation>
+</Method>
+
+<Method name="GetPatientType12H">
+<Description>
+Copy from eprCTIconAssociation.GetPatientType(PatientID,EpisodeId,ignoretimeline) but using 12h discharge instead of 72h</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>PatientID:%String="",EpisodeID:%String="",ignoretimeline:%String=""</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+    q:'PatientID ""
+    n (msg,%session,%request,%response,PatientID,EpisodeID,ignoretimeline)
+    s str=""
+    
+    ; if no episodeid, return types for all episodes
+    i 'EpisodeID d
+    . s type="" f  s type=$o(^PAPERdr(PatientID,"ADM",type)) q:type=""  d
+    . . s adm="" f  s adm=$o(^PAPERdr(PatientID,"ADM",type,adm)) q:adm=""  s EpisodeID=$g(EpisodeID)_adm_","
+    . s EpisodeID=$e(EpisodeID,1,$l(EpisodeID)-1)
+    f i=1:1:$l(EpisodeID,",") d
+    . s eps=$p(EpisodeID,",",i)
+    . q:'eps
+    . s type=""
+    . s adms=$g(^PAADM(eps))
+    . i $p(adms,"^",2)="E" s type="E"
+    . i ..IsRecentlyDischarged12H(eps) s type="D"
+    . i ignoretimeline'="",$p($g(^PAADM(eps)),"^",20)="D" s type="D"
+    . i $p(adms,"^",2)="I",$p(adms,"^",20)="P" s type="B"
+    . i $p(adms,"^",2)="I",$p(adms,"^",20)="A" s type="I"
+    . i $p(adms,"^",2)="O",$p(##class(web.RBEventTimes).GetPatAppts(PatientID,+$h,"","","",eps,+$h),"^") s type="O"
+    . i (" "_str_" ")'[(" "_type_" ") s str=str_type_" "
+    s str=$e(str,1,$l(str)-1)
+    
+    q str
+]]></Implementation>
+</Method>
+
+<Method name="IsRecentlyDischarged12H">
+<Description>
+used in icon definition 'Patient Type - Recently Discharged'</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>EpisodeID:%Library.String=""</FormalSpec>
+<ReturnType>%Library.Boolean</ReturnType>
+<Implementation><![CDATA[
+    n recent,DischDate,DischTime,now,then,vstat,data
+    q:'EpisodeID 0
+    s recent=0
+    
+    s data=$g(^PAADM(EpisodeID))
+    s now=(+$h*24)+($p($h,",",2)\60\60)
+    s DischDate=$p(data,"^",17)
+    s DischTime=$p(data,"^",18)
+    s vstat=$p(data,"^",20)
+    s then=(DischDate*24)+(DischTime\60\60)
+    i vstat="D",now-then<12 s recent=1
+    
+    q recent
+]]></Implementation>
+</Method>
+
+<Method name="GetOpStartTime">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>paadmid:%String,opcode:%String</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	new optime,admtime
+	set (optime,admtime)=""
+	&sql(
+		select top 1 ANAOP_OpStartTime,
+		ANAOP_Par_Ref->ANA_PAADM_ParRef->paadm_admtime
+		into :optime ,:admtime
+		from sqluser.OR_Anaest_Operation
+		where ANAOP_StatePPP_DR->SPPP_OperProcDR->OPER_Code = :opcode
+		and ANAOP_Par_Ref->ANA_PAADM_ParRef=:paadmid
+		
+	)
+	if optime="" set optime=admtime
+	quit $ZT(optime,2)
+]]></Implementation>
+</Method>
+</Class>
+</Export>

@@ -1,0 +1,207 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.SWARH.Report.RptSvc.StoredProc.SWARHRNAP1032">
+<Description><![CDATA[
+<pre>
+***************************************************************************************************************************************
+* Report Code:SWARHRNAP1032
+* Menu Caption: Contacts by Speciality Program Payor and Plan
+* Report Description: Report returns contact data over a date range
+* Initial Release:18/12/2015	Developer:Michael Welsh
+* Modified:(Include date, developer and description)
+***************************************************************************************************************************************
+</pre>]]></Description>
+<ProcedureBlock>0</ProcedureBlock>
+<Super>Custom.SWARH.Report.RptSvc.StoredProc.Abstract</Super>
+<TimeCreated>60905,54849</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/SWARH/Report/RptSvc/StoredProc/SWARHRNAP1032.xml#1 $</Default>
+</Parameter>
+
+<Method name="SWARHRNAP1032Execute">
+<Description>
+This is the Execute section for the %Library.Query. 
+All of the logic will be performed here.
+A new node for the ^CacheTemp global will be created and each subscript of this global will contain
+a row for the report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,Hospital:%Integer,DateFrom:%Date,DateTo:%Date,Specialty:%String,Program:%String,Payor:%Integer,Plan:%Integer,URNumber:%String]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Get reportid i.e. use $INCREMENT to add another node to ^CacheTemp global. 
+ // We use ^CacheTemp global because it will always use memory before disk
+ New repid,ind
+
+ // Use $Increment to get the next node
+ Set repid=$INCREMENT(^CacheTemp(..#CACHETEMPSUBSCRIPT))
+ 
+ New URNo,Surname,GivenName,OtherGivenName,ContactDate,ContactTime,SpecialtyRowID,SpecialtyCode,SpecialtyDesc,ContactDuration,PlanCode,PlanDesc
+ 	,PayorCode,PayorDesc,UnitPrice,ContactRowID,ProgramRowID,ProgramCode,ProgramDesc,PayorRowID,PlanRowID,CareProvider
+ 
+ Set (URNo,Surname,GivenName,OtherGivenName,ContactDate,ContactTime,SpecialtyRowID,SpecialtyCode,SpecialtyDesc,ContactDuration,PlanCode,PlanDesc
+ 	,PayorCode,PayorDesc,UnitPrice,ContactRowID,ProgramRowID,ProgramCode,ProgramDesc,PayorRowID,PlanRowID,CareProvider)=""
+ 
+ Set ind=1, END=0
+
+ //Start Monitor (if configured to capture stats)
+ Set mon=..MonitorBegin()
+
+ //Convert ODBC dates to cache format
+ Set DateFrom=..ConvertDateToCache(DateFrom)
+ Set DateTo=..ConvertDateToCache(DateTo)
+ 
+ &SQL(DECLARE SWARHRNAP1032 CURSOR FOR
+ 	SELECT
+		con.ENQ_PAPER_DR->PAPER_PAPMI_DR->PAPMI_No AS URNo
+        ,con.ENQ_PAPER_DR->PAPER_PAPMI_DR->PAPMI_Name AS Surname
+        ,con.ENQ_PAPER_DR->PAPER_PAPMI_DR->PAPMI_Name2 AS GivenName
+        ,con.ENQ_PAPER_DR->PAPER_PAPMI_DR->PAPMI_Name3 AS OtherGivenName
+        ,con.ENQ_Date AS ContactDate
+        ,con.ENQ_Time AS ContactTime
+        ,con.ENQ_Location_DR->CTLOC_RowId AS SpecialtyRowID
+        ,con.ENQ_Location_DR->CTLOC_Code AS SpecialtyCode
+        ,con.ENQ_Location_DR->CTLOC_Desc AS SpecialtyDesc
+        ,con.ENQ_Duration AS ContactDuration
+        ,con.ENQ_AuxInsType_DR->AUXIT_Code AS PlanCode
+        ,con.ENQ_AuxInsType_DR->AUXIT_Desc AS PlanDesc
+        ,con.ENQ_InsType_DR->INST_Code AS PayorCode
+        ,con.ENQ_InsType_DR->INST_Desc AS PayorDesc
+        ,con.ENQ_OEOrdItem_DR->OEORI_ARPBLItem_DR->ITM_UnitPrice AS UnitPrice
+        ,con.ENQ_RowID AS ContactRowID
+        ,con.ENQ_GovernDepart_DR->DEP_RowID AS ProgramRowID
+        ,con.ENQ_GovernDepart_DR->DEP_Code AS ProgramCode
+        ,con.ENQ_GovernDepart_DR->DEP_Desc AS ProgramDesc
+        ,con.ENQ_InsType_DR AS PayorRowID
+        ,con.ENQ_AuxInsType_DR AS PlanRowID
+        ,con.ENQ_CTCP_DR->CTPCP_Desc AS CareProvider
+	FROM
+        SQLUser.PA_EnquiryContact con
+    WHERE
+        (con.ENQ_Hospital_DR = :Hospital)
+	AND
+        (con.ENQ_Date BETWEEN :DateFrom AND :DateTo)
+	AND
+		(({fn CONCAT( ',', {fn CONCAT((:Specialty),',')})} [ {fn CONCAT( ',', {fn CONCAT((con.ENQ_Location_DR->CTLOC_RowId),',')})}) OR (:Specialty IS NULL)) -- Multiple Specialties
+	AND
+		(({fn CONCAT( ',', {fn CONCAT((:Program),',')})} [ {fn CONCAT( ',', {fn CONCAT((con.ENQ_GovernDepart_DR->DEP_RowID),',')})}) OR (:Program IS NULL)) -- Multiple Programs
+	AND
+		(({fn CONCAT( ',', {fn CONCAT((:Payor),',')})} [ {fn CONCAT( ',', {fn CONCAT((con.ENQ_InsType_DR),',')})}) OR (:Payor IS NULL)) -- Multiple Payors
+	AND
+		(({fn CONCAT( ',', {fn CONCAT((:Plan),',')})} [ {fn CONCAT( ',', {fn CONCAT((con.ENQ_AuxInsType_DR),',')})}) OR (:Plan IS NULL)) -- Multiple Plans
+	AND 
+		(con.ENQ_PAPER_DR->PAPER_PAPMI_DR->PAPMI_No = :URNumber OR (:URNumber IS NULL))
+	)
+	 	
+ &SQL(OPEN SWARHRNAP1032)
+ 
+ //FETCH FIRST ROW
+ Do FetchRow
+  
+ While END=0 {
+  
+	 Do FormatDates, FormatTimes, FormatStrings
+  	 
+	 Set sort = ind	
+ 
+	 Set ^CacheTemp(..#CACHETEMPSUBSCRIPT,repid,sort)=$LISTBUILD(URNo,Surname,GivenName,OtherGivenName,ContactDate,ContactTime,SpecialtyRowID
+	 	,SpecialtyCode,SpecialtyDesc,ContactDuration,PlanCode,PlanDesc,PayorCode,PayorDesc,UnitPrice,ContactRowID,ProgramRowID,ProgramCode
+	 	,ProgramDesc,PayorRowID,PlanRowID,CareProvider)
+	 Set ind=ind+1
+ 
+	 //fetch rows
+	 Do FetchRow
+ }
+
+ &SQL(CLOSE SWARHRNAP1032)
+ 
+ // Build QHandle (AtEnd,ReportID,Index)
+ Set QHandle=$listbuild(0,repid,0)
+
+ Quit $$$OK
+
+FetchRow
+ &sql(FETCH SWARHRNAP1032 INTO :URNo,:Surname,:GivenName,:OtherGivenName,:ContactDate,:ContactTime,:SpecialtyRowID,:SpecialtyCode,:SpecialtyDesc
+ 	,:ContactDuration,:PlanCode,:PlanDesc,:PayorCode,:PayorDesc,:UnitPrice,:ContactRowID,:ProgramRowID,:ProgramCode,:ProgramDesc,:PayorRowID
+ 	,:PlanRowID,:CareProvider)
+ If SQLCODE '= 0 Set END = 1
+ Quit
+ 
+FormatDates
+ Set ContactDate=..ConvertDateToODBC(ContactDate)
+ Quit
+ 
+FormatTimes //Be sure to set fields in Query output as '%String' then format Reporting Services field as Time.
+ Set ContactTime=..ConvertTimeToHHMM(ContactTime)
+ Quit
+ 
+FormatStrings
+ Quit
+]]></Implementation>
+</Method>
+
+<Method name="SWARHRNAP1032Fetch">
+<Description>
+This is the Fetch component of the %Library.Query. 
+This should never have to change. It is designed to fetch the row for each subscript of the ^CacheTemp
+global and return this row to the Crystal Report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,&Row:%Library.List,&AtEnd:%Library.Integer=0]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // This fetch method should never have to change. 
+ // repid - Report ID
+ // ind   - sequence index which represents each row
+
+ New repid,ind
+
+ // Restore QHandle
+ Set AtEnd=$LIST(QHandle,1)
+ Set repid=$LIST(QHandle,2)
+ Set ind=$LIST(QHandle,3)
+
+ Set ind=$ORDER(^CacheTemp(..#CACHETEMPSUBSCRIPT,repid,ind))
+ If ind="" {	// if there are no more rows, finish fetching
+	 Set AtEnd=1
+	 Set Row=""
+ }
+ Else      {	// fetch row
+ 	Set Row=^CacheTemp(..#CACHETEMPSUBSCRIPT,repid,ind)
+ }
+
+ // Save QHandle
+ Set QHandle=$LISTBUILD(AtEnd,repid,ind)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="SWARHRNAP1032Close">
+<Description>
+This is the Close component of the %Library.Query.
+This is standard code and should never have to change.
+This is where all the cleanup is performed, i.e. the purging of the temporary storage global ^CacheTemp.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>QHandle:%Library.Binary</FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Clean up by purging the temporary node in ^CacheTemp global
+ New repid,ind
+ Set repid=$LIST(QHandle,2)
+
+ Kill ^CacheTemp(..#CACHETEMPSUBSCRIPT,repid)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Query name="SWARHRNAP1032">
+<Type>%Library.Query</Type>
+<FormalSpec>Hospital:%Integer,DateFrom:%Date,DateTo:%Date,Specialty:%String,Program:%String,Payor:%Integer,Plan:%Integer,URNumber:%String</FormalSpec>
+<SqlProc>1</SqlProc>
+<Parameter name="CONTAINID" value="0"/>
+<Parameter name="ROWSPEC" value="URNo:%String,Surname:%String,GivenName:%String,OtherGivenName:%String,ContactDate:%Date,ContactTime:%String,SpecialtyRowID:%Integer,SpecialtyCode:%String,SpecialtyDesc:%String,ContactDuration:%Integer,PlanCode:%String,PlanDesc:%String,PayorCode:%String,PayorDesc:%String,UnitPrice:%Float,ContactRowID:%Integer,ProgramRowID:%String,ProgramCode:%String,ProgramDesc:%String,PayorRowID:%Integer,PlanRowID:%Integer,CareProvider:%String"/>
+<Parameter name="SELECTMODE" value="ODBC"/>
+</Query>
+</Class>
+</Export>

@@ -1,0 +1,347 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.AUXX.Report.ZEN.StoredProc.MonthlyLeaveDays">
+<ProcedureBlock>0</ProcedureBlock>
+<Super>Report.Abstract</Super>
+<TimeCreated>60117,54691.216791</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/AUXX/Report/ZEN/StoredProc/MonthlyLeaveDays.xml#1 $</Default>
+</Parameter>
+
+<UDLText name="T">
+<Content><![CDATA[
+// Report Name: Monthly Leave Days
+
+]]></Content>
+</UDLText>
+
+<UDLText name="T">
+<Content><![CDATA[
+// Report Code: AUXX.ATD0014
+
+]]></Content>
+</UDLText>
+
+<Method name="MonthlyLeaveDaysClose">
+<Description>
+This is the Close component of the %Library.Query.
+This is standard code and should never have to change.
+This is where all the cleanup is performed, i.e. the purging of the temporary storage global ^CacheTemp.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>QHandle:%Library.Binary</FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Clean up by purging the temporary node in ^CacheTemp global
+ New repid
+ Set repid=$li(QHandle,2)
+ 
+ //Start Monitor (if configured to capture stats)
+ i mon Do ..MonitorEnd(mon)
+
+ Kill ^CacheTemp("TRAK",repid)
+
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="MonthlyLeaveDaysExecute">
+<Description>
+This is the Execute section for the %Library.Query. 
+All of the logic will be performed here.
+A new node for the ^CacheTemp global will be created and each subscript of this global will contain
+a row for the report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,Month:%Library.String,Year:%Library.String,Hospital:%Library.String,Location:%Library.String,Ward:%Library.String,LeaveCategory:%Library.String]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Get reportid i.e. use $INCREMENT to add another node to ^CacheTemp global. 
+ // We use ^CacheTemp global because it will always use memory before disk
+ New repid,ind, END
+ // Use $Increment to get the next node
+ Set repid=$I(^CacheTemp("TRAK"))
+
+ //Start Monitor (if configured to capture stats)
+ s mon=..MonitorBegin() 
+ 
+ // Build data into ^CacheTemp("TRAK",ReportID)
+ // e.g. Set ^CacheTemp("TRAK",ReportID,Index)=$LB(f1,f2,f3)
+ 
+ new PAADMRowID,PAADMAdmNo,PAADMAdmDate,ADMLGoingOutDate,ADMLGoingOutTime
+ new ADMLExpectedDateReturn,ADMLActualDateReturn,LEACATRowID
+ new LEACATCode,LEACATDesc,PAPMIRowID,PAPMIName,PAPMIName2,PAPMIName3
+ new PAPMIVIPFlag,PAPMIDOB,PAPERAge,CTSEXCode,WARDRowID,WARDCode
+ new WARDDesc,CTLOCRowID,CTLOCCode,CTLOCDesc,HOSPRowID,HOSPDesc
+ new SIGNFRowID,SIGNFCode,SIGNFDesc,SSUSRInitials,SSUSRName
+ new MonthPrior,MonthTo,YearPrior,YearTo,DatePrior,DateFrom,DateTo
+ new CurrentMonthLeaveDays,PreviousMonthLeaveDays,TotalLeaveDays,PAPMINo
+     
+ Set (PAADMRowID,PAADMAdmNo,PAADMAdmDate,ADMLGoingOutDate,ADMLGoingOutTime,ADMLExpectedDateReturn,ADMLActualDateReturn,LEACATRowID,LEACATCode,LEACATDesc,PAPMIRowID,PAPMIName,PAPMIName2,PAPMIName3,PAPMIVIPFlag,PAPMIDOB,PAPERAge,CTSEXCode,WARDRowID,WARDCode,WARDDesc,CTLOCRowID,CTLOCCode,CTLOCDesc,HOSPRowID,HOSPDesc,SIGNFRowID,SIGNFCode,SIGNFDesc,SSUSRInitials,SSUSRName,DatePrior,DateFrom,DateTo,MonthPrior,MonthTo,YearPrior,YearTo,CurrentMonthLeaveDays,PreviousMonthLeaveDays,TotalLeaveDays,PAPMINo) = ""
+ 
+ s ind=1, END = 0
+ 
+   // Strip white space/control chars from blank variables
+ if Hospital '= "" {set Hospital = $ZSTRIP(Hospital,"*WC")}
+ if Location '= "" {set Location = $ZSTRIP(Location,"*WC")}
+ if Ward '= "" {set Ward = $ZSTRIP(Ward,"*WC")}
+ if LeaveCategory '= "" {set LeaveCategory = $ZSTRIP(LeaveCategory,"*WC")}
+
+ do SetDates
+ do GetPatientsOnLeave
+   
+  // Build QHandle (AtEnd,ReportID,Index)
+ Set QHandle=$lb(0,repid,0)
+ Quit $$$OK 
+  
+SetDates
+ if Month = "January" set MonthPrior= "12", Month = "01", MonthTo= "02", YearPrior = Year-1
+ if Month = "February" set MonthPrior= "01", Month = "02", MonthTo= "03"
+ if Month = "March" set MonthPrior= "02", Month = "03", MonthTo= "04"
+ if Month = "April" set MonthPrior= "03", Month = "04", MonthTo= "05"
+ if Month = "May" set MonthPrior= "04", Month = "05", MonthTo= "06"
+ if Month = "June" set MonthPrior= "05", Month = "06", MonthTo= "07"
+ if Month = "July" set MonthPrior= "06", Month = "07", MonthTo= "08"
+ if Month = "August" set MonthPrior= "07", Month = "08", MonthTo= "09"
+ if Month = "September" set MonthPrior= "08", Month = "09", MonthTo= "10"
+ if Month = "October" set MonthPrior= "09", Month = "10", MonthTo= "11"
+ if Month = "November" set MonthPrior= "10", Month = "11", MonthTo= "12"
+ if Month = "December" set MonthPrior= "11", Month = "12", MonthTo= "01", YearTo = Year+1
+ 
+ if Month '= "12" set YearTo = Year
+ if Month '= "01" set YearPrior = Year
+ 
+ Set DatePrior = YearPrior _ "-" _ MonthPrior _ "-01"
+ Set DateFrom = Year _ "-" _ Month _ "-01"
+ Set DateTo = YearTo _ "-" _ MonthTo _ "-01"
+ set DatePrior=..ConvertDateToCache(DatePrior)
+ set DateFrom=..ConvertDateToCache(DateFrom)
+ set DateTo=..ConvertDateToCache(DateTo)
+ 
+ if DateTo > $p($h,",",1) set DateTo = $p($h,",",1)
+
+ //Get all patients on leave for the month selected
+GetPatientsOnLeave
+ &sql(declare GetPatientsOnLeave cursor for
+ 	select distinct
+   		 paadm_rowid,
+         paadm_admno,
+         PAADM_AdmDate,
+         ADML_GoingOutDate,
+         ADML_GoingOutTime,
+         ADML_ExpectedDateReturn,
+		 ADML_ActualDateReturn,
+         ADML_leaveCategory_DR->LEACAT_RowID,
+         ADML_leaveCategory_DR->LEACAT_Code,
+         ADML_leaveCategory_DR->LEACAT_Desc,
+         paadm_papmi_dr->papmi_rowid,
+         paadm_papmi_dr->papmi_name,
+         paadm_papmi_dr->papmi_name2,
+         paadm_papmi_dr->papmi_name3,
+         PAADM_PAPMI_dr->PAPMI_VIPFlag,
+         PAADM_PAPMI_dr->PAPMI_DOB,
+         PAADM_PAPMI_dr->PAPMI_PAPER_DR->paper_ageyr,
+         paadm_papmi_dr->papmi_sex_dr->ctsex_code,
+         paadm_currentward_dr->ward_rowid,
+         paadm_currentward_dr->ward_code,
+         paadm_currentward_dr->ward_desc,
+         paadm_depcode_dr->ctloc_rowid,
+         paadm_depcode_dr->ctloc_code,
+         paadm_depcode_dr->ctloc_desc,
+         paadm_currentward_dr->ward_locationdr->ctloc_hospital_dr->hosp_rowid,
+         paadm_currentward_dr->ward_locationdr->ctloc_hospital_dr->hosp_desc,
+         paadm_currentward_dr->ward_locationdr->CTLOC_SignifFacility_DR->SignF_RowId,
+         paadm_currentward_dr->ward_locationdr->CTLOC_SignifFacility_DR->SignF_Code,
+         paadm_currentward_dr->ward_locationdr->CTLOC_SignifFacility_DR->SignF_Desc,
+         adml_updateuser_dr->ssusr_initials,
+		 adml_updateuser_dr->ssusr_name,
+		 PAADM_PAPMI_dr->PAPMI_No
+     FROM SQLUSER.pa_adm, SQLUser.PA_AdmLeave
+     where paadm_rowid = adml_parref
+     AND paadm_type = 'I'
+     AND ((ADML_GoingOutDate < (:DateTo) AND 
+		    	((ADML_ActualDateReturn >= (:DateFrom)) or (ADML_ActualDateReturn is null)))
+			 OR	(ADML_ExpectedDateReturn >= (:DateFrom) and ADML_ExpectedDateReturn<=(:DateTo)))
+	 AND (({fn CONCAT( ',', {fn CONCAT((:Hospital),',')})} [ {fn CONCAT( ',', {fn CONCAT((paadm_currentward_dr->ward_locationdr->ctloc_hospital_dr->hosp_rowid),',')})}) OR (:Hospital IS NULL))
+     AND (({fn CONCAT( ',', {fn CONCAT((:Location),',')})} [ {fn CONCAT( ',', {fn CONCAT((paadm_depcode_dr->ctloc_rowid),',')})}) OR (:Location IS NULL))
+     AND (({fn CONCAT( ',', {fn CONCAT((:Ward),',')})} [ {fn CONCAT( ',', {fn CONCAT((paadm_currentward_dr->WARD_RowId),',')})}) OR (:Ward IS NULL))
+     AND (({fn CONCAT( ',', {fn CONCAT((:LeaveCategory),',')})} [ {fn CONCAT( ',', {fn CONCAT((ADML_leaveCategory_DR->LEACAT_RowID),',')})}) OR (:LeaveCategory IS NULL))
+	 )
+ 		
+ &sql(open GetPatientsOnLeave)
+ 
+ do FetchPatientsOnLeave
+ 
+ while END = 0
+ {
+	 do LeaveDayCalculations
+	 do FormatDates
+	 do FormatTimes
+	 do GetUserName
+	 do BuildRow
+	 do FetchPatientsOnLeave
+ }
+ 
+ &sql(close GetPatientsOnLeave)
+ 
+ quit
+
+FetchPatientsOnLeave
+ //fetch rows into cursor
+ &sql(fetch GetPatientsOnLeave INTO :PAADMRowID,:PAADMAdmNo,:PAADMAdmDate,:ADMLGoingOutDate,:ADMLGoingOutTime,:ADMLExpectedDateReturn,:ADMLActualDateReturn,:LEACATRowID,:LEACATCode,:LEACATDesc,:PAPMIRowID,:PAPMIName,:PAPMIName2,:PAPMIName3,:PAPMIVIPFlag,:PAPMIDOB,:PAPERAge,:CTSEXCode,:WARDRowID,:WARDCode,:WARDDesc,:CTLOCRowID,:CTLOCCode,:CTLOCDesc,:HOSPRowID,:HOSPDesc,:SIGNFRowID,:SIGNFCode,:SIGNFDesc,:SSUSRInitials,:SSUSRName,:PAPMINo)
+
+ if SQLCODE '= 0 set END = 1
+
+ Quit
+
+LeaveDayCalculations
+ //Current Month calculations
+ if ADMLActualDateReturn '= "", ADMLGoingOutDate <= DateFrom, ADMLActualDateReturn <= DateTo set CurrentMonthLeaveDays = ADMLActualDateReturn - DateFrom
+ if ADMLActualDateReturn '= "", ADMLGoingOutDate > DateFrom, ADMLActualDateReturn <= DateTo set CurrentMonthLeaveDays = ADMLActualDateReturn - ADMLGoingOutDate
+ 
+ if ADMLActualDateReturn '= "", ADMLGoingOutDate <= DateFrom, ADMLActualDateReturn > DateTo set CurrentMonthLeaveDays = DateTo - DateFrom
+ if ADMLActualDateReturn '= "", ADMLGoingOutDate > DateFrom, ADMLActualDateReturn > DateTo set CurrentMonthLeaveDays = DateTo - ADMLGoingOutDate
+ 
+ if ADMLActualDateReturn = "", ADMLGoingOutDate <= DateFrom set CurrentMonthLeaveDays = DateTo - DateFrom
+ if ADMLActualDateReturn = "", ADMLGoingOutDate > DateFrom set CurrentMonthLeaveDays = DateTo - ADMLGoingOutDate
+ 
+ i $g(CurrentMonthLeaveDays)'="" s x=$e(CurrentMonthLeaveDays,1)
+ i $g(x)="-" s x=$length(CurrentMonthLeaveDays) s CurrentMonthLeaveDays=$e(CurrentMonthLeaveDays,2,x)
+ 
+ //Previous Month calculations
+ if ADMLGoingOutDate >= DateFrom set PreviousMonthLeaveDays = 0
+ 
+ if ADMLGoingOutDate < DateFrom, ADMLGoingOutDate >= DatePrior set PreviousMonthLeaveDays = DateFrom - ADMLGoingOutDate
+ if ADMLGoingOutDate < DateFrom, ADMLGoingOutDate < DatePrior set PreviousMonthLeaveDays = DateFrom - DatePrior
+ 
+ // Calculate Total Leave Days
+ set TotalLeaveDays = CurrentMonthLeaveDays + PreviousMonthLeaveDays
+
+ Quit
+  
+FormatDates
+ // Convert the dates to ODBC date format
+ If PAADMAdmDate  Set PAADMAdmDate=..ConvertDateToODBC(PAADMAdmDate)
+ If PAPMIDOB Set PAPMIDOB=..ConvertDateToODBC(PAPMIDOB)
+ If ADMLGoingOutDate Set ADMLGoingOutDate=..ConvertDateToODBC(ADMLGoingOutDate)
+ If ADMLExpectedDateReturn Set ADMLExpectedDateReturn=..ConvertDateToODBC(ADMLExpectedDateReturn) 
+ If ADMLActualDateReturn Set ADMLActualDateReturn=..ConvertDateToODBC(ADMLActualDateReturn) 
+  
+ Quit
+
+FormatTimes
+ // Convert the times to ODBC time format
+ If ADMLGoingOutTime Set ADMLGoingOutTime=..ConvertTimeToODBC(ADMLGoingOutTime)
+   
+ Quit
+
+
+
+GetUserName
+ &sql(  SELECT  paadm_rowid,
+ 				adml_updateuser_dr->ssusr_initials,
+				adml_updateuser_dr->ssusr_name
+        INTO :rowId, :initial, :UserName
+        from SQLUSER.pa_adm, SQLUser.PA_AdmLeave
+                where paadm_rowid = adml_parref
+        		And paadm_rowid = :PAADMRowID        
+      )
+   
+ Quit
+
+BuildRow
+ // build the row
+ Set ^CacheTemp("TRAK",repid,$ZCVT(HOSPDesc,"U")_" "_$ZCVT(CTLOCDesc,"U")_" "_ADMLGoingOutDate_" "_ADMLGoingOutTime_" "_$ZCVT(WARDDesc,"U")_ADMLExpectedDateReturn_ind)=$LB(PAADMRowID,PAADMAdmNo,PAADMAdmDate,ADMLGoingOutDate,ADMLGoingOutTime,ADMLExpectedDateReturn,ADMLActualDateReturn,CurrentMonthLeaveDays,PreviousMonthLeaveDays,TotalLeaveDays,LEACATRowID,LEACATCode,LEACATDesc,PAPMIRowID,PAPMIName,PAPMIName2,PAPMIName3,PAPMIVIPFlag,PAPMIDOB,PAPERAge,CTSEXCode,WARDRowID,WARDCode,WARDDesc,CTLOCRowID,CTLOCCode,CTLOCDesc,HOSPRowID,HOSPDesc,SIGNFRowID,SIGNFCode,SIGNFDesc,SSUSRInitials,UserName,PAPMINo)
+ Set ind=ind+1
+ quit
+
+PreviousLeaveCalculation 
+ &sql(declare PreviousLeaveCalculation cursor for
+ 	SELECT distinct
+    	paadm_rowid,
+        paadm_admno,
+        PAADM_AdmDate,
+        ADML_GoingOutDate,
+        ADML_GoingOutTime,
+        ADML_ExpectedDateReturn,
+		ADML_ActualDateReturn,
+        ADML_leaveCategory_DR->LEACAT_RowID,
+        ADML_leaveCategory_DR->LEACAT_Code,
+        ADML_leaveCategory_DR->LEACAT_Desc,
+        paadm_papmi_dr->papmi_rowid,
+        paadm_papmi_dr->papmi_name,
+        paadm_papmi_dr->papmi_name2,
+        paadm_papmi_dr->papmi_name3,
+        PAADM_PAPMI_dr->PAPMI_VIPFlag,
+        PAADM_PAPMI_dr->PAPMI_DOB,
+        PAADM_PAPMI_dr->PAPMI_PAPER_DR->paper_ageyr,
+        paadm_papmi_dr->papmi_sex_dr->ctsex_code,
+        paadm_currentward_dr->ward_rowid,
+        paadm_currentward_dr->ward_code,
+        paadm_currentward_dr->ward_desc,
+        paadm_depcode_dr->ctloc_rowid,
+        paadm_depcode_dr->ctloc_code,
+        paadm_depcode_dr->ctloc_desc,
+        paadm_depcode_dr->ctloc_hospital_dr->hosp_rowid,
+        paadm_depcode_dr->ctloc_hospital_dr->hosp_desc,
+        paadm_currentward_dr->ward_locationdr->CTLOC_SignifFacility_DR->SignF_RowId,
+        paadm_currentward_dr->ward_locationdr->CTLOC_SignifFacility_DR->SignF_Code,
+        paadm_currentward_dr->ward_locationdr->CTLOC_SignifFacility_DR->SignF_Desc,
+        adml_updateuser_dr->ssusr_initials,
+		adml_updateuser_dr->ssusr_name,
+		PAADM_PAPMI_dr->PAPMI_No
+	FROM SQLUSER.pa_adm, SQLUser.PA_AdmLeave
+	WHERE paadm_rowid = adml_parref
+	AND paadm_type = 'I'
+	AND ((ADML_GoingOutDate < (:DateTo) AND 
+			((ADML_ActualDateReturn >= (:DateFrom)) or (ADML_ActualDateReturn is null)))
+		 OR (ADML_ExpectedDateReturn >= (:DateFrom) and ADML_ExpectedDateReturn<=(:DateTo))))
+	Quit
+]]></Implementation>
+</Method>
+
+<Method name="MonthlyLeaveDaysFetch">
+<Description>
+This is the Fetch component of the %Library.Query. 
+This should never have to change. It is designed to fetch the row for each subscript of the ^CacheTemp</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,&Row:%Library.List,&AtEnd:%Library.Integer=0]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // This fetch method should never have to change. 
+
+ // repid - Report ID
+ // ind   - sequence index which represents each row
+
+ New repid,ind
+
+ // Restore QHandle
+ Set AtEnd=$li(QHandle,1)
+ Set repid=$li(QHandle,2)
+ Set ind=$li(QHandle,3)
+
+ Set ind=$o(^CacheTemp("TRAK",repid,ind))
+ If ind="" {	// if there are no more rows, finish fetching
+ Set AtEnd=1
+ Set Row=""
+ }
+ Else      {	// fetch row
+ Set Row=^CacheTemp("TRAK",repid,ind)
+ }
+
+ // Save QHandle
+ s QHandle=$lb(AtEnd,repid,ind)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Query name="MonthlyLeaveDays">
+<Type>%Library.Query</Type>
+<FormalSpec>Month:%Library.String,Year:%Library.String,Hospital:%Library.String,Location:%Library.String,Ward:%Library.String,LeaveCategory:%Library.String</FormalSpec>
+<SqlProc>1</SqlProc>
+<Parameter name="CONTAINID" value="0"/>
+<Parameter name="ROWSPEC" value="PAADMRowID:%Library.String,PAADMAdmNo:%Library.String,PAADMAdmDate:%Library.Date,ADMLGoingOutDate:%Library.Date,ADMLGoingOutTime:%Library.String,ADMLExpectedDateReturn:%Library.Date,ADMLActualDateReturn:%Library.Date,CurrentMonthLeaveDays:%Integer,PreviousMonthLeaveDays:%Integer,TotalLeaveDays:%Integer,LEACATRowID:%Library.String,LEACATCode:%Library.String,LEACATDesc:%Library.String,PAPMIRowID:%Library.String, PAPMIName:%Library.String,PAPMIName2:%Library.String,PAPMIName3:%Library.String, PAPMIVIPFlag:%Library.String,PAPMIDOB:%Library.Date,PAPERAge:%Library.String,CTSEXCode:%Library.String, WARDRowID:%Library.String,WARDCode, WARDDesc:%Library.String,CTLOCRowID:%Library.String,CTLOCCode:%Library.String, CTLOCDesc:%Library.String, HOSPRowID:%Library.String,HOSPDesc:%Library.String,SIGNFRowID:%Library.String,SIGNFCode:%Library.String,SIGNFDesc:%Library.String,SSUSRInitials:%Library.String,SSUSRName:%Library.String,PAPMINo:%Library.String"/>
+</Query>
+</Class>
+</Export>

@@ -1,0 +1,228 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.SWARH.Report.RptSvc.StoredProc.SWARHRMED1002">
+<Description>
+Class for SWARHRMED1002 Report</Description>
+<ProcedureBlock>0</ProcedureBlock>
+<Super>Custom.SWARH.Report.ZEN.StoredProc.Abstract</Super>
+<TimeCreated>62335,45574.688786</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/SWARH/Report/RptSvc/StoredProc/SWARHRMED1002.xml#1 $</Default>
+</Parameter>
+
+<UDLText name="T">
+<Content><![CDATA[
+/*
+ * Report Name: Audit by Location <br>
+ * Report Code: SWARHRMED1002 <br>
+ * SWARH Developer: Phuong-Dung HOANG <br>
+ */
+]]></Content>
+</UDLText>
+
+<Method name="SWARHRMED1002QueryClose">
+<Description>
+This is the Close component of the %Library.Query.
+This is standard code and should never have to change.
+This is where all the cleanup is performed, i.e. the purging of the temporary storage global ^CacheTemp.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>QHandle:%Library.Binary</FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Clean up by purging the temporary node in ^CacheTemp global
+ New repid,ind
+ Set repid=$li(QHandle,2)
+
+ //Start Monitor (if configured to capture stats)
+ i mon Do ..MonitorEnd(mon)
+
+ Kill ^CacheTemp("TRAK",repid)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="SWARHRMED1002QueryExecute">
+<Description>
+This is the Execute section for the %Library.Query. 
+All of the logic will be performed here.
+A new node for the ^CacheTemp global will be created and each subscript of this global will contain
+a row for the report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,Hospital:%Library.Integer,Location:%Library.Integer]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Get reportid i.e. use $INCREMENT to add another node to ^CacheTemp global. 
+ // We use ^CacheTemp global because it will always use memory before disk
+ New repid,ind
+
+  // Use $Increment to get the next node
+ Set repid=$I(^CacheTemp("TRAK"))
+ 
+ New Number,String,Date,Time,c,n
+
+ /* Define and initialise appropriate column variables to describe output rowset columns */
+ New RTMASRowId,RTMASMRNo,PAPMINo,PAPMIName,PAPMIName2,PAPMIName3,TYPCode,TYPDesc,
+ RTMAVRowId,RTMAVChildSub,RTMAVVolDesc,RTMAVActiveFlag,HomeLocCode,HomeLocDesc,CurrentLocCode,CurrentLocDesc,
+ RTMAVDateArrived,RTMAVDateRequiredBy,RTMAVDateToBeReturned,RTMAVRetentionStatus,
+ RTMVTDate,RTMVTTime,LocFromDesc,LocToDesc,
+ SSUSRName,RTMVTComments,RTMVTReqVolDR,REACode,READesc
+ Set (RTMASRowId)=0
+ Set (RTMASMRNo,PAPMINo,PAPMIName,PAPMIName2,PAPMIName3,TYPCode,TYPDesc,
+ RTMAVRowId,RTMAVVolDesc,RTMAVActiveFlag,HomeLocCode,HomeLocDesc,CurrentLocCode,CurrentLocDesc,
+ RTMAVDateArrived,RTMAVDateRequiredBy,RTMAVDateToBeReturned,RTMAVRetentionStatus,
+ RTMVTDate,RTMVTTime,LocFromDesc,LocToDesc,
+ SSUSRName,RTMVTComments,RTMVTReqVolDR,REACode,READesc)=""
+ //s SortBy="location"
+ s ind=1
+
+ //Start Monitor (if configured to capture stats)
+ s mon=..MonitorBegin()
+ 
+  
+ &SQL(DECLARE SWARHRMED1002Cursor CURSOR FOR 
+ select
+rtmas.RTMAS_RowId,
+rtmas.RTMAS_MRNo,
+rtmas.RTMAS_PatNo_DR->PAPMI_No,
+rtmas.RTMAS_PatNo_DR->PAPMI_Name,
+rtmas.RTMAS_PatNo_DR->PAPMI_Name2,
+rtmas.RTMAS_PatNo_DR->PAPMI_Name3,
+rtmas.RTMAS_MRType_DR->TYP_Code,
+rtmas.RTMAS_MRType_DR->TYP_Desc,
+rtmav.RTMAV_RowId,
+rtmav.RTMAV_ChildSub,
+rtmav.RTMAV_VolDesc,
+rtmav.RTMAV_ActiveFlag,
+rtmav.RTMAV_HomeLoc_DR->CTLOC_Code,
+rtmav.RTMAV_HomeLoc_DR->CTLOC_Desc,
+rtmav.RTMAV_CurrentLoc_DR->CTLOC_Code,
+rtmav.RTMAV_CurrentLoc_DR->CTLOC_Desc,
+rtmav.RTMAV_DateArrived,
+rtmav.RTMAV_DateRequiredBy,
+rtmav.RTMAV_DateToBeReturned,
+rtmav.RTMAV_RetentionStatus,
+rtmvtr1.RTMVT_Date,
+rtmvtr1.RTMVT_Time,
+rtmvtr1.RTMVT_LocFrom_DR->CTLOC_Desc,
+rtmvtr1.RTMVT_LocTo_DR->CTLOC_Desc,
+rtmvtr1.RTMVT_UpdateUser_DR->SSUSR_Name,
+rtmvtr1.RTMVT_Comments,
+rtmvtr1.RTMVT_ReqVol_DR,
+req.RTREQ_ReqReason_DR->REA_Code,
+req.RTREQ_ReqReason_DR->REA_Desc
+from SQLUser.RT_Master rtmas left join
+SQLUser.RT_MasVol rtmav on rtmav.RTMAV_RTMAS_ParRef=rtmas.RTMAS_RowId left join
+SQLUser.RT_MVTrans rtmvtr1 on rtmvtr1.RTMVT_RTMAV_ParRef=rtmav.RTMAV_RowId 
+left join SQLUser.RT_ReqVol reqvol on rtmvtr1.RTMVT_ReqVol_DR=reqvol.RTREV_RowId 
+left join SQLUser.RT_Request req on req.RTREQ_RowId=reqvol.RTREV_RTREQ_ParRef
+where 
+rtmas.RTMAS_Hospital_DR=:Hospital and 
+rtmav.RTMAV_CurrentLoc_DR<>rtmav.RTMAV_HomeLoc_DR and
+rtmav.RTMAV_ActiveFlag='Y' and
+rtmav.RTMAV_CurrentLoc_DR->CTLOC_Code not in ('B','D','S','SD','SB','B1','B2','B3','B4','B5','VDECD','DES','WFILE','WDEST','WFHCC','WGHOS','WNCFH','WBIRC','WFILEB','WFILET') and
+rtmas.RTMAS_MRType_DR->TYP_Code not in ('WFHC','WEC') and
+(rtmav.RTMAV_CurrentLoc_DR=:Location or :Location IS NULL) 
+and
+(SELECT COUNT(*) from SQLUser.RT_MVTrans rtmvtr2 where rtmvtr2.RTMVT_RTMAV_ParRef=rtmvtr1.RTMVT_RTMAV_ParRef and (rtmvtr2.RTMVT_Date>rtmvtr1.RTMVT_Date OR (rtmvtr2.RTMVT_Date=rtmvtr1.RTMVT_Date AND rtmvtr2.RTMVT_Time>rtmvtr1.RTMVT_Time)))=0
+group by rtmas.RTMAS_PatNo_DR,rtmav.RTMAV_VolDesc
+order by rtmav.RTMAV_CurrentLoc_DR->CTLOC_Desc asc, rtmas.RTMAS_PatNo_DR->PAPMI_Name asc, rtmav.RTMAV_VolDesc desc
+ )
+ &SQL(OPEN SWARHRMED1002Cursor)
+
+ //FETCH FIRST ROW
+ d FetchRow
+  
+ while 'SQLCODE{
+ 
+ s RTMVTComments=$LISTTOSTRING(RTMVTComments)
+ d FormatDates
+  
+ s sort = ind		// don't sort - uncomment this line if you've sorted in the query
+ //s sort = $ZCVT(HOSPDesc,"U")_" "_$ZCVT(WARDDesc,"U")_" "_$ZCVT(ROOMCode,"U")_" "_$ZCVT(BEDCode,"U")_" "_$ZCVT(CTRLGDesc,"U")_" "_$ZCVT(PAPERName,"U")_" "_$ZCVT(PAPERName2,"U")_" "_$ZCVT(PAPERName3,"U")_ind
+ 
+ s ^CacheTemp("TRAK",repid,sort)=$LB(RTMASRowId,RTMASMRNo,PAPMINo,PAPMIName,PAPMIName2,PAPMIName3,TYPCode,TYPDesc,
+ RTMAVRowId,RTMAVChildSub,RTMAVVolDesc,RTMAVActiveFlag,HomeLocCode,HomeLocDesc,CurrentLocCode,CurrentLocDesc,
+ RTMAVDateArrived,RTMAVDateRequiredBy,RTMAVDateToBeReturned,RTMAVRetentionStatus,
+ RTMVTDate,RTMVTTime,LocFromDesc,LocToDesc,
+ SSUSRName,RTMVTComments,RTMVTReqVolDR,REACode,READesc)
+ s ind=ind+1
+ 
+ //fetch rows
+ d FetchRow
+ }
+ 
+ &SQL(CLOSE SWARHRMED1002Cursor)
+ 
+ // Build QHandle (AtEnd,ReportID,Index)
+ Set QHandle=$lb(0,repid,0)
+
+ Quit $$$OK
+
+FetchRow
+ &sql(FETCH SWARHRMED1002Cursor INTO :RTMASRowId,:RTMASMRNo,:PAPMINo,:PAPMIName,:PAPMIName2,:PAPMIName3,:TYPCode,:TYPDesc,
+ :RTMAVRowId,:RTMAVChildSub,:RTMAVVolDesc,:RTMAVActiveFlag,:HomeLocCode,:HomeLocDesc,:CurrentLocCode,:CurrentLocDesc,
+ :RTMAVDateArrived,:RTMAVDateRequiredBy,:RTMAVDateToBeReturned,:RTMAVRetentionStatus,
+ :RTMVTDate,:RTMVTTime,:LocFromDesc,:LocToDesc,
+ :SSUSRName,:RTMVTComments,:RTMVTReqVolDR,:REACode,:READesc)
+ 
+ if SQLCODE '= 0 set END = 1
+ q
+
+FormatDates
+ if RTMAVDateArrived s RTMAVDateArrived=..ConvertDateToODBC(RTMAVDateArrived)
+ if RTMAVDateRequiredBy s RTMAVDateRequiredBy=..ConvertDateToODBC(RTMAVDateRequiredBy)
+ if RTMAVDateToBeReturned s RTMAVDateToBeReturned=..ConvertDateToODBC(RTMAVDateToBeReturned)
+ if RTMVTDate s RTMVTDate=..ConvertDateToODBC(RTMVTDate)
+ if RTMVTTime s RTMVTTime=..ConvertTimeToODBC(RTMVTTime)
+]]></Implementation>
+</Method>
+
+<Method name="SWARHRMED1002QueryFetch">
+<Description>
+This is the Fetch component of the %Library.Query. 
+This should never have to change. It is designed to fetch the row for each subscript of the ^CacheTemp
+global and return this row to the Crystal Report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,&Row:%Library.List,&AtEnd:%Library.Integer=0]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // This fetch method should never have to change. 
+
+ // repid - Report ID
+ // ind   - sequence index which represents each row
+
+ New repid,ind
+
+ // Restore QHandle
+ Set AtEnd=$li(QHandle,1)
+ Set repid=$li(QHandle,2)
+ Set ind=$li(QHandle,3)
+
+ Set ind=$o(^CacheTemp("TRAK",repid,ind))
+ If ind="" {	// if there are no more rows, finish fetching
+ Set AtEnd=1
+ Set Row=""
+ }
+ Else      {	// fetch row
+ Set Row=^CacheTemp("TRAK",repid,ind)
+ }
+
+ // Save QHandle
+ s QHandle=$lb(AtEnd,repid,ind)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Query name="SWARHRMED1002Query">
+<Type>%Library.Query</Type>
+<FormalSpec>Hospital:%Library.Integer,Specialty:%Library.Integer</FormalSpec>
+<SqlProc>1</SqlProc>
+<Parameter name="CONTAINID" value="0"/>
+<Parameter name="ROWSPEC" value="RTMASRowId:%Integer,RTMASMRNo:%String,PAPMINo:%String,PAPMIName:%String,PAPMIName2:%String,PAPMIName3:%String,TYPCode:%String,TYPDesc:%String,RTMAVRowId:%String,RTMAVChildSub:%Integer,RTMAVVolDesc:%String,RTMAVActiveFlag:%String,HomeLocCode:%String,HomeLocDesc:%String,CurrentLocCode:%String,CurrentLocDesc:%String,RTMAVDateArrived:%Date,RTMAVDateRequiredBy:%Date,RTMAVDateToBeReturned:%Date,RTMAVRetentionStatus:%String,RTMVTDate:%Date,RTMVTTime:%String,LocFromDesc:%String,LocToDesc:%String,SSUSRName:%String,RTMVTComments:%String,RTMVTReqVolDR:%String,REACode:%String,READesc:%String"/>
+<Parameter name="SELECTMODE" value="ODBC"/>
+</Query>
+</Class>
+</Export>

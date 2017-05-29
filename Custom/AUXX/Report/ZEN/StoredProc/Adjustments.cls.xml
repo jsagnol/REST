@@ -1,0 +1,177 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.AUXX.Report.ZEN.StoredProc.Adjustments">
+<ProcedureBlock>0</ProcedureBlock>
+<Super>Report.Abstract</Super>
+<TimeCreated>61067,41801.730118</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/AUXX/Report/ZEN/StoredProc/Adjustments.xml#1 $</Default>
+</Parameter>
+
+<UDLText name="T">
+<Content><![CDATA[
+// Report Name: Trak Adjustments <br>
+
+]]></Content>
+</UDLText>
+
+<UDLText name="T">
+<Content><![CDATA[
+// Report Code: AUXX.FIN0001 <br>
+
+]]></Content>
+</UDLText>
+
+<UDLText name="T">
+<Content><![CDATA[
+// LOGTRAK Number: 72206 <br>
+
+]]></Content>
+</UDLText>
+
+<Method name="AdjustmentsClose">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>QHandle:%Library.Binary</FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Clean up by purging the temporary node in ^CacheTemp global
+ New repid
+ Set repid=$LIST(QHandle,2)
+ 
+ //Start Monitor (if configured to capture stats)
+ If mon Do ..MonitorEnd(mon)
+
+ Kill ^CacheTemp("TRAK",repid)
+ 
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="AdjustmentsExecute">
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,DateFrom:%Date,DateTo:%Date,Hospital:%String,AdjReason:%String]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ //Start Monitor (if configured to capture stats)
+ Set mon=..MonitorBegin()
+   
+ // Get reportid i.e. use $INCREMENT to add another node to ^CacheTemp global. 
+ // We use ^CacheTemp global because it will always use memory before disk
+ New repid,ind
+
+ // Use $Increment to get the next node
+ Set repid=$I(^CacheTemp("TRAK"))
+
+ // Build data into ^CacheTemp("TRAK",ReportID)
+ // e.g. Set ^CacheTemp("TRAK",ReportID,Index)=$LB(f1,f2,f3)
+ New Number,String,Date,Time,c,n,Print,Invoice
+ New PatientName,ARPBLRowId,PAPMINo,PAADMADMNo,PAPMIName,ARPBLDateFrom,ARPBLDateTo,ARPBLBillNo,ARPBLDatePrinted,ARPBLAmountToPay,PAPMIName2,INSTCode,INSTDesc,INSTRowId,InvoiceNo,DatePrinted,ReportType,HOSPRowId,HOSPCode,HOSPDesc
+ Set (ARPBLRowId,ARPBLAmountToPay,INSTRowId)=0
+ Set (PatientName,PAPMINo,PAADMADMNo,PAPMIName,ARPBLDateFrom,ARPBLDateTo,ARPBLBillNo,ARPBLDatePrinted,PAPMIName2,INSTCode,INSTDesc,InvoiceNo,DatePrinted,ReportType,HOSPRowId,HOSPCode,HOSPDesc)=""
+ New RWRowId,RWCode,RWDesc,WOAmount,WODate
+ Set (RWRowId,RWCode,RWDesc,WODate)=""
+ Set WOAmount=0
+ 
+ Set DateFrom=..ConvertDateToCache(DateFrom)
+ Set DateTo=..ConvertDateToCache(DateTo)
+
+ i $g(AdjReason)'="" s AdjReason=$zstrip(AdjReason,"*CW")
+ i $g(Hospital)'="" s Hospital=$zstrip(Hospital,"*CW")
+ 
+ &SQL(DECLARE Adjustments CURSOR FOR
+ SELECT
+ ARPBL_RowId,
+ ARPBL_PAADM_DR->PAADM_PAPMI_DR->PAPMI_No,
+ ARPBL_PAADM_DR->PAADM_ADMNo,
+ ARPBL_PAADM_DR->PAADM_PAPMI_DR->PAPMI_Name,
+ ARPBL_PAADM_DR->PAADM_PAPMI_DR->PAPMI_Name2,
+ ARPBL_PAADM_DR->PAADM_PAPMI_DR->PAPMI_Name3,
+ ARPBL_DateFrom,
+ ARPBL_DateTo,
+ ARPBL_BillNo,
+ ARPBL_DatePrinted,
+ ARPBL_AmountToPay, 
+ ARPBL_InsuranceType_DR->INST_Code,
+ ARPBL_InsuranceType_DR->INST_Desc,
+ ARPBL_InsuranceType_DR, 
+ ARPBL_Hospital_DR->HOSP_RowId,
+ ARPBL_Hospital_DR->HOSP_Code,
+ ARPBL_Hospital_DR->HOSP_Desc,
+ WO_ReasonWO_DR->RW_RowId,
+ WO_ReasonWO_DR->RW_Code,
+ WO_ReasonWO_DR->RW_Desc,
+ WO_Amount,
+ WO_Date
+ INTO :ARPBLRowId,:PAPMINo,:PAADMADMNo,:PAPMIName,:PAPMIName2,:PAPMIName3,:ARPBLDateFrom,:ARPBLDateTo,:ARPBLBillNo,:ARPBLDatePrinted,:ARPBLAmountToPay,:INSTCode,:INSTDesc,:INSTRowId,:HOSPRowId,:HOSPCode,:HOSPDesc,:RWRowId,:RWCode,:RWDesc,:WOAmount,:WODate
+ FROM SQLUser.AR_PatientBill, SQLUser.AR_PatBillWriteOff
+ WHERE ARPBL_RowId*=WO_ParRef 
+ AND WO_Date between :DateFrom and :DateTo
+ AND (({fn CONCAT( ',', {fn CONCAT((:Hospital),',')})} [ {fn CONCAT( ',', {fn CONCAT((ARPBL_Hospital_DR->HOSP_RowId),',')})}) OR (:Hospital IS NULL))
+ AND (({fn CONCAT( ',', {fn CONCAT((:AdjReason),',')})} [ {fn CONCAT( ',', {fn CONCAT((WO_ReasonWO_DR->RW_RowId),',')})}) OR (:AdjReason IS NULL)))
+
+ &SQL(OPEN Adjustments)
+ f  &SQL(FETCH Adjustments) q:SQLCODE'=0  d
+ . d FormatDates
+ . d CheckDesc
+ . s ind=$i(ind)
+ . s ^CacheTemp("TRAK",repid,$ZCVT(HOSPDesc,"U")_" "_$ZCVT(RWDesc,"U")_" "_WODate_" "_PAPMINo_" "_PAADMADMNo_" "_ind)=$LB(ARPBLRowId,PAPMINo,PAADMADMNo,PAPMIName,ARPBLDateFrom,ARPBLDateTo,ARPBLBillNo,ARPBLDatePrinted,ARPBLAmountToPay,PAPMIName2,INSTCode,INSTDesc,INSTRowId,HOSPRowId,HOSPCode,HOSPDesc,RWRowId,RWCode,RWDesc,WOAmount,WODate,PatientName)
+ &SQL(CLOSE Adjustments)
+
+ // Build QHandle (AtEnd,ReportID,Index)
+ Set QHandle=$lb(0,repid,0)
+ Quit $$$OK
+
+FormatDates
+ // Convert the dates to ODBC date format
+ Set ARPBLDateTo=..ConvertDateToODBC(ARPBLDateTo)
+ Set ARPBLDateFrom=..ConvertDateToODBC(ARPBLDateFrom)
+ Set ARPBLDatePrinted=..ConvertDateToODBC(ARPBLDatePrinted)
+ Set WODate=..ConvertDateToODBC(WODate)
+ Quit
+
+CheckDesc
+ if RWDesc = "" set RWDesc = "No Adjustment Reason"
+ Quit
+]]></Implementation>
+</Method>
+
+<Method name="AdjustmentsFetch">
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,&Row:%Library.List,&AtEnd:%Library.Integer=0]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // This fetch method should never have to change. 
+
+ New repid,ind
+
+ // Restore QHandle
+ Set AtEnd=$LI(QHandle,1)
+ Set repid=$LI(QHandle,2)
+ Set ind=$LI(QHandle,3)
+
+ Set ind=$order(^CacheTemp("TRAK",repid,ind))
+ If ind="" {	// if there are no more rows, finish fetching
+ 	Set AtEnd=1
+ 	Set Row=""
+ }  Else  {	// fetch row
+ 	Set Row=^CacheTemp("TRAK",repid,ind)
+ }
+
+ // Save QHandle
+ Set QHandle=$lb(AtEnd,repid,ind)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Query name="Adjustments">
+<Type>%Library.Query</Type>
+<FormalSpec>DateFrom:%Date,DateTo:%Date,Hospital:%String,AdjReason:%String</FormalSpec>
+<SqlProc>1</SqlProc>
+<Parameter name="CONTAINID" value="0"/>
+<Parameter name="ROWSPEC" value="ARPBLRowId:%Integer,PAPMINo:%String(MAXLEN=255),PAADMADMNo:%String(MAXLEN=255),PAPMIName:%String(MAXLEN=255),ARPBLDateFrom:%Date,ARPBLDateTo:%Date,ARPBLBillNo:%String(MAXLEN=255),ARPBLDatePrinted:%Date,ARPBLAmountToPay:%Float,PAPMIName2:%String(MAXLEN=255),INSTCode:%String(MAXLEN=255),INSTDesc:%String(MAXLEN=255),INSTRowId:%Integer,HOSPRowId:%Integer,HOSPCode:%String(MAXLEN=255),HOSPDesc:%String(MAXLEN=255),RWRowId:%Integer,RWCode:%String(MAXLEN=255),RWDesc:%String(MAXLEN=255),WOAmount:%Float,WODate:%Date,PatientName:%String(MAXLEN=255)"/>
+</Query>
+</Class>
+</Export>

@@ -1,0 +1,306 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.SWARH.Extracts.StoredProc.SWARHEVHES1003">
+<Description><![CDATA[
+<pre>
+**************************************************************************************************************************************
+* Report Code: SWARHEVHES1003
+* Report Description: Victorian Healthcare Experience Survey Extract(VHES) for Specialist Clinics 2016 Version 1.2
+* Menu Caption: Victorian Healthcare Experience Survey Extract for Specialist Clinics
+* Initial release: 21/06/2016 Developer: Michael Welsh
+* Called by USWARHEVHES1003.mac
+**************************************************************************************************************************************
+</pre>]]></Description>
+<ProcedureBlock>0</ProcedureBlock>
+<Super>Custom.SWARH.Report.ZEN.StoredProc.Abstract</Super>
+<TimeCreated>60471,58724.96519</TimeCreated>
+
+<Method name="SWARHEVHES1003Execute">
+<Description>
+This is the Execute section for the %Library.Query. 
+All of the logic will be performed here.
+A new node for the ^CacheTemp global will be created and each subscript of this global will contain
+a row for the report.DateFrom As %Date, DateTo As %Date</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,Hospital:%Integer,Year:%String,Month:%String,Specialty:%String,Under16:%String]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+		   
+ New repid,ind
+
+ Set repid=$INCREMENT(^CacheTemp(..#CACHETEMPSUBSCRIPT))
+ 
+ New CampusCode,HospitalCode,UniqueKey,AppointmentDate,Title,GivenName,Surname,AddressLn1,AddressLn2,Locality,State,Postcode
+ 	,EmailAddress,SpecialistClinic,PreferredLanguage,YearofBirth,SeparationStatus,IndigenousStatus,ApptDay,ApptMth,ApptYr
+ Set (CampusCode,HospitalCode,UniqueKey,AppointmentDate,Title,GivenName,Surname,AddressLn1,AddressLn2,Locality,State,Postcode
+ 	,EmailAddress,SpecialistClinic,PreferredLanguage,YearofBirth,SeparationStatus,IndigenousStatus,ApptDay,ApptMth,ApptYr) = ""
+ 
+ Set ind=1, END=0
+
+ //Start Monitor (if configured to capture stats)
+ s mon=..MonitorBegin()
+ 
+ Set Under16 = $ZCONVERT(Under16,"U")
+
+ IF (Under16 = "YES"){ 
+	 &SQL(DECLARE IncludeUnder16 CURSOR FOR
+ 	 SELECT
+        a.PAADM_Hospital_DR->HOSP_NationalCode AS CampusCode
+        ,LEFT(a.PAADM_Hospital_DR->HOSP_NationalCode,3) AS HospitalCode
+        ,a.PAADM_ADMNo AS UniqueKey
+        ,con.ENQ_Date AS AppointmentDate
+        ,a.PAADM_PAPMI_DR->PAPMI_Title_DR->TTL_Desc AS Title
+        ,a.PAADM_PAPMI_DR->PAPMI_Name2 AS GivenName
+        ,a.PAADM_PAPMI_DR->PAPMI_Name AS Surname
+        ,a.PAADM_PAPMI_DR->PAPMI_PAPER_DR->PAPER_StName AS AddressLn1
+        ,a.PAADM_PAPMI_DR->PAPMI_PAPER_DR->PAPER_Address2 AS AddressLn2
+        ,a.PAADM_PAPMI_DR->PAPMI_PAPER_DR->PAPER_ZIP_DR->CTZIP_Desc AS Locality
+        ,a.PAADM_PAPMI_DR->PAPMI_PAPER_DR->PAPER_ZIP_DR->CTZIP_Province_DR->PROV_Desc AS State
+        ,a.PAADM_PAPMI_DR->PAPMI_PAPER_DR->PAPER_ZIP_DR->CTZIP_Code AS Postcode
+        ,a.PAADM_PAPMI_DR->PAPMI_PAPER_DR->PAPER_Email AS EmailAddress
+        ,con.ENQ_Location_DR->CTLOC_Desc AS SpecialistClinic
+        ,n.NATC_MappedValue AS PreferredLanguage
+        ,DATEPART(yyyy,a.PAADM_PAPMI_DR->PAPMI_PAPER_DR->PAPER_Dob) AS YearofBirth
+        ,'NA' AS SeparationStatus
+       ,indig.NATC_MappedValue AS IndigenousStatus
+	 FROM
+        SQLUser.PA_Adm a
+        	LEFT JOIN SQLUser.OE_Order ord ON (ord.OEORD_Adm_DR = a.PAADM_RowID)
+            LEFT JOIN SQLuser.OE_OrdItem ordItem ON (ordItem.OEORI_OEORD_ParRef = ord.OEORD_RowId)
+            LEFT JOIN SQLuser.PA_EnquiryContact con ON (con.ENQ_OEOrdItem_DR = ordItem.OEORI_RowId)
+            LEFT JOIN SQLUser.PA_PatMas pm ON (pm.PAPMI_RowId = a.PAADM_PAPMI_DR)
+            LEFT JOIN SQLUser.PA_Person p ON (p.PAPER_RowID = pm.PAPMI_PAPER_DR)
+            LEFT JOIN SQLUser.PAC_PreferredLanguage pl ON (pl.PREFL_RowID = p.PAPER_PrefLanguage_DR)
+            LEFT JOIN SQLUser.PAC_NationalCodes n ON (
+                        n.NATC_ReportingType_DR = 4
+                        AND pl.PREFL_Code = n.NATC_ActualValue
+                        AND n.NATC_MappedValue IN ('1201','4204','3602','2401','7104','3402','3504','3503','3505','2501','2201'
+                        	,'7101','4301','5203','2303','6302'))
+            LEFT JOIN SQLUser.PAC_IndigStatus ind ON (ind.INDST_RowID = pm.PAPMI_IndigStat_DR)
+            LEFT JOIN SQLUser.PAC_NationalCodes indig ON (
+                        indig.NATC_TableName = 'PAC_IndigStatus'
+                        AND indig.NATC_FieldName = 'INDST_NationalCode'
+                        AND indig.NATC_ReportingType_DR = 7 -- 'DHS Victorian Indigenous Status'
+                        AND indig.NATC_ActualValue = ind.INDST_Code)
+	 WHERE
+        (con.ENQ_Hospital_DR = :Hospital)
+     AND
+     	(Year(con.ENQ_Date)=:Year)
+	 AND
+     	(Month(con.ENQ_Date)=:Month)
+     AND
+		(({fn CONCAT( ',', {fn CONCAT((:Specialty),',')})} [ {fn CONCAT( ',', {fn CONCAT((con.ENQ_Location_DR->CTLOC_RowId),',')})}) OR (:Specialty IS NULL)) -- Multiple Specialties
+	 AND
+        (con.ENQ_RequestStatus_DR = 2) --Complete
+	 AND
+        (p.PAPER_Deceased <> 'Y' OR p.PAPER_Deceased IS NULL) --Excludes Deceased
+     AND
+        (con.ENQ_GovernDepart_DR->DEP_ParRef = 29) --VOP VINAH Specialist Clinic Outpatients
+     GROUP BY
+        a.PAADM_PAPMI_DR)
+                 
+ 	&SQL(OPEN IncludeUnder16)
+ 
+ 	//Fetch first row
+ 	Do FetchYESRow 
+  
+ 	while END=0 {
+  	 	Do FormatDates, FormatStrings
+  	 	Set sort = ind
+  	 	Set ^CacheTemp(..#CACHETEMPSUBSCRIPT,repid,sort)=$LISTBUILD(CampusCode,HospitalCode,UniqueKey,AppointmentDate,Title,GivenName
+  	 	,Surname,AddressLn1,AddressLn2,Locality,State,Postcode,EmailAddress,SpecialistClinic,PreferredLanguage,YearofBirth
+  	 	,SeparationStatus,IndigenousStatus)
+	 	Set ind=ind+1
+ 	 	Do FetchYESRow //Fetch next row
+ 	}
+  &SQL(CLOSE IncludeUnder16)
+ }
+ 
+ IF (Under16 = "NO"){
+	 &SQL(DECLARE ExcludeUnder16 CURSOR FOR
+	SELECT
+        a.PAADM_Hospital_DR->HOSP_NationalCode AS CampusCode
+        ,LEFT(a.PAADM_Hospital_DR->HOSP_NationalCode,3) AS HospitalCode
+        ,a.PAADM_ADMNo AS UniqueKey
+        ,con.ENQ_Date AS AppointmentDate
+        ,a.PAADM_PAPMI_DR->PAPMI_Title_DR->TTL_Desc AS Title
+        ,a.PAADM_PAPMI_DR->PAPMI_Name2 AS GivenName
+        ,a.PAADM_PAPMI_DR->PAPMI_Name AS Surname
+        ,a.PAADM_PAPMI_DR->PAPMI_PAPER_DR->PAPER_StName AS AddressLn1
+        ,a.PAADM_PAPMI_DR->PAPMI_PAPER_DR->PAPER_Address2 AS AddressLn2
+        ,a.PAADM_PAPMI_DR->PAPMI_PAPER_DR->PAPER_ZIP_DR->CTZIP_Desc AS Locality
+        ,a.PAADM_PAPMI_DR->PAPMI_PAPER_DR->PAPER_ZIP_DR->CTZIP_Province_DR->PROV_Desc AS State
+        ,a.PAADM_PAPMI_DR->PAPMI_PAPER_DR->PAPER_ZIP_DR->CTZIP_Code AS Postcode
+        ,a.PAADM_PAPMI_DR->PAPMI_PAPER_DR->PAPER_Email AS EmailAddress
+        ,con.ENQ_Location_DR->CTLOC_Desc AS SpecialistClinic
+        ,n.NATC_MappedValue AS PreferredLanguage
+        ,DATEPART(yyyy,a.PAADM_PAPMI_DR->PAPMI_PAPER_DR->PAPER_Dob) AS YearofBirth
+        ,'NA' AS SeparationStatus
+       ,indig.NATC_MappedValue AS IndigenousStatus
+	 FROM
+        SQLUser.PA_Adm a
+        	LEFT JOIN SQLUser.OE_Order ord ON (ord.OEORD_Adm_DR = a.PAADM_RowID)
+            LEFT JOIN SQLuser.OE_OrdItem ordItem ON (ordItem.OEORI_OEORD_ParRef = ord.OEORD_RowId)
+            LEFT JOIN SQLuser.PA_EnquiryContact con ON (con.ENQ_OEOrdItem_DR = ordItem.OEORI_RowId)
+            LEFT JOIN SQLUser.PA_PatMas pm ON (pm.PAPMI_RowId = a.PAADM_PAPMI_DR)
+            LEFT JOIN SQLUser.PA_Person p ON (p.PAPER_RowID = pm.PAPMI_PAPER_DR)
+            LEFT JOIN SQLUser.PAC_PreferredLanguage pl ON (pl.PREFL_RowID = p.PAPER_PrefLanguage_DR)
+            LEFT JOIN SQLUser.PAC_NationalCodes n ON (
+                        n.NATC_ReportingType_DR = 4
+                        AND pl.PREFL_Code = n.NATC_ActualValue
+                        AND n.NATC_MappedValue IN ('1201','4204','3602','2401','7104','3402','3504','3503','3505','2501','2201'
+                        	,'7101','4301','5203','2303','6302'))
+            LEFT JOIN SQLUser.PAC_IndigStatus ind ON (ind.INDST_RowID = pm.PAPMI_IndigStat_DR)
+            LEFT JOIN SQLUser.PAC_NationalCodes indig ON (
+                        indig.NATC_TableName = 'PAC_IndigStatus'
+                        AND indig.NATC_FieldName = 'INDST_NationalCode'
+                        AND indig.NATC_ReportingType_DR = 7 -- 'DHS Victorian Indigenous Status'
+                        AND indig.NATC_ActualValue = ind.INDST_Code)
+	 WHERE
+        (con.ENQ_Hospital_DR = :Hospital)
+     AND
+     	(Year(con.ENQ_Date)=:Year)
+	 AND
+     	(Month(con.ENQ_Date)=:Month)
+	 AND
+		(({fn CONCAT( ',', {fn CONCAT((:Specialty),',')})} [ {fn CONCAT( ',', {fn CONCAT((con.ENQ_Location_DR->CTLOC_RowId),',')})}) OR (:Specialty IS NULL)) -- Multiple Specialties
+	 AND
+        (con.ENQ_RequestStatus_DR = 2) --Complete
+	 AND
+        (p.PAPER_Deceased <> 'Y' OR p.PAPER_Deceased IS NULL) --Excludes Deceased
+     AND
+        (con.ENQ_GovernDepart_DR->DEP_ParRef = 29) --VOP VINAH Specialist Clinic Outpatients
+     AND
+     	(DATEDIFF(mm,a.PAADM_PAPMI_DR->PAPMI_PAPER_DR->PAPER_Dob,con.ENQ_Date) >= 192) --Excludes Under 16
+	 GROUP BY
+        a.PAADM_PAPMI_DR)
+                
+ 	&SQL(OPEN ExcludeUnder16)
+ 
+ 	//Fetch first row
+ 	Do FetchNORow 
+  
+ 	while END=0 {
+  	 Do FormatDates, FormatStrings
+  	 Set sort = ind
+  	 Set ^CacheTemp(..#CACHETEMPSUBSCRIPT,repid,sort)=$LISTBUILD(CampusCode,HospitalCode,UniqueKey,AppointmentDate,Title,GivenName
+  	 	,Surname,AddressLn1,AddressLn2,Locality,State,Postcode,EmailAddress,SpecialistClinic,PreferredLanguage,YearofBirth
+  	 	,SeparationStatus,IndigenousStatus)
+	 Set ind=ind+1
+ 	 Do FetchNORow //Fetch next row
+ 	}
+ 	&SQL(CLOSE ExcludeUnder16)
+ }
+  
+ // Build QHandle (AtEnd,ReportID,Index)
+ Set QHandle=$lb(0,repid,0)
+
+ Quit $$$OK
+
+FetchYESRow
+ &sql(FETCH IncludeUnder16 INTO :CampusCode,:HospitalCode,:UniqueKey,:AppointmentDate,:Title,:GivenName,:Surname,:AddressLn1
+ 	,:AddressLn2,:Locality,:State,:Postcode,:EmailAddress,:SpecialistClinic,:PreferredLanguage,:YearofBirth,:SeparationStatus
+ 	,:IndigenousStatus)
+ if SQLCODE '= 0 set END = 1
+ Quit
+ 
+FetchNORow
+ &sql(FETCH ExcludeUnder16 INTO :CampusCode,:HospitalCode,:UniqueKey,:AppointmentDate,:Title,:GivenName,:Surname,:AddressLn1
+ 	,:AddressLn2,:Locality,:State,:Postcode,:EmailAddress,:SpecialistClinic,:PreferredLanguage,:YearofBirth,:SeparationStatus
+ 	,:IndigenousStatus)
+ if SQLCODE '= 0 set END = 1
+ Quit
+ 
+FormatDates
+ Set AppointmentDate = ..ConvertDateToODBC(AppointmentDate) 
+ Set ApptYr = $PIECE(AppointmentDate,"-",1)
+ Set ApptMth = $PIECE(AppointmentDate,"-",2)
+ Set ApptDay = $PIECE(AppointmentDate,"-",3)
+ Set AppointmentDate = ApptDay_ApptMth_ApptYr
+ Quit
+ 
+FormatTimes 
+ //Set AdmTime=..ConvertTimeToHHMM(AdmTime) 
+ Quit
+ 
+FormatStrings // Cleanup specified strings, add quotes
+	set Title = """"_$ZCONVERT(Title,"U")_""""
+ 	set GivenName = """"_$ZCONVERT($ZStrip(GivenName,"*C"),"U")_""""
+ 	set Surname = """"_$ZCONVERT($ZStrip(Surname,"*C"),"U")_""""
+ 	set AddressLn1 = """"_$ZCONVERT($REPLACE($ZStrip(AddressLn1,"*C"),",",""),"U")_""""
+ 	set AddressLn2 = """"_$ZCONVERT($REPLACE($ZStrip(AddressLn2,"*C"),",",""),"U")_""""
+ 	set Locality = """"_$ZCONVERT($ZStrip(Locality,"*C"),"U")_"""" 
+ 	set State = """"_$ZCONVERT($ZStrip(State,"*C"),"U")_"""" 
+ 	set EmailAddress = """"_EmailAddress_"""" 
+ 	set SpecialistClinic = $ZCONVERT($ZStrip(SpecialistClinic,"*C"),"U")
+ Quit
+]]></Implementation>
+</Method>
+
+<Method name="SWARHEVHES1003Fetch">
+<Description>
+This is the Fetch component of the %Library.Query. 
+This should never have to change. It is designed to fetch the row for each subscript of the ^CacheTemp
+global and return this row to the Crystal Report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,&Row:%Library.List,&AtEnd:%Library.Integer=0]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // This fetch method should never have to change. 
+ // repid - Report ID
+ // ind   - sequence index which represents each row
+
+ New repid,ind
+
+ // Restore QHandle
+ Set AtEnd=$li(QHandle,1)
+ Set repid=$li(QHandle,2)
+ Set ind=$li(QHandle,3)
+
+ Set ind=$ORDER(^CacheTemp(..#CACHETEMPSUBSCRIPT,repid,ind))
+ If ind="" {	// if there are no more rows, finish fetching
+	 Set AtEnd=1
+	 Set Row=""
+ }
+ Else      {	// fetch row 
+ 	Set Row=^CacheTemp(..#CACHETEMPSUBSCRIPT,repid,ind)
+ }
+
+ // Save QHandle 
+ Set QHandle=$LISTBUILD(AtEnd,repid,ind)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="SWARHEVHES1003Close">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)
+This is the Close component of the %Library.Query.
+This is standard code and should never have to change.
+This is where all the cleanup is performed, i.e. the purging of the temporary storage global ^CacheTemp.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>QHandle:%Library.Binary</FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Clean up by purging the temporary node in ^CacheTemp global
+ New repid,ind
+ Set repid=$li(QHandle,2)
+
+ //Start Monitor (if configured to capture stats)
+ i mon Do ..MonitorEnd(mon)
+
+ Kill ^CacheTemp(..#CACHETEMPSUBSCRIPT,repid)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Query name="SWARHEVHES1003">
+<Type>%Library.Query</Type>
+<FormalSpec>Hospital:%Integer,Year:%String,Month:%String,Specialty:%String,Under16:%String</FormalSpec>
+<SqlProc>1</SqlProc>
+<Parameter name="CONTAINID" value="0"/>
+<Parameter name="ROWSPEC" value="CampusCode:%Integer,HospitalCode:%Integer,UniqueKey:%String,AppointmentDate:%String,Title:%String,GivenName:%String,Surname:%String,AddressLn1:%String,AddressLn2:%String,Locality:%String,State:%String,Postcode:%String,EmailAddress:%String,SpecialistClinic:%String,PreferredLanguage:%String,YearofBirth:%Integer,SeparationStatus:%String,IndigenousStatus:%String"/>
+<Parameter name="SELECTMODE" value="ODBC"/>
+</Query>
+</Class>
+</Export>

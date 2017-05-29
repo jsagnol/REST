@@ -1,0 +1,543 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.MedicationChartData">
+<Description>
+This class gathers all the data for the Medication Chart report and stored is a temporary global</Description>
+<ProcedureBlock>0</ProcedureBlock>
+<Super>Report.Abstract</Super>
+<TimeCreated>59388,55236.125</TimeCreated>
+
+<Method name="GetPatientData">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>EpisodeID:%Library.Integer,id:%Library.Integer,DateFrom:%Library.String,DateTo:%Library.String</FormalSpec>
+<Implementation><![CDATA[
+	s DateFrom=$zdh(DateFrom,4)
+	s DateTo=$zdh(DateTo,4)
+
+	n PAPMINo,PAADMAdmNo,PAPMIName,PAPMIName2,PAPMIName3,CTSEXCode,PAPMIDOB,Address,Height,Weight,BSL,PAPERStName,PAPERForeignAddress,PROVCode,CTCITCode,CTZIPCode,PAADMAdmDate,PAADMAdmTime,PAADMDischgDate,PAADMDischgTime,WARDDesc,HOSPDesc,BEDCode
+	s (PAPMINo,PAADMAdmNo,PAPMIName,PAPMIName2,PAPMIName3,CTSEXCode,PAPMIDOB,Address,Height,Weight,BSL,PAPERStName,PAPERForeignAddress,PROVCode,CTCITCode,CTZIPCode,PAADMAdmDate,PAADMAdmTime,PAADMDischgDate,PAADMDischgTime,WARDDesc,HOSPDesc,BEDCode)=""
+	
+	n patid,mradm,obs,trans,NilRecord,oe,oei,arcim,code,itemtype,gencode,Priority,ind,cnt
+	s (patid,mradm,obs,trans,NilRecord,oe,oei,arcim,code,itemtype,gencode,Priority,ind,cnt)=""
+	
+	k ^zCacheTemp("MEDCHART",id)
+	
+	s patid=$p($g(^PAADM(EpisodeID)),"^",1)
+	i patid'="" d
+	. s PAPMINo=$S($G(XFUNC("CLASS"))="OP":$p($g(^PAPER(patid,"PAT",1)),"^",2),1:$p($g(^PAPER(patid,"PAT",1)),"^",1))
+	. s PAPMIName=$zcvt($p($g(^PAPER(patid,"ALL")),"^",1),"U")
+	. s PAPMIName2=$zcvt($p($g(^PAPER(patid,"ALL")),"^",2),"U")
+	. s PAPMIName3=$zcvt($p($g(^PAPER(patid,"ALL")),"^",19),"U")
+	. s PAPMIDOB=$p($g(^PAPER(patid,"ALL")),"^",6)
+	. i PAPMIDOB'="" s PAPMIDOB=$zd(PAPMIDOB,3)
+	. s CTSEXCode=$p($g(^PAPER(patid,"ALL")),"^",7)
+	. i CTSEXCode'="" s CTSEXCode=$p($g(^CT("SEX",CTSEXCode)),"^",2)
+	. s PAPERStName=$zstrip($p($g(^PAPER(patid,"PER","ADD",1)),"^",1),"*C")
+	. s PAPERForeignAddress=$zstrip($p($g(^PAPER(patid,"PER",1)),"^",1),"*C")
+	. s PROVCode=$p($g(^PAPER(patid,"PER",4)),"^",2)
+	. i PROVCode'="" s PROVCode=$p($g(^CT("PROV",PROVCode)),"^",1)
+	. s CTCITCode=$p($g(^PAPER(patid,"PER",1)),"^",5)
+	. i CTCITCode'="" s CTCITCode=$p($g(^CT("CIT",CTCITCode)),"^",2)
+	. s CTZIPCode=$p($g(^PAPER(patid,"PER",1)),"^",7)
+	. i CTZIPCode'="" s CTZIPCode=$p($g(^CT("ZIP",CTZIPCode)),"^",1)
+	. s Address=PAPERStName
+	. i PAPERForeignAddress'="" s Address=Address_", "_PAPERForeignAddress
+	. i CTCITCode'="" s Address=Address_", "_CTCITCode
+	. i PROVCode'="" s Address=Address_", "_PROVCode
+	. i CTZIPCode'="" s Address=Address_", "_CTZIPCode
+	. ;
+	. s mradm=$p($g(^PAADM(EpisodeID)),"^",61)
+	. s obs=0 f  s obs=$o(^MR(mradm,"OBS",obs)) q:obs=""  d
+	. . i $p($g(^MR(mradm,"OBS",obs)),"^",1)'="" d
+	. . . i $o(^MRC("OBITM",0,"Code","WEIGHT",0))=$p($g(^MR(mradm,"OBS",obs)),"^",1) s Weight=$p($g(^MR(mradm,"OBS",obs)),"^",2)
+	. . . i $o(^MRC("OBITM",0,"Code","HEIGHT",0))=$p($g(^MR(mradm,"OBS",obs)),"^",1) s Height=$p($g(^MR(mradm,"OBS",obs)),"^",2)
+	. . . i $o(^MRC("OBITM",0,"Code","BSL",0))=$p($g(^MR(mradm,"OBS",obs)),"^",1) s BSL=$p($g(^MR(mradm,"OBS",obs)),"^",2)
+	. ;
+	. ; Get Prior Medications
+	. d ..PriorMedications(mradm,id)
+	. ;
+	. s PAADMAdmNo=$p($g(^PAADM(EpisodeID)),"^",81)
+	. s PAADMAdmDate=$p($g(^PAADM(EpisodeID)),"^",6)
+	. i PAADMAdmDate'="" s PAADMAdmDate=$zd(PAADMAdmDate,3)
+	. s PAADMAdmTime=$p($g(^PAADM(EpisodeID)),"^",7)
+	. i PAADMAdmTime'="" s PAADMAdmTime=$zt(PAADMAdmTime,2)
+	. s PAADMDischgDate=$p($g(^PAADM(EpisodeID)),"^",17)
+	. i PAADMDischgDate'="" s PAADMDischgDate=$zd(PAADMDischgDate,3)
+	. s PAADMDischgTime=$p($g(^PAADM(EpisodeID)),"^",18)
+	. i PAADMDischgTime'="" s PAADMDischgTime=$zt(PAADMDischgTime,2)
+	. ;
+	. ; Admission Hospital / Ward / Bed
+	. s WARDDesc=$p($g(^PAADM(EpisodeID)),"^",70)
+	. i WARDDesc'="" d
+	. . s HOSPDesc=$p($g(^PAWARD(WARDDesc)),"^",5)
+	. . s WARDDesc=$p($g(^PAWARD(WARDDesc)),"^",2)
+	. . i HOSPDesc'="" d
+	. . . s HOSPDesc=$p($g(^CTLOC(HOSPDesc)),"^",22)
+	. . . i HOSPDesc'="" d
+	. . . . s HOSPDesc=$p($g(^CT("HOSP",HOSPDesc)),"^",2)
+	. s BEDCode=$p($g(^PAADM(EpisodeID)),"^",73)
+	. i BEDCode'="" s BEDCode=$p($g(^PAWARD(+BEDCode,"BED",$p(BEDCode,"||",2))),"^",1)
+	. ;
+	. ; Current Hospital / Ward / Bed
+	. s trans=0 f  s trans=$o(^PAADM(EpisodeID,"TRANS",trans)) q:trans=""  d
+	. . i $p($g(^PAADM(EpisodeID,"TRANS",trans)),"^",9)'="" d  ;$o(^PAC("REQST",0,"Code","D",0))=$p($g(^PAADM(EpisodeID,"TRANS",trans)),"^",12),$o(^PAC("TRANSTYP",0,"Code","M",0))=$p($g(^PAADM(EpisodeID,"TRANS",trans)),"^",21) d
+	. . . s WARDDesc=$p($g(^PAADM(EpisodeID,"TRANS",trans)),"^",9)
+	. . . i WARDDesc'="" d
+	. . . . s HOSPDesc=$p($g(^PAWARD(WARDDesc)),"^",5)
+	. . . . s WARDDesc=$p($g(^PAWARD(WARDDesc)),"^",2)
+	. . . . i HOSPDesc'="" d
+	. . . . . s HOSPDesc=$p($g(^CTLOC(HOSPDesc)),"^",22)
+	. . . . . i HOSPDesc'="" d
+	. . . . . . s HOSPDesc=$p($g(^CT("HOSP",HOSPDesc)),"^",2)
+	. . . s BEDCode=$p($g(^PAADM(EpisodeID,"TRANS",trans)),"^",8)
+	. . . i BEDCode'="" s BEDCode=$p($g(^PAWARD(+BEDCode,"BED",$p(BEDCode,"||",2))),"^",1)
+	. s (Allergen(0),AllergenDate(0),AllergenOnsetDate(0),Severity(0),Category(0),User(0),Allergen(1),AllergenDate(1),AllergenOnsetDate(1),Severity(1),Category(1),User(1))=""
+	. s NilRecorded=0
+	. s alg=0 f  s alg=$o(^PAPER(patid,"ALG",alg)) q:alg=""  d
+	. . i $p($g(^PAPER(patid,"ALG",alg)),"^",8)="A" d
+	. . . s NilRecorded=1
+	. . . s cnt=$i(cnt)
+	. . . s mod=cnt#2
+	. . . s Allergen(mod)=$p($g(^PAPER(patid,"ALG",alg)),"^",9)
+	. . . i $p($g(^PAPER(patid,"ALG",alg)),"^",9)'="" s Allergen(mod)=$p($g(^PAC("ALG",$p($g(^PAPER(patid,"ALG",alg)),"^",9))),"^",2)
+	. . . i $p($g(^PAPER(patid,"ALG",alg)),"^",4)'="" s Allergen(mod)=$p($g(^PHCGE("GE",$p($g(^PAPER(patid,"ALG",alg)),"^",4))),"^",2)
+	. . . i $p($g(^PAPER(patid,"ALG",alg)),"^",27)'="" s Allergen(mod)=$p($g(^PHCD($p($g(^PAPER(patid,"ALG",alg)),"^",27),1)),"^",2)
+	. . . s AllergenDate(mod)=$p($g(^PAPER(patid,"ALG",alg)),"^",10)
+	. . . i AllergenDate(mod)'="" s AllergenDate(mod)=$zd(AllergenDate(mod),3)
+	. . . s AllergenOnsetDate(mod)=$p($g(^PAPER(patid,"ALG",alg)),"^",14)
+	. . . i AllergenOnsetDate(mod)'="" s AllergenOnsetDate(mod)=$zd(AllergenOnsetDate(mod),3)
+	. . . s Severity(mod)=$p($g(^PAPER(patid,"ALG",alg)),"^",21)
+	. . . i Severity(mod)'="" s Severity(mod)=$p($g(^PAC("ALRGSEV",Severity(mod))),"^",2)
+	. . . s Category(mod)=$p($g(^PAPER(patid,"ALG",alg)),"^",25)
+	. . . i Category(mod)'="" s Category(mod)=$p($g(^PAC("ALRGCAT",Category(mod))),"^",2)
+	. . . ;
+	. . . n comments
+	. . . s comments=""
+	. . . i $g(^PAPER(patid,"ALG",alg,"CMT",1))'="" d
+	. . . . s x=0 f  s x=$o(^PAPER(patid,"ALG",alg,"CMT",x)) q:x=""  d
+	. . . . . i comments'="" s comments=comments_" "_$g(^PAPER(patid,"ALG",alg,"CMT",x))
+	. . . . . i comments="" s comments=$g(^PAPER(patid,"ALG",alg,"CMT",x))
+	. . . i Category(mod)'="",comments'="" s Category(mod)=Category(mod)_$c(13)_comments
+	. . . i Category(mod)="",comments'="" s Category(mod)=comments
+	. . . ;
+	. . . s User(mod)=$p($g(^PAPER(patid,"ALG",alg)),"^",16)
+	. . . i User(mod)'="" s User(mod)=$p($g(^SSU("SSUSR",User(mod))),"^",2)
+	. . . ;
+	. . . i mod=1 d
+	. . . . s ind=$i(ind)
+	. . . . s ^zCacheTemp("MEDCHART",id,"ALLERGY",ind)="^^^^^^^^^"
+	. . . . s $p(^zCacheTemp("MEDCHART",id,"ALLERGY",ind),"^",1)=Allergen(mod)
+	. . . . s $p(^zCacheTemp("MEDCHART",id,"ALLERGY",ind),"^",2)=AllergenOnsetDate(mod)
+	. . . . s $p(^zCacheTemp("MEDCHART",id,"ALLERGY",ind),"^",3)=Severity(mod)
+	. . . . s $p(^zCacheTemp("MEDCHART",id,"ALLERGY",ind),"^",4)=Category(mod)
+	. . . . s $p(^zCacheTemp("MEDCHART",id,"ALLERGY",ind),"^",5)=User(mod)
+	. . . i mod=0 d
+	. . . . s $p(^zCacheTemp("MEDCHART",id,"ALLERGY",ind),"^",6)=Allergen(mod)
+	. . . . s $p(^zCacheTemp("MEDCHART",id,"ALLERGY",ind),"^",7)=AllergenOnsetDate(mod)
+	. . . . s $p(^zCacheTemp("MEDCHART",id,"ALLERGY",ind),"^",8)=Severity(mod)
+	. . . . s $p(^zCacheTemp("MEDCHART",id,"ALLERGY",ind),"^",9)=Category(mod)
+	. . . . s $p(^zCacheTemp("MEDCHART",id,"ALLERGY",ind),"^",10)=User(mod)
+	. . . . s (Allergen(0),AllergenDate(0),AllergenOnsetDate(0),Severity(0),Category(0),User(0),Allergen(1),AllergenDate(1),AllergenOnsetDate(1),Severity(1),Category(1),User(1))=""
+	. ;
+	. ; If nil records create nil recorded line
+	. i NilRecorded=0 d
+	. . s ind=$i(ind)
+	. . s ^zCacheTemp("MEDCHART",id,"ALLERGY",ind)="Nil Recorded^^^^^^^^^"
+	. ;
+	. s oe=0 f  s oe=$o(^OEORD(0,"Adm",EpisodeID,oe)) q:oe=""  d
+	. . s oei=0 f  s oei=$o(^OEORD(oe,"I",oei)) q:oei=""  d
+	. . . s arcim=$p($g(^OEORD(oe,"I",oei,1)),"^",2)
+	. . . q:$g(arcim)=""
+	. . . q:'$d(^ARCIM(+arcim,$p(arcim,"||",2)))
+	. . . i arcim'="" d
+	. . . . ;s arcim=$Extract(arcim,2,$length(arcim))
+	. . . . s itemtype=$p($g(^ARCIM(+arcim,$p(arcim,"||",2),1)),"^",10)
+	. . . . i itemtype'="" s itemtype=$p($g(^ARC("IC",itemtype)),"^",7)
+	. . . . ;w !,itemtype,"^",arcim_"^"_oe_"^"_oei
+    . . . . i itemtype'="L" d
+    . . . . . s drgfrm=$p($g(^ARCIM(+arcim,$p(arcim,"||",2),1)),"^",12)
+    . . . . . q:drgfrm=""
+    . . . . . s gencode=$p($g(^PHCD(+drgfrm,4)),"^",1)
+    . . . . . i gencode'="" s gencode=$p($g(^PHCGE("GE",+gencode)),"^",2)
+	. . . . . ;i itemtype'="L" d
+	. . . . . ;s gencode=$p($g(^ARCIM(+arcim,$p(arcim,"||",2),8)),"^",20)
+	. . . . . ;i gencode'="" s gencode=$p($g(^PHCGE("GE",gencode)),"^",2)
+	. . . . . s Priority=$p($g(^OEORD(oe,"I",oei,1)),"^",8)
+	. . . . . i Priority'="" s Priority=$p($g(^OECPR(Priority)),"^",1)
+	. . . . . ;
+	. . . . . ; Filter orders based on generic code
+	. . . . . ;i $zcvt($zstrip(gencode,"*CWP"),"U")="WARFARINSODIUM" d
+	. . . . . ;. s code="WARFARIN"
+	. . . . . ;. d ..GetOrders(oe,oei,code,id,DateFrom,DateTo)
+	. . . . . ;i (","_$zcvt($zstrip(gencode,"*CW"),"U")_",")[(",INSULIN,") d
+	. . . . . ;. s code="INSULIN"
+	. . . . . ;. d ..GetOrders(oe,oei,code,id,DateFrom,DateTo)
+	. . . . . ;i $zcvt($zstrip(gencode,"*CWP"),"U")'="WARFARINSODIUM",(","_$zcvt($zstrip(gencode,"*CW"),"U")_",")'[(",INSULIN,"),(",PRN,STAT,")[(","_Priority_",") d
+	. . . . . ;. s code="VARIABLE"
+	. . . . . ;. d ..GetOrders(oe,oei,code,id,DateFrom,DateTo)
+	. . . . . ;i $zcvt($zstrip(gencode,"*CWP"),"U")'="WARFARINSODIUM",(","_$zcvt($zstrip(gencode,"*CW"),"U")_",")'[(",INSULIN,"),(",PRN,STAT,")'[(","_Priority_",") d
+	. . . . . ;. i itemtype'="I" d
+	. . . . . ;. . s code="REGULAR"
+	. . . . . ;. . d ..GetOrders(oe,oei,code,id,DateFrom,DateTo)
+	. . . . . i $zcvt($zstrip(gencode,"*CWP"),"U")'="WARFARINSODIUM",(","_$zcvt($zstrip(gencode,"*CW"),"U")_",")'[(",INSULIN,") d
+	. . . . . . i itemtype="I" d
+	. . . . . . . s code="IV"
+	. . . . . ;
+	. . . . . ; New Filters
+	. . . . . s doctor=$p($g(^OEORD(oe,"I",oei,1)),"^",11)
+	. . . . . i doctor'="" d
+	. . . . . . s doctype=$p($g(^CTPCP(doctor,1)),"^",4)
+	. . . . . . i doctype'="" s doctype=$p($g(^CT("CPT",doctype)),"^",4)
+	. . . . . . s doctor=$p($g(^CTPCP(doctor,1)),"^",2)
+	. . . . . s datepoau=$p($g(^OEORD(oe,"I",oei,12)),"^",46)
+	. . . . . s timepoau=$p($g(^OEORD(oe,"I",oei,12)),"^",47)
+	. . . . . s dateaureq=$p($g(^OEORD(oe,"I",oei,12)),"^",48)
+	. . . . . s timeaureq=$p($g(^OEORD(oe,"I",oei,12)),"^",49)
+	. . . . . s yesno=$p($g(^OEORD(oe,"I",oei,13)),"^",24)
+	. . . . . s vardose=$p($g(^OEORD(oe,"I",oei,13)),"^",33)
+	. . . . . s itmcat=$p($g(^ARCIM(+arcim,$p(arcim,"||",2),1)),"^",10)
+	. . . . . i itmcat'="" s itmcat=$p($g(^ARC("IC",itmcat)),"^",1)
+	. . . . . s code=""
+	. . . . . ; Nurse Initiated Orders
+	. . . . . i $p($g(^OEORD(oe,"I",oei,12)),"^",44)'="Y",doctype="NURSE" d
+	. . . . . . s code="NIO"
+	. . . . . ;
+	. . . . . ; Phone Orders (Unauthorised)
+	. . . . . i $p($g(^OEORD(oe,"I",oei,12)),"^",44)="Y" d
+	. . . . . . i datepoau="",timepoau="" s code="PO"
+	. . . . . i $p($g(^OEORD(oe,"I",oei,12)),"^",44)="Y" d
+	. . . . . . i datepoau=dateaureq,timepoau>timeaureq s code="PO"
+	. . . . . . i datepoau>dateaureq s code="PO"
+	. . . . . . i dateaureq<+$h s code="POE"
+	. . . . . . i dateaureq=+$h,timeaureq<$p($h,",",2) s code="POE"
+	. . . . . . i datepoau'="",timepoau'="",dateaureq'="",timeaureq'="" d
+	. . . . . . . i (dateaureq+timeaureq)>(datepoau+timepoau) s code=""
+	. . . . . ;
+	. . . . . ; Discharges
+	. . . . . i Priority="DIS",(",NIO,PO,POE,")'[(","_code_",") d
+	. . . . . . s code="DIS"
+	. . . . . ;
+	. . . . . ; Warfarin
+	. . . . . i $zcvt($zstrip(gencode,"*CWP"),"U")="WARFARINSODIUM",(",NIO,PO,POE,DIS,")'[(","_code_","),itmcat'="6,D" d
+	. . . . . . s code="WARFARIN"
+	. . . . . ;
+	. . . . . ; Adjustable
+	. . . . . i yesno="Y",Priority'="PRN",$zcvt($zstrip(gencode,"*CWP"),"U")'="WARFARINSODIUM",(",NIO,PO,POE,DIS,")'[(","_code_","),itmcat'="6,D" d
+	. . . . . . s code="ADJ"
+	. . . . . ;
+	. . . . . ; Variable
+	. . . . . i yesno'="Y",vardose'="",Priority'="PRN",$zcvt($zstrip(gencode,"*CWP"),"U")'="WARFARINSODIUM",(",NIO,PO,POE,DIS,")'[(","_code_",") d
+	. . . . . . s code="VAR"
+	. . . . . ;
+	. . . . . ; Other
+	. . . . . i yesno'="Y",(",PRN,STAT,ONE,")'[(","_Priority_","),$zcvt($zstrip(gencode,"*CWP"),"U")'="WARFARINSODIUM",(",NIO,PO,POE,DIS,VAR,")'[(","_code_","),itmcat'="6,D" d
+	. . . . . . s code="OTH"
+	. . . . . ;
+	. . . . . ; Insulin
+	. . . . . i $zcvt($zstrip(gencode,"*CWP"),"U")'="WARFARINSODIUM",(",NIO,PO,POE,DIS,")'[(","_code_","),itmcat="6,D" d
+	. . . . . . s code="INSULIN"
+	. . . . . ;
+	. . . . . ; PRN
+	. . . . . i (",PRN,")[(","_Priority_","),$zcvt($zstrip(gencode,"*CWP"),"U")'="WARFARINSODIUM",(",NIO,PO,POE,DIS,")'[(","_code_","),itmcat'="6,D" d
+	. . . . . . s code="PRN"
+	. . . . . ;
+	. . . . . ; ONE
+	. . . . . i (",ONE,")[(","_Priority_","),$zcvt($zstrip(gencode,"*CWP"),"U")'="WARFARINSODIUM",(",NIO,PO,POE,DIS,")'[(","_code_","),itmcat'="6,D" d
+	. . . . . . s code="ONE"
+	. . . . . ;
+	. . . . . ; STAT
+	. . . . . i (",STAT,")[(","_Priority_","),$zcvt($zstrip(gencode,"*CWP"),"U")'="WARFARINSODIUM",(",NIO,PO,POE,DIS,")'[(","_code_","),itmcat'="6,D" d
+	. . . . . . s code="STAT"
+	. . . . . ;
+	. . . . . i code'="" d
+	. . . . . . s validate=1
+	. . . . . . i vardose'="" s validate=..validate(oe_"||"_oei)
+	. . . . . . d ..GetOrders(oe,oei,code,id,DateFrom,DateTo,validate)
+	. . . . . . i validate=0 s ^zCacheTemp("MEDCHART",id,"PATIENT",code,oe,vardose)=PAPMINo_"^"_PAADMAdmNo_"^"_PAPMIName_"^"_PAPMIName2_"^"_PAPMIName3_"^"_CTSEXCode_"^"_PAPMIDOB_"^"_Address_"^"_Height_"^"_Weight_"^"_BSL_"^"_PAADMAdmDate_"^"_PAADMAdmTime_"^"_PAADMDischgDate_"^"_PAADMDischgTime_"^"_WARDDesc_"^"_HOSPDesc_"^"_BEDCode_"^"_DateFrom_"^"_DateTo_"^"_vardose_"^"_yesno_"^"_validate
+	. . . . . . i validate=1 s ^zCacheTemp("MEDCHART",id,"PATIENT",code,oe,oei)=PAPMINo_"^"_PAADMAdmNo_"^"_PAPMIName_"^"_PAPMIName2_"^"_PAPMIName3_"^"_CTSEXCode_"^"_PAPMIDOB_"^"_Address_"^"_Height_"^"_Weight_"^"_BSL_"^"_PAADMAdmDate_"^"_PAADMAdmTime_"^"_PAADMDischgDate_"^"_PAADMDischgTime_"^"_WARDDesc_"^"_HOSPDesc_"^"_BEDCode_"^"_DateFrom_"^"_DateTo_"^"_vardose_"^"_yesno_"^"_validate
+	. i '$d(^zCacheTemp("MEDCHART",id,"PATIENT")) s ^zCacheTemp("MEDCHART",id,"PATIENT")=PAPMINo_"^"_PAADMAdmNo_"^"_PAPMIName_"^"_PAPMIName2_"^"_PAPMIName3_"^"_CTSEXCode_"^"_PAPMIDOB_"^"_Address_"^"_Height_"^"_Weight_"^"_BSL_"^"_PAADMAdmDate_"^"_PAADMAdmTime_"^"_PAADMDischgDate_"^"_PAADMDischgTime_"^"_WARDDesc_"^"_HOSPDesc_"^"_BEDCode_"^"_DateFrom_"^"_DateTo_"^^^"
+	s ^zCacheTemp("MEDCHART",id,"END")=1
+	q
+]]></Implementation>
+</Method>
+
+<Method name="GetOrders">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>oe:%Library.Integer,oei:%Library.Integer,code:%Library.String,id:%Library.Integer,DateFrom:%Library.Integer,DateTo:%Library.Integer,validate:%Library.Integer</FormalSpec>
+<Implementation><![CDATA[
+	n AdminStatus,AdminQty,AdminUOM,AdminDate,AdminTime,AdminBy,ExEnDate,ExEnTime,TargetINR,INRResult,plandose,BSL,BSLTime,INRMIN,INRMAX,ordstatus,SecAdmUser,AdmBy,outrange
+	s (AdminStatus,AdminQty,AdminUOM,AdminDate,AdminTime,AdminBy,ExEnDate,ExEnTime,TargetINR,INRResult,plandose,BSL,BSLTime,INRMIN,INRMAX,ordstatus,SecAdmUser,AdmBy,outrange)=""
+	
+	i oe'="",oei'="" d
+	. s seq=$p($g(^OEORD(oe,"I",oei,3)),"^",4)
+	. s oee=0 f  s oee=$o(^OEORD(oe,"I",oei,"X",oee)) q:oee=""  d
+	. . s ordstatus="",outrange=""
+	. . s ordstatus=$p($g(^OEORD(oe,"I",oei,1)),"^",13)
+	. . i $g(ordstatus)'="" s ordstatus=$p($g(^OEC("OSTAT",ordstatus)),"^",2)
+	. . s AdminStatus=$p($g(^OEORD(oe,"I",oei,"X",oee)),"^",16)
+	. . i AdminStatus'="" s AdminStatus=$p($g(^OEC("STAT",AdminStatus)),"^",2)
+	. . s AdminUOM=$p($g(^OEORD(oe,"I",oei,"X",oee)),"^",17)
+	. . i AdminUOM'="" s AdminUOM=$p($g(^CT("UOM",AdminUOM)),"^",2)
+	. . ;s AdminQty=$p($g(^OEORD(oe,"I",oei,"X",oee)),"^",5)
+	. . s AdminDate=$p($g(^OEORD(oe,"I",oei,"X",oee)),"^",19)
+	. . s AdminTime=$p($g(^OEORD(oe,"I",oei,"X",oee)),"^",20)
+	. . s AdminBy=$p($g(^OEORD(oe,"I",oei,"X",oee)),"^",15)
+	. . i AdminBy'="" s AdminBy=$p($g(^CTPCP(AdminBy,1)),"^",2)
+	. . i $o(^OEORD(oe,"I",oei,"X",oee,"STCH",""),-1)>=1 d
+	. . . i $p($g(^OEORD(oe,"I",oei,"X",oee,"ADMCH",$o(^OEORD(oe,"I",oei,"X",oee,"STCH",""),-1))),"^",3)'="" s AdminDate=$p($g(^OEORD(oe,"I",oei,"X",oee,"ADMCH",$o(^OEORD(oe,"I",oei,"X",oee,"STCH",""),-1))),"^",3)
+	. . . i $p($g(^OEORD(oe,"I",oei,"X",oee,"ADMCH",$o(^OEORD(oe,"I",oei,"X",oee,"STCH",""),-1))),"^",4)'="" s AdminTime=$p($g(^OEORD(oe,"I",oei,"X",oee,"ADMCH",$o(^OEORD(oe,"I",oei,"X",oee,"STCH",""),-1))),"^",4)
+	. . . i $p($g(^OEORD(oe,"I",oei,"X",oee,"ADMCH",$o(^OEORD(oe,"I",oei,"X",oee,"STCH",""),-1))),"^",5)'="" s AdminBy=$p($g(^OEORD(oe,"I",oei,"X",oee,"ADMCH",$o(^OEORD(oe,"I",oei,"X",oee,"STCH",""),-1))),"^",5)
+	. . . i $p($g(^OEORD(oe,"I",oei,"X",oee,"ADMCH",$o(^OEORD(oe,"I",oei,"X",oee,"STCH",""),-1))),"^",5)="" s AdminBy=""
+	. . . i AdminBy'="" s AdminBy=$p($g(^SSU("SSUSR",AdminBy)),"^",14)
+	. . . i AdminBy'="" s AdminBy=$p($g(^CTPCP(AdminBy,1)),"^",2)
+	. . . i $p($g(^OEORD(oe,"I",oei,"X",oee,"ADMCH",$o(^OEORD(oe,"I",oei,"X",oee,"STCH",""),-1))),"^",6)'="" s AdminQty=$p($g(^OEORD(oe,"I",oei,"X",oee,"ADMCH",$o(^OEORD(oe,"I",oei,"X",oee,"STCH",""),-1))),"^",6)
+	. . . s AdmBy=$p($g(^OEORD(oe,"I",oei,"X",oee,"ADMCH",$o(^OEORD(oe,"I",oei,"X",oee,"STCH",""),-1))),"^",7)
+	. . . i AdmBy'="" s AdmBy=$p($g(^CTPCP(AdmBy,1)),"^",2)
+	. . . i $p($g(^OEORD(oe,"I",oei,"X",oee,"STCH",$o(^OEORD(oe,"I",oei,"X",oee,"STCH",""),-1))),"^",1)'="" d
+	. . . . s AdminStatus=$p($g(^OEORD(oe,"I",oei,"X",oee,"STCH",$o(^OEORD(oe,"I",oei,"X",oee,"STCH",""),-1))),"^",1)
+	. . . . i AdminStatus'="" s AdminStatus=$p($g(^OEC("STAT",AdminStatus)),"^",2)
+	. . . i AdminStatus="" s AdminStatus="Reversed"
+	. . . s SecAdmUser=$p($g(^OEORD(oe,"I",oei,"X",oee,"ADMCH",$o(^OEORD(oe,"I",oei,"X",oee,"STCH",""),-1))),"^",8)
+	. . . i SecAdmUser'="" d
+	. . . . s SecAdmUser=$p($g(^SSU("SSUSR",SecAdmUser)),"^",14)
+	. . . . i SecAdmUser'="" s SecAdmUser=$p($g(^CTPCP(SecAdmUser,1)),"^",2)
+	. . . s ordstatus=$p($g(^OEORD(oe,"I",oei,"X",oee,"ADMCH",$o(^OEORD(oe,"I",oei,"X",oee,"STCH",""),-1))),"^",9)
+	. . . i $g(ordstatus)'="" s ordstatus=$p($g(^OEC("OSTAT",ordstatus)),"^",2)
+	. . . i $g(ordstatus)="" d
+	. . . . s ordstatus=$p($g(^OEORD(oe,"I",oei,1)),"^",13)
+	. . . . i $g(ordstatus)'="" s ordstatus=$p($g(^OEC("OSTAT",ordstatus)),"^",2)
+	. . i $g(AdminUOM)="",$g(AdminQty)'="" d
+	. . . s AdminUOM=$p($g(^OEORD(oe,"I",oei,2)),"^",3)
+	. . . i AdminUOM'="" s AdminUOM=$p($g(^CT("UOM",AdminUOM)),"^",2)
+	. . s ExStDate=$p($g(^OEORD(oe,"I",oei,"X",oee)),"^",1)
+	. . s ExStTime=$p($g(^OEORD(oe,"I",oei,"X",oee)),"^",2)
+	. . s ExEnDate=$p($g(^OEORD(oe,"I",oei,"X",oee)),"^",35)
+	. . s ExEnTime=$p($g(^OEORD(oe,"I",oei,"X",oee)),"^",36)
+	. . ;
+	. . s plandose=""
+	. . i $p($g(^OEORD(oe,"I",oei,13)),"^",33) d
+	. . . s plandose=$p($g(^OEORD(oe,"I",oei,2)),"^",1)_" "
+	. . . s $p(plandose," ",2)=$p($g(^OEORD(oe,"I",oei,2)),"^",3)
+	. . . i $p($g(plandose)," ",2)'="" s $p(plandose," ",2)=$p($g(^CT("UOM",$p(plandose," ",2))),"^",2)
+	. . i code="IV" s AdminStatus=$g(ordstatus)_"|"_AdminStatus
+	. . i code="IV" s AdminQty=$p($g(^OEORD(oe,"I",oei,"X",oee)),"^",34)
+	. . ;
+	. . s (INRMIN,INRMAX,INRResult,TargetINR)=""
+	. . ;
+	. . s (BSL,BSLTime)=""
+	. . ;
+	. . s arcim=$p($g(^OEORD(oe,"I",oei,1)),"^",2)
+	. . ;
+	. . ; Check id outside range
+	. . i $g(ExStDate)'="" d
+	. . . i ($g(ExStDate)>DateTo)||($g(ExStDate)<DateFrom) d
+	. . . . s admdate=$p($g(^OEORD(oe,"I",oei,"X",oee)),"^",19)
+	. . . . i $g(admdate)>=DateFrom,$g(admdate)<=DateTo s outrange="Y"
+	. . . . s statid=0 f  s statid=$o(^OEORD(oe,"I",oei,"X",oee,"ADMCH",statid)) q:statid=""  d
+	. . . . . i $p($g(^OEORD(oe,"I",oei,"X",oee,"ADMCH",statid)),"^",3)>=DateFrom,$p($g(^OEORD(oe,"I",oei,"X",oee,"ADMCH",statid)),"^",3)<=DateTo s outrange="Y"
+	. . ;
+	. . i (",IV,")'[(","_code_",") d
+	. . . i ExStDate'="",ExStTime'="" d
+	. . . . i $p($g(^OEORD(oe,"I",oei,13)),"^",33)'="" d
+	. . . . . i validate=0 d
+	. . . . . . s ^zCacheTemp("MEDCHART",id,code,DateFrom_"||"_DateTo,seq,arcim_"^"_oe_"||"_$p($g(^OEORD(oe,"I",oei,13)),"^",33),ExStTime,ExStDate,oe_"||"_oei_"||"_oee,$s($o(^OEORD(oe,"I",oei,"X",oee,"STCH",""),-1)="":1,1:$o(^OEORD(oe,"I",oei,"X",oee,"STCH",""),-1)))=AdminStatus_"^"_AdminQty_"^"_AdminUOM_"^"_AdminDate_"^"_AdminTime_"^"_AdminBy_"^"_ExEnDate_"^"_ExEnTime_"^"_ExStDate_"^"_ExStTime_"^"_plandose_"^"_BSL_"^"_BSLTime_"^"_INRMIN_"^"_INRMAX_"^"_INRResult_"^"_TargetINR_"^"_ordstatus_"^"_SecAdmUser_"^"_AdmBy_"^"_outrange
+	. . . . . . s stat=$o(^OEORD(oe,"I",oei,"X",oee,"STCH",""),-1) f  s stat=$o(^OEORD(oe,"I",oei,"X",oee,"STCH",stat),-1) q:stat=""  d
+	. . . . . . . i stat'=0 d
+	. . . . . . . . s (SecAdmUser,AdminStatus,AdminQty,AdmBy,ordstatus)=""
+	. . . . . . . . ;i stat=1 d
+	. . . . . . . . s SecAdmUser=$p($g(^OEORD(oe,"I",oei,"X",oee,"ADMCH",stat)),"^",8)
+	. . . . . . . . i SecAdmUser'="" d
+	. . . . . . . . . s SecAdmUser=$p($g(^SSU("SSUSR",SecAdmUser)),"^",14)
+	. . . . . . . . . i SecAdmUser'="" s SecAdmUser=$p($g(^CTPCP(SecAdmUser,1)),"^",2)
+	. . . . . . . . s AdminQty=$p($g(^OEORD(oe,"I",oei,"X",oee,"ADMCH",stat)),"^",6)
+	. . . . . . . . s AdminUOM=$p($g(^OEORD(oe,"I",oei,"X",oee)),"^",17)
+	. . . . . . . . i AdminUOM'="" s AdminUOM=$p($g(^CT("UOM",AdminUOM)),"^",2)
+	. . . . . . . . i AdminUOM="",AdminQty'="" d
+	. . . . . . . . . s AdminUOM=$p($g(^OEORD(oe,"I",oei,2)),"^",3)
+	. . . . . . . . . i AdminUOM'="" s AdminUOM=$p($g(^CT("UOM",AdminUOM)),"^",2)
+	. . . . . . . . i $p($g(^OEORD(oe,"I",oei,"X",oee,"STCH",stat)),"^",1)'="" d
+	. . . . . . . . . s AdminStatus=$p($g(^OEC("STAT",$p($g(^OEORD(oe,"I",oei,"X",oee,"STCH",stat)),"^",1))),"^",2)
+	. . . . . . . . i AdminStatus="" s AdminStatus="Reversed"
+	. . . . . . . . s AdmBy=$p($g(^OEORD(oe,"I",oei,"X",oee,"ADMCH",stat)),"^",7)
+	. . . . . . . . i $g(AdmBy)'="" s AdmBy=$p($g(^CTPCP(AdmBy,1)),"^",2)
+	. . . . . . . . s AdminBy=$p($g(^OEORD(oe,"I",oei,"X",oee,"ADMCH",stat)),"^",5)
+	. . . . . . . . i AdminBy'="" s AdminBy=$p($g(^SSU("SSUSR",AdminBy)),"^",14)
+	. . . . . . . . i AdminBy'="" s AdminBy=$p($g(^CTPCP(AdminBy,1)),"^",2)
+	. . . . . . . . s AdminDate=$p($g(^OEORD(oe,"I",oei,"X",oee,"ADMCH",stat)),"^",3)
+	. . . . . . . . s AdminTime=$p($g(^OEORD(oe,"I",oei,"X",oee,"ADMCH",stat)),"^",4)
+	. . . . . . . . s ordstatus=$p($g(^OEORD(oe,"I",oei,"X",oee,"ADMCH",stat)),"^",9)
+	. . . . . . . . i $g(ordstatus)'="" s ordstatus=$p($g(^OEC("OSTAT",ordstatus)),"^",2)
+	. . . . . . . . i $g(ordstatus)="" d
+	. . . . . . . . . s ordstatus=$p($g(^OEORD(oe,"I",oei,1)),"^",13)
+	. . . . . . . . . i $g(ordstatus)'="" s ordstatus=$p($g(^OEC("OSTAT",ordstatus)),"^",2)
+	. . . . . . . . i AdminStatus="Reversed" s SecAdmUser=""
+	. . . . . . . . s ^zCacheTemp("MEDCHART",id,code,DateFrom_"||"_DateTo,seq,arcim_"^"_oe_"||"_$p($g(^OEORD(oe,"I",oei,13)),"^",33),ExStTime,ExStDate,oe_"||"_oei_"||"_oee,stat)=AdminStatus_"^"_AdminQty_"^"_AdminUOM_"^"_AdminDate_"^"_AdminTime_"^"_AdminBy_"^"_ExEnDate_"^"_ExEnTime_"^"_ExStDate_"^"_ExStTime_"^"_plandose_"^"_BSL_"^"_BSLTime_"^"_INRMIN_"^"_INRMAX_"^"_INRResult_"^"_TargetINR_"^"_ordstatus_"^"_SecAdmUser_"^"_AdmBy_"^"_outrange
+	. . . . . i validate=1 d
+	. . . . . . s ^zCacheTemp("MEDCHART",id,code,DateFrom_"||"_DateTo,seq,arcim_"^"_oe_"||"_oei,ExStDate,ExStTime,oe_"||"_oei_"||"_oee,$s($o(^OEORD(oe,"I",oei,"X",oee,"STCH",""),-1)="":1,1:$o(^OEORD(oe,"I",oei,"X",oee,"STCH",""),-1)))=AdminStatus_"^"_AdminQty_"^"_AdminUOM_"^"_AdminDate_"^"_AdminTime_"^"_AdminBy_"^"_ExEnDate_"^"_ExEnTime_"^"_ExStDate_"^"_ExStTime_"^"_plandose_"^"_BSL_"^"_BSLTime_"^"_INRMIN_"^"_INRMAX_"^"_INRResult_"^"_TargetINR_"^"_ordstatus_"^"_SecAdmUser_"^"_AdmBy_"^"_outrange
+	. . . . . . s stat=$o(^OEORD(oe,"I",oei,"X",oee,"STCH",""),-1) f  s stat=$o(^OEORD(oe,"I",oei,"X",oee,"STCH",stat),-1) q:stat=""  d
+	. . . . . . . i stat'=0 d
+	. . . . . . . . s (SecAdmUser,AdminStatus,AdminQty,AdmBy,ordstatus)=""
+	. . . . . . . . ;i stat=1 d
+	. . . . . . . . s SecAdmUser=$p($g(^OEORD(oe,"I",oei,"X",oee,"ADMCH",stat)),"^",8)
+	. . . . . . . . i SecAdmUser'="" d
+	. . . . . . . . . s SecAdmUser=$p($g(^SSU("SSUSR",SecAdmUser)),"^",14)
+	. . . . . . . . . i SecAdmUser'="" s SecAdmUser=$p($g(^CTPCP(SecAdmUser,1)),"^",2)
+	. . . . . . . . s AdminQty=$p($g(^OEORD(oe,"I",oei,"X",oee,"ADMCH",stat)),"^",6)
+	. . . . . . . . s AdminUOM=$p($g(^OEORD(oe,"I",oei,"X",oee)),"^",17)
+	. . . . . . . . i AdminUOM'="" s AdminUOM=$p($g(^CT("UOM",AdminUOM)),"^",2)
+	. . . . . . . . i AdminUOM="",AdminQty'="" d
+	. . . . . . . . . s AdminUOM=$p($g(^OEORD(oe,"I",oei,2)),"^",3)
+	. . . . . . . . . i AdminUOM'="" s AdminUOM=$p($g(^CT("UOM",AdminUOM)),"^",2)
+	. . . . . . . . i $p($g(^OEORD(oe,"I",oei,"X",oee,"STCH",stat)),"^",1)'="" d
+	. . . . . . . . . s AdminStatus=$p($g(^OEC("STAT",$p($g(^OEORD(oe,"I",oei,"X",oee,"STCH",stat)),"^",1))),"^",2)
+	. . . . . . . . i AdminStatus="" s AdminStatus="Reversed"
+	. . . . . . . . s AdmBy=$p($g(^OEORD(oe,"I",oei,"X",oee,"ADMCH",stat)),"^",7)
+	. . . . . . . . i $g(AdmBy)'="" s AdmBy=$p($g(^CTPCP(AdmBy,1)),"^",2)
+	. . . . . . . . s AdminBy=$p($g(^OEORD(oe,"I",oei,"X",oee,"ADMCH",stat)),"^",5)
+	. . . . . . . . i AdminBy'="" s AdminBy=$p($g(^SSU("SSUSR",AdminBy)),"^",14)
+	. . . . . . . . i AdminBy'="" s AdminBy=$p($g(^CTPCP(AdminBy,1)),"^",2)
+	. . . . . . . . s AdminDate=$p($g(^OEORD(oe,"I",oei,"X",oee,"ADMCH",stat)),"^",3)
+	. . . . . . . . s AdminTime=$p($g(^OEORD(oe,"I",oei,"X",oee,"ADMCH",stat)),"^",4)
+	. . . . . . . . s ordstatus=$p($g(^OEORD(oe,"I",oei,"X",oee,"ADMCH",stat)),"^",9)
+	. . . . . . . . i $g(ordstatus)'="" s ordstatus=$p($g(^OEC("OSTAT",ordstatus)),"^",2)
+	. . . . . . . . i $g(ordstatus)="" d
+	. . . . . . . . . s ordstatus=$p($g(^OEORD(oe,"I",oei,1)),"^",13)
+	. . . . . . . . . i $g(ordstatus)'="" s ordstatus=$p($g(^OEC("OSTAT",ordstatus)),"^",2)
+	. . . . . . . . i AdminStatus="Reversed" s SecAdmUser=""
+	. . . . . . . . s ^zCacheTemp("MEDCHART",id,code,DateFrom_"||"_DateTo,seq,arcim_"^"_oe_"||"_oei,ExStDate,ExStTime,oe_"||"_oei_"||"_oee,stat)=AdminStatus_"^"_AdminQty_"^"_AdminUOM_"^"_AdminDate_"^"_AdminTime_"^"_AdminBy_"^"_ExEnDate_"^"_ExEnTime_"^"_ExStDate_"^"_ExStTime_"^"_plandose_"^"_BSL_"^"_BSLTime_"^"_INRMIN_"^"_INRMAX_"^"_INRResult_"^"_TargetINR_"^"_ordstatus_"^"_SecAdmUser_"^"_AdmBy_"^"_outrange
+	. . . . i $p($g(^OEORD(oe,"I",oei,13)),"^",33)="" d
+	. . . . . s ^zCacheTemp("MEDCHART",id,code,DateFrom_"||"_DateTo,seq,arcim_"^"_oe_"||"_oei,ExStDate,ExStTime,oe_"||"_oei_"||"_oee,$s($o(^OEORD(oe,"I",oei,"X",oee,"STCH",""),-1)="":1,1:$o(^OEORD(oe,"I",oei,"X",oee,"STCH",""),-1)))=AdminStatus_"^"_AdminQty_"^"_AdminUOM_"^"_AdminDate_"^"_AdminTime_"^"_AdminBy_"^"_ExEnDate_"^"_ExEnTime_"^"_ExStDate_"^"_ExStTime_"^"_plandose_"^"_BSL_"^"_BSLTime_"^"_INRMIN_"^"_INRMAX_"^"_INRResult_"^"_TargetINR_"^"_ordstatus_"^"_SecAdmUser_"^"_AdmBy_"^"_outrange
+	. . . . . s stat=$o(^OEORD(oe,"I",oei,"X",oee,"STCH",""),-1) f  s stat=$o(^OEORD(oe,"I",oei,"X",oee,"STCH",stat),-1) q:stat=""  d
+	. . . . . . i stat'=0 d
+	. . . . . . . s (SecAdmUser,AdminStatus,AdminQty,AdmBy,ordstatus)=""
+	. . . . . . . ;i stat=1 d
+	. . . . . . . s SecAdmUser=$p($g(^OEORD(oe,"I",oei,"X",oee,"ADMCH",stat)),"^",8)
+	. . . . . . . i SecAdmUser'="" d
+	. . . . . . . . s SecAdmUser=$p($g(^SSU("SSUSR",SecAdmUser)),"^",14)
+	. . . . . . . . i SecAdmUser'="" s SecAdmUser=$p($g(^CTPCP(SecAdmUser,1)),"^",2)
+	. . . . . . . s AdminQty=$p($g(^OEORD(oe,"I",oei,"X",oee,"ADMCH",stat)),"^",6)
+	. . . . . . . s AdminUOM=$p($g(^OEORD(oe,"I",oei,"X",oee)),"^",17)
+	. . . . . . . i AdminUOM'="" s AdminUOM=$p($g(^CT("UOM",AdminUOM)),"^",2)
+	. . . . . . . i AdminUOM="",AdminQty'="" d
+	. . . . . . . . s AdminUOM=$p($g(^OEORD(oe,"I",oei,2)),"^",3)
+	. . . . . . . . i AdminUOM'="" s AdminUOM=$p($g(^CT("UOM",AdminUOM)),"^",2)
+	. . . . . . . i $p($g(^OEORD(oe,"I",oei,"X",oee,"STCH",stat)),"^",1)'="" d
+	. . . . . . . . s AdminStatus=$p($g(^OEC("STAT",$p($g(^OEORD(oe,"I",oei,"X",oee,"STCH",stat)),"^",1))),"^",2)
+	. . . . . . . i AdminStatus="" s AdminStatus="Reversed"
+	. . . . . . . s AdmBy=$p($g(^OEORD(oe,"I",oei,"X",oee,"ADMCH",stat)),"^",7)
+	. . . . . . . i $g(AdmBy)'="" s AdmBy=$p($g(^CTPCP(AdmBy,1)),"^",2)
+	. . . . . . . s AdminBy=$p($g(^OEORD(oe,"I",oei,"X",oee,"ADMCH",stat)),"^",5)
+	. . . . . . . i AdminBy'="" s AdminBy=$p($g(^SSU("SSUSR",AdminBy)),"^",14)
+	. . . . . . . i AdminBy'="" s AdminBy=$p($g(^CTPCP(AdminBy,1)),"^",2)
+	. . . . . . . s AdminDate=$p($g(^OEORD(oe,"I",oei,"X",oee,"ADMCH",stat)),"^",3)
+	. . . . . . . s AdminTime=$p($g(^OEORD(oe,"I",oei,"X",oee,"ADMCH",stat)),"^",4)
+	. . . . . . . s ordstatus=$p($g(^OEORD(oe,"I",oei,"X",oee,"ADMCH",stat)),"^",9)
+	. . . . . . . i $g(ordstatus)'="" s ordstatus=$p($g(^OEC("OSTAT",ordstatus)),"^",2)
+	. . . . . . . i $g(ordstatus)="" d
+	. . . . . . . . s ordstatus=$p($g(^OEORD(oe,"I",oei,1)),"^",13)
+	. . . . . . . . i $g(ordstatus)'="" s ordstatus=$p($g(^OEC("OSTAT",ordstatus)),"^",2)
+	. . . . . . . i AdminStatus="Reversed" s SecAdmUser=""
+	. . . . . . . s ^zCacheTemp("MEDCHART",id,code,DateFrom_"||"_DateTo,seq,arcim_"^"_oe_"||"_oei,ExStDate,ExStTime,oe_"||"_oei_"||"_oee,stat)=AdminStatus_"^"_AdminQty_"^"_AdminUOM_"^"_AdminDate_"^"_AdminTime_"^"_AdminBy_"^"_ExEnDate_"^"_ExEnTime_"^"_ExStDate_"^"_ExStTime_"^"_plandose_"^"_BSL_"^"_BSLTime_"^"_INRMIN_"^"_INRMAX_"^"_INRResult_"^"_TargetINR_"^"_ordstatus_"^"_SecAdmUser_"^"_AdmBy_"^"_outrange
+	. . ;
+	. . ;i AdminDate'="",AdminTime'="" d
+	. . ;. i (",PO,NIO,DIS,")[(","_code_",") s ^zCacheTemp("MEDCHART",id,code,DateFrom_"||"_DateTo,seq,arcim_"^"_oe_"||"_oei,AdminDate,AdminTime,oe_"||"_oei_"||"_oee)=AdminStatus_"^"_AdminQty_"^"_AdminUOM_"^"_AdminDate_"^"_AdminTime_"^"_AdminBy_"^"_ExEnDate_"^"_ExEnTime_"^"_ExStDate_"^"_ExStTime_"^"_plandose_"^"_BSL_"^"_BSLTime_"^"_INRMIN_"^"_INRMAX_"^"_INRResult_"^"_TargetINR_"^"_ordstatus_"^"_SecAdmUser_"^"_AdmBy_"^"_outrange
+	. . ;i AdminDate'="",AdminTime'="" d
+	. . ;. i code="IV" s ^zCacheTemp("MEDCHART",id,code,DateFrom_"||"_DateTo,seq,arcim_"^"_oe_"||"_oei,AdminDate,AdminTime,oe_"||"_oei_"||"_oee)=AdminStatus_"^"_AdminQty_"^"_AdminUOM_"^"_AdminDate_"^"_AdminTime_"^"_AdminBy_"^"_ExEnDate_"^"_ExEnTime_"^"_ExStDate_"^"_ExStTime_"^"_plandose_"^"_BSL_"^"_BSLTime_"^"_INRMIN_"^"_INRMAX_"^"_INRResult_"^"_TargetINR_"^"_ordstatus_"^"_SecAdmUser_"^"_AdmBy_"^"_outrange
+	. . ;
+	. . s (AdminStatus,AdminQty,AdminUOM,AdminDate,AdminTime,AdminBy,ExEnDate,ExEnTime,TargetINR,INRResult,plandose,BSL,BSLTime,INRMIN,INRMAX,ordstatus,SecAdmUser,AdmBy,outrange)=""
+
+	q
+]]></Implementation>
+</Method>
+
+<Method name="validate">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>order:%String</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+ /* Check to see if any of these are different ad display as separate orders if at least one is
+ - Order creation date and time.
+ - Route of Adm
+ - Priority
+ - Instructions
+ - Prescriber
+ - Indication
+ - yesno1
+ - Remarks
+ - Frequency
+ - Duration
+ */
+ s oe=+order,oei=$p(order,"||",2)
+ s flag=1
+ s firstorder="",(cnt,same,diff)=0
+ s variabledose=$p($g(^OEORD(oe,"I",oei,13)),"^",33)
+ s oei1=0 f  s oei1=$o(^OEORDi(0,"VarDose",oe,variabledose,oei1)) q:oei1=""  d
+ . s cnt=$i(cnt)
+ . ;s StartDate1=$p($g(^OEORD(oe,"I",oei1,1)),"^",9)
+ . ;s StartTime1=$p($g(^OEORD(oe,"I",oei1,1)),"^",10)
+ . s (StartDate1,StartTime1,Route1,Priority1,doctor1,Instr1,Indication1,yesno,Remarks1,Freq1,Duration1)=""
+ . s Route1=$p($g(^OEORD(oe,"I",oei1,12)),"^",7)
+ . s Priority1=$p($g(^OEORD(oe,"I",oei1,1)),"^",8)
+ . s doctor1=$p($g(^OEORD(oe,"I",oei1,1)),"^",11)
+ . s Instr1=$p($g(^OEORD(oe,"I",oei1,2)),"^",7)
+ . i Instr1'="" d
+ . . s Instr1=$p($g(^PHCIN(Instr1)),"^",2)
+ . s x=0 f  s x=$o(^OEORD(oe,"I",oei1,"PRNIND",x)) q:x=""  d
+ . . i $g(Indication1)'="" s Indication1=Indication1_" "_$g(^OEORD(oe,"I",oei1,"PRNIND",x))
+ . . i $g(Indication1)="" s Indication1=$g(^OEORD(oe,"I",oei1,"PRNIND",x))
+ . s x=0 f  s x=$o(^OEORD(oe,"I",oei1,"REM",x)) q:x=""  d
+ . . i $g(Remarks1)'="" s Remarks1=Remarks1_" "_$g(^OEORD(oe,"I",oei1,"REM",x))
+ . . i $g(Remarks1)="" s Remarks1=$g(^OEORD(oe,"I",oei1,"REM",x))
+ . s yesno=$p($g(^OEORD(oe,"I",oei1,13)),"^",24)
+ . s Freq1=$p($g(^OEORD(oe,"I",oei1,2)),"^",4)
+ . s Duration1=$p($g(^OEORD(oe,"I",oei1,2)),"^",6)
+ . i firstorder="" s firstorder=$zstrip(Route1_Priority1_doctor1_Instr1_Indication1_yesno_Remarks1_Freq1_Duration1,"*CWP")
+ . i firstorder'="" d
+ . . i firstorder'=$zstrip(Route1_Priority1_doctor1_Instr1_Indication1_yesno_Remarks1_Freq1_Duration1,"*CWP") s diff=$i(diff)
+ . . i firstorder=$zstrip(Route1_Priority1_doctor1_Instr1_Indication1_yesno_Remarks1_Freq1_Duration1,"*CWP") s same=$i(same)
+ . . ;w !,firstorder_":"_$zstrip(Route1_Priority1_doctor1_Instr1_Indication1_yesno_Remarks1_Freq1_Duration1,"*CWP")
+ i cnt=same s flag=0
+ i cnt=diff s flag=1
+ 
+ q flag
+]]></Implementation>
+</Method>
+
+<Method name="PriorMedications">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>mradm:%Library.Integer,id:%Library.Integer</FormalSpec>
+<Implementation><![CDATA[
+	n med,Medication,Dose,Freq,Duration,det,Comments,Ceased
+	s (med,Medication,Dose,Freq,Duration,det,Comments,Ceased)=""
+
+	i mradm'="" d
+	. s med=0 f  s med=$o(^MR(mradm,"MED",med)) q:med=""  d
+	. . s (Medication,Dose,Freq,Duration,Comments,Ceased)=""
+	. . s Medication=$p($g(^MR(mradm,"MED",med)),"^",9)
+	. . i Medication'="" s Medication=$p($g(^PHCGE("GE",$p($g(^PHCD(Medication,4)),"^",1))),"^",2)
+	. . i Medication="" d
+	. . . f x=1:1:$g(^MR(mradm,"MED",med,"DET",0)) d
+	. . . . i Medication'="" s Medication=Medication_", "_$g(^MR(mradm,"MED",med,"DET",x))
+	. . . . i Medication="" s Medication=$g(^MR(mradm,"MED",med,"DET",x))
+	. . s Dose=$p($g(^MR(mradm,"MED",med)),"^",12)
+	. . s DoseUOM=$p($g(^MR(mradm,"MED",med)),"^",13)
+	. . i DoseUOM'="" s DoseUOM=$p($g(^CT("UOM",DoseUOM)),"^",1)
+	. . i Dose'="" s Dose=Dose_" ("_$g(DoseUOM)_")"
+	. . s Freq=$p($g(^MR(mradm,"MED",med)),"^",14)
+	. . i Freq'="" s Freq=$p($g(^PHCFR(Freq)),"^",3)
+	. . s Duration=$p($g(^MR(mradm,"MED",med)),"^",16)
+	. . s Duration1=$p($g(^MR(mradm,"MED",med)),"^",15)
+	. . i Duration1'="",Duration'="" s Duration=$p($g(^PHCDU(Duration1)),"^",3)_$c(13)_Duration
+	. . i Duration1'="",Duration="" s Duration=$p($g(^PHCDU(Duration1)),"^",3)
+	. . s Ceased=$p($g(^MR(mradm,"MED",med)),"^",18)
+	. . s Ceased=$s(Ceased="Y":"Yes",1:"No")
+	. . f x=1:1:$o(^MR(mradm,"MED",med,"COM",0)) d
+	. . . i Comments'="" s Comments=Comments_$c(13)_$g(^MR(mradm,"MED",med,"COM",x))
+	. . . i Comments="" s Comments=$g(^MR(mradm,"MED",med,"COM",x))
+	. . s ^zCacheTemp("MEDCHART",id,"PRIODMED",med)=Medication_"^"_Dose_"^"_Freq_"^"_Duration_"^"_Comments_"^"_Ceased
+	. . s (Medication,Dose,Freq,Duration,Comments,Ceased)=""
+	q
+]]></Implementation>
+</Method>
+</Class>
+</Export>

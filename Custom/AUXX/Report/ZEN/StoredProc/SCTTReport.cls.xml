@@ -1,0 +1,439 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.AUXX.Report.ZEN.StoredProc.SCTTReport">
+<Description>
+Report Name: Confidential Referral Coversheet
+Report Code: AUXX.SCTT0001
+TRC Number: 152012</Description>
+<ProcedureBlock>0</ProcedureBlock>
+<Super>Report.Abstract</Super>
+<TimeCreated>62970,48071.923811</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/AUXX/Report/ZEN/StoredProc/SCTTReport.xml#1 $</Default>
+</Parameter>
+
+<Method name="GetQuesAnswerDesc">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>questionnaire:%String,QuesName:%String,QuesAns:%String</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	n QuesAnsDesc
+    s QuesAnsDesc=""
+	s query="SELECT RESP_Desc FROM SQLUser.SS_UserDefWinContResp WHERE RESP_ParRef->CON_ParRef->WIN_Code='"_questionnaire_"' AND %ALPHAUP(RESP_ParRef->CON_Code)='"_QuesName_"' AND RESP_Code='"_QuesAns_"'"
+    s rset = ##class(%ResultSet).%New()
+    d rset.Prepare(query)
+    d rset.Execute()
+    while rset.Next() {
+	    s QuesAnsDesc=rset.Data("RESP_Desc")
+    }
+    d rset.Close()
+    q QuesAnsDesc
+]]></Implementation>
+</Method>
+
+<Method name="ReportTitle">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>Code:%String,hospid:%String=""</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	n INTXRowId,INTXDesc
+	s INTXRowId=0
+	s INTXDesc=""
+	f {
+		s INTXRowId=$o(^PAC("INTX",0,"Code",Code,INTXRowId)) q:INTXRowId=""
+		i hospid'="",$p($g(^PAC("INTX",INTXRowId)),"^",5)'=hospid Continue
+		s INTXDesc=$g(^PAC("INTX",INTXRowId,"TXT",1))
+	}
+	q INTXDesc
+]]></Implementation>
+</Method>
+
+<Method name="MainClose">
+<Description>
+This is the Close component of the %Library.Query.
+This is standard code and should never have to change.
+This is where all the cleanup is performed, i.e. the purging of the temporary storage global ^CacheTemp.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>QHandle:%Library.Binary</FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+	// Clean up by purging the temporary node in ^CacheTemp global
+	New repid
+	Set repid=$LIST(QHandle,2)
+
+	//Start Monitor (if configured to capture stats)
+	i mon Do ..MonitorEnd(mon)
+
+	Kill ^CacheTemp("TRAK",repid)
+
+	Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="MainExecute">
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,EpisodeID:%Library.String,ReferralID:%Library.String,UserID:%Library.String,WINRowId:%Library.String,ID:%Library.String,ReferralToID:%Library.String,PatientID:%Library.String]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+	// Get reportid i.e. use $INCREMENT to add another node to ^CacheTemp("TRAK") global. 
+	// We use ^CacheTemp global because CACHETEMP is a memory resident database
+	New repid,ind
+
+	// Use $Increment to get the next node and clean up
+	Set repid=$Increment(^CacheTemp("TRAK"))
+	
+	//Start Monitor (if configured to capture stats)
+	s mon=..MonitorBegin()
+	
+	i $g(UserID)'="" {
+		s UserID=$zstrip(UserID,"*C")
+		i $g(UserID)'="" {
+			s Name=$p($g(^SSU("SSUSR",UserID)),"^",2)
+		}
+	}
+	i $g(EpisodeID) s EpisodeID=$zstrip(EpisodeID,"*CW")
+	i $g(PatientID) s PatientID=$zstrip(PatientID,"*CW")
+	i $g(ReferralID) s ReferralID=$zstrip(ReferralID,"*CW")
+	i $g(ReferralToID) s ReferralToID=$zstrip(ReferralToID,"*CW")
+	i $g(WINRowId) s WINRowId=$zstrip(WINRowId,"*CW")
+	i $g(ID) s ID=$zstrip(ID,"*CW")
+
+	s (qid,single)=0,WINCode=""
+	i $g(WINRowId)'="" {
+		s WINCode=$p($g(^SSU("WIN",WINRowId)),"^",1)
+		s qid=ID
+	}
+	s (IncludeFAS,IncludeTHB,IncludeTHC,IncludeLCA,IncludePAV,IncludeTNA,IncludeTPS,IncludeTCC)=""
+	
+	; Only want Consumer information report to print if PatientID parameter is populated
+	i EpisodeID="" {
+		i ReferralID'="" s PatientID=ReferralID,WINCode=1
+	} else {
+		s Agency=..ReportTitle("AGENCY",$p($g(^PAADM(EpisodeID,2)),"^",85))
+		s Contact=..ReportTitle("AGENCYPHONE",$p($g(^PAADM(EpisodeID,2)),"^",85))
+	}		
+	
+	i ReferralID'="",WINCode="" {
+		d ..GetPatDetails(EpisodeID)
+		s FooterCode="CRCS",IncludePage=1
+		s PageTitle="Confidential Referral Cover Sheet"
+		s PageDesc="Please acknowledge that you have received this referral by completing and signing below and returning via fax/email/mail"
+		s PageSideText="Confidential Referral Cover Sheet"
+		s ind=$i(ind)
+		s ^CacheTemp("TRAK",repid,ind)=$lb(EpisodeID,ReferralID,Agency,Contact,Name,ClientName,DOB,Sex,UR,FooterCode,PageTitle,PageDesc,PageSideText,IncludePage,ReferralToID,"")
+	
+		s FooterCode="CI",IncludePage=0
+		s PageTitle="Consumer Information"
+		s PageDesc="To collect common demographic and other essential consumer information that can be shared with another agency."
+		s PageSideText="Consumer Information"
+		s ind=$i(ind)
+		s ^CacheTemp("TRAK",repid,ind)=$lb(EpisodeID,ReferralID,Agency,Contact,Name,ClientName,DOB,Sex,UR,FooterCode,PageTitle,PageDesc,PageSideText,IncludePage,ReferralToID,"")
+	
+		s FooterCode="SRI",IncludePage=1
+		s PageTitle="Summary and Referral Information"
+		s PageDesc="To record and share a summary of the consumer's problems/issues, provide information to indicate eligibility,and an initial plan when making a referral."
+		s PageSideText="Summary and Referral Information"
+		s ind=$i(ind)
+		s ^CacheTemp("TRAK",repid,ind)=$lb(EpisodeID,ReferralID,Agency,Contact,Name,ClientName,DOB,Sex,UR,FooterCode,PageTitle,PageDesc,PageSideText,IncludePage,ReferralToID,"")
+		
+		s FooterCode="CCSI",IncludePage=1
+		s PageTitle="Consumer Consent to Share Information"
+		s PageDesc="To record freely given informed consumer consent to share their information with a specific agency/ies for a specific purpose/s."
+		s PageSideText="Consumer Consent to Share Information"
+		s ind=$i(ind)
+		s ^CacheTemp("TRAK",repid,ind)=$lb(EpisodeID,ReferralID,Agency,Contact,Name,ClientName,DOB,Sex,UR,FooterCode,PageTitle,PageDesc,PageSideText,IncludePage,ReferralToID,"")
+		
+		
+		s quescode=0
+		f {
+			s quescode=$o(^PA("DISSUM",ReferralID,"DET",0,"QuestCode1",quescode))
+			q:quescode=""
+			s quesid=0
+			f {
+				s quesid=$o(^PA("DISSUM",ReferralID,"DET",0,"QuestCode1",quescode,quesid))
+				q:quesid=""
+				i quescode="QAUXXSCTFAS" s IncludeFAS=quesid
+				i quescode="QAUXXSCTTHB" s IncludeTHB=quesid
+				i quescode="QAUXXSCTTHC" s IncludeTHC=quesid
+				i quescode="QAUXXSCTLCA" s IncludeLCA=quesid
+				i quescode="QAUXXSCTPAV" s IncludePAV=quesid
+				i quescode="QAUXXSCTTNA" s IncludeTNA=quesid
+				i quescode="QAUXXSCTTPS" s IncludeTPS=quesid
+				i quescode="QAUXXSCTTCC" s IncludeTCC=quesid
+			}
+		}
+	}
+	
+	i PatientID'="" {
+		s patobj=##class(User.PAPatMas).%OpenId(PatientID)
+		i patobj {
+			s ClientName=patobj.PAPMIName_", "_patobj.PAPMIName2
+			s DOB=patobj.PAPMIDOB
+			i DOB s DOB=$zd(DOB,4,,4)
+			s Sex=patobj.PAPMISexDR.CTSEXDesc
+			s UR=patobj.PAPMINo
+			k patobj
+		}
+		s FooterCode="CI",IncludePage=0
+		s PageTitle="Consumer Information"
+		s PageDesc="To collect common demographic and other essential consumer information that can be shared with another agency."
+		s PageSideText="Consumer Information"
+		s ind=$i(ind)
+		s ^CacheTemp("TRAK",repid,ind)=$lb(EpisodeID,ReferralID,Agency,Contact,Name,ClientName,DOB,Sex,UR,FooterCode,PageTitle,PageDesc,PageSideText,IncludePage,ReferralToID,PatientID)
+	}
+
+	i EpisodeID'="" {
+		i WINCode="AUXXSCTTCC" s single=1
+		i 'qid s qid=IncludeTCC,single=1
+
+		i qid,single {
+			s FooterCode="CCP",IncludePage=1
+			s PageTitle="Care Coordination Plan"
+			s PageDesc="For consumers with complex and/or multiple issues, to support a coordinated approach. It shows who is involved in a consumer's care, the main issues, agreed goals developed together, planned actions and who is responsible for each action."
+			s PageSideText="Care Coordination Plan"
+			s EpisodeID=$lg(^questionnaire.QAUXXSCTTCCD(qid),1)
+			d ..GetPatDetails(EpisodeID)
+
+			s ind=$i(ind)
+			s ^CacheTemp("TRAK",repid,ind)=$lb(EpisodeID,ReferralID,Agency,Contact,Name,ClientName,DOB,Sex,UR,FooterCode_1,PageTitle,PageDesc,PageSideText,IncludePage,ReferralToID,"")
+			s ind=$i(ind)
+			s ^CacheTemp("TRAK",repid,ind)=$lb(EpisodeID,ReferralID,Agency,Contact,Name,ClientName,DOB,Sex,UR,FooterCode_2,PageTitle,PageDesc,PageSideText,IncludePage,ReferralToID,"")
+			
+			s FooterCode="RCCP",IncludePage=1
+			s PageTitle="Review of Care Coordination Plan"
+			s PageDesc="For use when the Care Coordination Plan is reviewed.  It shows the outcomes/progress of agreed goals and planned actions."
+			s PageSideText="Review of Care Coordination Plan"
+
+			s ind=$i(ind)
+			s ^CacheTemp("TRAK",repid,ind)=$lb(EpisodeID,ReferralID,Agency,Contact,Name,ClientName,DOB,Sex,UR,FooterCode,PageTitle,PageDesc,PageSideText,IncludePage,ReferralToID,"")
+			s single=0,qid=""
+		}
+
+		i WINCode="AUXXSCTTNA" s single=1
+		i 'qid s qid=IncludeTNA,single=1
+		i qid,single {
+			s FooterCode="NFA",IncludePage=1
+			s PageTitle="Profile: Need for Assistance"
+			s PageDesc="To assist workers/practitioners to screen for consumer's need for assistance with activities of daily living."
+			s PageSideText="Profile:Need for Assistance"
+			s EpisodeID=$lg(^questionnaire.QAUXXSCTTNAD(qid),1)
+			d ..GetPatDetails(EpisodeID)
+
+			s ind=$i(ind)
+			s ^CacheTemp("TRAK",repid,ind)=$lb(EpisodeID,ReferralID,Agency,Contact,Name,ClientName,DOB,Sex,UR,FooterCode,PageTitle,PageDesc,PageSideText,IncludePage,ReferralToID,"")
+			s single=0,qid=""
+		}
+
+		i WINCode="AUXXSCTLCA" s single=1
+		i 'qid s qid=IncludeLCA,single=1
+		i qid,single {
+			s FooterCode="LCA",IncludePage=1
+			s PageTitle="Profile: Living and Caring Arrangements"
+			s PageDesc="To assist workers/practitioners to screen for consumer's accommodation and financial needs."
+			s PageSideText="Living and Caring Arrangements"
+			s EpisodeID=$lg(^questionnaire.QAUXXSCTLCAD(qid),1)
+			d ..GetPatDetails(EpisodeID)
+			
+			s ind=$i(ind)
+			s ^CacheTemp("TRAK",repid,ind)=$lb(EpisodeID,ReferralID,Agency,Contact,Name,ClientName,DOB,Sex,UR,FooterCode,PageTitle,PageDesc,PageSideText,IncludePage,ReferralToID,"")
+			s single=0,qid=""
+		}
+
+		i WINCode="AUXXSCTTPS" s single=1
+		i 'qid s qid=IncludeTPS,single=1
+		i qid,single {
+			s FooterCode="P",IncludePage=1
+			s PageTitle="Profile: Psychosocial"
+			s PageDesc="To assist workers/practitioners to screen for consumer's psychosocial needs."
+			s PageSideText="Psychosocial"
+			s EpisodeID=$lg(^questionnaire.QAUXXSCTTPSD(qid),1)
+			d ..GetPatDetails(EpisodeID)
+
+			s ind=$i(ind)
+			s ^CacheTemp("TRAK",repid,ind)=$lb(EpisodeID,ReferralID,Agency,Contact,Name,ClientName,DOB,Sex,UR,FooterCode,PageTitle,PageDesc,PageSideText,IncludePage,ReferralToID,"")
+			s single=0,qid=""
+		}
+
+		i WINCode="AUXXSCTTHC" s single=1
+		i 'qid s qid=IncludeTHC,single=1
+		i qid,single {
+			s FooterCode="HC",IncludePage=1
+			s PageTitle="Profile: Health Conditions"
+			s PageDesc="To assist workers/practitioners to screen for consumer's health needs."
+			s PageSideText="Health Conditions"
+			s EpisodeID=$lg(^questionnaire.QAUXXSCTTHCD(qid),1)
+			d ..GetPatDetails(EpisodeID)
+
+			s ind=$i(ind)
+			s ^CacheTemp("TRAK",repid,ind)=$lb(EpisodeID,ReferralID,Agency,Contact,Name,ClientName,DOB,Sex,UR,FooterCode,PageTitle,PageDesc,PageSideText,IncludePage,ReferralToID,"")
+			s single=0,qid=""
+		}
+
+		i WINCode="AUXXSCTTHB" s single=1
+		i 'qid s qid=IncludeTHB,single=1
+		i qid'="",single=1 {
+			s FooterCode="HB",IncludePage=1
+			s PageTitle="Profile: Health Behaviours"
+			s PageDesc="To assist workers/practitioners to screen for harmful health behaviours."
+			s PageSideText="Health Behaviours"
+			s EpisodeID=$lg(^questionnaire.QAUXXSCTTHBD(qid),1)
+			d ..GetPatDetails(EpisodeID)
+			s ind=$i(ind)
+			s ^CacheTemp("TRAK",repid,ind)=$lb(EpisodeID,ReferralID,Agency,Contact,Name,ClientName,DOB,Sex,UR,FooterCode,PageTitle,PageDesc,PageSideText,IncludePage,ReferralToID,"")
+			s single=0,qid=""
+		}
+
+		i WINCode="AUXXSCTFAS" s single=1
+		i 'qid s qid=IncludeFAS,single=1
+		i qid,single {
+			s FooterCode="Supplementary Form",IncludePage=1
+			s PageTitle="Functional Assessment Summary"
+			s PageDesc="This supplementary template is sent with referrals that occur following assessment of the client's functional abilities and need for assistance.  The assessing agency may attach additional assessment summaries covering other domains of client need that are relevant to the referral."
+			s PageSideText="Functional Assessment Summary"
+			s EpisodeID=$lg(^questionnaire.QAUXXSCTFASD(qid),1)
+			d ..GetPatDetails(EpisodeID)
+
+			s ind=$i(ind)
+			s ^CacheTemp("TRAK",repid,ind)=$lb(EpisodeID,ReferralID,Agency,Contact,Name,ClientName,DOB,Sex,UR,FooterCode,PageTitle,PageDesc,PageSideText,IncludePage,ReferralToID,"")
+			s single=0,qid=""
+		}
+
+		i WINCode="AUXXSCTPAV" s single=1
+		i 'qid s qid=IncludePAV,single=1
+		i qid,single {
+			s FooterCode="PAV Assessment",IncludePage=1
+			s PageTitle="PAV Assessment"
+			s PageDesc="To be used by assessment officers from PAV designated organisations to assess, determine and record the eligibility of applicants for the PAV Service"
+			s PageSideText="Personal Alert Victoria Assessment"
+			s EpisodeID=$lg(^questionnaire.QAUXXSCTPAVD(qid),1)
+			d ..GetPatDetails(EpisodeID)
+
+			s ind=$i(ind)
+			s ^CacheTemp("TRAK",repid,ind)=$lb(EpisodeID,ReferralID,Agency,Contact,Name,ClientName,DOB,Sex,UR,FooterCode,PageTitle,PageDesc,PageSideText,IncludePage,ReferralToID,"")
+			s single=0,qid=""
+		}
+
+	}
+	
+	// Build QHandle (AtEnd,ReportID,Index)
+	Set QHandle=$LISTBUILD(0,repid,0)
+	Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="MainFetch">
+<Description>
+This is the Fetch component of the %Library.Query. 
+This should never have to change. It is designed to fetch the row for each subscript of the 
+^CacheTemp("TRAK" global and return this row to the Report writer</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,&Row:%Library.List,&AtEnd:%Library.Integer=0]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+	// This fetch method should never have to change. 
+	// repid - Report ID
+	// ind   - sequence index which represents each row
+	New repid,ind
+
+	// Restore QHandle
+	Set AtEnd=$LI(QHandle,1)
+	Set repid=$LI(QHandle,2)
+	Set ind=$LI(QHandle,3)
+
+	Set ind=$order(^CacheTemp("TRAK",repid,ind))
+	If ind="" {	// if there are no more rows, finish fetching
+		Set AtEnd=1
+		Set Row=""
+	} else {	// fetch row
+		Set Row=^CacheTemp("TRAK",repid,ind)
+	}
+
+	// Save QHandle
+	Set QHandle=$lb(AtEnd,repid,ind)
+	Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Query name="Main">
+<Description>
+This is the Stored Procedure Template. For Sample use only.
+It expects one parameter of type integer and will return 4 fields:
+Field1 - Integer
+Field2 - String
+Field3 - Date
+Field4 - Time</Description>
+<Type>%Library.Query</Type>
+<FormalSpec>EpisodeID:%Library.String,ReferralID:%Library.String,UserID:%Library.String,WINRowId:%Library.String,ID:%Library.String,ReferralToID:%Library.String,PatientID:%Library.String</FormalSpec>
+<SqlProc>1</SqlProc>
+<Parameter name="CONTAINID" value="0"/>
+<Parameter name="ROWSPEC" value="EpisodeId:%String,ReferralId:%String,Agency:%String,Contact:%String,Name:%String,ClientName:%String,DOB:%String,Sex:%String,UR:%String,FooterCode:%String,PageTitle:%String,PageDesc:%String,PageSideText:%String,IncludePage:%String,RefToID:%String,PatID:%String"/>
+</Query>
+
+<Method name="GetPatDetails">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>EpisodeID:%String</FormalSpec>
+<Implementation><![CDATA[
+	s pat=$p($g(^PAADM(EpisodeID)),"^")
+
+	s patobj=##class(User.PAPatMas).%OpenId(pat)
+	i patobj {
+		s ClientName=patobj.PAPMIName_", "_patobj.PAPMIName2
+		s DOB=patobj.PAPMIDOB
+		i DOB s DOB=$zd(DOB,4,,4)
+		s Sex=patobj.PAPMISexDR.CTSEXDesc
+		s UR=patobj.PAPMINo
+		k patobj
+	}
+]]></Implementation>
+</Method>
+
+<Method name="ContinuePage">
+<Description>
+TODO - create method to set multiple page text areas</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>text:%String,lines:%Integer,chrperline:%Integer</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	s characters=chrperline				; Max characters per line is 120
+
+	s maxchar=lines*characters			; Max characters for lines available
+	
+	; if max characters exceeds space then we need to include a page break indicator
+	s (textline,temptext,checksize)=""
+	s maxcnt=1
+	f x=1:1:$l(text," ") {
+		s (maxchrflag,chrflag)=0
+		i $g(temptext)'="" {
+			s checksize=temptext_" "_$p(text," ",x)
+			s checkmaxsize=$p(textline,"^",maxcnt)_" "_checksize_" "_$p(text," ",x)
+			i $l(checkmaxsize)>maxchar s maxchrflag=1,chrflag=1
+			i $l(checksize)>characters s chrflag=1
+			
+			
+			i chrflag {
+				i maxchrflag {
+					s maxcnt=$i(maxcnt)
+					i $g(textline)'="" s textline=textline_$c(13,10)_temptext_$c(13,10)_"<...(PTO)>^"
+					i $g(textline)="" s textline=temptext_$c(13,10)_"<...(PTO)>^"
+				} else {
+					i $g(textline)'="" s textline=textline_$c(13,10)_temptext
+					i $g(textline)="" s textline=temptext
+				}
+				s temptext=""
+			} else {
+				s temptext=temptext_" "_$p(text," ",x)
+			}
+		}
+		i $g(temptext)="" s temptext=$p(text," ",x)
+	}
+	
+	i $g(temptext)'="" s textline=textline_$c(13,10)_temptext
+	
+	q textline
+]]></Implementation>
+</Method>
+</Class>
+</Export>

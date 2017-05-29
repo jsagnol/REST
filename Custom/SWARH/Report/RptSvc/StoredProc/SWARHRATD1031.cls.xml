@@ -1,0 +1,353 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.SWARH.Report.RptSvc.StoredProc.SWARHRATD1031">
+<Description><![CDATA[
+<pre>
+**************************************************************************************************************************************
+* Report Code:			SWARHRATD1031
+* Report Description:	Ward Activity Report
+* Menu Caption:
+* Initial release:
+* Developer:			Jayson Sagnol
+* Modified:				20/09/2013 TK/PH Make
+* 			 			02/03/2015 BS - Added "TRANS.TRANS_TempLoc_DR IS NULL" filter and Order By
+* 			 			02/11/2015 TK - Don't include transactions with a status (TRANS_Status_DR) of 'J' (Rejected).
+*									    Fixes bug where rejected movements were considered in figuring out patient's ward at a point in time.
+* 
+**************************************************************************************************************************************
+</pre>
+Class for SWARHRATD1031 Report]]></Description>
+<ProcedureBlock>0</ProcedureBlock>
+<Super>Custom.SWARH.Report.RptSvc.StoredProc.Abstract</Super>
+<TimeCreated>62342,35298.70943</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/SWARH/Report/RptSvc/StoredProc/SWARHRATD1031.xml#1 $</Default>
+</Parameter>
+
+<UDLText name="T">
+<Content><![CDATA[
+/*
+ * Report Name: Ward Activity Report - HCS Format <br>
+ * Report Code: SWARHRATD1031 <br>
+ */
+]]></Content>
+</UDLText>
+
+<Method name="SWARHRATD1031Close">
+<Description>
+This is the Close component of the %Library.Query.
+This is standard code and should never have to change.
+This is where all the cleanup is performed, i.e. the purging of the temporary storage global ^CacheTemp.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>QHandle:%Library.Binary</FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Clean up by purging the temporary node in ^CacheTemp global
+ n repid,ind
+ s repid=$li(QHandle,2)
+
+ //Start Monitor (if configured to capture stats)
+ i mon d ..MonitorEnd(mon)
+
+ k ^CacheTemp("TRAK",repid)
+ 
+ q $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="SWARHRATD1031Execute">
+<Description>
+This is the Execute section for the %Library.Query. 
+All of the logic will be performed here.
+A new node for the ^CacheTemp global will be created and each subscript of this global will contain
+a row for the report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,Hospital:%Library.Integer,DateFrom:%Date]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Get reportid i.e. use $INCREMENT to add another node to ^CacheTemp global. 
+ // We use ^CacheTemp global because it will always use memory before disk
+ n repid,ind
+
+  // Use $Increment to get the next node
+ s repid=$I(^CacheTemp("TRAK"))
+ 
+ //New Number,String,Date,Time,c,n
+ n c,n
+		
+ n PAADMRowID, PAADMAdmNo, TransType, TransWard,TransStartDate, TransStartTime, TransEndDate, TransEndTime, TransStatus, TransChildSub, PAADMAdmdate, PAADMAdmTime,PAADMDischgDate,PAADMVisitStatus,PAADMWard,AdmWard,MidnightWard,PAPERDeceasedDate
+ n keyWard, FirstTime, RowWardName, RowWardCount, RowDeathCount, RowDischgCount, RowTransIn, RowTransOut, RowAdmissions
+ n PrevPAADMAdmNo, PrevTransType, PrevTransWard, PrevTransStartDate, PrevTransEndDate, PrevMTransWard, PrevMTransStartDate, PrevMTransEndDate
+ s (PAADMAdmNo, TransType, TransWard,TransStartDate, TransStartTime, TransEndDate, TransEndTime,TransStatus,PAADMAdmdate,PAADMDischgDate,PAADMVisitStatus,PAADMWard,AdmWard,MidnightWard,PAPERDeceasedDate)=""
+ s (PrevPAADMAdmNo, PrevTransType, PrevTransWard, PrevTransStartDate, PrevTransEndDate, 
+ 	PrevMTransWard, PrevMTransStartDate, PrevMTransEndDate)=""
+ s (keyWard, RowWardName)=""
+ s (PAADMRowID, TransChildSub,RowWardCount,RowDeathCount,RowDischgCount,RowTransIn,RowTransOut,RowAdmissions)=0
+ s FirstTime="Y"
+ 
+ s ind=1
+
+ //Convert ODBC dates to cache format
+ 
+ s DateFrom=..ConvertDateToCache(DateFrom)
+ //Start Monitor (if configured to capture stats)
+ s mon=..MonitorBegin()
+ 
+ &SQL(DECLARE SWARHRATD1031Cursor CURSOR FOR 
+ SELECT
+ 		ADM.PAADM_RowId,
+        ADM.PAADM_AdmNo,
+        TRANS.TRANS_TransType_DR->TransTyp_Code,
+        TRANS.TRANS_Ward_DR->Ward_code,
+        TRANS.TRANS_StartDate,
+        TRANS.TRANS_StartTime,
+        TRANS.TRANS_EndDate,
+        TRANS.TRANS_EndTime,
+        TRANS.TRANS_Status_DR,
+        TRANS.TRANS_Childsub,
+        ADM.PAADM_AdmDate,
+        ADM.PAADM_AdmTime,
+        ADM.PAADM_DischgDate,
+        ADM.PAADM_VisitStatus,
+        ADM.PAADM_CurrentWard_DR->WARD_Code,
+        ADM.PAADM_PAPMI_DR->PAPMI_PAPER_DR->PAPER_Deceased_Date
+ FROM
+        SQLUser.PA_Adm ADM INNER JOIN SQLUser.PA_AdmTransaction TRANS ON ADM.PAAdm_rowID = TRANS.Trans_ParRef
+ WHERE
+        ADM.PAADM_AdmDate <= :DateFrom
+ AND    ADM.PAADM_DischgDate >= :DateFrom
+ AND    ADM.PAADM_VisitStatus NOT IN ('C','P')
+ AND    ADM.PAADM_Hospital_DR->HOSP_RowID = :Hospital
+ AND    ADM.PAADM_Type = 'I'
+ AND 	TRANS.TRANS_TempLoc_DR IS NULL
+ AND	TRANS.TRANS_Status_DR->REQST_Code != 'J' -- 2015-11-02 - TK - Exclude transactions/movements with a status of 'J' (Rejected)
+ UNION
+ SELECT
+        ADM.PAADM_RowId,
+        ADM.PAADM_AdmNo,
+        TRANS.TRANS_TransType_DR->TransTyp_Code,
+        TRANS.TRANS_Ward_DR->Ward_code,
+        TRANS.TRANS_StartDate,
+        TRANS.TRANS_StartTime,
+        TRANS.TRANS_EndDate,
+        TRANS.TRANS_EndTime,
+        TRANS.TRANS_Status_DR,
+        TRANS.TRANS_Childsub,
+        ADM.PAADM_AdmDate,
+        ADM.PAADM_AdmTime,
+        ADM.PAADM_DischgDate,
+        ADM.PAADM_VisitStatus,
+        ADM.PAADM_CurrentWard_DR->WARD_Code,
+        ADM.PAADM_PAPMI_DR->PAPMI_PAPER_DR->PAPER_Deceased_Date
+ FROM
+        SQLUser.PA_Adm ADM INNER JOIN SQLUser.PA_AdmTransaction TRANS ON ADM.PAAdm_rowID = TRANS.Trans_ParRef
+ WHERE
+        ADM.PAADM_AdmDate <= :DateFrom
+ AND    ADM.PAADM_DischgDate IS NULL
+ AND    ADM.PAADM_VisitStatus = 'A'
+ AND    ADM.PAADM_Hospital_DR->HOSP_RowID = :Hospital
+ AND    ADM.PAADM_Type = 'I' 
+ AND	ADM.PAADM_Current = 'Y' -- Current (admitted) episodes ONLY
+ AND 	TRANS.TRANS_TempLoc_DR IS NULL
+ AND	TRANS.TRANS_Status_DR->REQST_Code != 'J'  -- 2015-11-02 - TK - Exclude transactions/movements with a status of 'J' (Rejected)
+ ORDER BY
+ 		PAADM_RowId
+ 	,	TRANS_StartDate
+ 	,	TRANS_StartTime
+)
+ &SQL(Open SWARHRATD1031Cursor)
+ 
+ &SQL(Fetch SWARHRATD1031Cursor INTO :PAADMRowID,:PAADMAdmNo,:TransType,:TransWard,:TransStartDate,:TransStartTime,:TransEndDate,:TransEndTime,:TransStatus,:TransChildSub,:PAADMAdmdate,:PAADMAdmTime,:PAADMDischgDate,:PAADMVisitStatus,:PAADMWard,:PAPERDeceasedDate)
+  
+ while 'SQLCODE{
+  
+ 	 i PrevTransType'="" {
+	 	d IncrementTransfers	
+ 	 }
+	 s PrevTransWard=TransWard
+	 s PrevTransStartDate=TransStartDate
+	 s PrevTransEndDate=TransEndDate
+ 	 s PrevTransType = TransType
+ 	 
+ 	 if (TransType="M") {
+	 	 	s PrevMTransWard=TransWard
+	 	 	s PrevMTransStartDate=TransStartDate
+	 	 	s PrevMTransEndDate=TransEndDate
+ 	 }
+ 	 
+     i PrevPAADMAdmNo '= PAADMAdmNo {
+	    Set AdmWard = ..GetAdmWardForEpisode(PAADMRowID)
+	    Set MidnightWard = ..GetMidnightWardForEpisode(PAADMRowID, DateFrom)
+	    s PrevMTransWard=""
+	 	s PrevMTransStartDate=""
+	 	s PrevMTransEndDate=""
+		d IncrementAdmDischgDeaths
+	 }
+  	 
+
+ 	 Set PrevPAADMAdmNo = PAADMAdmNo
+ 	 Set (TransType, TransWard) = ""
+	 &SQL(Fetch SWARHRATD1031Cursor INTO :PAADMRowID,:PAADMAdmNo,:TransType,:TransWard,:TransStartDate,:TransStartTime,:TransEndDate,:TransEndTime,:TransStatus,:TransChildSub,:PAADMAdmdate,:PAADMAdmTime,:PAADMDischgDate,:PAADMVisitStatus,:PAADMWard,:PAPERDeceasedDate)
+ }
+
+ &SQL(Close SWARHRATD1031Cursor)
+ 
+ 
+ //Wardcount: 1=InAtMidnight,2=Deaths,3=Discharges,4=TransfersIn,5=TransfersOut,6=Admissions,7=TransfersInFromTheatre
+ s keyWard=$o(WardCount(""))
+ While (keyWard'=""){
+	If keyWard = -1 {
+		s RowWardName = "EP IN ERROR-NO ADM WARD"
+	} Else {
+		s RowWardName=keyWard
+	}
+	i $d(WardCount(keyWard,"1")){
+		s RowWardCount=WardCount(keyWard,"1")
+	} 
+	Else{
+		s RowWardCount=0
+	}
+	i $d(WardCount(keyWard,"2")){
+		s RowDeathCount=WardCount(keyWard,"2")
+	} 
+	Else{
+		s RowDeathCount=0
+	}
+	i $d(WardCount(keyWard,"3")){
+		s RowDischgCount=WardCount(keyWard,"3")	
+	}
+	Else{
+		s RowDischgCount=0
+	}
+	i $d(WardCount(keyWard,"4")){
+		s RowTransIn=WardCount(keyWard,"4")	
+	}
+	Else{
+		s RowTransIn=0
+	}
+	i $d(WardCount(keyWard,"5")){
+		s RowTransOut=WardCount(keyWard,"5")	
+	}
+	Else{
+		s RowTransOut=0
+	}
+	i $d(WardCount(keyWard,"7")){
+		s RowTransInFromTheatre=WardCount(keyWard,"7")	
+	}
+	Else{
+		s RowTransInFromTheatre=0
+	}
+	i $d(WardCount(keyWard,"6")){
+		s RowAdmissions=WardCount(keyWard,"6")	
+	}
+	Else{
+		s RowAdmissions=0
+	}
+	d BuildRow
+	s keyWard=$o(WardCount(keyWard))	 
+
+ }
+ 
+ Kill WardCount
+ 
+ // Build QHandle (AtEnd,ReportID,Index)
+ s QHandle=$lb(0,repid,0)
+
+ q $$$OK
+
+IncrementAdmDischgDeaths
+ s FirstTime="N"
+ if MidnightWard'="" {
+ 	i PAADMAdmdate<DateFrom {
+		s WardCount(MidnightWard,"1")=$i(WardCount(MidnightWard,"1"))
+ 	}
+ }
+ i PAADMAdmdate=DateFrom {
+	 if AdmWard'="" {
+		s WardCount(AdmWard,"6")=$i(WardCount(AdmWard,"6"))
+	 } Else {
+		 s WardCount(-1, "6")=$i(WardCount(-1,"6"))
+	 }
+ }
+	 
+ i PAPERDeceasedDate = DateFrom {
+ 	s WardCount(PAADMWard,"2")=$i(WardCount(PAADMWard,"2"))
+ }
+ elseif PAADMDischgDate = DateFrom{
+	s WardCount(PAADMWard,"3")=$i(WardCount(PAADMWard,"3"))
+ }
+ q
+ 
+IncrementTransfers
+ i TransType="M"{
+	i PrevMTransWard'=""{
+		i TransWard'=PrevMTransWard{
+			i PrevMTransEndDate=DateFrom{
+				i TransStartDate=DateFrom{
+					s WardCount(TransWard,"4") = $i(WardCount(TransWard,"4"))
+					s WardCount(PrevMTransWard,"5") = $i(WardCount(PrevMTransWard,"5"))
+					i ((PrevMTransWard="DSU")||(PrevMTransWard="D-TH")){
+						s WardCount(TransWard,"7") = $i(WardCount(TransWard,"7"))
+					}
+				}
+			}
+		}
+	}
+ }
+ q
+ 
+BuildRow	
+ s ^CacheTemp("TRAK",repid,ind)=$LB(RowWardName,RowWardCount,RowAdmissions,RowDeathCount,RowDischgCount,RowTransIn,RowTransOut,RowTransInFromTheatre)
+ s ind=ind+1
+ q
+]]></Implementation>
+</Method>
+
+<Method name="SWARHRATD1031Fetch">
+<Description>
+This is the Fetch component of the %Library.Query. 
+This should never have to change. It is designed to fetch the row for each subscript of the ^CacheTemp
+global and return this row to the Crystal Report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,&Row:%Library.List,&AtEnd:%Library.Integer=0]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // This fetch method should never have to change. 
+
+ // repid - Report ID
+ // ind   - sequence index which represents each row
+
+ New repid,ind
+
+ // Restore QHandle
+ Set AtEnd=$li(QHandle,1)
+ Set repid=$li(QHandle,2)
+ Set ind=$li(QHandle,3)
+
+ Set ind=$o(^CacheTemp("TRAK",repid,ind))
+ If ind="" {	// if there are no more rows, finish fetching
+ Set AtEnd=1
+ Set Row=""
+ }
+ Else      {	// fetch row
+ Set Row=^CacheTemp("TRAK",repid,ind)
+ }
+
+ // Save QHandle
+ s QHandle=$lb(AtEnd,repid,ind)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Query name="SWARHRATD1031">
+<Type>%Library.Query</Type>
+<FormalSpec>Hospital:%Library.Integer,DateFrom:%Date</FormalSpec>
+<SqlProc>1</SqlProc>
+<Parameter name="CONTAINID" value="0"/>
+<Parameter name="ROWSPEC" value="PAADMWard:%String, InAtMidnight:%Integer, Admissions:%Integer, Deaths:%Integer, Discharges:%Integer,TransfersIn:%Integer,TransfersOut:%Integer,TransfersInFromTheatre:%Integer"/>
+</Query>
+</Class>
+</Export>

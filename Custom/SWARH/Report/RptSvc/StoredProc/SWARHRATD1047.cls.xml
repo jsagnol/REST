@@ -1,0 +1,258 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.SWARH.Report.RptSvc.StoredProc.SWARHRATD1047">
+<Description><![CDATA[
+<pre>
+**************************************************************************************************************************************
+* Report Code: SWARHRATD1047
+* Report Description: Daily Discharges
+* Menu Caption: Daily Discharges
+* Initial release:
+* Developer: Jayson Sagnol
+* Modified: MW - 09/08/2013 - Added filter to include/exclude NON PRS2 Wards.
+* 
+**************************************************************************************************************************************
+</pre>
+Class for SWARHRATD1047 Report]]></Description>
+<ProcedureBlock>0</ProcedureBlock>
+<Super>Custom.SWARH.Report.RptSvc.StoredProc.Abstract</Super>
+<TimeCreated>62342,35298.70943</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/SWARH/Report/RptSvc/StoredProc/SWARHRATD1047.xml#1 $</Default>
+</Parameter>
+
+<UDLText name="T">
+<Content><![CDATA[
+/*
+ * Report Name: Daily Discharges <br>
+ * Report Code: SWARHRATD1047 <br>
+ */
+]]></Content>
+</UDLText>
+
+<Method name="SWARHRATD1047Close">
+<Description>
+This is the Close component of the %Library.Query.
+This is standard code and should never have to change.
+This is where all the cleanup is performed, i.e. the purging of the temporary storage global ^CacheTemp.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>QHandle:%Library.Binary</FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Clean up by purging the temporary node in ^CacheTemp global
+ New repid
+ Set repid=$li(QHandle,2)
+ Kill ^CacheTemp(repid)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="SWARHRATD1047Execute">
+<Description>
+This is the Execute section for the %Library.Query. 
+All of the logic will be performed here.
+A new node for the ^CacheTemp global will be created and each subscript of this global will contain
+a row for the report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,Hospital:%Library.Integer,DateFrom:%Date,IncludeNonPRS2:%String]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ k ^zbernard	
+ // Get reportid i.e. use $INCREMENT to add another node to ^CacheTemp global. 
+ // We use ^CacheTemp global because it will always use memory before disk
+ New repid,ind
+
+ // Use $Increment to get the next node
+ Set repid=$I(^CacheTemp)
+ s ^zBernard("1")=(1)
+ 
+ NEW Surname,GivenName,OtherName,URNumber,BirthDate,ADMWard,AdmDate,Payor,Plan,Episode,DoctorName,Discharge,CareType,HOSPDesc,RoomCode,BedCode,DischargeDesc
+ SET (Surname,GivenName,OtherName,URNumber,BirthDate,ADMWard,AdmDate,Payor,Plan,Episode,DoctorName,Discharge,CareTypee,HOSPDesc,RoomCode,BedCode,DischargeDesc)=""		
+
+ s ind=1
+	
+ //Start Monitor (if configured to capture stats)
+ //s mon=..MonitorBegin()
+ 
+ s Hospital=$zstrip(Hospital,"*CW")
+ 
+ //Convert ODBC dates to cache format
+ s DateFrom=$$intdate^SSUTIL4(DateFrom)
+ //s DateTo=$$intdate^SSUTIL4(DateTo)
+ 
+ IF (IncludeNonPRS2 = "No")
+ {
+	 &SQL(DECLARE PRS2Only CURSOR FOR
+	 SELECT DISTINCT
+	 	UCASE(PM.PAPMI_NAME) AS Surname,
+        UCASE(PM.PAPMI_NAME2) AS GivenName,
+        UCASE(PM.PAPMI_NAME3) AS OtherName,
+        PM.PAPMI_No AS URNumber,
+        PM.PAPMI_DOB AS BirthDate,
+        ADM.PAADM_CurrentWard_DR->WARD_Code AS ADMWard,
+        ADM.PAADM_AdmDate AS ADMDate,
+        C.INS_InsType_DR->INST_Desc AS Payor,
+        C.INS_AuxInsType_DR->AUXIT_Desc AS Plan,
+        ADM.PAADM_AdmNo AS Episode,
+        ADM.PAADM_AdmDocCodeDR->CTPCP_Desc AS DoctorName,
+        ADM.PAADM_MainMRADM_DR->MRADM_DischType_DR->CTDSP_Code AS Discharge,
+  		ADM.PAADM_MainMRADM_DR->MRADM_CareType_DR->CARETYP_Desc AS CareType,
+		ADM.PAADM_Hospital_DR->HOSP_Desc As HOSPDesc,
+		ADM.PAADM_CurrentRoom_DR->ROOM_Code,
+        ADM.PAADM_CurrentBed_DR->BED_Code,
+        ADM.PAADM_MainMRADM_DR->MRADM_DischType_DR->CTDSP_Desc AS DischargeDesc
+ 	FROM
+        SQLUser.PA_Adm ADM
+        LEFT OUTER JOIN SQLUser.PA_AdmInsurance C ON (ADM.PAADM_RowID = C.INS_ParRef)
+        LEFT JOIN SQLUSER.PA_PatMAS PM on ADM.PAADM_PAPMI_DR = PM.PAPMI_RowId
+        LEFT JOIN SQLUSER.PA_Person PE on PM.PAPMI_PAPER_DR = PE.PAPER_RowId
+
+
+ 	WHERE	ADM.PAADM_DischgDate = :DateFrom
+ 	AND		ADM.PAADM_VisitStatus NOT IN ('C','P')
+ 	AND		ADM.PAADM_Hospital_DR = :Hospital
+ 	AND		ADM.PAADM_Type = 'I'
+ 	AND   	ADM.PAADM_CurrentWard_DR->WARD_LocationDR->CTLOC_NationCode = 'PRS2')
+ }
+ 
+ IF (IncludeNonPRS2 = "Yes")
+ {
+	 &SQL(DECLARE IncNonPRS2 CURSOR FOR
+	 SELECT DISTINCT
+	 	UCASE(PM.PAPMI_NAME) AS Surname,
+        UCASE(PM.PAPMI_NAME2) AS GivenName,
+        UCASE(PM.PAPMI_NAME3) AS OtherName,
+        PM.PAPMI_No AS URNumber,
+        PM.PAPMI_DOB AS BirthDate,
+        ADM.PAADM_CurrentWard_DR->WARD_Code AS ADMWard,
+        ADM.PAADM_AdmDate AS ADMDate,
+        C.INS_InsType_DR->INST_Desc AS Payor,
+        C.INS_AuxInsType_DR->AUXIT_Desc AS Plan,
+        ADM.PAADM_AdmNo AS Episode,
+        ADM.PAADM_AdmDocCodeDR->CTPCP_Desc AS DoctorName,
+        ADM.PAADM_MainMRADM_DR->MRADM_DischType_DR->CTDSP_Code AS Discharge,
+  		ADM.PAADM_MainMRADM_DR->MRADM_CareType_DR->CARETYP_Desc AS CareType,
+		ADM.PAADM_Hospital_DR->HOSP_Desc As HOSPDesc,
+		ADM.PAADM_CurrentRoom_DR->ROOM_Code,
+        ADM.PAADM_CurrentBed_DR->BED_Code,
+        ADM.PAADM_MainMRADM_DR->MRADM_DischType_DR->CTDSP_Desc AS DischargeDesc
+ 	FROM
+        SQLUser.PA_Adm ADM
+        LEFT OUTER JOIN SQLUser.PA_AdmInsurance C ON (ADM.PAADM_RowID = C.INS_ParRef)
+        LEFT JOIN SQLUSER.PA_PatMAS PM on ADM.PAADM_PAPMI_DR = PM.PAPMI_RowId
+        LEFT JOIN SQLUSER.PA_Person PE on PM.PAPMI_PAPER_DR = PE.PAPER_RowId
+
+
+ 	WHERE	ADM.PAADM_DischgDate = :DateFrom
+ 	AND		ADM.PAADM_VisitStatus NOT IN ('C','P')
+ 	AND		ADM.PAADM_Hospital_DR = :Hospital
+ 	AND		ADM.PAADM_Type = 'I')
+ }
+ 
+ IF (IncludeNonPRS2 = "No")
+ {
+	 &SQL(Open PRS2Only)
+ 
+ 	 //FETCH FIRST ROW
+ 	 &SQL(FETCH PRS2Only INTO :Surname,:GivenName,:OtherName,:URNumber,:BirthDate,:ADMWard,:AdmDate,:Payor,:Plan,:Episode,:DoctorName,:Discharge,:CareType,:HOSPDesc,:RoomCode,:BedCode,:DischargeDesc)
+  	 while 'SQLCODE
+  	 {
+	  	 d FormatDates
+  		//d FormatTimes
+  	
+		// build the row
+		s ^CacheTemp(repid,ind)=$LB(Surname,GivenName,OtherName,URNumber,BirthDate,ADMWard,AdmDate,Payor,Plan,Episode,DoctorName,Discharge,CareType,HOSPDesc,RoomCode,BedCode,DischargeDesc)
+		s ind=ind+1
+ 
+		//fetch rows
+		&SQL(FETCH PRS2Only INTO :Surname,:GivenName,:OtherName,:URNumber,:BirthDate,:ADMWard,:AdmDate,:Payor,:Plan,:Episode,:DoctorName,:Discharge,:CareType,:HOSPDesc,:RoomCode,:BedCode,:DischargeDesc)
+ 	} 
+ 	
+ 	&SQL(Close PRS2Only)
+ }
+ 
+ IF (IncludeNonPRS2 = "Yes")
+ {
+	 &SQL(Open IncNonPRS2)
+ 
+ 	 //FETCH FIRST ROW
+ 	 &SQL(FETCH IncNonPRS2 INTO :Surname,:GivenName,:OtherName,:URNumber,:BirthDate,:ADMWard,:AdmDate,:Payor,:Plan,:Episode,:DoctorName,:Discharge,:CareType,:HOSPDesc,:RoomCode,:BedCode,:DischargeDesc)
+  	 while 'SQLCODE
+  	 {
+	  	 d FormatDates
+  		//d FormatTimes
+  	
+		// build the row
+		s ^CacheTemp(repid,ind)=$LB(Surname,GivenName,OtherName,URNumber,BirthDate,ADMWard,AdmDate,Payor,Plan,Episode,DoctorName,Discharge,CareType,HOSPDesc,RoomCode,BedCode,DischargeDesc)
+		s ind=ind+1
+ 
+		//fetch rows
+		&SQL(FETCH IncNonPRS2 INTO :Surname,:GivenName,:OtherName,:URNumber,:BirthDate,:ADMWard,:AdmDate,:Payor,:Plan,:Episode,:DoctorName,:Discharge,:CareType,:HOSPDesc,:RoomCode,:BedCode,:DischargeDesc)
+ 	} 
+ 	
+ 	&SQL(Close IncNonPRS2)
+ }
+ 
+ // Build QHandle (AtEnd,ReportID,Index)
+ Set QHandle=$lb(0,repid,0)
+
+ //s ^zBernard("4")=(4)
+
+ Quit $$$OK
+  
+FormatDates
+ s BirthDate=..ConvertDateToODBC(BirthDate)
+ s AdmDate=..ConvertDateToODBC(AdmDate)
+ q
+]]></Implementation>
+</Method>
+
+<Method name="SWARHRATD1047Fetch">
+<Description>
+This is the Fetch component of the %Library.Query. 
+This should never have to change. It is designed to fetch the row for each subscript of the ^CacheTemp
+global and return this row to the Crystal Report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,&Row:%Library.List,&AtEnd:%Library.Integer=0]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // This fetch method should never have to change. 
+
+ // repid - Report ID
+ // ind   - sequence index which represents each row
+
+ New repid,ind
+
+ // Restore QHandle
+ Set AtEnd=$li(QHandle,1)
+ Set repid=$li(QHandle,2)
+ Set ind=$li(QHandle,3)
+
+ Set ind=$o(^CacheTemp(repid,ind))
+ If ind="" {	// if there are no more rows, finish fetching
+ Set AtEnd=1
+ Set Row=""
+ }
+ Else      {	// fetch row
+ Set Row=^CacheTemp(repid,ind)
+ }
+
+ // Save QHandle
+ s QHandle=$lb(AtEnd,repid,ind)
+
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Query name="SWARHRATD1047">
+<Type>%Library.Query</Type>
+<FormalSpec>Hospital:%Library.Integer,DateFrom:%Date,IncludeNonPRS2:%String</FormalSpec>
+<SqlProc>1</SqlProc>
+<Parameter name="CONTAINID" value="0"/>
+<Parameter name="ROWSPEC" value="Surname:%Library.String,GivenName:%Library.String,OtherName:%Library.String,URNumber:%Library.String,BirthDate:%Library.String,ADMWard:%Library.String,AdmDate:%Library.String,Payor:%Library.String,Plan:%Library.String,Episode:%Library.String,DoctorName:%Library.String,Discharge:%Library.String,CareType:%Library.String,HOSPDesc:%Library.String,RoomCode:%Library.String,BedCode:%Library.String,DischargeDesc:%Library.String"/>
+</Query>
+</Class>
+</Export>

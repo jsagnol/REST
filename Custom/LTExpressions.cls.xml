@@ -1,0 +1,633 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.LTExpressions">
+<Description>
+ Cache Expressions for Letter Template</Description>
+<ProcedureBlock>0</ProcedureBlock>
+<Super>%RegisteredObject</Super>
+<TimeCreated>62343,49608.979772</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/LTExpressions.xml#1 $</Default>
+</Parameter>
+
+<Method name="PatTitle">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>PatientID</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	n (%request,%session,PatientID)
+
+	q:PatientID="" ""
+
+	s (Title,sex)=""
+	s pat=##class(User.PAPerson).%OpenId(PatientID)
+	i pat {
+		i pat.PAPERTitleDR s Title=pat.PAPERTitleDR.TTLDesc
+		i pat.PAPERSexDR s sex=pat.PAPERSexDR.CTSEXDesc 
+		
+		i Title="Unknown" {
+			i sex="Male" s Title="Mr"
+			i sex="Female" s Title="Ms"
+		}
+	}
+	q Title
+]]></Implementation>
+</Method>
+
+<Method name="PatAdd">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>PatientID</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	
+	n (%request,%session,PatientID)
+	s SQLCODE=""
+	
+	i %request.Get("TFORM")="PAWaitingList.EditRemoveReinstate" d
+	. s wlid=$g(%request.Data("ID",1))
+	. i $g(wlid)'="" s PatientID=$p($g(^PAWL(wlid)),"^",12)
+	
+	s (Street1,Street2,City,State,Zip)=""
+	; try postal address
+	d ..GetPatAddType(PatientID, "P", .SQLCODE, .Street1, .Street2, .City, .State, .Zip)
+
+	; try postal address
+	i SQLCODE d ..GetPatAddType(PatientID, "T", .SQLCODE)
+
+	i SQLCODE {
+		&SQL(
+			select PAPER_StName, PAPER_ForeignAddress, PAPER_CityCode_DR->CTCIT_Desc, PAPER_CT_Province_DR->PROV_Desc  , PAPER_Zip_DR ->CTZIP_Code
+			into :Street1, :Street2, :City, :State, :Zip
+			from SQLUser.PA_Person
+			where (PAPER_RowId=:PatientID)
+		)	
+	}	
+	s delim=$c(10,13)
+	s Address=$zstrip(Street1,"*C")_delim_Street2_delim_City_delim_State_delim_Zip
+	
+	q Address
+]]></Implementation>
+</Method>
+
+<Method name="GetPatAddType">
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[PatientID,Type,&SQLCODE,&Street1,&Street2,&City,&State,&Zip]]></FormalSpec>
+<Implementation><![CDATA[
+	n (PatientID,Type,SQLCODE,Street1,Street2,City,State,Zip)
+	s (Street1,Street2,City,Zip)=""
+
+	s Today=##class(websys.Conversions).DateLogicalToHtml(+$H)
+	
+	&SQL(
+		select ADDR_Street, ADDR_StreetLine1, ADDR_Street2, ADDR_City_DR->CTCIT_Desc, ADDR_Province_DR->PROV_Desc, ADDR_Zip_DR ->CTZIP_Desc
+		into :addrx, :Street1, :Street2, :City, :State, :Zip
+		from SQLUser.PA_TempAddress
+		where (ADDR_ParRef=:PatientID)
+		and (ADDR_AddressType_DR->CTADR_Code  =:Type)
+		and ((ADDR_DateFrom<= :Today)  OR (ADDR_DateFrom IS  NULL))
+		and ((ADDR_DateTo >= :Today) OR (ADDR_DateTo IS  NULL))
+	)
+	q
+]]></Implementation>
+</Method>
+
+<Method name="PatGuardianStr">
+<Description>
+Returns 'parent or guardian of' before patient name if under 16 years</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>PatientID</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	n (PatientID)
+	
+	s strRET=""
+	s pat=##class(User.PAPerson).%OpenId(PatientID)
+	i pat,pat.PAPERAgeYr<16 s strRET="Parent or Guardian of "
+	
+	q strRET
+]]></Implementation>
+</Method>
+
+<Method name="PatGP">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>PatientID</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[	n (PatientID)
+]]></Implementation>
+</Method>
+
+<Method name="ApptTransport">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>ApptID</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	n (ApptID)
+	
+	s strRET=""
+	s appt=##class(User.RBAppointment).%OpenId(ApptID)	
+	i appt,appt.APPTTransportDR s strRET= "Transport has been arranged to colect you, please be ready one hour before your appointment time."
+	
+	q strRET
+]]></Implementation>
+</Method>
+
+<Method name="WLNADateTo">
+<Description>
+Code:  WLNADateTo
+Description: Wait List Not Available Date To
+Expression Requirement: When a Period of Not Ready For Care is recorded against a Waiting List entry a Date From and To can be entered.
+This requirement is to report the Wait List Not Available Date To (PA_WaitingListNotAvailable_NA_DateTo) for this Waiting List entry.
+Where this field is null – the following text should be inserted ‘No Date Recorded’</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>WLID</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	n (WLID)
+	q:WLID="" ""
+	s na=0,nadateto=""
+	while na'="" {
+		s na=$o(^PAWL(WLID,"NA",na))
+		i $g(na)'="" {
+			s nadateto=$p($g(^PAWL(WLID,"NA",na)),"^",2)
+		}
+	}
+	i $g(nadateto)'="" s nadateto=$zd(nadateto,4,,4)
+	i $g(nadateto)="" s nadateto="No Date Recorded"
+	q nadateto
+]]></Implementation>
+</Method>
+
+<Method name="WLINIT">
+<Description>
+Code : WLINIT
+Description: Waiting List Initiator
+Expression Requirement: When a Period of Not Ready For Care is recorded against a Waiting List entry an ‘Initiator’ is a required field
+This requirement is to report the Initiator (PAC_WLReasonGroup_WLRG_Desc) for this Waiting List entry</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>WLID</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	n (WLID)
+	q:WLID="" ""
+	s na=0,reason=""
+	while na'="" {
+		s na=$o(^PAWL(WLID,"NA",na))
+		i $g(na)'="" {
+			s reason=$p($g(^PAWL(WLID,"NA",na)),"^",3)
+			i $g(reason)'="" {
+				s reason=$p($g(^PAC("WLREA",reason)),"^",8)
+				i $g(reason)'="" s reason=$p($g(^PAC("WLRG",reason)),"^",2)
+			}
+		}
+	}
+	q reason
+]]></Implementation>
+</Method>
+
+<Method name="WLSUSPEND">
+<Description>
+Code: WLSUSPEND
+Description: Waiting List Suspension Reason
+Expression Requirement: When a Period of Not Ready For Care is recorded against a Waiting List entry a ‘Suspension Reason’ is a required field.
+This requirement is to report the Suspension Reason (PAC_WLReasonNotAvail_REA_Desc) for this Waiting List entry</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>WLID</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	n (WLID)
+	q:WLID="" ""
+	s na=0,reason=""
+	while na'="" {
+		s na=$o(^PAWL(WLID,"TRANS",na))
+		i $g(na)'="" {
+			s reason=$p($g(^PAWL(WLID,"TRANS",na)),"^",11)
+			i $g(reason)'="" {
+				s reason=$p($g(^PAC("WLREA",reason)),"^",2)
+			}
+		}
+	}
+	q reason
+]]></Implementation>
+</Method>
+
+<Method name="RFCSTAT">
+<Description>
+Code : RFCSTAT
+Description: Waiting List Ready For Care Status
+Expression Requirement: If the date of printing the letter is within a period of Not Ready For Care – report as ‘Not Ready For Care’  
+If the date of printing the letter is Not within a period of Not Ready For Care – report as ‘Ready For Care’</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>WLID</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	n (WLID)
+	q:WLID="" ""
+	s na=0,text="Ready For Care"
+	while na'="" {
+		s na=$o(^PAWL(WLID,"NA",na))
+		i $g(na)'="" {
+			i $p($g(^PAWL(WLID,"NA",na)),"^")<=+$h,$s($p($g(^PAWL(WLID,"NA",na)),"^",2)="":+$h,1:$p($g(^PAWL(WLID,"NA",na)),"^"))>=+$h {
+				s text="Not Ready For Care"
+			} else {
+				s text="Ready For Care"
+			}
+		}
+	}
+	q text
+]]></Implementation>
+</Method>
+
+<Method name="NRFCText">
+<Description>
+Code : NRFCText
+Description: Waiting List NRFC text</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>WLID</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	n (WLID)
+	q:WLID="" ""
+	s na=0,text=""
+	while na'="" {
+		s na=$o(^PAWL(WLID,"NA",na))
+		i $g(na)'="" {
+			i $p($g(^PAWL(WLID,"NA",na)),"^")<=+$h,$s($p($g(^PAWL(WLID,"NA",na)),"^",2)="":+$h,1:$p($g(^PAWL(WLID,"NA",na)),"^"))>=+$h {
+				s initiator=$p($g(^PAWL(WLID,"NA",na)),"^",3)
+				i $g(initiator)'="" {
+					s initiator=$p($g(^PAC("WLREA",initiator)),"^",8)
+					i $g(initiator)'="" {
+						s initiator=$p($g(^PAC("WLRG",initiator)),"^")
+					}
+				}
+			}
+		}
+	}
+	i $g(initiator)'="" {
+		i initiator="P" s text="You have indicated  you are unavailable for surgery  due to personal reasons (such as holidays, family requirements or work commitments). If you have chosen to be not ready for care for personal reasons it is important to note there are time limits to the length of time patients can elect to be not available for surgery. These are: Category 1 – 30 days, Category 2 – 90 days and Category 3 – 180 days.  The hospital may remove you from the waiting list if you exceed the threshold for not ready for care."
+		;i initiator="C" s text="Clinic..."
+	}
+	q text
+]]></Implementation>
+</Method>
+
+<Method name="ADMDATE">
+<Description>
+Code: ADMDATE
+Description: Hospital Admission Date
+Expression Requirement: When a Hospital Admission is booked from the Waiting List an ‘Admission Date’ is required.
+This requirement is to report the Admission Date (PA_WaitingListAdm_ADM_AdmDate) for this Waiting List entry</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>WLID</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	n (WLID)
+	q:WLID="" ""
+	s adm=0,admdate=""
+	while adm'="" {
+		s adm=$o(^PAWL(WLID,"ADM",adm))
+		i $g(adm)'="" {
+			s admdate=$p($g(^PAWL(WLID,"ADM",adm)),"^",2)
+			i $g(admdate)'="" s admdate=$zd(admdate,4,,4)
+		}
+	}
+	q admdate
+]]></Implementation>
+</Method>
+
+<Method name="ADMTIME">
+<Description>
+Code: ADMTIME
+Description: Hospital Admission Time
+Expression Requirement: When a Hospital Admission is booked from the Waiting List an ‘Admission Time’ is required.
+This requirement is to report the Admission Time (PA_WaitingListAdm_ADM_AdmTime) for this Waiting List entry</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>WLID</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	n (WLID)
+	q:WLID="" ""
+	s adm=0,admtime=""
+	while adm'="" {
+		s adm=$o(^PAWL(WLID,"ADM",adm))
+		i $g(adm)'="" {
+			s admtime=$p($g(^PAWL(WLID,"ADM",adm)),"^",6)
+			i $g(admtime)'="" s admtime=$zt(admtime,4)
+		}
+	}
+	q admtime
+]]></Implementation>
+</Method>
+
+<Method name="WLPRECANCADD">
+<Description>
+Code WLPRECANCADD
+Description: Hospital Admission Cancel Reason
+Expression Requirement: When a hospital admission is cancelled a ‘Cancel Reason’ is required.
+This requirement is to report the Cancel Reason (PA_WaitingListAdm_ADM_CancelReason_DR) for this Waiting List entry</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>WLID</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	n (WLID)
+	q:WLID="" ""
+	s adm=0,cancel=""
+	while adm'="" {
+		s adm=$o(^PAWL(WLID,"ADM",adm))
+		i $g(adm)'="" {
+			s cancel=$p($g(^PAWL(WLID,"ADM",adm)),"^",5)
+			i $g(cancel)'="" s cancel=$p($g(^PAC("WLREA",cancel)),"^",2)
+		}
+	}
+	q cancel
+]]></Implementation>
+</Method>
+
+<Method name="WLREASONREMOVE">
+<Description>
+Code WLPRECANCADD
+Description: Hospital Admission Cancel Reason
+Expression Requirement: When a hospital admission is cancelled a ‘Cancel Reason’ is required.
+This requirement is to report the Cancel Reason (PA_WaitingListAdm_ADM_CancelReason_DR) for this Waiting List entry</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>WLID</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	n (WLID)
+	q:WLID="" ""
+	s trans=0,cancel=""
+	while trans'="" {
+		s trans=$o(^PAWL(WLID,"TRANS",trans))
+		i $g(trans)'="" {
+			s cancel=$p($g(^PAWL(WLID,"TRANS",trans)),"^",11)
+			i $g(cancel)'="" s cancel=$p($g(^PAC("WLREA",cancel)),"^",2)
+		}
+	}
+	q cancel
+]]></Implementation>
+</Method>
+
+<Method name="WLREM">
+<Description>
+Code: WLREM
+Description: Reason for WL Removal
+Expression Requirement: When a Waiting list entry is removed or reinstated a ‘Reason’ must be given.
+This requirement is to report the Reason for Removal/Reinstate (PAC_WLReasonNotAvail_REA_Desc) for this Waiting List entry</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>WLID</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	n (WLID)
+	q:WLID="" ""
+	s trans=0,notavail=""
+	while trans'="" {
+		s trans=$o(^PAWL(WLID,"TRANS",trans))
+		i $g(trans)'="" {
+			s notavail=$p($g(^PAWL(WLID,"TRANS",trans)),"^",11)
+			i $g(notavail)'="" s notavail=$p($g(^PAC("WLREA",notavail)),"^",2)
+		}
+	}
+	q notavail
+]]></Implementation>
+</Method>
+
+<Method name="WLREVDATE">
+<Description>
+Code: WLREVDATE
+Description: Review Response Due Date
+Expression Requirement: When a Waiting List entry is reviewed a Response Due Date is set.
+This requirement is to report the Response Due Date (REVResponseDueDate) for this Waiting List entry</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>WLID</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	n (WLID)
+	q:WLID="" ""
+	s rev=0,duedate=""
+	while rev'="" {
+		s rev=$o(^PAWL(WLID,"REV",rev))
+		i $g(rev)'="" {
+			s duedate=$p($g(^PAWL(WLID,"REV",rev)),"^",12)
+			i $g(duedate)'="" s duedate=$zd(duedate,4,,4)
+		}
+	}
+	q duedate
+]]></Implementation>
+</Method>
+
+<Method name="WLTRANSFROM">
+<Description>
+Code: WLTRANSFROM
+Description: Transferred From WL Type / Specialty
+Expression Requirement: When a Waiting List entry is transferred the Transferred From (existing) Waiting List Type
+and Speciality needs to be included in the letter. This requirement is to report the Transferred From WL Type (WL_WaitListType_DR_WLType)
+and Specialty (WL_CTLOC_DR_CTLOCDesc) for this Waiting List Entry</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>WLID</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	n (WLID,%request)
+	q:WLID="" ""
+	s (type,spec)=""
+
+	s type=$g(%request.Data("OldWaitingListType",1))
+	s spec=$g(%request.Data("OldSpeciality",1))
+	
+	q type_", "_spec
+]]></Implementation>
+</Method>
+
+<Method name="WLTRANSTO">
+<Description>
+Code: WLTRANSTO
+Description: Transferred To WL Type / Specialty
+Expression Requirement: When a Waiting List entry is transferred the Transferred To (new) Waiting List Type and Speciality
+needs to be included in the letter. This requirement is to report the Transferred To WL Type (WL_WaitListType_DR_WLType)
+and Specialty (WL_CTLOC_DR_CTLOCDesc) for this Waiting List Entry</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>WLID</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	n (WLID,%request)
+	q:WLID="" ""
+	s (type,spec)=""
+	
+	s type=$p($g(^PAWL(WLID)),"^")
+	i $g(type)'="" s type=$p($g(^PAC("WLT",type)),"^",2)
+	s spec=$p($g(^PAWL(WLID)),"^",3)
+	i $g(spec)'="" s spec=$p($g(^CTLOC(spec)),"^",2)
+	
+	q type_", "_spec
+]]></Implementation>
+</Method>
+
+<Method name="APPTTRANSFROM">
+<Description>
+Code: APPTTRANSFROM
+Description: Transferred from Appt 
+Expression Requirement: When an Appt is transferred the Transferred From Clinic (APPTASParRef.ASRESParRef.RESCTLOCDR.CTLOCDesc)
+and Date (APPTASParRef.ASDate) need to be included in the letter. This requirement is to report the From Clinic and Date formatted as follows
+Your appointment to attend the {APPTASParRef.ASRESParRef.RESCTLOCDR.CTLOCDesc} on the {APPTASParRef.ASDate} has been changed and another arranged.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>ApptID</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	n (ApptID)
+	
+	s strRET=""
+	s appt=##class(User.RBAppointment).%OpenId(ApptID)	
+	i appt {
+		s strRET= "Your appointment to attend the "_appt.APPTASParRef.ASRESParRef.RESCTLOCDR.CTLOCDesc_" on the "_$zd(appt.APPTASParRef.ASDate,4,,4)_" has been changed and another arranged."
+		d appt.%Close()
+	}
+	
+	q strRET
+]]></Implementation>
+</Method>
+
+<Method name="APPTTRANSTO">
+<Description>
+Code: APPTTRANSTO
+Description: Transferred to Appt
+Expression Requirement: When an Appt is transferred the Transferred To (new) Appt details need to be included in the letter.
+This requirement is to report the New Appt Details formatted as follows
+Clinic: {APPTASParRef.ASRESParRef.RESCTLOCDR.CTLOCDesc}
+Clinician: {APPTASParRef.ASRESParRef.RESCTPCPDR.CTPCPDesc}
+Date: {APPTASParRef.ASDate}
+Time: {APPTASParRef.ASSessStartTime}
+Address: {APPTASParRef.ASRESParRef.RESCTLOCDR.CTLOCAddress}</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>ApptID</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	n (ApptID)
+	
+	s strRET="",del=$c(10,13)
+	s appt=##class(User.RBAppointment).%OpenId(ApptID)	
+	i appt,appt.APPTAPPTDR {
+		;s strRET="Clinic: "_appt.APPTAPPTDR.APPTASParRef.ASRESParRef.RESCTLOCDR.CTLOCDesc_del
+		;s strRET=strRET_"Clinician: "_appt.APPTAPPTDR.APPTASParRef.ASRESParRef.RESCTPCPDR.CTPCPDesc_del
+		;s strRET=strRET_"Date: "_$zd(appt.APPTAPPTDR.APPTASParRef.ASDate,4,,4)_del
+		;s strRET=strRET_"Time: "_$zt(appt.APPTAPPTDR.APPTASParRef.ASSessStartTime,4)_del
+		;s strRET=strRET_"Address: "_##Class(websys.Conversions).LongTextLogicalToHtml(appt.APPTAPPTDR.APPTASParRef.ASRESParRef.RESCTLOCDR.CTLOCAddress)
+		s strRET=##Class(websys.Conversions).LongTextLogicalToHtml(appt.APPTAPPTDR.APPTASParRef.ASRESParRef.RESCTLOCDR.CTLOCAddress)
+		d appt.%Close()
+	}
+	q strRET
+]]></Implementation>
+</Method>
+
+<Method name="GPADD">
+<Description>
+Code: GPADD
+Description: GP Address
+Expression Requirement: Report the GP Address in the following format
+FamilyDocDR.REFDTitle,  FamilyDocDR.REFDDesc
+FamilyDocDR.REFDAddress
+FamilyDocDR.REFDCITYDR.CTCITDesc 
+FamilyDocDR.REFDCTZIPDR.CTZIPCode</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>PatientID</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	n (%request,%session,PatientID,strRET)
+
+	i %request.Get("TFORM")="PAWaitingList.EditRemoveReinstate" d
+	. s wlid=$g(%request.Data("ID",1))
+	. i $g(wlid)'="" s PatientID=$p($g(^PAWL(wlid)),"^",12)
+
+	q:PatientID="" ""
+
+	s strRET=""
+	s delim=$c(10,13)
+	s pat=##class(User.PAPerson).%OpenId(PatientID)
+	i pat {
+		i pat.PAPERFamilyDoctorClinicDR {
+			s strRET=$s(pat.PAPERFamilyDoctorClinicDR.CLNParRef.REFDTitle'="":pat.PAPERFamilyDoctorClinicDR.CLNParRef.REFDTitle_" ",pat.PAPERFamilyDoctorClinicDR.CLNParRef.REFDTitleDR.TTLDesc'="":pat.PAPERFamilyDoctorClinicDR.CLNParRef.REFDTitleDR.TTLDesc_" ",1:"")
+			s strRET=strRET_pat.PAPERFamilyDoctorClinicDR.CLNParRef.REFDDesc_delim
+			s strRET=strRET_pat.PAPERFamilyDoctorClinicDR.CLNClinicDR.CLNDesc_delim
+			s strRET=strRET_pat.PAPERFamilyDoctorClinicDR.CLNClinicDR.CLNAddress1_delim
+			s strRET=strRET_pat.PAPERFamilyDoctorClinicDR.CLNClinicDR.CLNCityDR.CTCITDesc_delim
+			s strRET=strRET_pat.PAPERFamilyDoctorClinicDR.CLNClinicDR.CLNZipDR.CTZIPCode
+		}
+	}
+	q strRET
+]]></Implementation>
+</Method>
+
+<Method name="REFDOCADD">
+<Description>
+Code: REFDOCADD
+Description: Referring Dr Address
+Expression Requirement: Report the Referring Doctor Address in the following format
+RefDocDR.REFDTitleDR.TTLDesc , RefDocDR.REFDDesc
+RefDocDR.REFDAddress
+RefDocDR.REFDCITYDR.CTCITDesc,  
+RefDocToDR.REFDCTZIPDR.CTZIPDesc</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>EpisodeID</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	n (%request,%session,EpisodeID)
+	s (strRET)="",del=$c(10,13)
+
+	i %request.Get("TFORM")="PAWaitingList.EditRemoveReinstate" {
+		s wlid=$g(%request.Data("ID",1))
+		i $g(wlid)'="" {
+			s wl=##class(User.PAWaitingList).%OpenId(wlid)
+			i wl {
+				i wl.WLRefDocClincDR {
+					s strRET=$s(wl.WLRefDocClincDR.CLNParRef.REFDTitle'="":wl.WLRefDocClincDR.CLNParRef.REFDTitle_" ",wl.WLRefDocClincDR.CLNParRef.REFDTitleDR.TTLDesc'="":wl.WLRefDocClincDR.CLNParRef.REFDTitleDR.TTLDesc_" ",1:"")
+					s strRET=strRET_wl.WLRefDocClincDR.CLNParRef.REFDDesc_del
+					s strRET=strRET_wl.WLRefDocClincDR.CLNClinicDR.CLNDesc_del
+					s strRET=strRET_wl.WLRefDocClincDR.CLNClinicDR.CLNAddress1_del
+					s strRET=strRET_wl.WLRefDocClincDR.CLNClinicDR.CLNCityDR.CTCITDesc_del
+					s strRET=strRET_wl.WLRefDocClincDR.CLNClinicDR.CLNZipDR.CTZIPCode
+				}
+				d wl.%Close()
+			}
+		}
+	}
+	i $g(EpisodeID)'="" {
+		s adm=##class(User.PAAdm).%OpenId(EpisodeID)
+		i adm {
+			i adm.PAADMRefDocClinicDR {
+				s strRET=$s(adm.PAADMRefDocClinicDR.CLNParRef.REFDTitle'="":adm.PAADMRefDocClinicDR.CLNParRef.REFDTitle_" ",adm.PAADMRefDocClinicDR.CLNParRef.REFDTitleDR.TTLDesc'="":adm.PAADMRefDocClinicDR.CLNParRef.REFDTitleDR.TTLDesc_" ",1:"")
+				s strRET=strRET_adm.PAADMRefDocClinicDR.CLNParRef.REFDDesc_del
+				s strRET=strRET_adm.PAADMRefDocClinicDR.CLNClinicDR.CLNDesc_del
+				s strRET=strRET_adm.PAADMRefDocClinicDR.CLNClinicDR.CLNAddress1_del
+				s strRET=strRET_adm.PAADMRefDocClinicDR.CLNClinicDR.CLNCityDR.CTCITDesc_del
+				s strRET=strRET_adm.PAADMRefDocClinicDR.CLNClinicDR.CLNZipDR.CTZIPCode
+			}
+			d adm.%Close()
+		}
+	}
+	q strRET
+]]></Implementation>
+</Method>
+
+<Method name="WLAdmPoint">
+<Description>
+Code WLAdmPoint
+Description: Admission Point of WL Booking</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>WLID</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	n (WLID)
+	q:WLID="" ""
+	s adm=0,point=""
+	while adm'="" {
+		s adm=$o(^PAWL(WLID,"ADM",adm))
+		i $g(adm)'="" {
+			s point=$p($g(^PAWL(WLID,"ADM",adm)),"^",28)
+			i $g(point)'="" s point=$p($g(^PAC("ADMPOINT",point)),"^",2)
+		}
+	}
+	q point
+]]></Implementation>
+</Method>
+</Class>
+</Export>

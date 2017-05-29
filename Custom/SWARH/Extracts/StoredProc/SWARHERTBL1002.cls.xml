@@ -1,0 +1,448 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.SWARH.Extracts.StoredProc.SWARHERTBL1002">
+<Description><![CDATA[
+<pre>
+**************************************************************************************************************************************
+* Extract Code: SWARHERTBL1002
+* Extract Description: IP Data - Roundtable
+* Menu Caption: Health Roundtable IP Episode
+* Initial release: Feb 2015
+* Developer: David Cottrill/Sharon Rees
+* Report shows: The Health Roundtable Inpatient Data Spec
+* Modified: 03/11/2015 Developer: MW.
+* 	Modified extract to meet 2014-15 Data Specifications and automate sequence number
+**************************************************************************************************************************************
+</pre>
+Class for SWARHERTBL1002 Report]]></Description>
+<ProcedureBlock>0</ProcedureBlock>
+<Super>Custom.SWARH.Report.RptSvc.StoredProc.Abstract</Super>
+<TimeCreated>60905,54849</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/SWARH/Extracts/StoredProc/SWARHERTBL1002.xml#1 $</Default>
+</Parameter>
+
+<Method name="SWARHERTBL1002Close">
+<Description>
+This is the Close component of the %Library.Query.
+This is standard code and should never have to change.
+This is where all the cleanup is performed, i.e. the purging of the temporary storage global ^CacheTemp.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>QHandle:%Library.Binary</FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Clean up by purging the temporary node in ^CacheTemp global
+ New repid,ind
+ Set repid=$li(QHandle,2)
+
+ //Start Monitor (if configured to capture stats)
+ i mon Do ..MonitorEnd(mon)
+
+ Kill ^CacheTemp("TRAK",repid)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="SWARHERTBL1002Execute">
+<Description>
+This is the Execute section for the %Library.Query. 
+All of the logic will be performed here.
+A new node for the ^CacheTemp global will be created and each subscript of this global will contain
+a row for the report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,Hospital:%Library.Integer,DateFrom:%Date,DateTo:%Date]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Get reportid i.e. use $INCREMENT to add another node to ^CacheTemp global. 
+ // We use ^CacheTemp global because it will always use memory before disk
+ New repid,ind
+
+  // Use $Increment to get the next node
+ Set repid=$I(^CacheTemp("TRAK"))
+ 
+ New PAPMIRowId,PAADMRowId,HospitalIdentifier,SequenceNumber,UnitRecordNumber,EpisodeNumber,AdmissionType,EmergencyEventID,SourceofReferral
+ 	,AdmissionDate,AdmissionTime,SeparationDate,SeparationTime,BirthDate,AgeinYearsonAdmissionDate,AgeinDays,AdmissionWeight
+ 	,NeonatalLinkagetoMothersEpisode,Gender,IntendedLOS,HoursonMechanicalVentilation,AcuteLOS,ICUHours,NNUCheck,HIH,MentalHealthLegalStatus
+ 	,LeaveDays,NumberofPsychiatricCareDays,NumberofQualifiedDaysforNeonates,CareType,SeparationMode,DRGAssignedbyHospital
+ 	,Facilityregionidentifier,Areaofusualresidenceofpatient,EpisodeProviderContractCode,FinancialClass,FundingSource,InsCode
+ 	,EthnicOrigin,DischargeUnit,DischargeWard,ClinicalSubunitIdentifier,DateofDeath,PAADMDischgDate,PAADMAdmDate,PAADMDischgTime
+ 
+ Set (PAPMIRowId,HospitalIdentifier,UnitRecordNumber,EpisodeNumber,AdmissionType,EmergencyEventID,SourceofReferral,AdmissionDate,AdmissionTime
+ 	,SeparationDate,SeparationTime,BirthDate,NeonatalLinkagetoMothersEpisode,Gender,CareType,SeparationMode,DRGAssignedbyHospital
+ 	,Facilityregionidentifier,EpisodeProviderContractCode,FinancialCode,FundingSource,InsCode,EthnicOrigin,DischargeUnit
+ 	,DischargeWard,ClinicalSubunitIdentifier,DateofDeath,PAADMDischgDate,PAADMAdmDate,PAADMDischgTime) = ""
+ 	
+ Set (PAADMRowId,AgeinYearsonAdmissionDate,AgeinDays,AdmissionWeight,IntendedLOS,HoursonMechanicalVentilation,AcuteLOS,ICUHours
+ 	,HIH,MentalHealthLegalStatus,LeaveDays,NumberofPsychiatricCareDays,NumberofQualifiedDaysforNeonates
+ 	,Areaofusualresidenceofpatient) = 0
+ 	
+ Set SequenceNumber = $PIECE(DateFrom,"-")_"000000"
+ 
+
+ Set (ind) = 1
+ 
+ Set (END,HITHCheck,PSYCheck,AcuteCheck,ICUCheck,NNUCheck,LeaveDays) = 0
+ 
+
+ //Start Monitor (if configured to capture stats)
+ s mon=..MonitorBegin()
+ 
+ 
+ //Convert ODBC dates to cache format
+ s DateFrom=..ConvertDateToCache(DateFrom)
+ s DateTo=..ConvertDateToCache(DateTo)
+ 
+ &SQL(Declare SWARHERTBL1002c Cursor FOR
+ 	Select
+ 		ADML_GoingOutDate,
+ 		ADML_ActualDateReturn
+ 	INTO
+ 		:ADMLGoingOutDate,
+ 		:ADMLActualDateReturn
+ 	FROM
+ 		SqlUser.PA_AdmLeave
+ 	Where
+ 		ADML_ParRef=:PAADMRowId
+  
+ )
+ 
+ 
+ &SQL(Declare SWARHERTBL1002b CURSOR FOR
+ 	Select 
+  		 PAADM_AdmNo
+  	INTO
+ 		:EmergencyEventID
+ 	FROM
+ 		SqlUser.PA_Adm	
+ 	WHERE
+ 		(PAADM_MainMRADM_DR->MRADM_DischClassif_DR IN (39,36,47,43) ---Admitted to this hospital
+ 		AND PAADM_PAPMI_DR = :PAPMIRowId
+ 		AND PAADM_DischgDate =:PAADMAdmDate
+ 		AND DATEDIFF(minute,CONVERT(varchar(5),PAADM_DischgTime,108),:AdmissionTime)=1
+ 		AND PAADM_Type = 'E'
+ 		AND PAADM_VisitStatus = 'D'
+ 		AND PAADM_Hospital_DR =:HospitalIdentifier
+ 		) 
+ )
+ 
+ &SQL(Declare SWARHERTBL1002a CURSOR FOR
+ 		SELECT
+ 			TRANS_StartDate,
+            TRANS_StartTime,
+ 			TRANS_Ward_DR->WARD_Code
+ 		INTO
+ 			:TRANSStartDate,
+            :TRANSStartTime,
+            :WARDCode
+ 		
+ 		FROM SQLUser.PA_AdmTransaction
+ 		
+ 		WHERE TRANS_ParRef = :PAADMRowId
+ 		AND(TRANS_Ward_DR->WARD_Code is not null)
+ 		AND(TRANS_Status_DR <> 2) -- Status of rejected
+ 		AND(TRANS_Bed_DR is not null)
+ 		AND(TRANS_StartDate < :PAADMDischgDate)	
+  
+ 	) 
+ 
+ &SQL(DECLARE SWARHERTBL1002Cursor CURSOR FOR
+ 	SELECT
+ 		adm.PAADM_PAPMI_DR
+ 		,adm.PAADM_RowId
+		,adm.PAADM_Hospital_DR AS HospitalIdentifier
+		,adm.PAADM_PAPMI_DR->PAPMI_No AS UnitRecordNumber
+		,adm.PAADM_ADMNo AS EpisodeNumber
+		,adm.PAADM_InPatAdmType_DR->IPAT_Code AS AdmissionType
+		,adm.PAADM_AdmSrc_DR->ADSOU_Code AS SourceofReferral
+		,CONVERT(varchar,adm.PAADM_AdmDate,103) AS AdmissionDate
+		,adm.PAADM_AdmDate as PAADMAdmDate
+		,CONVERT(varchar(5),adm.PAADM_AdmTime,108) AS AdmissionTime
+		,CONVERT(varchar,adm.PAADM_DischgDate,103) AS SeparationDate
+		,adm.PAADM_DischgDate AS PAADMDischgDate
+		,CONVERT(varchar(5),adm.PAADM_DischgTime,108) AS SeparationTime
+		,adm.PAADM_DischgTime AS PAADMDischgTime
+		,CONVERT(varchar,adm.PAADM_PAPMI_DR->PAPMI_DOB,103) AS BirthDate
+		,DATEDIFF('yy',adm.PAADM_PAPMI_DR->PAPMI_DOB,adm.PAADM_AdmDate) AS AgeinYearsonAdmissionDate
+		,CASE WHEN DATEDIFF('yy',adm.PAADM_PAPMI_DR->PAPMI_DOB,adm.PAADM_AdmDate) = 0 THEN DATEDIFF('dd',adm.PAADM_PAPMI_DR->PAPMI_DOB,adm.PAADM_AdmDate) END AS AgeinDays
+        ,CASE WHEN DATEDIFF('dd',adm.PAADM_PAPMI_DR->PAPMI_DOB,adm.PAADM_AdmDate) <= 30 THEN adm.PAADM_MainMRADM_DR->MRADM_Weight END AS AdmissionWeight        
+        ,RIGHT(PAADM_PAAdm2_DR->PAADM2_FreeText1,7) AS NeonatalLinkagetoMothersEpisode
+        ,adm.PAADM_PAPMI_DR->PAPMI_Sex_DR->CTSEX_Code AS Gender
+        ,CASE  PAADM_AdmCateg_DR->ADMCAT_Code
+        	WHEN 4 THEN 2
+        	WHEN 1 THEN 1
+        	ELSE 0
+        END
+        AS IntendedLOS   
+        ,adm.PAADM_MainMRADM_DR->MRADM_DurationMechVent AS HoursonMechanicalVentilation
+        ,(DATEDIFF('dd',PAADM_AdmDate,PAADM_DischgDate)) AS AcuteLOS
+        ,CASE adm.PAADM_MainMRADM_DR->MRADM_MentHealthStat_DR->MHLS_Code 
+        	WHEN 1 THEN 1
+        	WHEN 2 THEN 2
+        	WHEN 9 THEN ''
+        	END AS MentalHealthLegalStatus
+        ,adm.PAADM_MainMRADM_DR->MRADM_CareType_DR->CareTyp_Code AS CareType
+        ,adm.PAADM_MainMRADM_DR->MRADM_DischType_DR->CTDSP_GrouperCode AS SeparationMode
+        ,adm.PAADM_MainMRADM_DR->MRADM_DRG_DR->DRG_Code AS DRGAssignedbyHospital
+        ,'02' AS Facilityregionidentifier
+        ,adm.PAADM_PAPMI_DR->PAPMI_PAPER_DR->PAPER_Zip_DR->CTZIP_Region_DR->CTRG_Code AS Areaofusualresidenceofpatient
+        ,'09' AS EpisodeProviderContractCode
+        ,c.INS_instype_dr->INST_PayorGroup_DR->PGRP_Code AS FinancialClass
+        ,UCASE(c.INS_AuxInsType_DR->AUXIT_Code) AS InsCode
+        ,CASE adm.PAADM_PAPMI_DR->PAPMI_IndigStat_DR->INDST_Code
+			WHEN '5' THEN '1'
+			WHEN '6' THEN '2'
+			WHEN '7' THEN '3'
+			WHEN '2' THEN '4'
+			ELSE '5'
+			END AS EthnicOrigin
+		,adm.PAADM_DepCode_DR->CTLOC_Code AS DischargeUnit
+		,adm.PAADM_CurrentWard_DR->WARD_Code AS DischargeWard
+		,adm.PAADM_admDocCodeDR AS ClinicalSubunitIdentifier
+		,CONVERT(varchar,adm.PAADM_PAPMI_DR->PAPMI_PAPER_DR->PAPER_Deceased_Date,103) AS DateofDeath
+        
+     FROM SqlUser.PA_Adm adm
+     	LEFT JOIN SQLUser.PA_AdmInsurance c ON (adm.PAADM_RowID = c.INS_ParRef AND c.INS_ChildSub=(SELECT MAX(INS_ChildSub) FROM SQLUSER.PA_AdmInsurance WHERE INS_ParRef = PAADM_RowID))
+   
+     WHERE 
+     	PAADM_Hospital_DR = :Hospital
+     	AND PAADM_DischgDate >= :DateFrom
+     	AND PAADM_DischgDate <= :DateTo	
+     	AND PAADM_VisitStatus <> 'C'
+     	AND PAADM_Type = 'I'
+     	AND NOT(PAADM_CurrentWard_DR->WARD_LocationDR->CTLOC_NATIONCODE IS NULL)
+    GROUP BY PAADM_RowId
+    ORDER BY PAADM_ADMNo
+	
+	
+	)
+ &SQL(OPEN SWARHERTBL1002Cursor)
+ 
+ //FETCH FIRST ROW
+ 
+ d FetchRow
+ 
+ while END=0 {
+	 
+	 s sort = ind		// don't sort - uncomment this line if you've sorted in the query
+	 //s sort = $ZCVT(PAADMADMNo,"U")_" "_$ZCVT(PAPMINo,"U")_ind
+	 
+	 s AdmWard=..GetAdmWardForEpisode(PAADMRowId)
+	 s EmergencyEventID=""
+	 s END2=0
+	 s HIH=0
+	 s NumberofPsychiatricCareDays=0
+	 s ICUHours=0
+	 s NNUDays=0
+	 &SQL(OPEN SWARHERTBL1002a)
+	 
+	 set (TRANSStartDate,TRANSStartTime,WARDCode,HITHStart,PSYStart,AcuteStart,NNUStart,ICUStartDate,ICUStartTime, ICUEndDate, ICUEndTime)=""
+	 
+	 //Find out how many HITH/Acute/PSY/NNU days for this episiode
+	 while END2=0 {
+	 	 &SQL(FETCH SWARHERTBL1002a)
+	 	 if HITHCheck =1 {
+		 	set HIH=HIH+(TRANSStartDate-HITHStart)
+		 	set HITHCheck=0	 
+	 	 }
+	 	 if PSYCheck=1
+	 	 {
+		 	set NumberofPsychiatricCareDays=NumberofPsychiatricCareDays+(TRANSStartDate-PSYStart)
+		 	set PSYCheck=0
+	
+	 	 }
+	 	 
+		 If NNUCheck =1 {
+			 set NNUDays=NNUDays+(TRANSStartDate-NNUStart)
+			 set NNUCheck=0
+		 }
+		 If ICUCheck=1 {
+		 	set ICUEndDate=TRANSStartDate
+	 	 	set ICUEndTime=TRANSStartTime
+	 	 	s ICUHours=ICUHours+..CalcLOSHours(ICUStartDate,ICUStartTime,ICUEndDate,ICUEndTime)
+	 	 	set ICUCheck=0
+	 	 } 
+		 if WARDCode = "ACUT" {
+	 	 	set AcuteStart=TRANSStartDate
+		 	set AcuteCheck=1
+	 	 }
+	 	 if WARDCode = "HITH" {
+	 	 	set HITHStart=TRANSStartDate
+	 	 	set HITHCheck=1	
+	 	 }
+	 	 If WARDCode = "ICU" {
+	 	 	set ICUStartDate=TRANSStartDate
+	 	 	set ICUStartTime=TRANSStartTime
+	 	 	set ICUCheck=1
+	 	 }
+	 	 if WARDCode = "PSY" {
+	 	 	set PSYStart=TRANSStartDate
+	 	 	set PSYCheck=1	
+	 	 }
+	 	 if WARDCode ="NNU"{
+		 	set NNUStart=TRANSStartDate
+		 	set NNUCheck=1 
+	 	 }
+ 	     if SQLCODE '= 0 set END2 = 1
+	 }
+	 
+	 if HITHCheck=1 set HIH=HIH+(PAADMDischgDate-HITHStart)
+	 
+	 if PSYCheck=1 set NumberofPsychiatricCareDays=NumberofPsychiatricCareDays+(PAADMDischgDate-PSYStart)
+	 
+	 if NNUCheck=1 set NNUDays=NNUDays+(PAADMDischgDate-NNUStart)
+	 
+	 If ICUCheck=1 {
+		 set ICUEndDate=PAADMDischgDate
+	 	 set ICUEndTime=PAADMDischgTime
+	 	 s ICUHours=ICUHours+..CalcLOSHours(ICUStartDate,ICUStartTime,ICUEndDate,ICUEndTime)
+	 } 
+	 s NumberofQualifiedDaysforNeonates=NNUDays
+	 
+	 
+	 s HITHCheck=0
+	 s AcuteCheck=0
+	 s ICUCheck=0
+	 s PSYCheck=0
+	 s NNUCheck=0
+	 
+	 
+ 	 
+ 	 &SQL(CLOSE SWARHERTBL1002a)
+ 	 
+ 	 &SQL(OPEN SWARHERTBL1002b)
+ 	 &SQL(FETCH SWARHERTBL1002b)
+ 	 &SQL(CLOSE SWARHERTBL1002b)
+ 	 
+ 	 s LeaveDays=..GetLeaveDaysForEpisode(PAADMRowId)
+ 	// s ICUStart = ..ConvertDateTimeToHorolog(ICUStartDate,ICUStartTime)
+ 	// s ICUEnd = ..ConvertDateTimeToHorolog(ICUEndDate,ICUEndTime)
+ 	 
+ 	 
+ 	 d FormatDates, FormatTimes, NationalFundingSource
+  	 
+  	 s ICUHours=$NORMALIZE(ICUHours,-1)
+  	
+  	 s AcuteLOS = AcuteLOS - LeaveDays 
+	 
+	 s ^CacheTemp("TRAK",repid,sort)=$LB(PAPMIRowId,PAADMRowId,HospitalIdentifier,SequenceNumber,UnitRecordNumber,EpisodeNumber,AdmissionType
+	 ,EmergencyEventID,SourceofReferral,AdmissionDate,AdmissionTime,SeparationDate,SeparationTime,BirthDate,AgeinYearsonAdmissionDate
+	 ,AgeinDays,AdmissionWeight,NeonatalLinkagetoMothersEpisode,Gender,IntendedLOS,HoursonMechanicalVentilation,AcuteLOS,ICUHours
+	 ,HIH,MentalHealthLegalStatus,LeaveDays,NumberofPsychiatricCareDays,NumberofQualifiedDaysforNeonates,CareType,SeparationMode
+	 ,DRGAssignedbyHospital,Facilityregionidentifier,Areaofusualresidenceofpatient,EpisodeProviderContractCode,FinancialClass
+	 ,InsCode,EthnicOrigin,DischargeUnit,DischargeWard,ClinicalSubunitIdentifier,DateofDeath,FundingSource)
+	 
+	 s ind=ind+1
+ d FetchRow
+}
+
+ &SQL(CLOSE SWARHERTBL1002Cursor)
+ 
+ // Build QHandle (AtEnd,ReportID,Index)
+ Set QHandle=$lb(0,repid,0)
+
+ Quit $$$OK
+
+FetchRow
+ 
+ &sql(FETCH SWARHERTBL1002Cursor INTO :PAPMIRowId,:PAADMRowId,:HospitalIdentifier,:UnitRecordNumber,:EpisodeNumber,:AdmissionType
+ 	,:SourceofReferral,:AdmissionDate,:PAADMAdmDate,:AdmissionTime,:SeparationDate,:PAADMDischgDate,:SeparationTime,:PAADMDischgTime,:BirthDate,:AgeinYearsonAdmissionDate
+ 	,:AgeinDays,:AdmissionWeight,:NeonatalLinkagetoMothersEpisode,:Gender,:IntendedLOS,:HoursonMechanicalVentilation,:AcuteLOS
+ 	,:MentalHealthLegalStatus,:CareType,:SeparationMode,:DRGAssignedbyHospital,:Facilityregionidentifier
+ 	,:Areaofusualresidenceofpatient,:EpisodeProviderContractCode,:FinancialClass,:InsCode,:EthnicOrigin,:DischargeUnit
+ 	,:DischargeWard,:ClinicalSubunitIdentifier,:DateofDeath)
+ 	
+ s SequenceNumber = SequenceNumber+1
+ if SQLCODE '= 0 set END = 1
+ q
+ 
+FormatDates
+ s TRANSStartDate=..ConvertDateToODBC(TRANSStartDate)
+ s ICUStartDate=..ConvertDateToODBC(ICUStartDate)
+ s ICUEndDate=..ConvertDateToODBC(ICUEndDate)
+ q
+ 
+FormatTimes
+ s TRANSStartTime=..ConvertTimeToODBC(TRANSStartTime)
+ s ICUStartTime=..ConvertTimeToODBC(ICUStartTime)
+ s ICUEndTime=..ConvertTimeToODBC(ICUEndTime)
+ q
+ 
+NationalFundingSource /*Funding source for hospital patient, range 01 to 13 with 99 = Not Known [METeOR identifier: 339080]*/
+ If FinancialClass = "M" {d Public} else {d everythingelse}
+ q
+ 
+Public
+ Set FundingSource = $CASE(InsCode,	
+	"MA":"11" /*Reciprocal health care agreements (with other countries)*/,
+	"MF":"03" /*Self-funded*/,
+	"XX":"03" /*Self-funded*/,
+	"XXP":"03" /*Self-funded*/,
+	"XXOO":"03" /*Self-funded*/,
+	"XX B":"03" /*Self-funded*/,
+	"":"14" /*Australian Health Care Agreements*/,
+	:"14" /*Australian Health Care Agreements*/) 
+ q
+ 
+everythingelse
+ Set FundingSource = $CASE(FinancialClass,
+  "P":"02" /*Private health insurance*/,
+  "W":"04" /*Worker's compensation*/,
+  "T":"05" /*Motor vehicle third party personal claim*/,
+  "O":"06" /*Other compensation (e.g. public liability, common law, medical negligence)*/,
+  "V":"07" /*Department of Veterans' Affairs*/,
+  "A":"08" /*Department of Defence*/,
+  "J":"09" /*Correctional facility*/,
+  :"")
+q
+]]></Implementation>
+</Method>
+
+<Method name="SWARHERTBL1002Fetch">
+<Description>
+This is the Fetch component of the %Library.Query. 
+This should never have to change. It is designed to fetch the row for each subscript of the ^CacheTemp
+global and return this row to the Crystal Report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,&Row:%Library.List,&AtEnd:%Library.Integer=0]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // This fetch method should never have to change. 
+
+ // repid - Report ID
+ // ind   - sequence index which represents each row
+
+ New repid,ind
+
+ // Restore QHandle
+ Set AtEnd=$li(QHandle,1)
+ Set repid=$li(QHandle,2)
+ Set ind=$li(QHandle,3)
+
+ Set ind=$o(^CacheTemp("TRAK",repid,ind))
+ If ind="" {	// if there are no more rows, finish fetching
+	 Set AtEnd=1
+	 Set Row=""
+ }
+ Else      {	// fetch row
+ 	Set Row=^CacheTemp("TRAK",repid,ind)
+ }
+
+ // Save QHandle
+ s QHandle=$lb(AtEnd,repid,ind)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Query name="SWARHERTBL1002">
+<Type>%Library.Query</Type>
+<FormalSpec>Hospital:%Library.Integer,DateFrom:%Date,DateTo:%Date</FormalSpec>
+<SqlProc>1</SqlProc>
+<Parameter name="CONTAINID" value="0"/>
+<Parameter name="ROWSPEC" value="PAPMIRowId:%Integer,PAADMRowId:%Integer,HospitalIdentifier:%String,SequenceNumber:%Integer,UnitRecordNumber:%String,EpisodeNumber:%String,AdmissionType:%String,EmergencyEventID:%String,SourceofReferral:%String,AdmissionDate:%String,AdmissionTime:%String,SeparationDate:%String,SeparationTime:%String,BirthDate:%String,AgeinYearsonAdmissionDate:%Integer,AgeinDays:%Integer,AdmissionWeight:%Integer,NeonatalLinkagetoMothersEpisode:%String,Gender:%String,IntendedLOS:%Integer,HoursonMechanicalVentilation:%Integer,AcuteLOS:%Integer,ICUHours:%Integer,HIH:%Integer,MentalHealthLegalStatus:%Integer,LeaveDays:%Integer,NumberofPsychiatricCareDays:%Integer,NumberofQualifiedDaysforNeonates:%Integer,CareType:%String,SeparationMode:%String,DRGAssignedbyHospital:%String,Facilityregionidentifier:%String,Areaofusualresidenceofpatient:%Integer,EpisodeProviderContractCode:%String,FinancialClass:%String,InsCode:%String,EthnicOrigin:%String,DischargeUnit:%String,DischargeWard:%String,ClinicalSubunitIdentifier:%String,DateofDeath:%String,FundingSource:%String"/>
+<Parameter name="SELECTMODE" value="ODBC"/>
+</Query>
+</Class>
+</Export>

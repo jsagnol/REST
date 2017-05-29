@@ -1,0 +1,229 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.SWARH.web.MRObservations">
+<Description><![CDATA[
+<pre>
+***************************************************************************************************************************************
+* Initial Release:	2017-03-06 (rpgladman)
+* Modified:			2017-04-28 (rpgladman) - Added proper JSON escaping
+***************************************************************************************************************************************
+</pre>]]></Description>
+<ClassType/>
+<ProcedureBlock>0</ProcedureBlock>
+<Super>%RegisteredObject</Super>
+<TimeCreated>63945,38028.085619</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/SWARH/web/MRObservations.xml#1 $</Default>
+</Parameter>
+
+<Method name="GetRowsJSON">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>EpisodeID:%Integer,MRCObsGroupID:%Integer</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+    &SQL(SELECT 
+       LIST('{‴sequence‴:'       ||(%VID-1)||
+       ',‴rowNo‴:'               ||(%VID)||
+       ',‴itemID‴:'              ||NVL(     itemID					,'null')||
+       ',‴itemCode‴:'            ||NVL('‴'||itemCode||'‴'			,'null')||
+       ',‴itemDesc‴:'            ||NVL('‴'||itemDesc||'‴'			,'null')||
+       ',‴itemHidden‴:'          ||DECODE(itemHidden,   'Y','true','N','false','null')||
+       ',‴itemPrefix‴:'          ||NVL('‴'||itemPrefix||'‴'			,'null')||
+       ',‴itemUOM‴:'             ||NVL('‴'||itemUOM||'‴'			,'‴‴')||
+       ',‴elementPrefix‴:'       ||NVL('‴'||elementPrefix||'‴'		,'null')||
+       ',‴rangeLow‴:'            ||NVL(     rangeLow				,'null')||
+       ',‴rangeHigh‴:'           ||NVL(     rangeHigh				,'null')||
+       ',‴modifiedRange‴:'       ||DECODE(modifiedRange,'Y','true','N','false','null')||
+       ',‴modifiedRangeLow‴:'    ||NVL(     modifiedRangeLow		,'null')||
+       ',‴modifiedRangeHigh‴:'   ||NVL(     modifiedRangeHigh		,'null')||'}')	AS JavaScript
+    INTO
+      :rowsJSON
+    FROM
+      (SELECT TOP 10000
+        OBSIDS.OBSIDS_Order                                                         AS position
+       ,OBSIDS.OBSIDS_RowId                                                         AS itemID
+       ,OBSITM.ITM_Code                                                             AS itemCode
+       ,OBSITM.ITM_Desc                                                             AS itemDesc
+       ,CASE WHEN HIDE.ITM_RowId IS NOT NULL THEN 'Y' ELSE NULL END                 AS itemHidden
+       ,DECODE(OBSITM.ITM_InputType,'T','',OBSITM.ITM_InputType)                    AS itemPrefix
+       ,OBSITM.ITM_CTUOM_DR->CTUOM_Desc                                             AS itemUOM
+       ,'OBSValue'||DECODE(OBSITM.ITM_InputType,'T','',OBSITM.ITM_InputType)        AS elementPrefix
+       ,OBSRR.RR_From                                                               AS rangeLow
+       ,OBSRR.RR_To                                                                 AS rangeHigh
+       ,CASE WHEN ADDRR.PREFObsItemDR IS NOT NULL THEN 'Y' ELSE NULL END            AS modifiedRange
+       ,ADDRR.PREFLowRange                                                          AS modifiedRangeLow
+       ,ADDRR.PREFHighRange                                                         AS modifiedRangeHigh
+      FROM (
+        SELECT
+          ITM_ObsItem_DR                                                            AS OBSIDS_RowId
+         ,ITM_RowPosition                                                           AS OBSIDS_Order
+        FROM
+          SQLUser.MRC_ObservationGroupItems
+        WHERE ITM_ParRef = :MRCObsGroupID
+          AND ((ITM_StartDate IS NULL OR ITM_StartDate<={fn CURDATE()}) AND (ITM_EndDate IS NULL OR ITM_EndDate>{fn CURDATE()}))
+          AND ((ITM_ObsItem_DR->ITM_DateFrom IS NULL OR ITM_ObsItem_DR->ITM_DateFrom<={fn CURDATE()}) AND (ITM_ObsItem_DR->ITM_DateTo IS NULL OR ITM_ObsItem_DR->ITM_DateTo>{fn CURDATE()}))
+
+        -- #########################################################################
+        UNION
+        -- #########################################################################
+
+        SELECT
+          PREFOBSItemDR                                                             AS OBSIDS_RowId
+         ,10000+ID                                                                  AS OBSIDS_Order                     -- We are using the ID for ordering
+        FROM
+          epr_Pref.Observations
+        WHERE PREFPAADMDR = :EpisodeID
+          AND PREFAction = 'A'
+          AND PREFObsGroupDR = :MRCObsGroupID
+        GROUP BY
+          PREFPAADMDR, PREFObsItemDR, PREFAction
+        )                                              AS OBSIDS
+        LEFT JOIN SQLUser.MRC_ObservationItem          AS OBSITM ON (OBSITM.ITM_RowId = OBSIDS.OBSIDS_RowId)
+        LEFT JOIN SQLUser.MRC_ObservationItemRefRanges AS OBSRR  ON (OBSRR.RR_ParRef  = OBSITM.ITM_RowId)
+        LEFT JOIN (
+          SELECT
+            PREFObsItemDR
+           ,PREFHighRange
+           ,PREFLowRange
+           ,PREFStartDate||'-'||PREFStartTime                                         AS ChqA
+           ,MAX(PREFStartDate||'-'||PREFStartTime %FOREACH (PREFPAADMDR,PREFObsItemDR)) AS ChqB
+          FROM
+            epr_Pref.Observations
+          WHERE PREFAction='RR'
+            AND PREFPAADMDR = :EpisodeID
+            AND (PREFEndDate IS NULL OR TO_CHAR(PREFEndDate||','||PREFEndTime,'YYYY-MM-DD HH24:MI:SS')>={fn NOW()}) -- 
+          )                                            AS ADDRR  ON (ADDRR.PREFObsItemDR = OBSIDS.OBSIDS_RowId AND ADDRR.ChqA = ADDRR.ChqB)
+        LEFT JOIN (
+          SELECT
+            ITM_RowId
+          FROM
+            SQLUser.MRC_ObservationItem
+          WHERE ITM_Code IN ('U/A','OtherCharts','LimbPower','PupilsLeft','PupilsRight','NVLeftArm','NVLeftLeg','NVRightArm','NVRightLeg','PCA')
+          )                                            AS HIDE ON (HIDE.ITM_RowId = OBSIDS.OBSIDS_RowId)
+        ORDER BY
+          position
+        )
+    )
+    set rowsJSON = "‴rows‴:["_$GET(rowsJSON,"")_"]"										// Encapsulate in the "rows" object
+   	set rowsJSON = $REPLACE($ZCONVERT(rowsJSON,"O","JS"),"‴",$CHAR(34))					// Escape JSON Characters & Replace our ‴ characters with the normal "
+	quit rowsJSON
+]]></Implementation>
+</Method>
+
+<Method name="GetColumnsJSON">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>EpisodeID:%Integer,Options:%String</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+    &SQL(SELECT
+           LIST('{‴sequence‴:'||(%VID-1)||
+           ',‴rowNo‴:'                 ||(%VID)||
+           ',‴dateTimeDisplayed‴:'     ||NVL('‴'||dateTimeDisplayed	||'‴','null')||
+           ',‴dateTimeODBC‴:'          ||NVL('‴'||dateTimeODBC		||'‴','null')||
+           ',‴hospitalID‴:'            ||NVL(     hospitalID             ,'null')||
+           ',‴hospitalAbbr‴:'          ||NVL('‴'||hospitalAbbr		||'‴','null')||
+           ',‴locationDesc‴:'          ||NVL('‴'||locationDesc		||'‴','null')||
+           ',‴episodeID‴:'             ||NVL(     episodeID         	 ,'null')||
+           ',‴episodeNo‴:'             ||NVL('‴'||episodeNo			||'‴','null')||
+           '}')			   																		  AS JavaScript
+         INTO
+           :columnsJSON
+         FROM
+           (SELECT TOP 10000
+               CONVERT(VARCHAR(10),OBSENTRY_Date,103)||' '||CONVERT(VARCHAR(5),OBSENTRY_Time,108) AS dateTimeDisplayed
+              ,%ODBCOUT(OBSENTRY_Date)||' '||%ODBCOUT(OBSENTRY_Time)                              AS dateTimeODBC
+              ,OBSENTRY_PatLoc_DR->CTLOC_Hospital_DR                                              AS hospitalID
+              ,(SELECT NVL(HOSP_SiteCampusAbbrev,HOSP_Abbrev) FROM Custom_SWARH.SA_CT_Hospital WHERE HOSP_RowID = OBSENTRY_PatLoc_DR->CTLOC_Hospital_DR)
+                                                                                                  AS hospitalAbbr
+              ,OBSENTRY_PatLoc_DR->CTLOC_Desc                                                     AS locationDesc
+              ,OBSENTRY_ParRef->MRADM_ADM_DR                                                      AS episodeID
+              ,OBSENTRY_ParRef->MRADM_ADM_DR->PAADM_AdmNo                                         AS episodeNo
+            FROM
+              SQLUser.MR_ObservationEntry
+            WHERE OBSENTRY_PatLoc_DR IS NOT NULL -- There are some random recordings with no values and no PatLoc set so exclude those
+              AND OBSENTRY_ParRef IN (SELECT PAADM_MainMRADM_DR FROM SQLUser.PA_Adm WHERE PAADM_PAPMI_DR = (SELECT PAADM_PAPMI_DR FROM SQLUser.PA_Adm WHERE PAADM_RowId = :EpisodeID))
+              AND (:Options LIKE '%all%' OR OBSENTRY_ParRef = (SELECT PAADM_MainMRADM_DR FROM SQLUser.PA_Adm WHERE PAADM_RowId = :EpisodeID)) -- Single Episode Only
+            ORDER BY
+              %ODBCOUT(OBSENTRY_Date)||' '||%ODBCOUT(OBSENTRY_Time) DESC
+           )
+    )
+	set columnsJSON = "‴columns‴:["_$GET(columnsJSON,"")_"]"									// Encapsulate in the "columns" object
+	set columnsJSON = $REPLACE($ZCONVERT(columnsJSON,"O","JS"),"‴",$CHAR(34))					// Escape JSON Characters & Replace our ‴ characters with the normal "
+	quit columnsJSON
+]]></Implementation>
+</Method>
+
+<Method name="GetGroupJSON">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>MRCObsGroupID:%Integer</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	set crlf		= $CHAR(13)_$CHAR(10)
+	&SQL(SELECT
+		   '‴rowID‴:'			||:MRCObsGroupID                         ||
+           ',‴code‴:'			||NVL('‴'||GRP_Code         ||'‴','null')||
+           ',‴description‴:'	||NVL('‴'||GRP_Desc         ||'‴','null')||
+           ',‴bpOnSameLine‴:'	||DECODE(GRP_BPSameLine,'Y','true','N','false','false')		AS JavaScript
+		 INTO
+		   :groupJSON
+		 FROM 
+		   (SELECT
+		      *
+            FROM
+              SQLUser.MRC_ObservationGroup
+            WHERE GRP_RowId = :MRCObsGroupID
+           )
+	)
+	
+	set groupJSON = "‴group‴:{"_$GET(groupJSON,"")_"}"										// Encapsulate in the "group" object
+	set groupJSON = $REPLACE($ZCONVERT(groupJSON,"O","JS"),"‴",$CHAR(34))					// Escape JSON Characters & Replace our ‴ characters with the normal "
+	quit groupJSON
+]]></Implementation>
+</Method>
+
+<Method name="GetColumnsByEpisodeJSON">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>EpisodeID:%Integer</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[	quit ..GetColumnsJSON(EpisodeID,"")
+]]></Implementation>
+</Method>
+
+<Method name="GetColumnsAllEpisodesByEpisodeJSON">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>EpisodeID:%Integer</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[	quit ..GetColumnsJSON(EpisodeID,"all")
+]]></Implementation>
+</Method>
+
+<Method name="GetColumnsAllEpisodesByPatientJSON">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>PatientID:%Integer</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	&SQL(SELECT TOP 1 PAADM_RowId INTO :EpisodeID FROM SQLUser.PA_Adm WHERE PAADM_PAPMI_DR = :PatientID)
+	quit ..GetColumnsJSON(EpisodeID,"all")
+]]></Implementation>
+</Method>
+
+<Method name="ListEMRAestheticsModDataJSON">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>EpisodeID:%Integer,MRCObsGroupID:%Integer</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[	quit "{"_..GetRowsJSON(EpisodeID,MRCObsGroupID)_","_..GetColumnsAllEpisodesByEpisodeJSON(EpisodeID)_","_..GetGroupJSON(MRCObsGroupID)_"}"
+]]></Implementation>
+</Method>
+
+<Method name="EditListAestheticsModDataJSON">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>EpisodeID:%Integer,MRCObsGroupID:%Integer</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[	quit "{"_..GetRowsJSON(EpisodeID,MRCObsGroupID)_"}"
+]]></Implementation>
+</Method>
+</Class>
+</Export>

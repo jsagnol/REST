@@ -1,0 +1,199 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.AUXX.Report.ZEN.WLByUnitConsultant">
+<Super>Custom.AUXX.Report.ZEN.Abstract</Super>
+<TimeCreated>61761,42616.836201</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/AUXX/Report/ZEN/WLByUnitConsultant.xml#1 $</Default>
+</Parameter>
+
+<UDLText name="T">
+<Content><![CDATA[
+// Report Name: Trak Waiting List by Specialty and Clinician <br>
+
+]]></Content>
+</UDLText>
+
+<UDLText name="T">
+<Content><![CDATA[
+// Report Code: Trak.WLT0003 <br>
+
+]]></Content>
+</UDLText>
+
+<UDLText name="T">
+<Content><![CDATA[
+// LOGTRAK Number: 72457 <br>
+
+]]></Content>
+</UDLText>
+
+<Property name="Facility">
+<Type>%String</Type>
+<Parameter name="ZENURL" value="P1"/>
+</Property>
+
+<Property name="WaitingList">
+<Type>%String</Type>
+<Parameter name="ZENURL" value="P2"/>
+</Property>
+
+<Property name="Specialty">
+<Type>%String</Type>
+<Parameter name="ZENURL" value="P3"/>
+</Property>
+
+<Property name="Clinician">
+<Type>%String</Type>
+<Parameter name="ZENURL" value="P4"/>
+</Property>
+
+<Property name="Category">
+<Type>%String</Type>
+<Parameter name="ZENURL" value="P5"/>
+</Property>
+
+<XData name="ReportDefinition">
+<XMLNamespace>http://www.intersystems.com/zen/report/definition</XMLNamespace>
+<Data><![CDATA[
+<report xmlns='http://www.intersystems.com/zen/report/definition'
+   queryClass='Custom.AUXX.Report.ZEN.StoredProc.WLByUnitConsultant' queryName='UnitConsultant' 
+   name='WLByUnitConsultant' orderby="HOSPDesc,CTLOCDesc,CTPCPDesc,WLPCode:asc,WLDaysOnList:desc">
+  <parameter expression='..Facility'/>
+  <parameter expression='..WaitingList'/>
+  <parameter expression='..Specialty'/>  
+  <parameter expression='..Clinician'/>
+  <parameter expression='..Category'/>
+    
+  <attribute name='ReportTitle' expression='$$$Text("@WaitingListbySpecialtyandClinician@Waiting List by Specialty and Clinician")'/>
+  <attribute name='timestamp' expression='$ZDATETIME($H, 2, 2)'/>
+  <attribute name='username' expression='..Username'/>
+  <attribute name='facility' expression="..GetHospListDesc(..Facility)"/>
+  <attribute name='waitinglist' expression="..GetWLWaitingListDesc(..WaitingList)" />
+  <attribute name="specialty" expression="..GetSpecialtyListDesc(..Specialty)"/>
+  <attribute name="clinician" expression="..GetCareProvListDesc(..Clinician)" />
+  <attribute name="Category" expression="..GetWLCatListDesc(..Category)"/>
+    
+  <group name="facility" breakOnField="HOSPDesc">
+  <attribute name="description" field="HOSPDesc" />
+    <aggregate name='HospTotal' type='CUSTOM' field='WLRowId' class='%ZEN.Report.Aggregate.CountDistinct'/>
+    <aggregate name='HospAvg' type='SUM' field='WLDaysOnList'/>
+
+  <group name="specialty" breakOnField="CTLOCDesc">
+  <attribute name="description" field="CTLOCDesc" />
+     <aggregate name='CTLOCTotal' type='CUSTOM' field='WLRowId' class='%ZEN.Report.Aggregate.CountDistinct'/>
+     <aggregate name='CTLOCAvg' type='SUM' field='WLDaysOnList'/>
+
+     <group name="clinician" breakOnField="CTPCPDesc">
+  	<attribute name="description" field="CTPCPDesc" />
+     <aggregate name='CTPCPTotal' type='CUSTOM' field='WLRowId' class='%ZEN.Report.Aggregate.CountDistinct'/>
+     <aggregate name='CTPCPAvg' type='SUM' field='WLDaysOnList'/>
+
+      <group name='Detail'>           
+  	  <attribute field='RTMASNo' name='RTMASNo'/>
+  	  <attribute fields='PAPMIName,PAPMIName2,PAPMIName3' name='PatientName' expression='..DisplayName(%val("PAPMIName"),%val("PAPMIName2"),%val("PAPMIName3"))'/>
+      <attribute field='SEXCode' name='SEXCode'/>
+      <attribute field='PAPERAgeYr' name='PAPERAgeYr'/>
+      <attribute field='OPERDesc' name='OPERDesc'/>
+      <attribute field='WLPCode' name='WLPCode'/>
+      <attribute field='ADMBookingNumber' name='ADMBookingNumber'/>
+      <attribute field='WLDaysOnList' name='WLDaysOnList'/>
+      <attribute field='PAPERTelH' name='PAPERTelH'/>
+       <attribute field='CTZIPCode' name='CTZIPCode'/>
+      <attribute field='RBOPDateOper' name='RBOPDateOper' expression='..DisplayDate(%val)'/>
+      </group>
+   </group>
+  </group>
+  </group>
+ </report>
+]]></Data>
+</XData>
+
+<XData name="ReportDisplay">
+<XMLNamespace>http://www.intersystems.com/zen/report/display</XMLNamespace>
+<Data><![CDATA[
+<report xmlns='http://www.intersystems.com/zen/report/display'
+xmlns:auxxstyle='http://www.intersystems.com/zen/report/display/auxx/style'
+xmlns:auxx='http://www.intersystems.com/zen/report/display/auxx'
+  name='WLByUnitConsultant'>
+  <document width= "#(..ReportWidth)#" height="#(..ReportHeight)#" marginLeft="#(..DocMarginLeft)#" marginRight="#(..DocMarginRight)#" 
+marginTop="#(..DocMarginTop)#" marginBottom="#(..DocMarginBottom)#" footerHeight="#(..DocFooterHeight)#" headerHeight="#(..DocHeaderHeight)#" 
+regionBeforeExtent="#(..DocHeaderHeight)#" regionAfterExtent="#(..DocFooterHeight)#">
+<auxxstyle:auxxgroupheader/>
+<auxxstyle:auxxgroupsummary/>
+<auxxstyle:auxxhospitalheader/>
+<auxxstyle:auxxpagefooter/>
+<auxxstyle:auxxpageheader/>
+<auxxstyle:auxxparameterheader/>
+<auxxstyle:auxxreporttitle/>
+<auxxstyle:auxxtablecolumn/>
+</document>
+<auxx:PageHeader pagetitle='@ReportTitle'/>
+<auxx:ReportFooter username='@username' timestamp='@timestamp'/>
+
+<body>
+<!-- REPORT HEADER -->
+<auxx:ReportHeader reporttitle='@ReportTitle'/>
+<auxx:ReportParameterHeader label='@Facility:@Facility:' field='@facility'  xcondition="string-length(@facility)>0"/>
+<auxx:ReportParameterHeader label='@WaitingListType:@Waiting List Type:' field='@waitinglist' xcondition="string-length(@waitinglist)>0"/>
+<auxx:ReportParameterHeader label='@Specialty:@Specialty:' field='@specialty' xcondition="string-length(@specialty)>0"/>
+<auxx:ReportParameterHeader label='@Clinician:@Clinician:' field='@clinician' xcondition="string-length(@clinician)>0"/>
+<auxx:ReportParameterHeader label='@Priority:@Priority:' field='@Category' xcondition="string-length(@Category)>0"/>
+
+<line pattern="solid" width="100%"/>
+<line pattern="empty" width="100%"></line> 
+<auxx:NoResults xcondition="not(facility)" />
+<group name='facility' pagebreak="true">
+<auxx:GroupHospitalHeader label="@Facility:@Facility:" field="@description" />
+<line pattern="empty" lineHeight="1mm" />
+<group name='specialty'>
+<line pattern="empty" lineHeight="3mm" />
+<auxx:GroupHeader label="@Specialty:@Specialty:" field="@description" />
+<line pattern="empty" lineHeight="2mm" />
+<group name='clinician'>
+<auxx:GroupHeader label="@Clinician:@Clinician:" field="@description" />
+<line pattern="empty" lineHeight="2mm" />
+     <table class='auxxtablecolumn' group='Detail' >
+        <item field='@RTMASNo' width="11%" caption='@URN@URN'/>
+        <item field='@PatientName' width="17%" caption="@Name@Name" />
+        <item field='@SEXCode' width="4%" caption='@Sex@Sex' style='text-align:center'/> 
+        <item field='@PAPERAgeYr' width="6%" caption="@Age@Age" />             
+        <item field='@OPERDesc' width="17%" caption='@Operation/Procedure@Operation/Procedure'/>
+      	<item field='@WLPCode' width="6%" caption='@Priority@Priority' style='text-align:center'/>       
+        <item field='@ADMBookingNumber' width="6%" caption='@BookingNo@Booking No' style='text-align:center'/>
+        <item field='@WLDaysOnList' width="4%" caption='@DaysWait@Days Wait' style='text-align:right'/> 
+        <item field='' width="1%"/>
+        <item field='@PAPERTelH' width="10%" caption='@HomePhone@Home Phone'/>
+        <item field='@CTZIPCode' width="9%" caption='@Postcode@Postcode'/>
+        <item field='@RBOPDateOper' width="9%" caption='@OperationDate@Operation Date'/>
+     </table>
+      <line pattern="empty" lineHeight="4mm" />
+	<auxx:GroupSummary label="@Totalnumberofpatientsfor:@Total number of patients for " group="@description" summaryvalue="CTPCPTotal" />
+	 <table class='auxxgroupsummary'>
+	<item value='@AverageWaitingTime@Average Waiting Time ' width="16%"  style='font-weight:bold;text-align:left'/>
+	<item field='CTPCPAvg div CTPCPTotal' width="6%" style="font-weight:bold;text-align:right" formatNumber="###0.00" />
+       </table> 	
+	<line pattern="empty" lineHeight="4mm" /> 
+   </group>    
+	<auxx:GroupSummary label="@Totalnumberofpatientsfor@Total number of patients for " group="@description" summaryvalue="CTLOCTotal" />
+	 <table class='auxxgroupsummary'>
+	<item value='@AverageWaitingTime@Average Waiting Time ' width="16%"  style='font-weight:bold;text-align:left'/>
+	<item field='CTLOCAvg div CTLOCTotal' width="6%" style="font-weight:bold;text-align:right" formatNumber="###0.00" />
+       </table> 	<line pattern="empty" lineHeight="2mm" /> 
+   </group>    
+      <line pattern="empty" lineHeight="4mm" />
+	<auxx:GroupSummary label="@Totalnumberofpatientsfor@Total number of patients for " group="@description" summaryvalue="HospTotal"  />
+	 <table class='auxxgroupsummary'>
+	<item value='@AverageWaitingTime@Average Waiting Time ' width="16%"  style='font-weight:bold;text-align:left'/>
+	<item field='HospAvg div HospTotal' width="6%" style="font-weight:bold;text-align:right" formatNumber="###0.00" />
+       </table> 
+   </group>
+</body>
+</report>
+]]></Data>
+</XData>
+</Class>
+</Export>

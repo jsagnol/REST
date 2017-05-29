@@ -1,0 +1,193 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.SWARH.Report.RptSvc.StoredProc.SWARHRATD1025">
+<ProcedureBlock>0</ProcedureBlock>
+<Super>Custom.SWARH.Report.RptSvc.StoredProc.Abstract</Super>
+<TimeCreated>60905,54849</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/SWARH/Report/RptSvc/StoredProc/SWARHRATD1025.xml#1 $</Default>
+</Parameter>
+
+<UDLText name="T">
+<Content><![CDATA[
+/*
+ * Report Name: Inpatients Daily Reports
+ * Report Code: SWARH.R.ATD1025
+ * SWARH Developer: Zac Newman
+ */
+]]></Content>
+</UDLText>
+
+<Method name="SWARHATD1025QueryClose">
+<Description>
+This is the Close component of the %Library.Query.
+This is standard code and should never have to change.
+This is where all the cleanup is performed, i.e. the purging of the temporary storage global ^CacheTemp.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>QHandle:%Library.Binary</FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Clean up by purging the temporary node in ^CacheTemp global
+ New repid,ind
+ Set repid=$li(QHandle,2)
+
+ //Start Monitor (if configured to capture stats)
+ i mon Do ..MonitorEnd(mon)
+
+ Kill ^CacheTemp("TRAK",repid)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="SWARHATD1025QueryExecute">
+<Description>
+This is the Execute section for the %Library.Query. 
+All of the logic will be performed here.
+A new node for the ^CacheTemp global will be created and each subscript of this global will contain
+a row for the report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,Hospital:%Library.String,DateFrom:%Date,DateTo:%Date]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Get reportid i.e. use $INCREMENT to add another node to ^CacheTemp global. 
+ // We use ^CacheTemp global because it will always use memory before disk
+ New repid,ind
+
+  // Use $Increment to get the next node
+ Set repid=$I(^CacheTemp("TRAK"))
+ 
+ /* TEMPLATE MODIFY: Define and initialise appropriate column variables to describe output rowset columns */
+ New PAADMADMNo,PAPMINo,PatientName,PAADMEstimDischargeDate,PAADMEstimDischargeTime,PAADMAdmDate,PAADMDischgDate,WARDCode,WARDDesc,ROOMDesc,BEDCode,ProvDiagnosis
+ Set (PAADMADMNo,PAPMINo,PatientName,PAADMEstimDischargeDate,PAADMEstimDischargeTime,PAADMAdmDate,PAADMDischgDate,WARDCode,WARDDesc,ROOMDesc,BEDCode,ProvDiagnosis)=""
+
+
+ s ind=1, END=0
+
+ //Start Monitor (if configured to capture stats)
+ s mon=..MonitorBegin()
+ 
+ /* TEMPLATE MODIFY: Clean up parameter variables - $zstrip(<variable>,"*CW") strips all control characters and whitespace, "<>W" just strips leading/trailing whitespace
+  * NOTE: DO NOT DO "*W" ZSTRIP FROM DATES AS IT REMOVES THE WHITESPACE BETWEEN THE DATE AND TIME AND THIS BREAKS THE QUERY! */
+ s Hospital=$zstrip(Hospital,"*CW")
+ //Convert ODBC dates to cache format
+ s DateFrom=..ConvertDateToCache(DateFrom)
+ s DateTo=..ConvertDateToCache(DateTo)
+ 
+
+ &SQL(DECLARE SWARHATD1025Cursor CURSOR FOR 
+		select PAADM_ADMNo,
+		PAADM_PAPMI_DR->PAPMI_No,
+		(PAADM_PAPMI_DR->PAPMI_Name || ' ' || PAADM_PAPMI_DR->PAPMI_Name2 || ' ' || PAADM_PAPMI_DR->PAPMI_Name3) AS PatientName,
+		PAADM_EstimDischargeDate,
+		PAADM_EstimDischargeTime,
+		PAADM_AdmDate,
+		PAADM_DischgDate,
+		PAADM_CurrentWard_DR->WARD_Code,
+		PAADM_CurrentWard_DR->WARD_Desc,
+		PAADM_CurrentRoom_DR->ROOM_Desc,
+		PAADM_CurrentBed_DR->BED_Code,
+		PAADM_MainMRADM_DR->MRADM_PresentComplaint AS ProvDiagnosis
+		 from SQLUSER.PA_Adm
+		where PAADM_Type = 'I'
+		AND PAADM_VisitStatus = 'A'
+		AND PAADM_Hospital_DR = :Hospital
+		And PAADM_EstimDischargeDate between :DateFrom AND :DateTo
+		Order by PAADM_CurrentWard_DR->WARD_Desc, PAADM_EstimDischargeDate)
+ &SQL(OPEN SWARHATD1025Cursor)
+ 
+ //FETCH FIRST ROW
+ d FetchRow
+  
+ while END=0 {
+  
+	 d FormatDates
+  	 d FormatTimes
+  	 
+	 /* TEMPLATE MODIFY: Build the sort string here from column variables. Convert strings to uppercase ($ZCVT(<field>,"U") and separate with spaces */
+	 s sort = ind		// don't sort - uncomment this line if you've sorted in the query
+	 //s sort = $ZCVT(HOSPDesc,"U")_" "_$ZCVT(WARDDesc,"U")_" "_$ZCVT(ROOMCode,"U")_" "_$ZCVT(BEDCode,"U")_" "_$ZCVT(CTRLGDesc,"U")_" "_$ZCVT(PAPERName,"U")_" "_$ZCVT(PAPERName2,"U")_" "_$ZCVT(PAPERName3,"U")_ind
+ 
+	 /* TEMPLATE MODIFY: Build the list of fields by placing correct column variable names in the $LB() here. */
+	 s ^CacheTemp("TRAK",repid,sort)=$LB(PAADMADMNo,PAPMINo,PatientName,PAADMEstimDischargeDate,PAADMEstimDischargeTime,PAADMAdmDate,PAADMDischgDate,WARDCode,WARDDesc,ROOMDesc,BEDCode,ProvDiagnosis)
+	 s ind=ind+1
+ 
+	 //fetch rows
+	 d FetchRow
+ }
+
+ &SQL(CLOSE SWARHATD1025Cursor)
+ 
+ // Build QHandle (AtEnd,ReportID,Index)
+ Set QHandle=$lb(0,repid,0)
+
+ Quit $$$OK
+
+FetchRow
+ /* TEMPLATE MODIFY: Rename cursor to something moreChange fetch INTO parameter list to match column variable names */
+ &sql(FETCH SWARHATD1025Cursor INTO :PAADMADMNo,:PAPMINo,:PatientName,:PAADMEstimDischargeDate,:PAADMEstimDischargeTime,:PAADMAdmDate,:PAADMDischgDate,:WARDCode,:WARDDesc,:ROOMDesc,:BEDCode,:ProvDiagnosis)
+ if SQLCODE '= 0 set END = 1
+ q
+ 
+FormatDates
+ /* TEMPLATE MODIFY: Add an entry to perform a date format for all date fields here */
+ s PAADMAdmDate=..ConvertDateToODBC(PAADMAdmDate)
+ s PAADMEstimDischargeDate=..ConvertDateToODBC(PAADMEstimDischargeDate)
+ s PAADMDischgDate=..ConvertDateToODBC(PAADMDischgDate)
+ q
+ 
+FormatTimes
+ /* TEMPLATE MODIFY: Add an entry to perform a time format for all time fields here */
+ s PAADMEstimDischargeTime=..ConvertTimeToODBC(PAADMEstimDischargeTime)
+ q
+]]></Implementation>
+</Method>
+
+<Method name="SWARHATD1025QueryFetch">
+<Description>
+This is the Fetch component of the %Library.Query. 
+This should never have to change. It is designed to fetch the row for each subscript of the ^CacheTemp
+global and return this row to the Crystal Report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,&Row:%Library.List,&AtEnd:%Library.Integer=0]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // This fetch method should never have to change. 
+
+ // repid - Report ID
+ // ind   - sequence index which represents each row
+
+ New repid,ind
+
+ // Restore QHandle
+ Set AtEnd=$li(QHandle,1)
+ Set repid=$li(QHandle,2)
+ Set ind=$li(QHandle,3)
+
+ Set ind=$o(^CacheTemp("TRAK",repid,ind))
+ If ind="" {	// if there are no more rows, finish fetching
+	 Set AtEnd=1
+	 Set Row=""
+ }
+ Else      {	// fetch row
+ 	Set Row=^CacheTemp("TRAK",repid,ind)
+ }
+
+ // Save QHandle
+ s QHandle=$lb(AtEnd,repid,ind)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Query name="SWARHATD1025Query">
+<Type>%Library.Query</Type>
+<FormalSpec>Hospital:%Library.String,DateFrom:%Date,DateTo:%Date</FormalSpec>
+<SqlProc>1</SqlProc>
+<Parameter name="CONTAINID" value="0"/>
+<Parameter name="ROWSPEC" value="PAADMADMNo:%Library.String,PAPMINo:%Library.String,PatientName:%Library.String,PAADMEstimDischargeDate:%Library.Date,PAADMEstimDischargeTime:%Library.Time,PAADMAdmDate:%Library.Date,PAADMDischgDate:%Library.Date,WARDCode:%Library.String,WARDDesc:%Library.String,ROOMDesc:%Library.String,BEDCode:%Library.String,ProvDiagnosis:%Library.String"/>
+<Parameter name="SELECTMODE" value="ODBC"/>
+</Query>
+</Class>
+</Export>

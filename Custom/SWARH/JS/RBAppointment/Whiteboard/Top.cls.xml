@@ -1,0 +1,144 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.SWARH.JS.RBAppointment.Whiteboard.Top">
+<Description>
+Component JavaScript for: RBAppointment.Whiteboard.Top</Description>
+<Modified>0</Modified>
+<Super>websys.AbstractJavaScript</Super>
+<TimeCreated>63537,10520.19593</TimeCreated>
+
+<Method name="JSContent">
+<Description>
+ </Description>
+<Internal>0</Internal>
+<Language>javascript</Language>
+<ClientMethod>1</ClientMethod>
+<Implementation><![CDATA[
+var RBWBT = {
+	/**
+	 * [init - Overrides TRAK functions and clicks button set in the "SNAPButton" hidden field]
+	 */
+	init : function() {
+		var SNAPBtn = document.getElementById("SNAPButton"),
+			BtnId;
+
+		if ((SNAPBtn) && (SNAPBtn.value !== "")) {
+			if (document.getElementById(SNAPBtn.value)) BtnId = SNAPBtn.value;
+		}
+
+		if (typeof LoadBottom === 'function') {
+			var oldLoadBottom = LoadBottom;
+			LoadBottom = function(component, params) {
+				return oldLoadBottom(component, params + '&CONTEXT=' + session['CONTEXT']);
+			};
+		}
+
+		if (BtnId) SWARH.onReady(function() { RBWBT.clickButton(BtnId); });
+
+		var btnManualArrive = document.getElementById("SNAPManualArrive");
+		if (btnManualArrive) {
+			btnManualArrive.onclick = RBWBT.manualArrive;
+		}
+	},
+	/**
+	 * [clickButton - Clicks a button with the passed ID]
+	 * @param  {string} id [the ID of the button to be clicked]
+	 */
+	clickButton : function(id) {
+		var btn = document.getElementById(id);
+		if (btn) btn.click();
+	},
+	/**
+	 * [getBottomGridDocument - Attempts to find the "whiteboard_bottom" frame and return the document]
+	 * @return {mixed} [Will return the document of the bottom window if found, otherwise, undefined]
+	 */
+	getBottomGridDocument: function () {
+		if (
+			(window.parent) &&
+			(window.parent.frames) &&
+			(window.parent.frames.length > 1) 
+		){
+			for (var i = window.parent.frames.length - 1; i >= 0; i--) {
+				if (window.parent.frames[i].name = "whiteboard_bottom") return window.parent.frames[i].document;
+			};
+		}
+		return undefined;
+	},
+	/**
+	 * [getSelectedAppointment - Loops the table in the "whiteboard_bottom" frame looking for a selected appointment]
+	 * @return {object} [returns an object with apptID, episodeID and patientID properties]
+	 */
+	getSelectedAppointment: function() {
+		var result = {
+			apptID : undefined,
+			episodeID : undefined,
+			patientID : undefined
+		}
+
+		var doc = RBWBT.getBottomGridDocument();
+		if (doc) {
+			var apptTable = doc.getElementById("tRBAppointment_Whiteboard_Pending");
+			if (apptTable) {
+				var count = 0,
+					row;
+				SWARH.addArrayMethods();
+				while (row = apptTable.rows[count++]) {
+					var classList = row.className.split(/\s+/) || [];
+					if (classList.contains("clsRowSelected")) {
+						if (row["TRAKListIndex"]) {
+							var elApptId = doc.getElementById("ApptIDz" + row["TRAKListIndex"]);
+							if (elApptId) result.apptID = elApptId.value;
+
+							var elEpisodeId = doc.getElementById("EpisodeIDz" + row["TRAKListIndex"]);
+							if (elEpisodeId) result.episodeID = elEpisodeId.value;
+
+							var elPatientId = doc.getElementById("PatientIDz" + row["TRAKListIndex"]);
+							if (elPatientId) result.patientID = elPatientId.value;
+
+							break;
+						}
+					}
+				}
+			}
+		}
+		return result;
+	},
+	/**
+	 * [manualArrive - Opens the SNAP Manual Arrive screen passing the selected appointment ID]
+	 * @param  {object} results [used to pass the getSelectedAppointment results when re-calling the function if SNAP is not loaded to save calling the function twice]
+	 */
+	manualArrive : function(results) {
+		//PDH 17/10/2016: had to comment following line to get Manual Arrive to work in T2016 
+		//var selectedDetails = results;
+		var selectedDetails;
+		if (!selectedDetails) selectedDetails = RBWBT.getSelectedAppointment();
+
+		//validate we have apptID and patientID, episode is just a nicety
+		//PDH 17/10/2016 corrected apptID with patientID in line below
+		if ((selectedDetails.apptID === undefined) || (selectedDetails.patientID === undefined)) alert("Please select an appointment!");
+		else {
+			if (typeof SNAP === "undefined") {
+				SWARH.loadSNAP(function() {RBWBT.manualArrive(selectedDetails); });
+			} else {
+				var page = "ManualArrive.aspx?PatientID=" + encodeURIComponent(selectedDetails.patientID) + "&TrakApptID=" + encodeURIComponent(selectedDetails.apptID);
+				if (selectedDetails.episodeID) page += "&EpisodeID=" + encodeURIComponent(selectedDetails.episodeID);
+
+				var win = SNAP.openSWARHSNAP(page, "SNAP_Manual_Arrive");
+				//var win = window.open("http://localhost:51347/" + page, "SNAP_Manual_Arrive");
+			}
+		}
+	}
+};
+
+websys_addListener("load","onload",RBWBT.init);
+]]></Implementation>
+</Method>
+
+<Parameter name="SrcVer">
+<Description>
+This Parameter is updated by Perforce</Description>
+<Internal>0</Internal>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/SWARH/JS/RBAppointment/Whiteboard/Top.xml#2 $</Default>
+</Parameter>
+</Class>
+</Export>

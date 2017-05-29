@@ -1,0 +1,264 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Routine name="Custom.SWARHCUS78PrintHistoryPat.2" type="INT" languagemode="0"><![CDATA[
+	;Custom.SWARHCUS78PrintHistoryPat.2
+	;(C)InterSystems, generated for class Custom.SWARHCUS78PrintHistoryPathResults.  Do NOT edit. 09/26/2008 11:12:29AM
+	;;665A6E5A83EFC3DA;Custom.SWARHCUS78PrintHistoryPathResults
+	Quit
+	;
+zPrintHistoryPathResultsExecute(QHandle,DateFrom,DateTo,Hospital) ;
+	k ^zbernard	
+	// Get reportid i.e. use $INCREMENT to add another node to ^CacheTemp global. 
+	// We use ^CacheTemp global because it will always use memory before disk
+	New repid,ind
+	// Use $Increment to get the next node
+	Set repid=$I(^CacheTemp)
+	s ^zBernard("1")=(1)
+	// Build data into ^CacheTemp(ReportID)
+	// e.g. Set ^CacheTemp(ReportID,Index)=$LB(f1,f2,f3)
+	New Number,String,Date,Time,c,n
+	n OEORDRowId,OEORDDate,PAADMADMNo,PAADMDischgDate,PAPMINo,PAPMIName,PAPMIName2,ID,P1,PrintDate,ReportDR,CTLOCDesc,HOSPRowID,HOSPDesc
+	s (OEORDRowId,ID,HOSPRowID)=0
+	s (OEORDDate,PAADMADMNo,PAADMDischgDate,PAPMINo,PAPMIName,PAPMIName2,P1,PrintDate,ReportDR,CTLOCDesc,HOSPDesc)=""
+	s ind=1
+	//Convert ODBC dates to cache format
+	s DateFrom=$$intdate^SSUTIL4(DateFrom)
+	s DateTo=$$intdate^SSUTIL4(DateTo)
+	//s ^bernard("2")=(2)
+	 ;---&sql(declare PrintHistoryPathResults cursor for
+	  ;---
+	  ;---Select  OEORD_RowId,
+	  ;---		OEORD_Date,
+	  ;---		OEORD_Adm_DR->PAADM_ADMNo,
+	  ;---		OEORD_Adm_DR->PAADM_DischgDate,
+	  ;---		OEORD_Adm_DR->PAADM_PAPMI_DR->PAPMI_No,
+	  ;---		OEORD_Adm_DR->PAADM_PAPMI_DR->PAPMI_Name,
+	  ;---		OEORD_Adm_DR->PAADM_PAPMI_DR->PAPMI_Name2,
+	  ;---		ID,
+	  ;---		P1,
+	  ;---		PrintDate,
+	  ;---		ReportDR,
+	  ;---		LocationDR->CTLOC_Desc,
+	  ;---		LocationDR->CTLOC_Hospital_DR->HOSP_RowID,
+	  ;---		LocationDR->CTLOC_Hospital_DR->HOSP_Desc
+	  ;---
+	  ;---From    SQLUser.OE_Order,
+	  ;---		Websys.PrintHistory
+	  ;---
+	  ;---Where   websys.PrintHistory.PrintDate between :DateFrom and :DateTo
+	  ;---And		LocationDR->CTLOC_Hospital_DR->HOSP_RowID=:Hospital
+	  ;---And     {fn CONVERT(websys.PrintHistory.P1,SQL_INTEGER)}=SQLUser.OE_Order.OEORD_RowId
+	  ;---And     Websys.PrintHistory.ReportDR=14
+	  ;---
+	  ;--- )
+	  ;--- ** SQL PUBLIC Variables: DateFrom, DateTo, Hospital, SQLCODE
+	 ;---&sql(open PrintHistoryPathResults)
+	  ;--- ** SQL PUBLIC Variables: SQLCODE
+	Do %PrintHistoryPathResults0o
+	//fetch first row 
+	 ;---&sql(fetch PrintHistoryPathResults into :OEORDRowId,:OEORDDate,:PAADMADMNo,:PAADMDischgDate,:PAPMINo,:PAPMIName,:PAPMIName2,:ID,:P1,:PrintDate,:ReportDR,:CTLOCDesc,:HOSPRowID,:HOSPDesc
+	  ;--- )
+	  ;--- ** SQL PUBLIC Variables: CTLOCDesc, HOSPDesc, HOSPRowID, ID, OEORDDate, OEORDRowId, P1, PAADMADMNo, PAADMDischgDate, PAPMIName, PAPMIName2, PAPMINo, PrintDate, ReportDR, SQLCODE
+	Do %0Do
+	while 'SQLCODE{
+	d FormatDates
+	//d FormatTimes
+	// build the row
+	Set ^CacheTemp(repid,ind)=$LB(OEORDRowId,OEORDDate,PAADMADMNo,PAADMDischgDate,PAPMINo,PAPMIName,PAPMIName2,ID,P1,PrintDate,ReportDR,CTLOCDesc,HOSPRowID,HOSPDesc)
+	s ind=ind+1
+	//fetch rows
+	 ;---&sql(fetch PrintHistoryPathResults into :OEORDRowId,:OEORDDate,:PAADMADMNo,:PAADMDischgDate,:PAPMINo,:PAPMIName,:PAPMIName2,:ID,:P1,:PrintDate,:ReportDR,:CTLOCDesc,:HOSPRowID,:HOSPDesc)
+	  ;--- ** SQL PUBLIC Variables: CTLOCDesc, HOSPDesc, HOSPRowID, ID, OEORDDate, OEORDRowId, P1, PAADMADMNo, PAADMDischgDate, PAPMIName, PAPMIName2, PAPMINo, PrintDate, ReportDR, SQLCODE
+	Do %0Eo
+	}
+	//s ^zBernard("3")=(3)
+	 ;---&sql(close PrintHistoryPathResults)
+	  ;--- ** SQL PUBLIC Variables: SQLCODE
+	Do %PrintHistoryPathResults0c
+	// Build QHandle (AtEnd,ReportID,Index)
+	Set QHandle=$lb(0,repid,0)
+	//s ^zBernard("4")=(4)
+	Quit 1
+FormatDates
+	// Convert the dates to ODBC date format
+	If PAADMDischgDate Set PAADMDischgDate=$ZD(PAADMDischgDate,3)
+	If OEORDDate Set OEORDDate=$ZD(OEORDDate,3)
+	If PrintDate Set PrintDate=$ZD(PrintDate,3)
+	//s ^zBernard("5")=(5)
+	Quit
+FormatTimes
+	// Convert the times to ODBC time format
+	// Uncomment following line and replace timefieldname
+	// If timefieldname Set timefieldname=$ZT(timefieldname,2)
+	// Quit
+	Quit ""
+%0Ir1 S %PrintHistoryPathResults0d(5)=$S($G(XFUNC("CLASS"))="OP":$g(%PrintHistoryPathResults0d(96)),1:$g(%PrintHistoryPathResults0d(97)))
+	;S {PAPMI_No}=$$CO2^at84({PAPMI_IPNo},{PAPMI_OPNo})
+	q
+%PrintHistoryPathResults0o s SQLCODE=$s($g(%PrintHistoryPathResults0c):-101,1:0) q:SQLCODE'=0  s %PrintHistoryPathResults0d(35)=0 s %PrintHistoryPathResults0d(36)=0,%PrintHistoryPathResults0d(37)="",%PrintHistoryPathResults0d(38)=0,%PrintHistoryPathResults0d(39)="",%PrintHistoryPathResults0d(40)=0,%PrintHistoryPathResults0d(41)="",%PrintHistoryPathResults0d(42)=0,%PrintHistoryPathResults0d(43)="",%PrintHistoryPathResults0d(44)=0,%PrintHistoryPathResults0d(45)="",%PrintHistoryPathResults0d(46)=0,%PrintHistoryPathResults0d(47)=""
+	s %PrintHistoryPathResults0d(15)=$g(DateFrom),%PrintHistoryPathResults0d(16)=$g(DateTo),%PrintHistoryPathResults0d(17)=$g(Hospital),%PrintHistoryPathResults0d(19)=14
+	s %PrintHistoryPathResults0c=1 q
+%0first 
+	; asl MOD# 2
+	s %PrintHistoryPathResults0d(13)=%PrintHistoryPathResults0d(17)
+	i %PrintHistoryPathResults0d(13)'="",$d(^CT("HOSP",%PrintHistoryPathResults0d(13)))
+	i '$t
+	e  i 1]]%PrintHistoryPathResults0d(13)
+	i  g %0Bdun
+	s %PrintHistoryPathResults0d(52)=$g(^CT("HOSP",%PrintHistoryPathResults0d(13)))
+	s %PrintHistoryPathResults0d(14)=$p(%PrintHistoryPathResults0d(52),"^",2)
+	g:'(%PrintHistoryPathResults0d(13)'="") %0Bdun
+	g:$zu(115,2)=0 %0Buncommitted i $zu(115,2)=1 l +^CT("HOSP",%PrintHistoryPathResults0d(13))#"S":$zu(115,4) i $t { s %PrintHistoryPathResults0d(46)=1,%PrintHistoryPathResults0d(47)=$name(^CT("HOSP",%PrintHistoryPathResults0d(13)))_"#""SI""" } else { s SQLCODE=-114,%msg="Unable to acquire shared lock on table SQLUser.CT_Hospital for RowID value: "_%PrintHistoryPathResults0d(13) q  }
+	; asl MOD# 3
+	i %PrintHistoryPathResults0d(13)'="",$d(^CT("HOSP",%PrintHistoryPathResults0d(13)))
+	i '$t
+	e  i 1]]%PrintHistoryPathResults0d(13)
+	i  g %0Cdun
+	s %PrintHistoryPathResults0d(57)=$g(^CT("HOSP",%PrintHistoryPathResults0d(13)))
+	s %PrintHistoryPathResults0d(14)=$p(%PrintHistoryPathResults0d(57),"^",2)
+%0Buncommitted ;
+	; asl MOD# 4
+	s %PrintHistoryPathResults0d(21)=%PrintHistoryPathResults0d(17)
+	i %PrintHistoryPathResults0d(21)="" g %0Ddun
+	s %PrintHistoryPathResults0d(23)=""
+%0Dk1 s %PrintHistoryPathResults0d(23)=$o(^CTLOC(0,"Hosp",%PrintHistoryPathResults0d(21),%PrintHistoryPathResults0d(23)))
+	i %PrintHistoryPathResults0d(23)="" g %0Ddun
+	i %PrintHistoryPathResults0d(23)'="",$d(^CTLOC(%PrintHistoryPathResults0d(23)))
+	i '$t
+	e  i 1]]%PrintHistoryPathResults0d(23)
+	i  g %0Dk1
+	s %PrintHistoryPathResults0d(67)=$g(^CTLOC(%PrintHistoryPathResults0d(23)))
+	s %PrintHistoryPathResults0d(12)=$p(%PrintHistoryPathResults0d(67),"^",2)
+	g:$zu(115,2)=0 %0Duncommitted i $zu(115,2)=1 l +^CTLOC(%PrintHistoryPathResults0d(23))#"S":$zu(115,4) i $t { s %PrintHistoryPathResults0d(44)=1,%PrintHistoryPathResults0d(45)=$name(^CTLOC(%PrintHistoryPathResults0d(23)))_"#""SI""" } else { s SQLCODE=-114,%msg="Unable to acquire shared lock on table SQLUser.CT_Loc for RowID value: "_%PrintHistoryPathResults0d(23) q  }
+	; asl MOD# 5
+	s %PrintHistoryPathResults0d(29)=$lb(""_%PrintHistoryPathResults0d(21))
+	i %PrintHistoryPathResults0d(23)'="",$d(^CTLOC(%PrintHistoryPathResults0d(23)))
+	i '$t
+	e  i 1]]%PrintHistoryPathResults0d(23)
+	i  g %0Edun
+	s %PrintHistoryPathResults0d(70)=$g(^CTLOC(%PrintHistoryPathResults0d(23)))
+	s %PrintHistoryPathResults0d(12)=$p(%PrintHistoryPathResults0d(70),"^",2) s %PrintHistoryPathResults0d(21)=$p(%PrintHistoryPathResults0d(70),"^",22)
+	s %PrintHistoryPathResults0d(30)=$lb(""_%PrintHistoryPathResults0d(21))
+	g:%PrintHistoryPathResults0d(29)'=%PrintHistoryPathResults0d(30) %0Edun
+%0Duncommitted ;
+	; asl MOD# 6
+	s %PrintHistoryPathResults0d(22)=%PrintHistoryPathResults0d(23) s:%PrintHistoryPathResults0d(22)="" %PrintHistoryPathResults0d(22)=-1E14
+	s %PrintHistoryPathResults0d(8)=""
+%0Fk1 s:%PrintHistoryPathResults0d(22)="" %PrintHistoryPathResults0d(22)=-1E14
+	s %PrintHistoryPathResults0d(8)=$o(^websys.PrintHistoryI("LocationDRIndex",%PrintHistoryPathResults0d(22),%PrintHistoryPathResults0d(8)))
+	i %PrintHistoryPathResults0d(8)="" g %0Fdun
+	s:%PrintHistoryPathResults0d(22)=-1E14 %PrintHistoryPathResults0d(22)=""
+	i %PrintHistoryPathResults0d(8)'="",$d(^websys.PrintHistoryD(%PrintHistoryPathResults0d(8)))
+	e  g %0Fk1
+	s %PrintHistoryPathResults0d(78)=$g(^websys.PrintHistoryD(%PrintHistoryPathResults0d(8)))
+	s %PrintHistoryPathResults0d(10)=$lg(%PrintHistoryPathResults0d(78),12)
+	g:'(%PrintHistoryPathResults0d(15)']]%PrintHistoryPathResults0d(10)) %0Fk1
+	g:'(%PrintHistoryPathResults0d(10)']]%PrintHistoryPathResults0d(16)) %0Fk1
+	g:'(%PrintHistoryPathResults0d(10)'="") %0Fk1
+	s %PrintHistoryPathResults0d(11)=$lg(%PrintHistoryPathResults0d(78),16)
+	g:'(%PrintHistoryPathResults0d(11)=%PrintHistoryPathResults0d(19)) %0Fk1
+	g:'(%PrintHistoryPathResults0d(11)'="") %0Fk1
+	s %PrintHistoryPathResults0d(9)=$lg(%PrintHistoryPathResults0d(78),3)
+	s %PrintHistoryPathResults0d(28)=(" "_$s(%PrintHistoryPathResults0d(9)="":"",$zstrip(%PrintHistoryPathResults0d(9),">W")'="":$zcvt($zstrip(%PrintHistoryPathResults0d(9),">W"),"U"),1:$c(0)))
+	g:'(%PrintHistoryPathResults0d(28)'=" ") %0Fk1
+	g:$zu(115,2)=0 %0Funcommitted i $zu(115,2)=1 l +^websys.PrintHistoryD(%PrintHistoryPathResults0d(8))#"S":$zu(115,4) i $t { s %PrintHistoryPathResults0d(42)=1,%PrintHistoryPathResults0d(43)=$name(^websys.PrintHistoryD(%PrintHistoryPathResults0d(8)))_"#""SI""" } else { s SQLCODE=-114,%msg="Unable to acquire shared lock on table websys.PrintHistory for RowID value: "_%PrintHistoryPathResults0d(8) q  }
+	; asl MOD# 7
+	s %PrintHistoryPathResults0d(31)=$lb(""_%PrintHistoryPathResults0d(22),""_%PrintHistoryPathResults0d(28),""_%PrintHistoryPathResults0d(10),""_%PrintHistoryPathResults0d(11))
+	i %PrintHistoryPathResults0d(8)'="",$d(^websys.PrintHistoryD(%PrintHistoryPathResults0d(8)))
+	e  g %0Gdun
+	s %PrintHistoryPathResults0d(81)=$g(^websys.PrintHistoryD(%PrintHistoryPathResults0d(8)))
+	s %PrintHistoryPathResults0d(9)=$lg(%PrintHistoryPathResults0d(81),3) s %PrintHistoryPathResults0d(10)=$lg(%PrintHistoryPathResults0d(81),12) s %PrintHistoryPathResults0d(11)=$lg(%PrintHistoryPathResults0d(81),16) s %PrintHistoryPathResults0d(22)=$lg(%PrintHistoryPathResults0d(81),36)
+	s %PrintHistoryPathResults0d(28)=(" "_$s(%PrintHistoryPathResults0d(9)="":"",$zstrip(%PrintHistoryPathResults0d(9),">W")'="":$zcvt($zstrip(%PrintHistoryPathResults0d(9),">W"),"U"),1:$c(0)))
+	s %PrintHistoryPathResults0d(32)=$lb(""_%PrintHistoryPathResults0d(22),""_%PrintHistoryPathResults0d(28),""_%PrintHistoryPathResults0d(10),""_%PrintHistoryPathResults0d(11))
+	g:%PrintHistoryPathResults0d(31)'=%PrintHistoryPathResults0d(32) %0Gdun
+%0Funcommitted ;
+	s %PrintHistoryPathResults0d(18)=$s(%PrintHistoryPathResults0d(9)="":"",1:+%PrintHistoryPathResults0d(9)\1)
+	s %PrintHistoryPathResults0d(1)=%PrintHistoryPathResults0d(18)
+	s %PrintHistoryPathResults0d(33)=$p(%PrintHistoryPathResults0d(1),"||")
+	i %PrintHistoryPathResults0d(1)'="",$d(^OEORD(%PrintHistoryPathResults0d(1)))
+	i '$t
+	e  i 1]]%PrintHistoryPathResults0d(1)
+	i  g %0Gdun
+	s %PrintHistoryPathResults0d(84)=$g(^OEORD(%PrintHistoryPathResults0d(1)))
+	s %PrintHistoryPathResults0d(2)=$p(%PrintHistoryPathResults0d(84),"^",2) s %PrintHistoryPathResults0d(26)=$p(%PrintHistoryPathResults0d(84),"^",1)
+	g:$zu(115,2)=0 %0Guncommitted i $zu(115,2)=1 l +^OEORD(%PrintHistoryPathResults0d(1))#"S":$zu(115,4) i $t { s %PrintHistoryPathResults0d(36)=1,%PrintHistoryPathResults0d(37)=$name(^OEORD(%PrintHistoryPathResults0d(1)))_"#""SI""" } else { s SQLCODE=-114,%msg="Unable to acquire shared lock on table SQLUser.OE_Order for RowID value: "_%PrintHistoryPathResults0d(1) q  }
+	; asl MOD# 8
+	s %PrintHistoryPathResults0d(33)=$p(%PrintHistoryPathResults0d(1),"||")
+	i %PrintHistoryPathResults0d(1)'="",$d(^OEORD(%PrintHistoryPathResults0d(1)))
+	i '$t
+	e  i 1]]%PrintHistoryPathResults0d(1)
+	i  g %0Hdun
+	s %PrintHistoryPathResults0d(87)=$g(^OEORD(%PrintHistoryPathResults0d(1)))
+	s %PrintHistoryPathResults0d(2)=$p(%PrintHistoryPathResults0d(87),"^",2) s %PrintHistoryPathResults0d(26)=$p(%PrintHistoryPathResults0d(87),"^",1)
+%0Guncommitted ;
+	s %PrintHistoryPathResults0d(27)=%PrintHistoryPathResults0d(26)
+	i %PrintHistoryPathResults0d(27)'="",$d(^PAADM(%PrintHistoryPathResults0d(27)))
+	i '$t
+	e  i 1]]%PrintHistoryPathResults0d(27)
+	i  s %PrintHistoryPathResults0d(3)="",%PrintHistoryPathResults0d(4)="",%PrintHistoryPathResults0d(24)="",%PrintHistoryPathResults0d(27)="" g %0Hp5
+	s %PrintHistoryPathResults0d(90)=$g(^PAADM(%PrintHistoryPathResults0d(27)))
+	s %PrintHistoryPathResults0d(3)=$p(%PrintHistoryPathResults0d(90),"^",81) s %PrintHistoryPathResults0d(4)=$p(%PrintHistoryPathResults0d(90),"^",17) s %PrintHistoryPathResults0d(24)=$p(%PrintHistoryPathResults0d(90),"^",1)
+%0Hp5 
+	g:$zu(115,2)=0 %0Huncommitted i $zu(115,2)=1 l +^PAADM(%PrintHistoryPathResults0d(27))#"S":$zu(115,4) i $t { s %PrintHistoryPathResults0d(38)=1,%PrintHistoryPathResults0d(39)=$name(^PAADM(%PrintHistoryPathResults0d(27)))_"#""SI""" } else { s SQLCODE=-114,%msg="Unable to acquire shared lock on table SQLUser.PA_Adm for RowID value: "_%PrintHistoryPathResults0d(27) q  }
+	; asl MOD# 9
+	i %PrintHistoryPathResults0d(27)'="",$d(^PAADM(%PrintHistoryPathResults0d(27)))
+	i '$t
+	e  i 1]]%PrintHistoryPathResults0d(27)
+	i  s %PrintHistoryPathResults0d(3)="",%PrintHistoryPathResults0d(4)="",%PrintHistoryPathResults0d(24)="",%PrintHistoryPathResults0d(27)="" g %0Ip1
+	s %PrintHistoryPathResults0d(93)=$g(^PAADM(%PrintHistoryPathResults0d(27)))
+	s %PrintHistoryPathResults0d(3)=$p(%PrintHistoryPathResults0d(93),"^",81) s %PrintHistoryPathResults0d(4)=$p(%PrintHistoryPathResults0d(93),"^",17) s %PrintHistoryPathResults0d(24)=$p(%PrintHistoryPathResults0d(93),"^",1)
+%0Ip1 
+%0Huncommitted ;
+	s %PrintHistoryPathResults0d(25)=%PrintHistoryPathResults0d(24)
+	s %PrintHistoryPathResults0d(34)=$p(%PrintHistoryPathResults0d(25),"||")
+	i %PrintHistoryPathResults0d(25)'="",$d(^PAPER(%PrintHistoryPathResults0d(25)))
+	i '$t
+	e  i 1]]%PrintHistoryPathResults0d(25)
+	i  s %PrintHistoryPathResults0d(6)="",%PrintHistoryPathResults0d(7)="",%PrintHistoryPathResults0d(5)="",%PrintHistoryPathResults0d(25)="" g %0Ip5
+	s %PrintHistoryPathResults0d(98)=$g(^PAPER(%PrintHistoryPathResults0d(25),"ALL"))
+	s %PrintHistoryPathResults0d(6)=$p(%PrintHistoryPathResults0d(98),"^",1) s %PrintHistoryPathResults0d(7)=$p(%PrintHistoryPathResults0d(98),"^",2)
+	s %PrintHistoryPathResults0d(98)=$g(^PAPER(%PrintHistoryPathResults0d(25),"PAT",1))
+	s %PrintHistoryPathResults0d(96)=$p(%PrintHistoryPathResults0d(98),"^",2) s %PrintHistoryPathResults0d(97)=$p(%PrintHistoryPathResults0d(98),"^",1)
+	d %0Ir1
+%0Ip5 
+	g:$zu(115,2)=0 %0Iuncommitted i $zu(115,2)=1 l +^PAPER(%PrintHistoryPathResults0d(25))#"S":$zu(115,4) i $t { s %PrintHistoryPathResults0d(40)=1,%PrintHistoryPathResults0d(41)=$name(^PAPER(%PrintHistoryPathResults0d(25)))_"#""SI""" } else { s SQLCODE=-114,%msg="Unable to acquire shared lock on table SQLUser.PA_PatMas for RowID value: "_%PrintHistoryPathResults0d(25) q  }
+	; asl MOD# 10
+	s %PrintHistoryPathResults0d(34)=$p(%PrintHistoryPathResults0d(25),"||")
+	i %PrintHistoryPathResults0d(25)'="",$d(^PAPER(%PrintHistoryPathResults0d(25)))
+	i '$t
+	e  i 1]]%PrintHistoryPathResults0d(25)
+	i  s %PrintHistoryPathResults0d(6)="",%PrintHistoryPathResults0d(7)="",%PrintHistoryPathResults0d(5)="",%PrintHistoryPathResults0d(25)="" g %0Jp2
+	s %PrintHistoryPathResults0d(101)=$g(^PAPER(%PrintHistoryPathResults0d(25),"ALL"))
+	s %PrintHistoryPathResults0d(6)=$p(%PrintHistoryPathResults0d(101),"^",1) s %PrintHistoryPathResults0d(7)=$p(%PrintHistoryPathResults0d(101),"^",2)
+	s %PrintHistoryPathResults0d(101)=$g(^PAPER(%PrintHistoryPathResults0d(25),"PAT",1))
+	s %PrintHistoryPathResults0d(96)=$p(%PrintHistoryPathResults0d(101),"^",2) s %PrintHistoryPathResults0d(97)=$p(%PrintHistoryPathResults0d(101),"^",1)
+	d %0Ir1
+%0Jp2 
+%0Iuncommitted ;
+	s:$g(SQLCODE)'<0 SQLCODE=0 s %ROWCOUNT=$i(%PrintHistoryPathResults0d(35)) s %PrintHistoryPathResults0c=10 q
+%PrintHistoryPathResults0f i '$g(%PrintHistoryPathResults0c) { s SQLCODE=-102 q  } i %PrintHistoryPathResults0c=100 { s SQLCODE=100 q  } s SQLCODE=0
+	s $zt="%0err" s $ze="" g %0first:%PrintHistoryPathResults0c=1
+%0Jdun i $zu(115,2)=1,$g(%PrintHistoryPathResults0d(40))=1 { l -@%PrintHistoryPathResults0d(41) }
+%0Idun i $zu(115,2)=1,$g(%PrintHistoryPathResults0d(38))=1 { l -@%PrintHistoryPathResults0d(39) }
+%0Hdun i $zu(115,2)=1,$g(%PrintHistoryPathResults0d(36))=1 { l -@%PrintHistoryPathResults0d(37) }
+%0Gdun i $zu(115,2)=1,$g(%PrintHistoryPathResults0d(42))=1 { l -@%PrintHistoryPathResults0d(43) }
+	g %0Fk1
+%0Fdun 
+%0Edun i $zu(115,2)=1,$g(%PrintHistoryPathResults0d(44))=1 { l -@%PrintHistoryPathResults0d(45) }
+	g %0Dk1
+%0Ddun 
+%0Cdun i $zu(115,2)=1,$g(%PrintHistoryPathResults0d(46))=1 { l -@%PrintHistoryPathResults0d(47) }
+%0Bdun 
+%0Adun 
+	s %ROWCOUNT=%PrintHistoryPathResults0d(35),SQLCODE=100,%PrintHistoryPathResults0c=100 q
+%PrintHistoryPathResults0c i '$g(%PrintHistoryPathResults0c) { s SQLCODE=-102 q  } s %ROWCOUNT=+$g(%PrintHistoryPathResults0d(35))
+	i $zu(115,2)=1,$g(%PrintHistoryPathResults0d(36))=1 { l -@%PrintHistoryPathResults0d(37) } i $zu(115,2)=1,$g(%PrintHistoryPathResults0d(38))=1 { l -@%PrintHistoryPathResults0d(39) } i $zu(115,2)=1,$g(%PrintHistoryPathResults0d(40))=1 { l -@%PrintHistoryPathResults0d(41) } i $zu(115,2)=1,$g(%PrintHistoryPathResults0d(42))=1 { l -@%PrintHistoryPathResults0d(43) } i $zu(115,2)=1,$g(%PrintHistoryPathResults0d(44))=1 { l -@%PrintHistoryPathResults0d(45) } i $zu(115,2)=1,$g(%PrintHistoryPathResults0d(46))=1 { l -@%PrintHistoryPathResults0d(47) } k %PrintHistoryPathResults0c,%PrintHistoryPathResults0d,%PrintHistoryPathResults0E,%PrintHistoryPathResults0l,%PrintHistoryPathResults0n,%PrintHistoryPathResults0R,%PrintHistoryPathResults0Z s SQLCODE=0 q
+%0err s $zt="" d SQLRunTimeError^%apiSQL($ze,.SQLCODE,.%msg) s %PrintHistoryPathResults0c=100 q
+%0Do d %PrintHistoryPathResults0f q:SQLCODE'=0
+	s OEORDRowId=%PrintHistoryPathResults0d(1),OEORDDate=%PrintHistoryPathResults0d(2),PAADMADMNo=%PrintHistoryPathResults0d(3),PAADMDischgDate=%PrintHistoryPathResults0d(4),PAPMINo=%PrintHistoryPathResults0d(5),PAPMIName=%PrintHistoryPathResults0d(6),PAPMIName2=%PrintHistoryPathResults0d(7),ID=%PrintHistoryPathResults0d(8),P1=%PrintHistoryPathResults0d(9),PrintDate=%PrintHistoryPathResults0d(10),ReportDR=%PrintHistoryPathResults0d(11),CTLOCDesc=%PrintHistoryPathResults0d(12),HOSPRowID=%PrintHistoryPathResults0d(13),HOSPDesc=%PrintHistoryPathResults0d(14)
+	q
+%0Eo d %PrintHistoryPathResults0f q:SQLCODE'=0
+	s OEORDRowId=%PrintHistoryPathResults0d(1),OEORDDate=%PrintHistoryPathResults0d(2),PAADMADMNo=%PrintHistoryPathResults0d(3),PAADMDischgDate=%PrintHistoryPathResults0d(4),PAPMINo=%PrintHistoryPathResults0d(5),PAPMIName=%PrintHistoryPathResults0d(6),PAPMIName2=%PrintHistoryPathResults0d(7),ID=%PrintHistoryPathResults0d(8),P1=%PrintHistoryPathResults0d(9),PrintDate=%PrintHistoryPathResults0d(10),ReportDR=%PrintHistoryPathResults0d(11),CTLOCDesc=%PrintHistoryPathResults0d(12),HOSPRowID=%PrintHistoryPathResults0d(13),HOSPDesc=%PrintHistoryPathResults0d(14)
+	q
+]]></Routine>
+</Export>

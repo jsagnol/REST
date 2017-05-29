@@ -1,0 +1,215 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.SWARH.Report.RptSvc.StoredProc.SWARHRDHS1001A">
+<Description><![CDATA[
+<pre>
+**************************************************************************************************************************************
+* Report Code: SWARHRDHS1001A
+* Report Description: AIMS S10 Detail for Excel Export
+* Menu Caption: AIMS S10
+* Initial release: 
+* Developer: Jayson Sagnol
+* Modified: MW - 04/04/2017
+* 	- Added Care Provider Group (ENQ_CTCP_DR->CTPCP_CPGroup_DR->CPG_Desc).
+*	- Updated CacheTemp to use #CACHETEMPSUBSCRIPT. 				
+* 
+**************************************************************************************************************************************
+</pre>]]></Description>
+<ProcedureBlock>0</ProcedureBlock>
+<Super>Custom.SWARH.Report.ZEN.StoredProc.Abstract</Super>
+<TimeCreated>60905,54849</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/SWARH/Report/RptSvc/StoredProc/SWARHRDHS1001A.xml#1 $</Default>
+</Parameter>
+
+<Method name="SWARHRDHS1001AExecute">
+<Description>
+This is the Execute section for the %Library.Query. 
+All of the logic will be performed here.
+A new node for the ^CacheTemp global will be created and each subscript of this global will contain
+a row for the report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,Hospital:%Integer,DateFrom:%Date,DateTo:%Date]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+		   
+ // Get reportid i.e. use $INCREMENT to add another node to ^CacheTemp global. 
+ // We use ^CacheTemp global because it will always use memory before disk
+ New repid,ind
+
+ // Use $Increment to get the next node
+ Set repid=$INCREMENT(^CacheTemp(..#CACHETEMPSUBSCRIPT))
+ 
+ New ENQRowId,ENQDate,ENQGovernDepartDR,DEPDesc,DEPCode,ENQLocationDR,CTLOCCode,CTLOCDesc,ENQRBEventDR,EVName,EVNumber,ENQContDelivModeDR
+ 	,ENQContDelivSettingDR,SUBCode,MedicalStream,Payor,VINAHClinicID,CONTSESSTYPEDesc,CPGDesc
+ 	
+ Set (ENQDate,DEPDesc,DEPCode,CTLOCCode,CTLOCDesc,EVName,EVNumber,SUBCode,Payor,CTCPTCode,AUXITCode,VINAHClinicID,CONTSESSTYPEDesc,ENQRowId
+ 	,ENQPAPERDR,ENQContDelivModeDR,ENQContDelivSettingDR,MedicalStream,PAPMINo,CTCPTDesc,INSTDesc,CPGDesc) = ""
+  
+ Set ind=1, END=0
+
+ //Start Monitor (if configured to capture stats)
+ Set mon=..MonitorBegin()
+ 
+ //Convert ODBC dates to cache format
+ Set DateFrom=..ConvertDateToCache(DateFrom)
+ Set DateTo=..ConvertDateToCache(DateTo)
+ 
+ &SQL(DECLARE SWARHRDHS1001A CURSOR FOR
+		SELECT
+			ENQ_RowId,
+			ENQ_PAPER_DR->PAPER_PAPMI_DR->PAPMI_No,
+			ENQ_Date,
+			ENQ_GovernDepart_DR->DEP_Desc,
+			ENQ_GovernDepart_DR->DEP_Code,
+			ENQ_Location_DR->CTLOC_Code,
+			ENQ_Location_DR->CTLOC_Desc,
+			ENQ_RBEvent_DR->EV_Name,
+			ENQ_RBEvent_DR->EV_Number,
+			ENQ_ContDelivMode_DR->CONTDELMODE_Desc,
+			ENQ_ContDelivSetting_DR->CONTDELSET_Desc,
+			ENQ_GovernDepart_DR->DEP_ParRef->NFMI_GovSubCateg_DR->SUB_Code,
+			ENQ_CTCP_DR->CTPCP_CarPrvTp_DR->CTCPT_Code,
+			ENQ_CTCP_DR->CTPCP_CarPrvTp_DR->CTCPT_Desc,
+			ENQ_CTCP_DR->CTPCP_CPGroup_DR->CPG_Desc,
+			ENQ_ContSessionType_DR->CONTSESSTYPE_Desc,
+			ENQ_InsType_DR->INST_Desc
+        FROM
+                SQLUser.PA_EnquiryContact
+        WHERE
+                ENQ_Date Between :DateFrom AND :DateTo
+                AND ENQ_Hospital_DR =:Hospital
+                AND ENQ_GovernDepart_DR->DEP_Parref->NFMI_GovSubCateg_DR->SUB_Code='VINAH'
+                AND (ENQ_ContClientPresStat_DR NOT IN (6,4) OR ENQ_ContClientPresStat_DR IS NULL) 
+				AND ENQ_ContDelivMode_DR <> 3
+                AND (ENQ_InpatientFlag = 'N' OR ENQ_InpatientFlag IS NULL) 
+                AND (ENQ_ContactType='I' OR ENQ_ContactType='FE' OR ENQ_ContactType is NULL)
+				AND ENQ_RequestStatus_DR->REQST_Desc='Complete'
+	
+        GROUP BY ENQ_PAPER_DR, ENQ_Date, ENQ_Location_DR, ENQ_ContDelivMode_DR, ENQ_ContDelivSetting_DR 
+    )
+                
+ &SQL(OPEN SWARHRDHS1001A)
+ 
+ Do FetchRow //Fetch first row
+  
+ While END=0 {
+	 Do FormatDates,FormatTimes,FormatAddress,GetVINAHClinicID
+	 
+  	 Set sort = ind
+  	 
+	 Set ^CacheTemp(..#CACHETEMPSUBSCRIPT,repid,sort)=$LISTBUILD(ENQRowId,PAPMINo,ENQDate,DEPDesc,DEPCode,CTLOCCode,CTLOCDesc,EVName,EVNumber
+	 	,ENQContDelivModeDR,ENQContDelivSettingDR,SUBCode,CTCPTCode,CTCPTDesc,CPGDesc,MedicalStream,Payor,AUXITCode,VINAHClinicID,CONTSESSTYPEDesc,INSTDesc)
+	 
+	 Set ind=ind+1
+	 
+ 	 Do FetchRow //Fetch next row
+ }
+
+ &SQL(CLOSE SWARHRDHS1001A)
+ 
+ // Build QHandle (AtEnd,ReportID,Index)
+ Set QHandle=$LISTBUILD(0,repid,0)
+
+ Quit $$$OK
+
+FetchRow
+ &sql(FETCH SWARHRDHS1001A INTO :ENQRowId,:PAPMINo,:ENQDate,:DEPDesc,:DEPCode,:CTLOCCode,:CTLOCDesc,:EVName,:EVNumber,:ENQContDelivModeDR
+ 	,:ENQContDelivSettingDR,:SUBCode,:CTCPTCode,:CTCPTDesc,:CPGDesc,:CONTSESSTYPEDesc,:INSTDesc)
+ 
+ If ENQRowId {
+	Set Payor = ..GetPrimaryInsPayorGroupForContact(ENQRowId)
+ 	Set AUXITCode = ..GetAuxInsTypeForContact(ENQRowId)
+ }
+ Set MedicalStream=..SetMedicalStreamSpecialty(ENQPAPERDR,ENQDate,CTLOCCode,ENQContDelivModeDR,ENQContDelivSettingDR)
+ If SQLCODE '= 0 Set END = 1
+ Quit
+ 
+FormatDates
+ Set ENQDate = ..ConvertDateToODBC(ENQDate) 
+ Quit
+  
+FormatTimes
+ // s ENQTime=$ZT(ENQTime,2)
+ Quit
+ 
+FormatAddress
+ //s PAPERStName=$ZSTRIP(PAPERStName,"*C")
+ Quit
+ 
+GetVINAHClinicID
+ Set VINAHClinicID = ##class(Custom.AUXXUtilities).GetMappedCode("CT_Loc","CTLOC_Code","VINAH",CTLOCCode)
+ Quit
+]]></Implementation>
+</Method>
+
+<Method name="SWARHRDHS1001AFetch">
+<Description>
+This is the Fetch component of the %Library.Query. 
+This should never have to change. It is designed to fetch the row for each subscript of the ^CacheTemp
+global and return this row to the Crystal Report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,&Row:%Library.List,&AtEnd:%Library.Integer=0]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // This fetch method should never have to change. 
+ // repid - Report ID
+ // ind   - sequence index which represents each row
+
+ New repid,ind
+
+ // Restore QHandle
+ Set AtEnd=$LIST(QHandle,1)
+ Set repid=$LIST(QHandle,2)
+ Set ind=$LIST(QHandle,3)
+
+ Set ind=$ORDER(^CacheTemp(..#CACHETEMPSUBSCRIPT,repid,ind))
+ If ind="" {	// if there are no more rows, finish fetching
+	 Set AtEnd=1
+	 Set Row=""
+ }
+ Else      {	// fetch row
+ 	Set Row=^CacheTemp(..#CACHETEMPSUBSCRIPT,repid,ind)
+ }
+
+ // Save QHandle
+ Set QHandle=$LISTBUILD(AtEnd,repid,ind)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="SWARHRDHS1001AClose">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)
+This is the Close component of the %Library.Query.
+This is standard code and should never have to change.
+This is where all the cleanup is performed, i.e. the purging of the temporary storage global ^CacheTemp.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>QHandle:%Library.Binary</FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Clean up by purging the temporary node in ^CacheTemp global
+ New repid,ind
+ Set repid=$LIST(QHandle,2)
+
+ //Stop Monitor (if configured to capture stats)
+ If mon Do ..MonitorEnd(mon)
+
+ Kill ^CacheTemp(..#CACHETEMPSUBSCRIPT,repid)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Query name="SWARHRDHS1001A">
+<Type>%Library.Query</Type>
+<FormalSpec>Hospital:%Integer,DateFrom:%Date,DateTo:%Date</FormalSpec>
+<SqlProc>1</SqlProc>
+<Parameter name="CONTAINID" value="0"/>
+<Parameter name="ROWSPEC" value="ENQRowId:%String,PAPMINo:%String,ENQDate:%String,DEPDesc:%String,DEPCode:%String,CTLOCCode:%String,CTLOCDesc:%String,EVName:%String,EVNumber:%String,ENQContDelivModeDR:%String,ENQContDelivSettingDR:%String,SUBCode:%String,CTCPTCode:%String,CTCPTDesc:%String,CPGDesc:%String,MedicalStream:%String,Payor:%String,AUXITCode:%String,VINAHClinicID:%String,CONTSESSTYPEDesc:%String,INSTDesc:%String"/>
+<Parameter name="SELECTMODE" value="ODBC"/>
+</Query>
+</Class>
+</Export>

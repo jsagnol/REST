@@ -1,0 +1,565 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.AUXX.Report.MasterLookups">
+<ProcedureBlock>0</ProcedureBlock>
+<Super>%RegisteredObject</Super>
+<TimeCreated>59806,71923.413941</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/AUXX/Report/MasterLookups.xml#1 $</Default>
+</Parameter>
+
+<Query name="LookUpApptStatus">
+<Type>%Library.SQLQuery</Type>
+<FormalSpec>Status:%String</FormalSpec>
+<SqlQuery>SELECT Description,  Code
+FROM websys.StandardTypeItem
+WHERE ParRef='RBApptStatus' and Code in ('A','P') and
+((%ALPHAUP Description %STARTSWITH %ALPHAUP :Status) OR (%ALPHAUP Code %STARTSWITH %ALPHAUP :Status))
+ORDER BY Description</SqlQuery>
+<Parameter name="CONTAINID" value="2"/>
+<Parameter name="ROWSPEC" value="Description:%String,Code:%String"/>
+</Query>
+
+<Method name="LookUpBrokerApptStatus">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>itmjs:%Library.String="",itmjsex:%Library.String="",Status:%Library.String=""</FormalSpec>
+<Implementation><![CDATA[
+ n desc,code
+
+ s (desc,code)=""
+
+ ; Try and find a matching code
+ &sql(SELECT  Description,  Code
+ INTO   :desc,  :code
+ FROM   websys.StandardTypeItem
+ WHERE  ParRef='RBApptStatus' and Code in ('A','P') and
+ ((%ALPHAUP Description = %ALPHAUP :Status) OR (%ALPHAUP Code = %ALPHAUP :Status))
+ )
+ ;
+ i SQLCODE s desc=Status q 0
+ s retval=itmjs_"('"_$ZCVT(desc,"O","JS")_"');"
+ i itmjsex'="""" s retval=retval_itmjsex_"('"_$ZCVT(desc,"O","JS")_"^"_$ZCVT(code,"O","JS")_"');"
+ &javascript<#(retval)#>
+ q 1
+]]></Implementation>
+</Method>
+
+<Query name="LookUpDRG">
+<Type>%Library.SQLQuery</Type>
+<FormalSpec>var:%String,activedate:%Library.Date</FormalSpec>
+<SqlQuery><![CDATA[SELECT DRG_Desc,DRG_RowId,DRG_Code
+FROM SQLUser.MRC_DRGCodes
+WHERE ((%UPPER DRG_Desc %STARTSWITH %UPPER :val) OR (%UPPER DRG_Code %STARTSWITH %UPPER :val))
+AND ((DRG_DateFrom <= :activedate) OR (DRG_DateFrom IS NULL) OR (:activedate IS NULL))
+AND ((DRG_DateTo >= :activedate) OR (DRG_DateTo IS NULL) OR (:activedate IS NULL))]]></SqlQuery>
+<Parameter name="CONTAINID" value="2"/>
+<Parameter name="ROWSPEC" value="Description:%String,HIDDEN:%String,Code:%String"/>
+</Query>
+
+<Method name="LookUpDRGBroker">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>itmjs:%Library.String="",itmjsex:%Library.String="",var:%Library.String="",activedate:%Library.Date=""</FormalSpec>
+<Implementation><![CDATA[
+ n id,code,desc
+ s (id,code,desc)=""
+ &SQL(SELECT DISTINCT
+ DRG_Desc,DRG_RowId,DRG_Code
+ INTO :desc,:id,:code
+ FROM  SQLUser.MRC_DRGCodes
+ WHERE ((%ALPHAUP DRG_Desc = %ALPHAUP :var) OR (%ALPHAUP DRG_Code = %ALPHAUP :var))
+ AND ((DRG_DateFrom <= :activedate) OR (DRG_DateFrom IS NULL) OR (:activedate IS NULL))
+ AND ((DRG_DateTo >= :activedate) OR (DRG_DateTo IS NULL) OR (:activedate IS NULL)))
+ ;
+ i SQLCODE s desc=var q 0
+ s retval=itmjs_"('"_$ZCVT(desc,"O","JS")_"');"
+ i itmjsex'="""" s retval=retval_itmjsex_"('"_$ZCVT(desc,"O","JS")_"^"_id_"^"_$ZCVT(code,"O","JS")_"');"
+ &javascript<#(retval)#>
+ q 1
+]]></Implementation>
+</Method>
+
+<Query name="LookUpOperationByCP">
+<Type>%Library.SQLQuery</Type>
+<FormalSpec>val:%Library.String,cp:%Library.String</FormalSpec>
+<SqlQuery><![CDATA[SELECT OPER_Desc,OPER_RowId,OPER_Code
+FROM SQLUser.CT_CareProvORPref,SQLUser.ORC_Operation
+WHERE ((%ALPHAUP OPER_Desc %STARTSWITH %ALPHAUP :val) OR (%ALPHAUP OPER_Code %STARTSWITH %ALPHAUP :val))
+AND (({fn CONCAT( ',', {fn CONCAT((:cp),',')})} [ {fn CONCAT( ',', {fn CONCAT((ORP_ParRef),',')})}) OR (:cp IS NULL))
+AND ORP_Operation_DR*=OPER_RowId
+AND ((OPER_ActiveDateTo >= CURRENT_DATE ) OR (OPER_ActiveDateTo is null))
+UNION
+SELECT OPER_Desc,OPER_RowId,OPER_Code
+FROM SQLUser.CT_CareProvORPref,SQLUser.ORC_Operation
+WHERE ((%ALPHAUP OPER_Desc %STARTSWITH %ALPHAUP :val) OR (%ALPHAUP OPER_Code %STARTSWITH %ALPHAUP :val))
+AND (({fn CONCAT( ',', {fn CONCAT((:cp),',')})} [ {fn CONCAT( ',', {fn CONCAT((ORP_ParRef),',')})}) OR (:cp IS NULL))
+AND ORP_RecovOperation_DR*=OPER_RowId
+AND ((OPER_ActiveDateTo >= CURRENT_DATE ) OR (OPER_ActiveDateTo is null))
+ORDER BY 1]]></SqlQuery>
+<Parameter name="CONTAINID" value="1"/>
+<Parameter name="ROWSPEC" value="Description:%String,HIDDEN:%String,Code:%String"/>
+</Query>
+
+<Method name="LookUpOperationByCPBroker">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>itmjs:%Library.String="",itmjsex:%Library.String="",val:%Library.String="",cp:%Library.String=""</FormalSpec>
+<ReturnType>%Library.Boolean</ReturnType>
+<Implementation><![CDATA[
+ n id,code,desc
+ s (id,code,desc)=""
+ ; Try and find a matching code
+ &SQL(
+ SELECT OPER_Desc,OPER_RowId,OPER_Code
+ INTO :desc,:id,:code
+ FROM SQLUser.ORC_Operation
+ WHERE ((%ALPHAUP OPER_Desc = %ALPHAUP :val) OR (%ALPHAUP OPER_Code = %ALPHAUP :val))
+ 
+ AND ((OPER_ActiveDateTo >= CURRENT_DATE ) OR (OPER_ActiveDateTo is null))
+ )
+ ;
+ ;i SQLCODE s desc=var q 0
+ ;FD 11/07/2012 - TRC 115561
+ i SQLCODE s desc=val q 0
+ s retval=itmjs_"('"_$ZCVT(desc,"O","JS")_"');"
+ i itmjsex'="""" s retval=retval_itmjsex_"('"_$ZCVT(desc,"O","JS")_"^"_id_"^"_$ZCVT(code,"O","JS")_"');"
+ &javascript<#(retval)#>
+ q 1
+]]></Implementation>
+</Method>
+
+<Query name="LookUpROperationByCP">
+<Type>%Library.SQLQuery</Type>
+<FormalSpec>val:%Library.String,cp:%Library.String</FormalSpec>
+<SqlQuery><![CDATA[SELECT OPER_Desc,OPER_RowId,OPER_Code
+FROM SQLUser.CT_CareProvORPref,SQLUser.ORC_Operation
+WHERE ((%ALPHAUP OPER_Desc %STARTSWITH %ALPHAUP :val) OR (%ALPHAUP OPER_Code %STARTSWITH %ALPHAUP :val))
+AND (({fn CONCAT( ',', {fn CONCAT((:cp),',')})} [ {fn CONCAT( ',', {fn CONCAT((ORP_ParRef),',')})}) OR (:cp IS NULL))
+AND ORP_RecovOperation_DR*=OPER_RowId
+AND ((OPER_ActiveDateTo >= CURRENT_DATE ) OR (OPER_ActiveDateTo is null))
+ORDER BY 1]]></SqlQuery>
+<Parameter name="CONTAINID" value="1"/>
+<Parameter name="ROWSPEC" value="Description:%String,HIDDEN:%String,Code:%String"/>
+</Query>
+
+<Method name="LookUpROperationByCPBroker">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>itmjs:%Library.String="",itmjsex:%Library.String="",val:%Library.String="",cp:%Library.String=""</FormalSpec>
+<ReturnType>%Library.Boolean</ReturnType>
+<Implementation><![CDATA[
+ n id,code,desc
+ s (id,code,desc)=""
+ ; Try and find a matching code
+ &SQL(
+ SELECT OPER_Desc,OPER_RowId,OPER_Code
+ INTO :desc,:id,:code
+ FROM SQLUser.CT_CareProvORPref,SQLUser.ORC_Operation
+ WHERE ((%ALPHAUP OPER_Desc = %ALPHAUP :val) OR (%ALPHAUP OPER_Code = %ALPHAUP :val))
+ AND ORP_RecovOperation_DR*=OPER_RowId
+ AND ((OPER_ActiveDateTo >= CURRENT_DATE ) OR (OPER_ActiveDateTo is null))
+ )
+ ;
+ ;i SQLCODE s desc=var q 0
+ ;FD 11/07/2012 - TRC 115561
+ i SQLCODE s desc=val q 0
+ s retval=itmjs_"('"_$ZCVT(desc,"O","JS")_"');"
+ i itmjsex'="""" s retval=retval_itmjsex_"('"_$ZCVT(desc,"O","JS")_"^"_id_"^"_$ZCVT(code,"O","JS")_"');"
+ &javascript<#(retval)#>
+ q 1
+]]></Implementation>
+</Method>
+
+<Query name="LookUpWLStatus">
+<Type>%Library.SQLQuery</Type>
+<FormalSpec>var:%String,activedate:%Library.Date</FormalSpec>
+<SqlQuery>SELECT WLS_Desc,WLS_RowId,WLS_Code
+FROM SQLUser.PAC_WaitingListStatus
+WHERE (WLS_Code in ('I', 'PRE', 'A') AND ((%UPPER WLS_Desc %STARTSWITH %UPPER :var) OR (%UPPER WLS_Code %STARTSWITH %UPPER :var))
+)</SqlQuery>
+<Parameter name="CONTAINID" value="2"/>
+<Parameter name="ROWSPEC" value="Description:%String,HIDDEN:%String,Code:%String"/>
+</Query>
+
+<Method name="LookUpWLStatusBroker">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>itmjs:%Library.String="",itmjsex:%Library.String="",var:%Library.String=""</FormalSpec>
+<Implementation><![CDATA[
+ n id,code,desc
+ s (id,code,desc)=""
+ &SQL(SELECT DISTINCT
+ WLS_Desc,WLS_RowId,WLS_Code
+ INTO :desc,:id,:code
+ FROM  SQLUser.PAC_WaitingListStatus
+ WHERE (WLS_Code in ('I', 'PRE', 'A') AND ((%ALPHAUP WLS_Desc = %ALPHAUP :var) OR (%ALPHAUP WLS_Code = %ALPHAUP :var))
+ ))
+ ;
+ ;i SQLCODE s desc=var q 0
+ ;FD 11/07/2012 - TRC 115561
+ i SQLCODE s desc=val q 0
+ s retval=itmjs_"('"_$ZCVT(desc,"O","JS")_"');"
+ i itmjsex'="""" s retval=retval_itmjsex_"('"_$ZCVT(desc,"O","JS")_"^"_id_"^"_$ZCVT(code,"O","JS")_"');"
+ &javascript<#(retval)#>
+ q 1
+]]></Implementation>
+</Method>
+
+<Query name="LookUpStatePPP">
+<Type>%Library.SQLQuery</Type>
+<FormalSpec>var:%String</FormalSpec>
+<SqlQuery><![CDATA[SELECT  SPPP_Desc,SPPP_RowId,SPPP_Code
+FROM SQLUser.PAC_StatePPP
+WHERE (((%UPPER SPPP_Desc %STARTSWITH %UPPER :var) OR (%UPPER SPPP_Code %STARTSWITH %UPPER :var)) 
+AND (((SPPP_EndDate is null) OR (SPPP_EndDate>current_date)) AND (SPPP_StartDate <= current_date)) )]]></SqlQuery>
+<Parameter name="CONTAINID" value="2"/>
+<Parameter name="ROWSPEC" value="Description:%String,HIDDEN:%String,Code:%String"/>
+</Query>
+
+<Method name="LookUpStatePPPBroker">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>itmjs:%Library.String="",itmjsex:%Library.String="",var:%Library.String=""</FormalSpec>
+<Implementation><![CDATA[
+ n id,code,desc
+ s (id,code,desc)=""
+ &SQL(
+ SELECT DISTINCT SPPP_Desc,SPPP_RowId,SPPP_Code
+ INTO :desc,:id,:code
+ FROM SQLUser.PAC_StatePPP
+ WHERE ((%ALPHAUP SPPP_Desc = %ALPHAUP  :var) OR (%ALPHAUP SPPP_Code = %ALPHAUP  :var))
+ AND (((SPPP_EndDate is null) OR (SPPP_EndDate>current_date)) AND (SPPP_StartDate <= current_date)))
+ 
+ ;
+ i SQLCODE s desc=var q 0
+ s retval=itmjs_"('"_$ZCVT(desc,"O","JS")_"');"
+ i itmjsex'="""" s retval=retval_itmjsex_"('"_$ZCVT(desc,"O","JS")_"^"_id_"^"_$ZCVT(code,"O","JS")_"');"
+ &javascript<#(retval)#>
+ q
+]]></Implementation>
+</Method>
+
+<Query name="LookUpStatePPPByCP">
+<Type>%Library.SQLQuery</Type>
+<FormalSpec>val:%Library.String,cp:%Library.String</FormalSpec>
+<SqlQuery><![CDATA[SELECT SPPP_Desc,SPPP_RowId,SPPP_Code
+FROM SQLUser.CT_CareProvORPref,SQLUser.PAC_StatePPP
+WHERE (((%ALPHAUP SPPP_Desc %STARTSWITH %ALPHAUP :val) OR (%ALPHAUP SPPP_Code %STARTSWITH %ALPHAUP :val))
+AND (({fn CONCAT( ',', {fn CONCAT((:cp),',')})} [ {fn CONCAT( ',', {fn CONCAT((ORP_ParRef),',')})}) OR (:cp IS NULL))
+AND ORP_StatePPP_DR*=SPPP_RowId
+AND (((SPPP_EndDate is null) OR (SPPP_EndDate>current_date)) AND (SPPP_StartDate <= current_date)))
+UNION
+SELECT SPPP_Desc,SPPP_RowId,SPPP_Code
+FROM SQLUser.CT_CareProvORPref,SQLUser.PAC_StatePPP
+WHERE (((%ALPHAUP SPPP_Desc %STARTSWITH %ALPHAUP :val) OR (%ALPHAUP SPPP_Code %STARTSWITH %ALPHAUP :val))
+AND (({fn CONCAT( ',', {fn CONCAT((:cp),',')})} [ {fn CONCAT( ',', {fn CONCAT((ORP_ParRef),',')})}) OR (:cp IS NULL))
+AND ORP_RecovOperation_DR*=SPPP_RowId
+AND ORP_RecovOperation_DR is not NULL
+AND (((SPPP_EndDate is null) OR (SPPP_EndDate>current_date)) AND (SPPP_StartDate <= current_date)))
+
+ORDER BY 1]]></SqlQuery>
+<Parameter name="CONTAINID" value="1"/>
+<Parameter name="ROWSPEC" value="Description:%String,HIDDEN:%String,Code:%String"/>
+</Query>
+
+<Method name="LookUpStatePPPByCPBroker">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>itmjs:%Library.String="",itmjsex:%Library.String="",val:%Library.String="",cp:%Library.String=""</FormalSpec>
+<ReturnType>%Library.Boolean</ReturnType>
+<Implementation><![CDATA[
+ n id,code,desc
+ s (id,code,desc)=""
+ ; Try and find a matching code
+ &SQL(
+ SELECT SPPP_Desc,SPPP_RowId,SPPP_Code
+ INTO :desc,:id,:code
+ FROM SQLUser.PAC_StatePPP
+ WHERE (((%ALPHAUP SPPP_Desc = %ALPHAUP :val) OR (%ALPHAUP SPPP_Code = %ALPHAUP :val))
+ AND (((SPPP_EndDate is null) OR (SPPP_EndDate>current_date)) AND (SPPP_StartDate <= current_date)))
+ )
+ ;
+ ;i SQLCODE s desc=var q 0
+ ;FD 11/07/2012 - TRC 115561
+ i SQLCODE s desc=val q 0
+ s retval=itmjs_"('"_$ZCVT(desc,"O","JS")_"');"
+ i itmjsex'="""" s retval=retval_itmjsex_"('"_$ZCVT(desc,"O","JS")_"^"_id_"^"_$ZCVT(code,"O","JS")_"');"
+ &javascript<#(retval)#>
+ q 1
+]]></Implementation>
+</Method>
+
+<Query name="LookUpSPStatePPPByCP">
+<Type>%Library.SQLQuery</Type>
+<FormalSpec>val:%Library.String,cp:%Library.String</FormalSpec>
+<SqlQuery><![CDATA[SELECT SPPP_Desc,SPPP_RowId,SPPP_Code
+FROM SQLUser.CT_CareProvORPref,SQLUser.PAC_StatePPP
+WHERE (((%ALPHAUP SPPP_Desc %STARTSWITH %ALPHAUP :val) OR (%ALPHAUP SPPP_Code %STARTSWITH %ALPHAUP :val))
+AND (({fn CONCAT( ',', {fn CONCAT((:cp),',')})} [ {fn CONCAT( ',', {fn CONCAT((ORP_ParRef),',')})}) OR (:cp IS NULL))
+AND ORP_StatePPP_DR*=SPPP_RowId
+AND ORP_StatePPP_DR is not NULL
+AND (((SPPP_EndDate is null) OR (SPPP_EndDate>current_date)) AND (SPPP_StartDate <= current_date)))
+ORDER BY 1]]></SqlQuery>
+<Parameter name="CONTAINID" value="1"/>
+<Parameter name="ROWSPEC" value="Description:%String,HIDDEN:%String,Code:%String"/>
+</Query>
+
+<Method name="LookUpSPStatePPPByCPBroker">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>itmjs:%Library.String="",itmjsex:%Library.String="",val:%Library.String="",cp:%Library.String=""</FormalSpec>
+<ReturnType>%Library.Boolean</ReturnType>
+<Implementation><![CDATA[
+ n id,code,desc
+ s (id,code,desc)=""
+ ; Try and find a matching code
+ &SQL(
+ SELECT SPPP_Desc,SPPP_RowId,SPPP_Code
+ INTO :desc,:id,:code
+ FROM SQLUser.CT_CareProvORPref,SQLUser.PAC_StatePPP
+ WHERE (((%ALPHAUP SPPP_Desc = %ALPHAUP :val) OR (%ALPHAUP SPPP_Code = %ALPHAUP :val))
+ AND ORP_StatePPP_DR*=SPPP_RowId
+ AND ORP_StatePPP_DR is not NULL
+ AND (((SPPP_EndDate is null) OR (SPPP_EndDate>current_date)) AND (SPPP_StartDate <= current_date)))
+ )
+ ;
+ ;i SQLCODE s desc=var q 0
+ ;FD 11/07/2012 - TRC 115561
+ i SQLCODE s desc=val q 0
+ s retval=itmjs_"('"_$ZCVT(desc,"O","JS")_"');"
+ i itmjsex'="""" s retval=retval_itmjsex_"('"_$ZCVT(desc,"O","JS")_"^"_id_"^"_$ZCVT(code,"O","JS")_"');"
+ &javascript<#(retval)#>
+ q 1
+]]></Implementation>
+</Method>
+
+<Query name="LookUpSPRStatePPPByCP">
+<Type>%Library.SQLQuery</Type>
+<FormalSpec>val:%Library.String,cp:%Library.String</FormalSpec>
+<SqlQuery><![CDATA[SELECT SPPP_Desc,SPPP_RowId,SPPP_Code
+FROM SQLUser.CT_CareProvORPref,SQLUser.PAC_StatePPP
+WHERE (((%ALPHAUP SPPP_Desc %STARTSWITH %ALPHAUP :val) OR (%ALPHAUP SPPP_Code %STARTSWITH %ALPHAUP :val))
+AND (({fn CONCAT( ',', {fn CONCAT((:cp),',')})} [ {fn CONCAT( ',', {fn CONCAT((ORP_ParRef),',')})}) OR (:cp IS NULL))
+AND ORP_RecovStatePPP_DR*=SPPP_RowId
+AND ORP_RecovStatePPP_DR is not NULL
+AND (((SPPP_EndDate is null) OR (SPPP_EndDate>current_date)) AND (SPPP_StartDate <= current_date)))
+ORDER BY 1]]></SqlQuery>
+<Parameter name="CONTAINID" value="1"/>
+<Parameter name="ROWSPEC" value="Description:%String,HIDDEN:%String,Code:%String"/>
+</Query>
+
+<Method name="LookUpSPRStatePPPCPBroker">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>itmjs:%Library.String="",itmjsex:%Library.String="",val:%Library.String="",cp:%Library.String=""</FormalSpec>
+<ReturnType>%Library.Boolean</ReturnType>
+<Implementation><![CDATA[
+ n id,code,desc
+ s (id,code,desc)=""
+ ; Try and find a matching code
+ &SQL(
+ SELECT SPPP_Desc,SPPP_RowId,SPPP_Code
+ INTO :desc,:id,:code
+ FROM SQLUser.CT_CareProvORPref,SQLUser.PAC_StatePPP
+ WHERE ((%ALPHAUP SPPP_Desc = %ALPHAUP :val) OR (%ALPHAUP SPPP_Code = %ALPHAUP :val))
+ AND ORP_RecovStatePPP_DR*=SPPP_RowId
+ AND ORP_RecovStatePPP_DR is not NULL
+ AND (((SPPP_EndDate is null) OR (SPPP_EndDate>current_date)) AND (SPPP_StartDate <= current_date))
+ )
+ ;
+ ;i SQLCODE s desc=var q 0
+ ;FD 11/07/2012 - TRC 115561
+ i SQLCODE s desc=val q 0
+ s retval=itmjs_"('"_$ZCVT(desc,"O","JS")_"');"
+ i itmjsex'="""" s retval=retval_itmjsex_"('"_$ZCVT(desc,"O","JS")_"^"_id_"^"_$ZCVT(code,"O","JS")_"');"
+ &javascript<#(retval)#>
+ q 1
+]]></Implementation>
+</Method>
+
+<Query name="LookUpVendor">
+<Description>
+Lookup on Vendor returning all Active Vendors</Description>
+<Type>%Library.SQLQuery</Type>
+<FormalSpec>Vendor:%String</FormalSpec>
+<SqlQuery><![CDATA[SELECT VEND_NGO_DR->NGO_Desc, VEND_NGO_DR->NGO_RowId, VEND_NGO_DR->NGO_Code
+FROM SQLUser.MRC_Vendor
+WHERE ((%ALPHAUP VEND_NGO_DR->NGO_Desc %STARTSWITH %ALPHAUP :Vendor) OR (%ALPHAUP VEND_NGO_DR->NGO_Code %STARTSWITH %ALPHAUP :Vendor))
+AND ((VEND_DateFrom IS NULL) OR (VEND_DateFrom <= CURRENT_DATE))
+AND ((VEND_DateTo IS NULL) OR (VEND_DateTo >= CURRENT_DATE))
+ORDER BY VEND_NGO_DR->NGO_Desc]]></SqlQuery>
+<Parameter name="CONTAINID" value="2"/>
+<Parameter name="ROWSPEC" value="Description:%String,HIDDEN:%String,Code:%String"/>
+</Query>
+
+<Method name="LookUpBrokerVendor">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>itmjs:%Library.String="",itmjsex:%Library.String="",var:%Library.String=""</FormalSpec>
+<Implementation><![CDATA[
+ n id,code,desc
+ s (id,code,desc)=""
+ &SQL(SELECT DISTINCT
+ VEND_NGO_DR->NGO_Desc,VEND_NGO_DR->NGO_RowId,VEND_NGO_DR->NGO_Code
+ INTO :desc,:id,:code
+ FROM  SQLUser.MRC_Vendor
+ WHERE ((%ALPHAUP VEND_NGO_DR->NGO_Desc = %ALPHAUP :var) OR (%ALPHAUP VEND_NGO_DR->NGO_Code = %ALPHAUP :var))
+ AND ((VEND_DateFrom <= :activedate) OR (VEND_DateFrom IS NULL) OR (:activedate IS NULL))
+ AND ((VEND_DateTo >= :activedate) OR (VEND_DateTo IS NULL) OR (:activedate IS NULL)))
+ ;
+ i SQLCODE s desc=var q 0
+ s retval=itmjs_"('"_$ZCVT(desc,"O","JS")_"');"
+ i itmjsex'="""" s retval=retval_itmjsex_"('"_$ZCVT(desc,"O","JS")_"^"_id_"^"_$ZCVT(code,"O","JS")_"');"
+ &javascript<#(retval)#>
+ q 1
+]]></Implementation>
+</Method>
+
+<Query name="LookUpPayor">
+<Description>
+Lookup on Payor returning all Active Payors</Description>
+<Type>%Library.SQLQuery</Type>
+<FormalSpec>Payor:%String</FormalSpec>
+<SqlQuery><![CDATA[SELECT INST_Desc, INST_RowId, INST_Code
+FROM SQLUser.ARC_InsuranceType
+WHERE ((%ALPHAUP INST_Desc %STARTSWITH %ALPHAUP :Payor) OR (%ALPHAUP INST_Code %STARTSWITH %ALPHAUP :Payor))
+AND ((INST_DateFrom IS NULL) OR (INST_DateFrom <= CURRENT_DATE))
+AND ((INST_DateTo IS NULL) OR (INST_DateTo >= CURRENT_DATE))
+ORDER BY INST_Desc]]></SqlQuery>
+<Parameter name="CONTAINID" value="2"/>
+<Parameter name="ROWSPEC" value="Description:%String,HIDDEN:%String,Code:%String"/>
+</Query>
+
+<Method name="LookUpBrokerPayor">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>itmjs:%Library.String="",itmjsex:%Library.String="",var:%Library.String=""</FormalSpec>
+<Implementation><![CDATA[
+ n id,code,desc
+ s (id,code,desc)=""
+ &SQL(SELECT DISTINCT
+ INST_Desc,INST_RowId,INST_Code
+ INTO :desc,:id,:code
+ FROM  SQLUser.ARC_InsuranceType
+ WHERE ((%ALPHAUP INST_Desc = %ALPHAUP :var) OR (%ALPHAUP INST_Code = %ALPHAUP :var))
+ AND ((INST_DateFrom <= CURRENT_DATE) OR (INST_DateFrom IS NULL))
+ AND ((INST_DateTo >= CURRENT_DATE) OR (INST_DateTo IS NULL)))
+ ;
+ i SQLCODE s desc=var q 0
+ s retval=itmjs_"('"_$ZCVT(desc,"O","JS")_"');"
+ i itmjsex'="""" s retval=retval_itmjsex_"('"_$ZCVT(desc,"O","JS")_"^"_id_"^"_$ZCVT(code,"O","JS")_"');"
+ &javascript<#(retval)#>
+ q 1
+]]></Implementation>
+</Method>
+
+<Query name="LookUpPlan">
+<Description>
+Lookup on Plan returning all Active Plans</Description>
+<Type>%Library.SQLQuery</Type>
+<FormalSpec>Plan:%String,Payor:%String</FormalSpec>
+<SqlQuery><![CDATA[SELECT AUXIT_Desc, AUXIT_RowId, AUXIT_Code
+FROM SQLUser.ARC_AuxilInsurType
+WHERE ((%ALPHAUP AUXIT_Desc %STARTSWITH %ALPHAUP :Plan) OR (%ALPHAUP AUXIT_Code %STARTSWITH %ALPHAUP :Plan))
+AND (({fn CONCAT( ',', {fn CONCAT((:Payor),',')})} [ {fn CONCAT( ',', {fn CONCAT((AUXIT_InsType_DR),',')})}) OR (:Payor IS NULL))
+AND ((AUXIT_DateFrom IS NULL) OR (AUXIT_DateFrom <= CURRENT_DATE))
+AND ((AUXIT_DateTo IS NULL) OR (AUXIT_DateTo >= CURRENT_DATE)) 
+ORDER BY AUXIT_Desc]]></SqlQuery>
+<Parameter name="CONTAINID" value="2"/>
+<Parameter name="ROWSPEC" value="Description:%String,HIDDEN:%String,Code:%String"/>
+</Query>
+
+<Method name="LookUpBrokerPlan">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>itmjs:%Library.String="",itmjsex:%Library.String="",Plan:%Library.String="",Payor:%Library.String=""</FormalSpec>
+<Implementation><![CDATA[
+ n id,code,desc
+ s (id,code,desc)=""
+ &SQL(SELECT DISTINCT
+ AUXIT_Desc,AUXIT_RowId,AUXIT_Code
+ INTO :desc,:id,:code
+ FROM  SQLUser.ARC_AuxilInsurType
+ WHERE ((%ALPHAUP AUXIT_Desc = %ALPHAUP :Plan) OR (%ALPHAUP AUXIT_Code = %ALPHAUP :Plan))
+ AND (({fn CONCAT( ',', {fn CONCAT((:Payor),',')})} [ {fn CONCAT( ',', {fn CONCAT((AUXIT_InsType_DR),',')})}) OR (:Payor IS NULL))
+ AND ((AUXIT_DateFrom <= CURRENT_DATE) OR (AUXIT_DateFrom IS NULL) )
+ AND ((AUXIT_DateTo >= CURRENT_DATE) OR (AUXIT_DateTo IS NULL))
+ )
+ ;
+ i SQLCODE s desc=Plan q 0
+ s retval=itmjs_"('"_$ZCVT(desc,"O","JS")_"');"
+ i itmjsex'="""" s retval=retval_itmjsex_"('"_$ZCVT(desc,"O","JS")_"^"_id_"^"_$ZCVT(code,"O","JS")_"');"
+ &javascript<#(retval)#>
+ q 1
+]]></Implementation>
+</Method>
+
+<Query name="LookUpSecurityGroupByMenuHeader">
+<Description>
+Lookup on MenuSecurity to select all security groups linked to a menuHeader</Description>
+<Type>%Library.SQLQuery</Type>
+<FormalSpec>groupdesc:%String,menuheader:%String</FormalSpec>
+<SqlQuery><![CDATA[ SELECT s.SSGRP_Desc,s.%Id from epr.GroupSettings e,SQLUser.SS_Group s
+ where e.MainMenuDR=:menuheader
+ AND e.GroupDR=s.%Id
+ AND ((%ALPHAUP s.SSGRP_Desc %STARTSWITH %ALPHAUP :groupdesc) OR (:groupdesc is NULL))
+ AND SSGRP_DateFrom<=CURRENT_DATE AND ((SSGRP_DateTo is NULL) OR (SSGRP_DateTo>=CURRENT_DATE))]]></SqlQuery>
+<Parameter name="CONTAINID" value="2"/>
+<Parameter name="ROWSPEC" value="Description:%String,HIDDEN ID:%String"/>
+</Query>
+
+<Method name="LookUpBrokerSecurityGroupByMenuHeader">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>itmjs:%Library.String="",itmjsex:%Library.String="",groupdesc:%String,menuheader:%String</FormalSpec>
+<Implementation><![CDATA[
+ n id,desc
+ s (id,desc)=""
+ &SQL(
+ SELECT s.SSGRP_Desc,s.%Id
+ INTO:desc,:id
+ from epr.GroupSettings e,SQLUser.SS_Group s
+ where e.MainMenuDR=:menuheader
+ AND e.GroupDR=s.%Id
+ AND ((%ALPHAUP s.SSGRP_Desc %STARTSWITH %ALPHAUP :groupdesc) OR (:groupdesc is NULL))
+ AND SSGRP_DateFrom<=CURRENT_DATE AND ((SSGRP_DateTo is NULL) OR (SSGRP_DateTo>=CURRENT_DATE))
+ )
+
+ ;
+ i SQLCODE s desc=Plan q 0
+ s retval=itmjs_"('"_$ZCVT(desc,"O","JS")_"');"
+ i itmjsex'="""" s retval=retval_itmjsex_"('"_$ZCVT(desc,"O","JS")_"^"_id
+ &javascript<#(retval)#>
+ q 1
+]]></Implementation>
+</Method>
+
+<Query name="LookUpProgram">
+<Description>
+Lookup on Program returning all Active Programs</Description>
+<Type>%Library.SQLQuery</Type>
+<FormalSpec>Program:%String</FormalSpec>
+<SqlQuery><![CDATA[SELECT dep_Desc, dep_RowId, dep_Code
+FROM SQLUser.ct_nfmi_categdepart
+WHERE ((%ALPHAUP dep_Desc %STARTSWITH %ALPHAUP :Program) OR (%ALPHAUP dep_Code %STARTSWITH %ALPHAUP :Program))
+AND ((dep_DateFrom IS NULL) OR (dep_DateFrom <= CURRENT_DATE))
+AND ((dep_DateTo IS NULL) OR (dep_DateTo >= CURRENT_DATE))
+ORDER BY dep_Desc]]></SqlQuery>
+<Parameter name="CONTAINID" value="2"/>
+<Parameter name="ROWSPEC" value="Description:%String,HIDDEN:%String,Code:%String"/>
+</Query>
+
+<Method name="LookUpBrokerProgram">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>itmjs:%Library.String="",itmjsex:%Library.String="",var:%Library.String=""</FormalSpec>
+<Implementation><![CDATA[
+ n id,code,desc
+ s (id,code,desc)=""
+ &SQL(SELECT DISTINCT
+ dep_Desc,dep_RowId,dep_Code
+ INTO :desc,:id,:code
+ FROM  SQLUser.ct_nfmi_categdepart
+ WHERE ((%ALPHAUP dep_Desc = %ALPHAUP :var) OR (%ALPHAUP dep_Code = %ALPHAUP :var))
+ AND ((dep_DateFrom <= :activedate) OR (dep_DateFrom IS NULL) OR (:activedate IS NULL))
+ AND ((dep_DateTo >= :activedate) OR (dep_DateTo IS NULL) OR (:activedate IS NULL)))
+ ;
+ i SQLCODE s desc=var q 0
+ s retval=itmjs_"('"_$ZCVT(desc,"O","JS")_"');"
+ i itmjsex'="""" s retval=retval_itmjsex_"('"_$ZCVT(desc,"O","JS")_"^"_id_"^"_$ZCVT(code,"O","JS")_"');"
+ &javascript<#(retval)#>
+ q 1
+]]></Implementation>
+</Method>
+</Class>
+</Export>

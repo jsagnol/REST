@@ -1,0 +1,218 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.SWARH.SYS.Task.JournalSwitchBackup">
+<Super>%SYS.Task.SwitchJournal</Super>
+<TimeCreated>62349,61305.666836</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/SWARH/SYS/Task/JournalSwitchBackup.xml#1 $</Default>
+</Parameter>
+
+<Parameter name="TaskName">
+<Default>JournalSwitchAndBackup</Default>
+</Parameter>
+
+<Property name="JournalBackupPath">
+<Description>
+The path to backup journals to.
+The following replacements will be performed on the path before it is used:
+  @NodeName@ with the short node name of the machine that you are is running on
+  @InstanceName@ with the instance name of the Ensemble instance that you are running on</Description>
+<Type>%String</Type>
+<Parameter name="MAXLEN"/>
+</Property>
+
+<Property name="JournalSwitch">
+<Type>%Boolean</Type>
+<InitialExpression>1</InitialExpression>
+</Property>
+
+<Property name="JournalBackupKeepForDays">
+<Type>%Integer</Type>
+<InitialExpression>0</InitialExpression>
+</Property>
+
+<Property name="JournalBackupKeepForCacheBackups">
+<Type>%Integer</Type>
+<InitialExpression>2</InitialExpression>
+</Property>
+
+<Property name="JournalBackupPurgeOld">
+<Type>%Boolean</Type>
+<InitialExpression>1</InitialExpression>
+</Property>
+
+<Method name="OnTask">
+<ReturnType>%Status</ReturnType>
+<Implementation><![CDATA[
+	Set tSC = $$$OK
+	
+	Do LogOpen  Quit:$$$ISERR(tSC)
+	
+	Set tBackupPath = $$FormatBackupPath(..JournalBackupPath)
+	
+	Set tJrnFilePreSwitch = ##class(%SYS.Journal.System).GetCurrentFileName() // $$curfile^JRNSWTCH()
+
+	Do LogMsg("Backing up journals to "_tBackupPath)  Goto:$$$ISERR(tSC) ErrCloseLog
+	Do LogMsg("Current journal: "_tJrnFilePreSwitch)  Goto:$$$ISERR(tSC) ErrCloseLog
+	
+	// Use the OnTask method from our "parent" task class (%SYS.Task.SwitchJournal) to switch journals
+	If ..JournalSwitch {
+		Do LogMsg("About to switch journals")  Goto:$$$ISERR(tSC) ErrCloseLog
+		Set tSC = ##super()  Goto:$$$ISERR(tSC) ErrCloseLog
+		Do LogMsg("Journal Switch done")  Goto:$$$ISERR(tSC) ErrCloseLog
+	} Else {
+		// If not switching, get the previous journal file
+		Goto:'$$PREVJRN^JRNUTIL2(tJrnFilePreSwitch,.tJrnFilePreSwitch) ExitCloseLog
+		Do LogMsg("Not switching journals; got previous journal file name "_tJrnFilePreSwitch)  Goto:$$$ISERR(tSC) ErrCloseLog
+	}
+  	
+  	//Set:$$$ISOK(tSC) tSC = $$CheckBackupFolder(tBackupPath)
+  	Set tSC = $$CreateBackupFolder(tBackupPath)  Goto:$$$ISERR(tSC) ErrCloseLog
+	Do LogMsg("Copying journal.log to "_tBackupPath)  Goto:$$$ISERR(tSC) ErrCloseLog
+  	Set tSC = $$CopyJournalLog(tBackupPath)  Goto:$$$ISERR(tSC) ErrCloseLog
+	Do LogMsg("Done copying journal.log")  Goto:$$$ISERR(tSC) ErrCloseLog
+	Do LogMsg("Copying previous journals to "_tBackupPath)  Goto:$$$ISERR(tSC) ErrCloseLog
+  	Set tSC = $$CopyPrevJournals(tJrnFilePreSwitch, tBackupPath)  Goto:$$$ISERR(tSC) ErrCloseLog
+	Do LogMsg("Done copying previous journals")  Goto:$$$ISERR(tSC) ErrCloseLog
+	
+	If ..JournalBackupPurgeOld {
+	  	Do LogMsg("Purging old journal backups from "_tBackupPath)  Goto:$$$ISERR(tSC) ErrCloseLog
+		Set tSC = $$PurgeOldJournalBackups(tBackupPath)  Goto:$$$ISERR(tSC) ErrCloseLog
+		Do LogMsg("Done purging old journal backups")  Goto:$$$ISERR(tSC) ErrCloseLog
+	}  	
+ExitCloseLog
+	Do LogClose
+Exit
+	Quit tSC
+
+ErrCloseLog
+	Goto ExitCloseLog
+Err
+	Goto Exit
+
+LogOpen
+	Set tSC = $$$OK
+	Quit
+LogMsg(pMsg)
+	Set tSC = $$$OK
+	Write "[",$zdt($h,3,1),"]: ",pMsg,!
+	Quit
+LogClose
+	Set tSC = $$$OK
+	Quit
+FormatBackupPath(tPathFmt)
+	Set tPath = tPathFmt
+	Set tPath = $REPLACE(tPath,"@NodeName@",##class(%SYS.System).GetNodeName(1))
+	Set tPath = $REPLACE(tPath,"@InstanceName@",##class(%SYS.System).GetInstanceName())
+	Quit tPath
+CreateBackupFolder(tBackupPath)
+	Set tSC = $$$OK
+	If '##class(%Library.File).DirectoryExists(tBackupPath) {
+		Set:'##class(%Library.File).CreateDirectoryChain(tBackupPath) tSC = $$$ERROR("BackupFolder","Backup Path "_tBackupPath_" does not exists and could not be created.")
+	}
+	Quit tSC
+CopyJournalLog(tBackupPath)
+	Set tSC = $$$OK
+	Set tJrnLog = $zu(12)_"journal.log"
+	,	tJrnLogBackup = ##class(%File).SubDirectoryName(tBackupPath,##class(%File).GetFilename(tJrnLog))
+	
+	Set:'##class(%Library.File).CopyFile(tJrnLog,tJrnLogBackup) tSC = $$$ERROR("CopyFile","Error copying journal log file "_tJrnLog_" to "_tJrnLogBackup)
+	
+	Quit tSC
+CopyPrevJournals(pJrnFile,tBackupPath)
+	Set tSC = $$$OK
+	,	tJrnFile = pJrnFile
+	,	tJrnBackup = ##class(%File).SubDirectoryName(tBackupPath,##class(%File).GetFilename(tJrnFile))
+	,	tExists = ##class(%Library.File).Exists(tJrnBackup)
+	For  {
+		// Quit if journal file doesn't exist or already backed up or last journal reached.
+		Quit:('##class(%Library.File).Exists(tJrnFile)||tExists||(tJrnFile=""))
+	
+		Do LogMsg("Backing up journal file "_tJrnFile_" to "_tBackupPath)
+		
+		// Copy file
+		If '##class(%Library.File).CopyFile(tJrnFile,tJrnBackup) {
+			Set tSC = $$$ERROR("CopyFile","Error copying journal file "_tJrnFile_" to "_tJrnBackup) 
+			Quit
+		}
+		
+		Quit:'$$PREVJRN^JRNUTIL2(tJrnFile,.tJrnFile)
+		Set tJrnBackup = ##class(%File).SubDirectoryName(tBackupPath,##class(%File).GetFilename(tJrnFile))
+		,	tExists = ##class(%Library.File).Exists(tJrnBackup)
+	}
+	
+	Quit tSC
+PurgeOldJournalBackups(tBackupPath)
+	Set tSC = $$$OK
+	,	tPurge = ..JournalBackupPurgeOld
+	,	tKeepForDays = ..JournalBackupKeepForDays
+	,	tKeepForBackups = ..JournalBackupKeepForCacheBackups
+	
+	Set tLimit = $ZD(0,8)_".000J", tToday = $P($H,","), tLimitDay = tLimit, tLimitBackup = tLimit
+	
+	If tKeepForDays {
+		Set tLimitDay = $ZD(tToday-tKeepForDays,8)_".000"
+		Do LogMsg("Journal Purge Days Threshold: Purge journals older than "_tKeepForDays_" days: journals before "_tLimitDay)
+	}
+	
+	If tKeepForBackups {
+ 		Set tBackupTime=""
+ 		For i=1:1:tKeepForBackups {
+	 		Set tBackupTime=$O(^SYS("BUHISTORY",tBackupTime),-1)  Quit:tBackupTime=""
+ 		}
+ 		If tBackupTime'="" {  // Backup #<tBackups> exists
+			// Get appropriate journal or date to purge backed-up journals for
+ 			Set tBackupJournal = $G(^SYS("BUHISTORY",tBackupTime,"JOURNAL"))
+ 			If (tBackupJournal'="") {
+	 			Set:$F(tBackupJournal,";") tBackupJournal = $E(tBackupJournal,0,$F(tBackupJournal,";")-2)
+	 			Set tLimitBackup = $E(tBackupJournal,*-11,*)
+	 			Do LogMsg("Journal Purge Backup Threshold: purge journals before Cache database backup "_tKeepForBackups_": journals before backup journal "_tLimitBackup)
+ 			} Else {
+ 				Set tLimitBackup = $ZD(tBackupTime\1000000,8)_".000" // Use backup date as cutoff by default
+	 			Do LogMsg("Journal Purge Backup Threshold: purge journals before Cache database backup "_tKeepForBackups_": (no backup journal) journals before backup day journal "_tLimitBackup)
+ 			}
+ 		}
+	}
+ 	Set tLimit=$S(tLimitDay]tLimitBackup:tLimitDay,1:tLimitBackup) 
+
+	Set tRS = ##class(%ResultSet).%New("%File:FileSet")
+	
+	Set tSC = tRS.Execute(tBackupPath,"*")  Quit:$$$ISERR(tSC) tSC
+	
+	Do LogMsg("Deleting backed-up journals prior to "_tLimit_" from "_tBackupPath)
+
+	While tRS.Next() {
+		Continue:"D"=tRS.Data("Type") ; skip directories
+		Set tFilePath = tRS.Data("Name")
+		,	tFilename = ##class(%File).GetFilename(tFilePath)
+		
+		Continue:$E(tFilename,*-3)'="."
+		
+		Set tExtn = $E(tFilename,*-2,*)
+		,	tBase = $E(tFilename,1,*-4)
+		,	tJnlPfx = $E(tBase,1,*-8)
+		,	tJnlDate = $E(tBase,*-7,*)
+		,	tJnlNo = tExtn
+		,	tJnlBase = tJnlDate _ "." _ tJnlNo
+		
+		// Ignore files that don't look like journals
+		Continue:(($L(tJnlDate)'=8)||'$ISVALIDNUM(tJnlDate)||'$ISVALIDNUM(tJnlNo))
+		
+		//Set tJnlDateH = $ZDATEH(tJnlDate,8)
+		//If (tJnlDateH < (tToday - ..KeepBackupDays)) {
+		If tLimit ] tJnlBase {
+			Do LogMsg("Deleting journal "_tFilename_" file "_tFilePath)
+			Set:tPurge tSC1 = ##class(%File).Delete(tFilePath)  Set:$$$ISERR(tSC1) tSC = $$$ADDSC(tSC, tSC1)
+		} Else {
+			Do LogMsg("Not deleting journal "_tFilename)
+		}
+	}
+		
+	Quit tSC
+]]></Implementation>
+</Method>
+</Class>
+</Export>

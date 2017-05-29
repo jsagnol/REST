@@ -1,0 +1,171 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.SWARH.JS.PAAdmTransaction.EditList">
+<Description>
+Component JavaScript for: PAAdmTransaction.EditList</Description>
+<Modified>0</Modified>
+<Super>websys.AbstractJavaScript</Super>
+<TimeCreated>63537,10517.990549</TimeCreated>
+
+<Method name="JSContent">
+<Description>
+ </Description>
+<Internal>0</Internal>
+<Language>javascript</Language>
+<ClientMethod>1</ClientMethod>
+<Implementation><![CDATA[
+// site - ARMC
+
+var CAT2 = "2"
+var CAT3 = "3"
+
+function InitCustom() {
+	EditListBodyLoadHandler()
+	setMandatoryFields()
+
+	obj=document.getElementById('update1');
+	if (obj) obj.onclick=UpdateCustom;
+	if (tsc['update1']) websys_sckeys[tsc['update1']]=UpdateCustom;	
+}
+
+function UpdateCustom() {
+	if (!checkMandatoryFields()) { return false; }
+	if (!checkSeenDateTime()) { return false; }
+	return update1_click();
+}
+
+
+function checkSeenDateTime() {
+	
+	var MINUTE = 60 * 1000;
+	var seenDate="",seenTime="",triDate="",triTime="",firstDoc=0;
+	var objCat=document.getElementById('CTACUCode');
+	var objSDate=document.getElementById('TRANSStartDate');
+	var objSTime=document.getElementById('TRANSStartTime');
+	var objTDate=document.getElementById('PAADMTriageDate');
+	var objTTime=document.getElementById('PAADMTriageTime');
+	var thisID=document.getElementById('ID');
+	var firstID=document.getElementById('FirstDoc'),firstDoc=0;
+	if ((thisID)&&(firstID)&&(thisID.value==firstID.value)) firstDoc=1;
+	//alert(thisID.value+"^"+firstID.value);
+	
+	if ((objCat)&&(objCat.value!="")&&(firstDoc==1)) {
+		if ((objSDate)&&(objSDate.value!="")) { seenDate=SplitDateStr(objSDate.value); }
+		if ((objSTime)&&(objSTime.value!="")) { seenTime=SplitTimeStr(objSTime.value); }
+		if ((objTDate)&&(objTDate.value!="")) { triDate=SplitDateStr(objTDate.value); }
+		if ((objTTime)&&(objTTime.value!="")) { triTime=SplitTimeStr(objTTime.value); }
+	
+		if ((seenDate!="")&&(seenTime!="")) { var SDate = new Date(seenDate["yr"], seenDate["mn"]-1, seenDate["dy"], seenTime["hr"], seenTime["min"]); }
+		if ((triDate!="")&&(triTime!="")) { var TDate = new Date(triDate["yr"], triDate["mn"]-1, triDate["dy"], triTime["hr"], triTime["min"]); }
+		var timeDiff = (SDate-TDate) * 1 / MINUTE;
+
+		if (((objCat.value==CAT2)&&(timeDiff>10)) || ((objCat.value==CAT3)&&(timeDiff>30))) {
+			if(confirm(t["TriageCat"])) {
+				objSDate.value="";
+				objSTime.value="";
+				objSDate.focus();
+				return false;
+			} 
+		}
+	}
+	return true;	
+}
+
+function SplitDateStr(strDate) {
+ 	var arrDateComponents = new Array(3);
+ 	var arrDate = strDate.split(dtseparator);
+ 	switch (dtformat) {
+  	case "YMD":
+   	arrDateComponents["yr"] = arrDate[0];
+   	arrDateComponents["mn"] = arrDate[1];
+   	arrDateComponents["dy"] = arrDate[2];
+   	break;
+  	case "MDY":
+   	arrDateComponents["yr"] = arrDate[2];
+   	arrDateComponents["mn"] = arrDate[0];
+   	arrDateComponents["dy"] = arrDate[1];
+   	break;
+  	default:
+   	arrDateComponents["yr"] = arrDate[2];
+   	arrDateComponents["mn"] = arrDate[1];
+   	arrDateComponents["dy"] = arrDate[0];
+   	break;
+ 	}
+ return arrDateComponents;
+}
+
+function SplitTimeStr(strTime) {
+	
+	var timeArrayComponents = new Array(2);
+	var timeArray = strTime.split(":");
+
+	timeArrayComponents["hr"] = timeArray[0];
+	timeArrayComponents["min"] = timeArray[1];
+
+	return timeArrayComponents;
+}
+
+function setMandatoryFields() {
+	
+	labelMandatory('CTPCP_Desc');
+	labelMandatory('TRANSUpdateDate');
+	labelMandatory('TRANSUpdateTime');
+
+}
+
+function checkMandatoryFields() {
+	
+	var msg="";
+
+	var obj=document.getElementById('CTPCP_Desc');
+	var objDate=document.getElementById('TRANSUpdateDate');
+	var objTime=document.getElementById('TRANSUpdateTime');
+
+		if ((objTime)&&(objTime.value=="")) {
+		msg += "\'" + t['TRANSUpdateTime'] + "\' " + t['XMISSING'] + "\n";
+		}
+
+		if ((objDate)&&(objDate.value=="")) {
+		msg += "\'" + t['TRANSUpdateDate'] + "\' " + t['XMISSING'] + "\n";
+		}
+		if ((obj)&&(obj.value=="")) {
+		msg += "\'" + t['CTPCP_Desc'] + "\' " + t['XMISSING'] + "\n";
+		}
+
+	if (msg != "") {
+		alert(msg)
+		return false;
+	} else {
+		return true;
+	}
+}
+
+
+function labelMandatory(fld) {
+	var lbl = document.getElementById('c' + fld) 
+	if (lbl) {
+		lbl=lbl.className = "clsRequired";
+	}
+}
+
+function labelNormal(fld) {
+	var lbl = document.getElementById('c' + fld) 
+	if (lbl) {
+		lbl=lbl.className = "";
+	}
+}
+
+websys_removeListener("load","onload",EditListBodyLoadHandler);
+websys_addListener("load","onload",InitCustom);
+//document.body.onload=InitCustom
+]]></Implementation>
+</Method>
+
+<Parameter name="SrcVer">
+<Description>
+This Parameter is updated by Perforce</Description>
+<Internal>0</Internal>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/SWARH/JS/PAAdmTransaction/EditList.xml#1 $</Default>
+</Parameter>
+</Class>
+</Export>

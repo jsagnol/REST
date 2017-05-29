@@ -1,0 +1,1050 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.AUSW.Report.ZEN.MedicationReport">
+<Super>Region.AUXX.Reports.ZEN.Abstract</Super>
+<TimeCreated>62374,53738.92159</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2014/LIVE/cls/Custom/AUSW/Report/ZEN/MedicationReport.xml#4 $</Default>
+</Parameter>
+
+<UDLText name="T">
+<Content><![CDATA[
+// Report Name: Medication Report <br>
+
+]]></Content>
+</UDLText>
+
+<UDLText name="T">
+<Content><![CDATA[
+// Report Code: AUSWMEDREP <br>
+
+]]></Content>
+</UDLText>
+
+<UDLText name="T">
+<Content><![CDATA[
+// TRC: 39859 <br>
+
+]]></Content>
+</UDLText>
+
+<Property name="ConnectTimeOut">
+<Description><![CDATA[
+-1 for RenderConnectTimeOut means never timeout.<br>
+The units are seconds.<br>
+The Zen Report makes a connection using open to connect to the Render Server.  This is the timeout on the open (the connect timeout)]]></Description>
+<Type>%ZEN.Datatype.integer</Type>
+<Parameter name="ZENURL" value="$CONNECTTIMEOUT"/>
+</Property>
+
+<Property name="RenderTimeOut">
+<Description><![CDATA[
+-1 for RenderTimeOut means never timeout.<br>
+The units are seconds.<br>]]></Description>
+<Type>%ZEN.Datatype.integer</Type>
+<Parameter name="ZENURL" value="$RENDERTIMEOUT"/>
+</Property>
+
+<Property name="RenderDirectlyOnTimeout">
+<Description>
+if we do not render directly to Render Server in RENDERTIMEOUT, Zen Reports renders directly, spawing new JVM</Description>
+<Type>%ZEN.Datatype.boolean</Type>
+<Parameter name="ZENURL" value="$RENDERDIRECTLYONTIMEOUT"/>
+</Property>
+
+<Property name="EpisodeID">
+<Type>%Integer</Type>
+<Parameter name="ZENURL" value="P1"/>
+</Property>
+
+<Property name="Hosp">
+<Type>%Integer</Type>
+<Parameter name="ZENURL" value="P2"/>
+</Property>
+
+<Property name="DateFrom">
+<Type>%String</Type>
+<Parameter name="ZENURL" value="P3"/>
+</Property>
+
+<Property name="DateTo">
+<Type>%String</Type>
+<Parameter name="ZENURL" value="P4"/>
+</Property>
+
+<Parameter name="DEFAULTMODE">
+<Description>
+This is the default display mode for this report.</Description>
+<Default>PDF</Default>
+</Parameter>
+
+<XData name="ReportDefinition">
+<XMLNamespace>http://www.intersystems.com/zen/report/definition</XMLNamespace>
+<Data><![CDATA[
+<report xmlns='http://www.intersystems.com/zen/report/definition' 
+		queryClass='Custom.AUSW.Report.ZEN.StoredProcedure.MedicationChart' 
+		queryName='Medication' 
+		name='MedicationChart'>
+		
+	<parameter expression='..EpisodeID'/>
+	<parameter expression='..Hosp'/>
+	<parameter expression='..DateFrom'/>
+	<parameter expression='..DateTo'/>
+	
+	<attribute name='datefrom' expression='..DisplayMRDate(..DateFrom)'/>
+	<attribute name='dateto' expression='..DisplayMRDate(..DateTo)'/>
+	<attribute name='EpisodeID' expression='..EpisodeID'/>
+	<attribute name='timestamp' expression='$ZDATETIME($H, 2, 2)'/>
+    <attribute name='username' expression='..Username'/>
+    
+   	<group name="Report" breakOnField="breakon" >
+    <attribute name="ReportType" field="breakon" expression="..ReportType(%val)" />
+    
+    <element name="Captionsize" expression='" "_$C(10)_" "' />
+    <element name="SectionCap" expression='$P(($ZD($H,3)),"-",1)_$C(10)_" "' />
+    <element name="LabelInstruct"  expression='"Cont. on disch. Y/N"_$C(13,10)_"Dispense Y/N"_$C(13,10)_"Duration...days"_$C(13,10)_"QTY..."' />
+    <element name='Signature' expression='"Sign____________"' />
+    
+    <attribute field="BEDCode" name="BEDCode"/>
+    <attribute field="ROOMDesc" name="ROOMDesc"/>
+    <attribute field="WARDDesc" name="WARDDesc"/>
+    <attribute field='Height' name='Height'/>
+	<attribute field='Weight' name='Weight'/>
+	<element field='Allergies' name="Allergies" />
+	<attribute field='PAPMIName' name="PAPMIName"/>
+	<attribute field='PAPMIName2' name="PAPMIName2"/>
+	<attribute field='PAPMIName3' name="PAPMIName3"/>
+	<attribute field='PAPMINo' name="PAPMINo"/>
+	<attribute field='PAADMAdmNo' name="PAADMAdmNo"/>
+	<attribute field='CTSEXCode' name='CTSEXCode'/>
+	<attribute field='PAPERAgeYr' name="Age"/>
+	<attribute field='PAPMIDOB' name='PAPMIDOB' expression='..DisplayMRDate(%val)'/> 
+	<attribute field='doctor' name="doctor"/>
+	<attribute name="PrescribeText" expression='"When a doctor ceases a medication they should write &#39;ceased&#39; and initial and date this to confirm cessation."'/>
+    <attribute name="PRNTitle" expression='"REGULAR PRESCRIPTION"' />
+   
+    <group name="Details">
+    <attribute field='OEORISttDat' name='OEORISttDat' expression='..StartDate(%val)'/>
+	<attribute field='StartTime' name='StartTime'/>
+	<attribute field='arcim' name='arcim'/>
+    <attribute field='ARCIMDesc' name='ARCIMDesc'/>
+    <attribute fields='PHCGEName,Rate' name='PHCGEName' expression='%val("PHCGEName")_" "_%val("Rate")'/>
+    <attribute field='Volume' name='Volume'/>
+    <attribute field='OEORIDoseQty' name='Dose'/>
+    <attribute field='Rate' name='Rate'/>
+    <attribute fields='Route,OEORIIVTypeLogical,OEORIIVTypeDisplay' name='Route' expression='$g(%val("Route"))_$Case($G(%val("OEORIIVTypeLogical")),"":"",:" "_$G(%val("OEORIIVTypeDisplay")))'/>
+	<attribute field='Priority' name='Priority'/>
+	<attribute fields='OEORIDoseQty,Freq,Priority,LastAdminDoseDate,LastAdminDoseTime,OEORIPRNIndication' expression='..DisplayPRNInstructions(.%val)' name="PRNInstructions"/>
+	<attribute field='UOM' name='UOM'/>
+	<attribute field='Freq' name='Freq'/>
+	<attribute field='TodaysDoses' name='TodaysDoses'/>
+	<attribute field='NextAdminDoseTime' name='NextAdminDoseTime'/>
+	<attribute fields='oe,oei,OEOREOrderStatus,OEORIIVTypeLogical,ITM2CalcIVDose,ITM2Duration,LastAdminDoseDate,LastAdminDoseTime,TodaysDoses' name='IVInstructions' expression='..DisplayIVInstructions(%val("OEORIIVTypeLogical"),%val("oe")_"||"_%val("oei"),$G(%val("OEOREOrderStatus")),$g(%val("ITM2CalcIVDose")),$g(%val("ITM2Duration")),$g(%val("LastAdminDoseDate")),$g(%val("LastAdminDoseTime")),$G(%val("TodaysDoses")))'/>
+	<attribute fields='LastExecDate,LastExecTime,LastAdminDoseDate,LastAdminDoseTime' name='LastDoseGiven' expression='..LastDoseGiven($g(%val("LastExecDate")),$g(%val("LastExecTime")),$g(%val("LastAdminDoseDate")),$g(%val("LastAdminDoseTime")))'/>
+	<attribute field='doctor' name='doctor' />
+	<attribute field='CTPCPPrescriberNumber' name="CTPCPPrescriberNumber" />
+	<attribute field='OEORIDoctorDR' name='DR'/>
+	<call method="ProcessDoses"> 
+	 <parameter field="TodaysDoses" />
+    </call>
+    </group>
+
+   	<call method="NonPRNLoop"/>
+    </group>
+    
+    <group name="Default3" runonce="true">
+    <group name="Default33" sql="select top 3 CTSEX_RowId from SQLUser.CT_Sex order by CTSEX_RowId ASC" >
+    <group name="Default333" >
+    <attribute field="CTSEX_RowId" name="ID"/>
+    </group>
+    </group>
+    </group>
+    
+    <!-- Dummy select statement to allow 4 iterations from Default444 group below -->
+    <group name="Default4" runonce="true">
+    <group name="Default44" sql="select top 4 CTSEX_RowId from SQLUser.CT_Sex order by CTSEX_RowId ASC" >
+    <group name="Default444" >
+    <attribute field="CTSEX_RowId" name="ID"/>
+    </group>
+    </group>
+    </group>
+
+   </report>
+]]></Data>
+</XData>
+
+<XData name="ReportDisplay">
+<XMLNamespace>http://www.intersystems.com/zen/report/display</XMLNamespace>
+<Data><![CDATA[
+<report xmlns='http://www.intersystems.com/zen/report/display' 
+	    xmlns:ausw='http://www.intersystems.com/zen/report/display/ausw'
+	   xmlns:auswstyle='http://www.intersystems.com/zen/report/display/ausw/style' 
+	   name='MedicationChart'>
+ <document orientation="landscape" width="8.3in" height="11.5in" marginLeft=".3in" marginRight=".3in" marginTop=".3in" marginBottom=".3in" >
+	<auswstyle:auswmrgroupheader/>
+	<auswstyle:auswmrgroupsummary/>
+	<auswstyle:auswmrhospitalheader/>
+	<auswstyle:auswmrpageheader/>
+	<auswstyle:auswmrparameterheader/>
+	<auswstyle:auswmrreporttitle/>
+	<auswstyle:auswmrtablecolumn/>
+	
+	<class name="div.auswmrauthorisation">
+		<att name="border" value="solid"/>
+		<att name="font-size" value="6"/>
+		<att name="text-align" value="left"/>	 
+	</class>
+  </document>
+ <body>
+ <group name="Report" pagebreak="true" >
+<table orient="col" style="border-bottom:solid" class="auswmrpageheader" ifxpath='@ReportType="NONPRN"' >
+<div width="15%" style="border-left:solid">
+<table orient="row" style="border-right:solid;border-left:solid;border-top:solid"  >
+<item value="Drug Allergies" style="font-size:8pt;font-weight:bold" />
+<table orient="col"  >
+<item field="Allergies" />
+</table>
+</table>
+</div>
+<div width="8%" style="border-left:solid;border-right:solid">
+<table orient="row" style="border-left:solid;border-right:solid;" class="auswmrpageheader" >
+<item value="Weight (kg)" style="font-weight:bold;border-top:solid" />
+<item field="@Weight" />
+<item value="Height (cm)" style="font-weight:bold;border-top:solid" />
+<item field="@Height" />
+</table>
+</div>
+<div width="2%" >
+<table orient="row" >
+<item value=" " literalSpaces="true" />
+</table>
+</div>
+<div width="25%" style="border:solid" >
+<table orient="row" style="border:solid" class="auswmrpageheader">
+<item field='concat(@PAPMIName2," ",@PAPMIName3," ",@PAPMIName)'>
+<caption value="Patient Identification:" style="font-weight:bold" />
+</item>
+<item field="@PAPMINo" >
+<caption value="URN:" />
+</item>
+<item field='concat(@PAPMIDOB," (",@Age," YEARS) ",@CTSEXCode)' too-long-text="wrap"  >
+<caption value="DOB/Sex:" />
+</item>
+<item field="@doctor" >
+<caption value="Consultant:" />
+</item>
+</table>
+</div>
+<div width="25%"  >
+<table orient="row" style="border-right:solid;border-left:solid;border-top:solid" class="auswmrpageheader">
+<item field="@PRNTitle" />
+<item breakOnLineFeed="true" too-long-text="wrap" field="@PrescribeText" />
+</table>
+</div>
+<div width="25%" style="border:solid" >
+<table orient="row" style="border:solid" class="auswmrpageheader" >
+<item field='concat(@PAPMIName2," ",@PAPMIName3," ",@PAPMIName)'>
+<caption value="Patient Identification:" style="font-size:6pt;font-weight:bold" />
+</item>
+<item field="@PAPMINo" >
+<caption value="URN:" />
+</item>
+<item field='concat(@PAPMIDOB," (",@Age,"YEARS) ",@CTSEXCode)' too-long-text="wrap" >
+<caption value="DOB/Sex:" />
+</item>
+<item field="@doctor" >
+<caption value="Consultant:" />
+</item>
+</table>
+</div>
+</table>
+<table orient="col" caption="Location at last update:" style="font-size:7pt" ifxpath='@ReportType="NONPRN"' >
+<item field='concat("Ward : ",@WARDDesc)'/>
+<item field='concat("Room : ",@ROOMDesc)'/>
+<item field='concat("Bed : ",@BEDCode)'/>
+</table>
+<table orient="col" style="font-size:6pt" width="50%" ifxpath='@ReportType="NONPRN"' >
+<item value="Additional Items"  />
+<block  >
+<item value="  " literalSpaces="true" style="border:solid" />
+<item value="IV Fluids" />
+</block>
+<block  >
+<item value="  " literalSpaces="true" style="border:solid" />
+<item value="Palliative Care" />
+</block>
+<block  >
+<item value="  " literalSpaces="true" style="border:solid" />
+<item value="BGL/Insulin" />
+</block>
+<block  >
+<item value="  " literalSpaces="true" style="border:solid" />
+<item value="Chemotherapy" />
+</block>
+<block >
+<item value="  " literalSpaces="true" style="border:solid" />
+<item value="Acute Pain" />
+</block>
+<block  >
+<item value="  " literalSpaces="true" style="border:solid" />
+<item value="IV Heparin" />
+</block>
+<block  >
+<item value="  " literalSpaces="true" style="border:solid" />
+<item value="Other" />
+</block>
+</table>
+<line pattern="empty"/>
+<table orient="col" width="100%" ifxpath='@ReportType="NONPRN"' >
+<div caption="REGULAR PRESCRIPTIONS">
+<table orient="col" style="font-size:8pt;" >
+<container height=".7in" width="1mm"  >
+<div>
+<item value="" />
+</div>
+</container>
+<item field="Details[1]/@OEORISttDat" width="10%" style="border:solid;text-align:left" >
+<caption value="Start Date" style="font-size:6pt;border:solid" />
+</item>
+<item field="Details[1]/@PHCGEName" style="border:solid"  >
+<caption value="Medication (Strength)" style="font-size:6pt;border:solid;text-align:center;vertical-align:middle" />
+</item>
+<div style="border:solid;text-align:center;font-size:6pt" caption="Dose,Route,Frequency,Qualifier/Instructions"  >
+ <item field="Details[1]/@Dose" style="font-size:10pt" />
+ <item field="Details[1]/@Route" style="font-size:10pt" />
+ <item field="Details[1]/@Freq" breakOnLineFeed="true" style="font-size:8pt" />
+ <item field="Details[1]/@NextAdminDoseTime" breakOnLineFeed="true" caption="At :"/>
+ <item field="Details[1]/@LastDoseGiven" breakOnLineFeed="true"/>
+ <item field="Details[1]/@IVInstructions" breakOnLineFeed="true" style="font-size:8pt" />
+</div>
+<div style="border:solid;text-align:left;font-size:6pt" caption="Doctors Signature Pharmacy Comment">
+<table orient="row" style="text-align:left">
+ <item field="Details[1]/@DR" style="font-weight:bold;font-size:8pt" />
+ <item field='concat("Presc No: ",Details[1]/@CTPCPPrescriberNumber)' breakOnLineFeed="true" displayCaption="true" style="text-align:left;font-size:6pt"/>
+ <item field="Signature" ifxpath='Details[1]/@PHCGEName!=""' breakOnLineFeed="true" literalSpaces="true" style="font-size:8pt" />
+ </table>
+</div>
+<item caption=" " value="A A" literalSpaces="true" width="2%" />
+</table>
+<table orient="col" style="font-size:8pt;">
+<container height=".7in" width="1mm"  >
+<div>
+<item value="" />
+</div>
+</container>
+<item field="Details[2]/@OEORISttDat" width="10%" style="border:solid" >
+</item>
+<item field="Details[2]/@PHCGEName" style="border:solid"  >
+</item>
+<div style="border:solid;text-align:center;font-size:6pt"  >
+ <item field="Details[2]/@Dose" style="font-size:10pt" />
+ <item field="Details[2]/@Route" style="font-size:10pt" />
+ <item field="Details[2]/@Freq" breakOnLineFeed="true" style="font-size:8pt" />
+ <item field="Details[2]/@NextAdminDoseTime" breakOnLineFeed="true" caption="At :"/>
+ <item field="Details[2]/@LastDoseGiven" breakOnLineFeed="true"/>
+ <item field="Details[2]/@IVInstructions" breakOnLineFeed="true" style="font-size:8pt" />
+</div>
+<div style="border:solid;text-align:left;font-size:6pt">
+<table orient="row" style="text-align:left">
+ <item field="Details[2]/@DR"  style="font-weight:bold;font-size:8pt" />
+ <item field='concat("Presc No: ",Details[2]/@CTPCPPrescriberNumber)' ifxpath='Details[2]/@CTPCPPrescriberNumber!=""' breakOnLineFeed="true" style="text-align:left;font-size:6pt"/>
+ <item field="Signature" ifxpath='Details[2]/@PHCGEName!=""' breakOnLineFeed="true"  style="font-size:8pt" />
+ </table>
+</div>
+<item value="B B" literalSpaces="true" width="2%" />
+</table>
+<table orient="col" style="font-size:8pt;">
+<container height=".7in" width="1mm"  >
+<div>
+<item value="" />
+</div>
+</container>
+<item field="Details[3]/@OEORISttDat" width="10%" style="border:solid" >
+</item>
+<item field="Details[3]/@PHCGEName" style="border:solid"  >
+</item>
+<div style="border:solid;text-align:center;font-size:6pt"  >
+ <item field="Details[3]/@Dose" style="font-size:10pt" />
+ <item field="Details[3]/@Route" style="font-size:10pt" />
+ <item field="Details[3]/@Freq" breakOnLineFeed="true" style="font-size:8pt" />
+ <item field="Details[3]/@NextAdminDoseTime" breakOnLineFeed="true" caption="At :"/>
+ <item field="Details[3]/@LastDoseGiven" breakOnLineFeed="true"/>
+ <item field="Details[3]/@IVInstructions" breakOnLineFeed="true" style="font-size:8pt" />
+</div>
+<div style="border:solid;text-align:left;font-size:6pt" >
+<table orient="row" style="text-align:left">
+ <item field="Details[3]/@DR" style="font-weight:bold;font-size:8pt" />
+ <item field='concat("Presc No: ",Details[3]/@CTPCPPrescriberNumber)' ifxpath='Details[3]/@CTPCPPrescriberNumber!=""' breakOnLineFeed="true" style="text-align:left;font-size:6pt"/>
+ <item field="Signature" ifxpath='Details[3]/@PHCGEName!=""' breakOnLineFeed="true"  style="font-size:8pt" />
+ </table>
+</div>
+<item value="C C" literalSpaces="true" width="2%" />
+</table>
+<table orient="col" style="font-size:8pt;">
+<container height=".7in" width="1mm"  >
+<div>
+<item value="" />
+</div>
+</container>
+<item field="Details[4]/@OEORISttDat" width="10%" style="border:solid" >
+</item>
+<item field="Details[4]/@PHCGEName" style="border:solid"  >
+</item>
+<div style="border:solid;text-align:center;font-size:6pt">
+ <item field="Details[4]/@Dose" style="font-size:10pt" />
+ <item field="Details[4]/@Route" style="font-size:10pt" />
+ <item field="Details[4]/@Freq" breakOnLineFeed="true" style="font-size:8pt" />
+ <item field="Details[4]/@NextAdminDoseTime" breakOnLineFeed="true" caption="At :"/>
+ <item field="Details[4]/@LastDoseGiven" breakOnLineFeed="true"/>
+ <item field="Details[4]/@IVInstructions" breakOnLineFeed="true" style="font-size:8pt" />
+</div>
+<div style="border:solid;text-align:center;font-size:6pt" >
+<table orient="row" style="text-align:left">
+ <item field="Details[4]/@DR" style="font-weight:bold;font-size:8pt" />
+ <item field='concat("Presc No: ",Details[4]/@CTPCPPrescriberNumber)' ifxpath='Details[4]/@CTPCPPrescriberNumber!=""' breakOnLineFeed="true" style="text-align:left;font-size:6pt"/>
+ <item field="Signature" ifxpath='Details[4]/@PHCGEName!=""' breakOnLineFeed="true"  style="font-size:8pt" />
+ </table>
+</div>
+<item value="D D" literalSpaces="true" width="2%" />
+</table>
+<table orient="col" style="font-size:8pt;">
+<container height=".7in" width="1mm"  >
+<div>
+<item value="" />
+</div>
+</container>
+<item field="Details[5]/@OEORISttDat" width="10%" style="border:solid" >
+</item>
+<item field="Details[5]/@PHCGEName" style="border:solid"  >
+</item>
+<div style="border:solid;text-align:center;font-size:6pt"  >
+ <item field="Details[5]/@Dose" style="font-size:10pt" />
+ <item field="Details[5]/@Route" style="font-size:10pt" />
+ <item field="Details[5]/@Freq" breakOnLineFeed="true" style="font-size:8pt" />
+ <item field="Details[5]/@NextAdminDoseTime" breakOnLineFeed="true" caption="At :"/>
+ <item field="Details[5]/@LastDoseGiven" breakOnLineFeed="true"/>
+ <item field="Details[5]/@IVInstructions" breakOnLineFeed="true" style="font-size:8pt" />
+</div>
+<div style="border:solid;text-align:left;font-size:6pt" >
+<table orient="row" style="text-align:left">
+ <item field="Details[5]/@DR" style="font-weight:bold;font-size:8pt"/>
+ <item field='concat("Presc No: ",Details[5]/@CTPCPPrescriberNumber)' ifxpath='Details[5]/@CTPCPPrescriberNumber!=""' breakOnLineFeed="true" style="text-align:left;font-size:6pt"/>
+ <item field="Signature" ifxpath='Details[5]/@PHCGEName!=""' breakOnLineFeed="true"  style="font-size:8pt" />
+ </table>
+</div>
+<item value="E E" literalSpaces="true" width="2%" />
+</table>
+<table orient="col" style="font-size:8pt;">
+<container height=".7in" width="1mm"  >
+<div>
+<item value="" />
+</div>
+</container>
+<item field="Details[6]/@OEORISttDat" width="10%" style="border:solid" >
+</item>
+<item field="Details[6]/@PHCGEName" style="border:solid"  >
+</item>
+<div style="border:solid;text-align:center;font-size:6pt"  >
+ <item field="Details[6]/@Dose" style="font-size:10pt" />
+ <item field="Details[6]/@Route" style="font-size:10pt" />
+ <item field="Details[6]/@Freq" breakOnLineFeed="true" style="font-size:8pt" />
+ <item field="Details[6]/@NextAdminDoseTime" breakOnLineFeed="true" caption="At :"/>
+ <item field="Details[6]/@LastDoseGiven" breakOnLineFeed="true"/>
+ <item field="Details[6]/@IVInstructions" breakOnLineFeed="true" style="font-size:8pt" />
+</div>
+<div style="border:solid;text-align:left;font-size:6pt" >
+<table orient="row" style="text-align:left">
+ <item field="Details[6]/@DR" style="font-weight:bold;font-size:8pt" />
+ <item field='concat("Presc No: ",Details[6]/@CTPCPPrescriberNumber)' ifxpath='Details[6]/@CTPCPPrescriberNumber!=""' breakOnLineFeed="true" style="text-align:left;font-size:6pt"/>
+ <item field="Signature" ifxpath='Details[6]/@PHCGEName!=""' breakOnLineFeed="true"  style="font-size:8pt" />
+ </table>
+</div>
+<item value="F F" literalSpaces="true" width="2%" />
+</table>
+<table orient="col" style="font-size:8pt;" >
+<container height=".7in" width="1mm"  >
+<div>
+<item value="" />
+</div>
+</container>
+<item field="Details[7]/@OEORISttDat" width="10%" style="font-size:6pt;border:solid;text-align:center" >
+</item>
+<item field="Details[7]/@PHCGEName" style="border:solid"  >
+</item>
+<div style="border:solid;text-align:center;font-size:6pt"  >
+ <item field="Details[7]/@Dose" style="font-size:10pt" />
+ <item field="Details[7]/@Route" style="font-size:10pt" />
+ <item field="Details[7]/@Freq" breakOnLineFeed="true" style="font-size:8pt" />
+ <item field="Details[7]/@NextAdminDoseTime" breakOnLineFeed="true" caption="At :"/>
+ <item field="Details[7]/@LastDoseGiven" breakOnLineFeed="true"/>
+ <item field="Details[7]/@IVInstructions" breakOnLineFeed="true" style="font-size:8pt" />
+</div>
+<div style="border:solid;text-align:left;font-size:6pt">
+<table orient="row" style="text-align:left">
+ <item field="Details[7]/@DR" style="font-weight:bold;font-size:8pt" />
+ <item field='concat("Presc No: ",Details[7]/@CTPCPPrescriberNumber)' ifxpath='Details[7]/@CTPCPPrescriberNumber!=""' breakOnLineFeed="true" style="text-align:left;font-size:6pt"/>
+ <item field="Signature" ifxpath='Details[7]/@PHCGEName!=""' breakOnLineFeed="true"  style="font-size:8pt" />
+ </table>
+</div>
+<item value="G G" literalSpaces="true" width="2%" />
+</table>
+<table orient="col" style="font-size:8pt;">
+<container height=".7in" width="1mm"  >
+<div>
+<item value="" />
+</div>
+</container>
+<item field="Details[8]/@OEORISttDat" width="10%" style="border:solid" >
+</item>
+<item field="Details[8]/@PHCGEName" style="border:solid" >
+</item>
+<div style="border:solid;text-align:center;font-size:6pt"  >
+ <item field="Details[8]/@Dose" style="font-size:10pt" />
+ <item field="Details[8]/@Route" style="font-size:10pt" />
+ <item field="Details[8]/@Freq" breakOnLineFeed="true" style="font-size:8pt" />
+ <item field="Details[8]/@NextAdminDoseTime" breakOnLineFeed="true" caption="At :"/>
+ <item field="Details[8]/@LastDoseGiven" breakOnLineFeed="true"/>
+ <item field="Details[8]/@IVInstructions" breakOnLineFeed="true" style="font-size:8pt" />
+</div>
+<div style="border:solid;text-align:left;font-size:6pt">
+<table orient="row" style="text-align:left">
+ <item field="Details[8]/@DR" style="font-weight:bold;font-size:8pt" />
+ <item field='concat("Presc No: ",Details[8]/@CTPCPPrescriberNumber)' ifxpath='Details[8]/@CTPCPPrescriberNumber!=""' breakOnLineFeed="true" style="text-align:left;font-size:6pt"/>
+ <item field="Signature" ifxpath='Details[8]/@PHCGEName!=""' breakOnLineFeed="true"  style="font-size:8pt" />
+ </table>
+</div>
+<item value="H H" literalSpaces="true" width="2%" />
+</table>
+</div>
+
+<div  caption="R Refused   F fasting   A Absent   W Withheld   L on-leave   V Vomiting   S Self Administering   N medication not obtained"  style="font-size:7pt"  >
+<table orient="col" style="font-size:8pt;"   >
+<container  width="3mm"  >
+<div>
+<item value=" " />
+</div>
+</container>
+
+<table orient="col" style="font-size:4pt;border:none;"  >
+<item field="/MedicationChart/Report/SectionCap" breakOnLineFeed="true" literalSpaces="true" style="text-align:right;border:solid;font-size:6pt" >
+</item>
+<item value=" " literalSpaces="true" style="border:solid;font-size:6pt" />
+<item value=" " literalSpaces="true" style="border:solid;font-size:6pt" />
+<item value=" " literalSpaces="true" style="border:solid;font-size:6pt" />
+<item value=" " literalSpaces="true" style="border:solid;font-size:6pt" />
+<item value=" " literalSpaces="true" style="border:solid;font-size:6pt" />
+<item value=" " literalSpaces="true" style="border:solid;font-size:6pt" />
+<item value=" " literalSpaces="true" style="border:solid;font-size:6pt" />
+<item value=" " literalSpaces="true" style="border:solid;font-size:6pt" />
+<item value=" " literalSpaces="true" style="border:solid;font-size:6pt" />
+<item value=" " literalSpaces="true" style="border:solid;font-size:6pt" />
+<item value=" " literalSpaces="true" style="border:solid;font-size:6pt" />
+</table>
+
+
+<container height="1mm" width=".7in">
+<div>
+<item value=" " width="100%" style="font-size:4pt;" breakOnLineFeed="true" literalSpaces="true" />
+</div>
+</container>
+
+</table>
+<table orient="col" style="font-size:8pt;" group="A12/Default1"  >
+<container height=".7in" width="3mm"  >
+<div>
+<item fieldnum="1" />
+</div>
+</container>
+
+<container height=".7in" >
+<table orient="col" style="font-size:4pt;border:none;" group="Default2" >
+<block style="text-align:right;border:solid;font-size:6pt">
+<item ifxpath='../@ID=1' field='concat(../../../Details[1]/Times/Details[@ID=current()/@ID2]/@TIME," | ",@ID2)' literalSpaces="true" />
+<item ifxpath='../@ID=2' field='concat(../../../Details[2]/Times/Details[@ID=current()/@ID2]/@TIME," | ",@ID2)' literalSpaces="true" />
+<item ifxpath='../@ID=3' field='concat(../../../Details[3]/Times/Details[@ID=current()/@ID2]/@TIME," | ",@ID2)' literalSpaces="true" />
+<item ifxpath='../@ID=4' field='concat(../../../Details[4]/Times/Details[@ID=current()/@ID2]/@TIME," | ",@ID2)' literalSpaces="true" />
+<item ifxpath='../@ID=5' field='concat(../../../Details[5]/Times/Details[@ID=current()/@ID2]/@TIME," | ",@ID2)' literalSpaces="true" />
+<item ifxpath='../@ID=6' field='concat(../../../Details[6]/Times/Details[@ID=current()/@ID2]/@TIME," | ",@ID2)' literalSpaces="true" />
+<item ifxpath='../@ID=7' field='concat(../../../Details[7]/Times/Details[@ID=current()/@ID2]/@TIME," | ",@ID2)' literalSpaces="true" />
+<item ifxpath='../@ID=8' field='concat(../../../Details[8]/Times/Details[@ID=current()/@ID2]/@TIME," | ",@ID2)' literalSpaces="true" />
+</block>
+<item value=" " literalSpaces="true" style="border:solid;font-size:5.5pt" />
+<item value=" " literalSpaces="true" style="border:solid;font-size:5.5pt" />
+<item value=" " literalSpaces="true" style="border:solid;font-size:5.5pt" />
+<item value=" " literalSpaces="true" style="border:solid;font-size:5.5pt" />
+<item value=" " literalSpaces="true" style="border:solid;font-size:5.5pt" />
+<item value=" " literalSpaces="true" style="border:solid;font-size:5.5pt" />
+<item value=" " literalSpaces="true" style="border:solid;font-size:5.5pt" />
+<item value=" " literalSpaces="true" style="border:solid;font-size:5.5pt" />
+<item value=" " literalSpaces="true" style="border:solid;font-size:5.5pt" />
+<item value=" " literalSpaces="true" style="border:solid;font-size:5.5pt" />
+<item value=" " literalSpaces="true" style="border:solid;font-size:5.5pt" />
+</table>
+</container>
+
+<container height="1mm" width=".7in" xslfostyle="reference-orientation:90" >
+<div style="border:solid" >
+<item field="//MedicationChart/Report/LabelInstruct" width="100%" style="font-size:4pt;" breakOnLineFeed="true" literalSpaces="true" />
+</div>
+</container>
+</table>
+</div>
+</table>
+
+<table orient="col" ifxpath='@ReportType="PRN"' >
+<table orient="row" width="50%" class="auswmrpageheader"  >
+<item value=" " literalSpaces="true" />
+</table>
+<div width="15%">
+<table orient="row" style="border-right:solid;border-left:solid;border-top:solid" class="auswmrpageheader" >
+<item value="Drug Allergies" style="font-size:8pt;font-weight:bold" />
+<table orient="col">
+<item field="Allergies" />
+</table>
+</table>
+</div>
+<table orient="row" style="border-left:solid;border-right:solid;border-bottom:solid" class="auswmrpageheader" >
+<item value="Weight (kg)" style="font-weight:bold;border-top:solid" />
+<item field="@Weight" />
+<item value="Height (cm)" style="font-weight:bold;border-top:solid" />
+<item field="@Height" />
+</table>
+<div width="25%">
+<table orient="row" class="auswmrpageheader" style="border:solid">
+<item field='concat(@PAPMIName2," ",@PAPMIName3," ",@PAPMIName)'>
+<caption value="Patient Identification:" style="font-size:6pt;font-weight:bold" />
+</item>
+<item field="@PAPMINo" >
+<caption value="URN:" />
+</item>
+<item field='concat(@PAPMIDOB," (",@Age,"YEARS) ",@CTSEXCode)' style="font-size:7" too-long-text="wrap" >
+<caption value="DOB/Sex:" />
+</item>
+<item field="@doctor" >
+<caption value="Consultant:" />
+</item>
+</table>
+</div>
+</table>
+
+<table orient="col" ifxpath='@ReportType="PRN"' >
+<table orient="row" width="50%"  >
+<item value=" " literalSpaces="true" />
+</table>
+<table orient="row" width="50mm" style="border:solid" >
+<table orient="col" style="border-bottom:solid"  >
+<item caption="DRUG" field="Details[1]/@PHCGEName" style="font-size:4pt"  />
+</table>
+<table orient="col"  >
+<item caption="DOSE" field="Details[1]/@PRNInstructions" style="border-right:solid;font-size:4pt"  />
+<table orient="row" >
+<item value="ROUTE" style="font-size:4pt" />
+<item field="Details[1]/@Route" style="font-size:4pt" />
+<line />
+<item value="START DATE" style="font-size:4pt" />
+<item field="Details[1]/@OEORISttDat" style="font-size:4pt" />
+</table>
+</table>
+<item field="Details[1]/@DR" style="font-size:4pt;border-top:solid" />
+<table orient="col" style="border-bottom:solid">
+<item value="Signature:__________" style="font-size:4pt" />
+<item value="  PRN  " width="10%" style="font-size:4pt;border:solid;text-align:right;" literalSpaces="true" />
+</table>
+
+<table orient="col" style="border-bottom:solid"  >
+<item caption="DRUG" field="Details[2]/@PHCGEName" style="font-size:4pt"  />
+</table>
+<table orient="col"  >
+<item caption="DOSE" field="Details[2]/@PRNInstructions" style="border-right:solid;font-size:4pt"  />
+<table orient="row" >
+<item value="ROUTE" style="font-size:4pt" />
+<item field="Details[2]/@Route" style="font-size:4pt" />
+<line />
+<item value="START DATE" style="font-size:4pt" />
+<item field="Details[2]/@OEORISttDat" style="font-size:4pt" />
+</table>
+</table>
+<item field="Details[2]/@DR" style="font-size:4pt;border-top:solid" />
+<table orient="col" style="border-bottom:solid">
+<item value="Signature:__________" style="font-size:4pt" />
+<item value="  PRN  " width="10%" style="font-size:4pt;border:solid;text-align:right;" literalSpaces="true" />
+</table>
+
+<table orient="col" style="border-bottom:solid"  >
+<item caption="DRUG" field="Details[3]/@PHCGEName" style="font-size:4pt"  />
+</table>
+<table orient="col"  >
+<item caption="DOSE" field="Details[3]/@PRNInstructions" style="border-right:solid;font-size:4pt"  />
+<table orient="row" >
+<item value="ROUTE" style="font-size:4pt" />
+<item field="Details[3]/@Route" style="font-size:4pt" />
+<line />
+<item value="START DATE" style="font-size:4pt" />
+<item field="Details[3]/@OEORISttDat" style="font-size:4pt" />
+</table>
+</table>
+<item field="Details[3]/@DR" style="font-size:4pt;border-top:solid" />
+<table orient="col" style="border-bottom:solid">
+<item value="Signature:__________" style="font-size:4pt" />
+<item value="  PRN  " width="10%" style="font-size:4pt;border:solid;text-align:right;" literalSpaces="true" />
+</table>
+</table>
+
+<group name="/MedicationChart/Default3[1]/Default33/Default333">
+<table orient="col">
+<table orient="row" width="2mm" style="font-size:6pt">
+<item value=" " literalSpaces="true" style="font-size:6pt" />
+<item value=" " literalSpaces="true" style="font-size:6pt" />
+<item value="1" style="border:solid" />
+<item value="2" style="border:solid"/>
+<item value="3" style="border:solid"/>
+<item value="4" style="border:solid"/>
+<item value="5" style="border:solid"/>
+<item value="6" style="border:solid"/>
+</table>
+<table orient="col" style="font-size:6pt;" ongetData="DefaultSetup6" >
+<item caption="Date" style="border:solid" value=" " literalSpaces="true" />
+<item caption="Time" style="border:solid" value=" " literalSpaces="true"/>
+<item caption="Given by" style="border:solid" value=" " literalSpaces="true"/>
+<item caption="Date" style="border:solid" value=" " literalSpaces="true"/>
+<item caption="Time" style="border:solid" value=" " literalSpaces="true"/>
+<item caption="Given by" style="border:solid" value=" " literalSpaces="true"/>
+<item caption="Date" style="border:solid" value=" " literalSpaces="true"/>
+<item caption="Time" style="border:solid" value=" " literalSpaces="true"/>
+<item caption="Given by" style="border:solid" value=" " literalSpaces="true"/>
+<item caption="Date" style="border:solid" value=" " literalSpaces="true"/>
+<item caption="Time" style="border:solid" value=" " literalSpaces="true"/>
+<item caption="Given by" style="border:solid" value=" " literalSpaces="true"/>
+<item caption="Date" style="border:solid" value=" " literalSpaces="true"/>
+<item caption="Time" style="border:solid" value=" " literalSpaces="true"/>
+<item caption="Given by" style="border:solid" value=" " literalSpaces="true" />
+</table>
+</table>
+</group>
+</table>
+
+<table orient="col" ifxpath='@ReportType="PRN"'  >
+<table orient="row" width="50%"  >
+<item value=" " literalSpaces="true" />
+</table>
+<div caption="ONCE ONLY AND PREMEDICATION" >
+
+<table orient="col" style="font-size:8pt" >
+<item caption="Date" width="8%" literalSpaces="true" style="border:solid" />
+<item caption="Time" width="8%" literalSpaces="true" style="border:solid" />
+<item caption="Drug" width="30%" literalSpaces="true" style="border:solid" />
+<item caption="Dose" width="8%" literalSpaces="true" style="border:solid" />
+<item caption="Route" width="8%" literalSpaces="true" style="border:solid" />
+<item caption="Doctor's Signature" width="15%" literalSpaces="true" style="border:solid" />
+<item caption="Time Given" width="8%" literalSpaces="true" style="border:solid" />
+<item caption="Nurse's Sig" width="15%" literalSpaces="true" style="border:solid" />
+</table>
+
+<group name="/MedicationChart/Default4[1]/Default44/Default444" >
+<table orient="col" style="font-size:8pt" >
+<item value=" " width="8%" literalSpaces="true" style="border:solid" />
+<item value=" " width="8%" literalSpaces="true" style="border:solid" />
+<item  width="30%" value=" " literalSpaces="true" style="border:solid" />
+<item  value=" " width="8%" literalSpaces="true" style="border:solid" />
+<item  value=" " width="8%" literalSpaces="true" style="border:solid" />
+<item  width="15%" value=" " literalSpaces="true" style="border:solid" />
+<item value=" " width="8%" literalSpaces="true" style="border:solid" />
+<item  value=" " width="15%" literalSpaces="true" style="border:solid" />
+</table>
+<table orient="row" style="font-size:8pt" >
+<item value=" " width="100%" literalSpaces="true" style="border:solid" />
+</table> 
+</group>
+</div>
+</table>
+</group>
+</body>
+</report>
+]]></Data>
+</XData>
+
+<Method name="ProcessDoses">
+<FormalSpec><![CDATA[&pParms]]></FormalSpec>
+<ReturnType>%GlobalCharacterStream</ReturnType>
+<Implementation><![CDATA[
+	#dim times as %String
+ set times=$g(pParms(1))
+ set stream=##class(%GlobalCharacterStream).%New()
+ do stream.Write("<Times>")
+ do stream.Write("<Details ID="_"""1"""_" TIME='"_($p(times,",",1))_"' />")
+ do stream.Write("<Details ID="_"""2"""_" TIME='"_($p(times,",",2))_"' />")
+ do stream.Write("<Details ID="_"""3"""_" TIME='"_($p(times,",",3))_"' />")
+ do stream.Write("<Details ID="_"""4"""_" TIME='"_($p(times,",",4))_"' />")
+ do stream.Write("<Details ID="_"""5"""_" TIME='"_($p(times,",",5))_"' />")
+ do stream.Write("<Details ID="_"""6"""_" TIME='"_($p(times,",",6))_"' />") 
+ do stream.Write("</Times>")
+
+ quit stream
+]]></Implementation>
+</Method>
+
+<Method name="NonPRNLoop">
+<FormalSpec><![CDATA[&pParms]]></FormalSpec>
+<ReturnType>%GlobalCharacterStream</ReturnType>
+<Implementation><![CDATA[
+ s stream=##class(%GlobalCharacterStream).%New()
+ do stream.Write("<A12>")
+ do stream.Write("<Default1 ID="_"""1"""_">")
+ 
+  do stream.Write("<Default2 ID2="_"""1"""_" ID3="_"""2"""_"/>")
+  do stream.Write("<Default2 ID2="_"""2"""_"/>")
+  do stream.Write("<Default2 ID2="_"""3"""_"/>")
+  do stream.Write("<Default2 ID2="_"""4"""_"/>")
+  do stream.Write("<Default2 ID2="_"""5"""_"/>")
+  do stream.Write("<Default2 ID2="_"""6"""_"/>")
+  do stream.Write("</Default1>")
+  do stream.Write("<Default1 ID="_"""2"""_">")
+  do stream.Write("<Default2 ID2="_"""1"""_"/>")
+  do stream.Write("<Default2 ID2="_"""2"""_"/>")
+  do stream.Write("<Default2 ID2="_"""3"""_"/>")
+  do stream.Write("<Default2 ID2="_"""4"""_"/>")
+  do stream.Write("<Default2 ID2="_"""5"""_"/>")
+  do stream.Write("<Default2 ID2="_"""6"""_"/>")
+  do stream.Write("</Default1>")
+  do stream.Write("<Default1 ID="_"""3"""_">")
+  do stream.Write("<Default2 ID2="_"""1"""_"/>")
+  do stream.Write("<Default2 ID2="_"""2"""_"/>")
+  do stream.Write("<Default2 ID2="_"""3"""_"/>")
+  do stream.Write("<Default2 ID2="_"""4"""_"/>")
+  do stream.Write("<Default2 ID2="_"""5"""_"/>")
+  do stream.Write("<Default2 ID2="_"""6"""_"/>")
+  do stream.Write("</Default1>")
+  do stream.Write("<Default1 ID="_"""4"""_">")
+  do stream.Write("<Default2 ID2="_"""1"""_"/>")
+  do stream.Write("<Default2 ID2="_"""2"""_"/>")
+  do stream.Write("<Default2 ID2="_"""3"""_"/>")
+  do stream.Write("<Default2 ID2="_"""4"""_"/>")
+  do stream.Write("<Default2 ID2="_"""5"""_"/>")
+  do stream.Write("<Default2 ID2="_"""6"""_"/>")
+  do stream.Write("</Default1>")
+  do stream.Write("<Default1 ID="_"""5"""_">")
+  do stream.Write("<Default2 ID2="_"""1"""_"/>")
+  do stream.Write("<Default2 ID2="_"""2"""_"/>")
+  do stream.Write("<Default2 ID2="_"""3"""_"/>")
+  do stream.Write("<Default2 ID2="_"""4"""_"/>")
+  do stream.Write("<Default2 ID2="_"""5"""_"/>")
+  do stream.Write("<Default2 ID2="_"""6"""_"/>")
+  do stream.Write("</Default1>")
+  do stream.Write("<Default1 ID="_"""6"""_">")
+  do stream.Write("<Default2 ID2="_"""1"""_"/>")
+  do stream.Write("<Default2 ID2="_"""2"""_"/>")
+  do stream.Write("<Default2 ID2="_"""3"""_"/>")
+  do stream.Write("<Default2 ID2="_"""4"""_"/>")
+  do stream.Write("<Default2 ID2="_"""5"""_"/>")
+  do stream.Write("<Default2 ID2="_"""6"""_"/>")
+  do stream.Write("</Default1>")
+  do stream.Write("<Default1 ID="_"""7"""_">")
+  do stream.Write("<Default2 ID2="_"""1"""_"/>")
+  do stream.Write("<Default2 ID2="_"""2"""_"/>")
+  do stream.Write("<Default2 ID2="_"""3"""_"/>")
+  do stream.Write("<Default2 ID2="_"""4"""_"/>")
+  do stream.Write("<Default2 ID2="_"""5"""_"/>")
+  do stream.Write("<Default2 ID2="_"""6"""_"/>")
+  do stream.Write("</Default1>")
+  do stream.Write("<Default1 ID="_"""8"""_">")
+  do stream.Write("<Default2 ID2="_"""1"""_"/>")
+  do stream.Write("<Default2 ID2="_"""2"""_"/>")
+  do stream.Write("<Default2 ID2="_"""3"""_"/>")
+  do stream.Write("<Default2 ID2="_"""4"""_"/>")
+  do stream.Write("<Default2 ID2="_"""5"""_"/>")
+  do stream.Write("<Default2 ID2="_"""6"""_"/>")
+  do stream.Write("</Default1>")
+ do stream.Write("</A12>")
+
+ quit stream
+]]></Implementation>
+</Method>
+
+<Method name="DefaultSetup8">
+<FormalSpec><![CDATA[&var:%String,&params]]></FormalSpec>
+<Implementation><![CDATA[
+  
+       Set var(0,0)=" "
+       Set var(1,0)=" "
+       Set var(2,0)=" "
+       Set var(3,0)=" "
+       Set var(4,0)=" "
+       Set var(5,0)=" "
+       Set var(6,0)=" "
+       Set var(7,0)=" "
+       Set var(0,1)="1"
+       Set var(1,1)="2"
+       Set var(2,1)="3"
+       Set var(3,1)="4"
+       Set var(4,1)="5"
+       Set var(5,1)="6"
+       Set var(6,1)="7"
+       Set var(7,1)="8"
+]]></Implementation>
+</Method>
+
+<Method name="DefaultSetup6">
+<FormalSpec><![CDATA[&var:%String,&params]]></FormalSpec>
+<Implementation><![CDATA[
+  
+       Set var(0,0)=" "
+       Set var(1,0)=" "
+       Set var(2,0)=" "
+       Set var(3,0)=" "
+       Set var(4,0)=" "
+       Set var(5,0)=" "
+       Set var(0,1)="1"
+       Set var(1,1)="2"
+       Set var(2,1)="3"
+       Set var(3,1)="4"
+       Set var(4,1)="5"
+       Set var(5,1)="6"
+]]></Implementation>
+</Method>
+
+<Method name="DefaultSetup4">
+<FormalSpec><![CDATA[&var:%String,&params]]></FormalSpec>
+<Implementation><![CDATA[
+  
+       Set var(0,0)=" "
+       Set var(1,0)=" "
+       Set var(2,0)=" "
+       Set var(3,0)=" "
+       Set var(0,1)="1"
+       Set var(1,1)="2"
+       Set var(2,1)="3"
+       Set var(3,1)="4"
+]]></Implementation>
+</Method>
+
+<Method name="DefaultSetup3">
+<FormalSpec><![CDATA[&var:%String,&params]]></FormalSpec>
+<Implementation><![CDATA[
+  
+       Set var(0,0)=" "
+       Set var(1,0)=" "
+       Set var(2,0)=" "
+       Set var(0,1)="1"
+       Set var(1,1)="2"
+       Set var(2,1)="3"
+]]></Implementation>
+</Method>
+
+<Method name="ReportType">
+<CodeMode>expression</CodeMode>
+<FormalSpec>val:%String</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[$Case($E(val),"P":"PRN",:"NONPRN")
+]]></Implementation>
+</Method>
+
+<Method name="DisplayMRDate">
+<FormalSpec>date:%Date</FormalSpec>
+<ReturnType>%Date</ReturnType>
+<Implementation><![CDATA[
+	#dim output as %String = ""
+	//convert odbc date into format dd mmm yyyy
+	try
+	{
+		if ($g(date)'="" & $g(date)'=0) s output=$zd($zdh(date,3),4,,4)
+	}
+	catch
+	{
+	}
+	q output
+]]></Implementation>
+</Method>
+
+<Method name="DisplayMRTime">
+<FormalSpec>time:%Time</FormalSpec>
+<ReturnType>%Time</ReturnType>
+<Implementation><![CDATA[
+	#dim output as %String = ""
+	//convert odbc time into format HH:MM
+	try
+	{
+		if $g(time)'="" s output=$zt($zth(time,2),2)
+	}
+	catch
+	{
+	}
+	q output
+]]></Implementation>
+</Method>
+
+<Method name="LastDoseGiven">
+<FormalSpec>Date1:%Date="",Time1:%Time="",Date2:%Date="",Time2:%Time=""</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	#dim output as %String = ""
+	try
+	{
+		if Date1'=""
+		{
+			set output = "Last Dose ("_$ZD(Date1,4)_" "_$ZT(Time1,2)_") given at "_$ZT(Time2,2)_" on "_$ZD(Date2,4)
+		}
+	}
+	catch
+	{
+	}
+	Quit output
+]]></Implementation>
+</Method>
+
+<Method name="StartDate">
+<FormalSpec>Date:%Date</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	try
+	{
+		if Date'=""
+		{
+			return $ZD(Date,2)
+		}
+	}
+	catch
+	{
+	}
+	quit ""
+]]></Implementation>
+</Method>
+
+<Method name="DisplayPRNInstructions">
+<FormalSpec><![CDATA[&Fields:%String]]></FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	#dim output, field as %String = ""
+	for field = "OEORIDoseQty","Freq","Priority","LastAdminDoseTime","OEORIPRNIndication"
+	{
+		if field="LastAdminDoseTime"&&(Fields(field)'="")
+		{
+			Set Fields(field) = " started at "_$ZT(Fields(field),2)_$CASE(Fields("LastAdminDoseDate"),"":"",:" on "_$ZD($G(Fields("LastAdminDoseDate")),4))
+		}
+		elseif (field="LastAdminDoseTime")&&(Fields(field)) = ""
+		{
+			Set Fields(field) = "not started"
+		}
+		Set output=output_$case($G(Fields(field)),"":"",:$G(Fields(field))_", ")
+	}
+	Quit $E(output,1,*-2)
+]]></Implementation>
+</Method>
+
+<Method name="DisplayIVInstructions">
+<FormalSpec>OEORIIVTypeLogical:%String="",OEORIRowId:%String,OEOREOrderStatus:%String="",ITM2CalcIVDose:%String="",ITM2Duration:%String="",LastAdminDoseDate:%Date="",LastAdminDoseTime:%String="",TodaysDoses:%Binary=$Lb("")</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	#dim output, msg as %String = ""
+	if OEORIIVTypeLogical'="" 
+	{
+		Set msg = $case(OEOREOrderStatus,"ADM":". Last dose finished at ",:". Started at ")
+		set output = $G(ITM2CalcIVDose)_" for "_$G(ITM2Duration)_$select(LastAdminDoseTime'="":msg_$ZD(LastAdminDoseDate,4)_" "_$ZT(LastAdminDoseTime),TodaysDoses'="":". Expected Start : "_$P(TodaysDoses,","),1:"")
+	}
+	quit output
+]]></Implementation>
+</Method>
+</Class>
+</Export>

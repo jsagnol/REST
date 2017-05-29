@@ -1,0 +1,619 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.AUXX.Report.ZEN.StoredProc.OffSiteAppts">
+<ProcedureBlock>0</ProcedureBlock>
+<Super>Report.Abstract</Super>
+<TimeCreated>59806,71923.413941</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/AUXX/Report/ZEN/StoredProc/OffSiteAppts.xml#1 $</Default>
+</Parameter>
+
+<UDLText name="T">
+<Content><![CDATA[
+// Report Name: Off-Site Appointments
+
+]]></Content>
+</UDLText>
+
+<UDLText name="T">
+<Content><![CDATA[
+// Report Code: AUXX.BKG0103
+
+]]></Content>
+</UDLText>
+
+<UDLText name="T">
+<Content><![CDATA[
+// TRC Number 163574
+
+]]></Content>
+</UDLText>
+
+<UDLText name="T">
+<Content><![CDATA[
+// TRC Number 178602
+
+]]></Content>
+</UDLText>
+
+<Method name="GetApptsClose">
+<Description>
+This is the Close component of the %Library.Query.
+This is standard code and should never have to change.
+This is where all the cleanup is performed, i.e. the purging of the temporary storage global ^CacheTemp.</Description>
+<Final>0</Final>
+<ClassMethod>1</ClassMethod>
+<CodeMode>code</CodeMode>
+<FormalSpec>QHandle:%Library.Binary</FormalSpec>
+<Private>0</Private>
+<ReturnType>%Library.Status</ReturnType>
+<SqlProc>0</SqlProc>
+<Implementation><![CDATA[
+ // Clean up by purging the temporary node in ^CacheTemp global
+ New repid
+ Set repid=$li(QHandle,2)
+ 
+  //Start Monitor (if configured to capture stats)
+ i mon Do ..MonitorEnd(mon)
+ 
+ Kill ^CacheTemp("TRAK",repid)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="GetApptsExecute">
+<Description>
+This is the Execute section for the %Library.Query. 
+All of the logic will be performed here.
+A new node for the ^CacheTemp global will be created and each subscript of this global will contain
+a row for the report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,DateFrom:%Date,Hospital:%String,Location:%String,CareProvider:%String]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Get reportid i.e. use $INCREMENT to add another node to ^CacheTemp global. 
+ // We use ^CacheTemp global because it will always use memory before disk
+ New repid,ind
+
+ // Use $Increment to get the next node and clean up
+ Set repid=$Increment(^CacheTemp("TRAK"))
+ Kill ^CacheTemp("TRAK",repid)
+ 	
+ //Start Monitor (if configured to capture stats)
+ s mon=..MonitorBegin()
+ 
+ // Build data into ^CacheTemp("TRAK",ReportID)
+ // e.g. Set ^CacheTemp("TRAK",ReportID,Index)=$LB(f1,f2,f3)
+ New Number,String,Date,Time,c,n,URNDetails,StatusCodes,index,counter
+ n RESRowID,ResID,ASChildSub,APPTChildSub,PAPMIRowId,PAADMRowId,APPTOEORIDR,HOSPRowId,HOSPDesc,PresentComplaint,ROOMCTLOCCode,CTLOCRowId,CTLOCCode,CTLOCDesc,RESRowId,RESCode,RESDesc,ASDate,APPTStatus,APPTRowId,PAPMIName,PAPMIName2,PAPMIName3,PAPERMobPhone,SERDesc,SERRowId,APPTDoctorLetterNotes,PAPMIDOB,CTSEXCode,ASSessionStartTime,EndTime,PAPERTelH,APPTRemarks,slotlength
+ n PAPERStName,ForeignAddress,City,Zip,Proc,Duration,INSTDesc,AUXITDesc,REFDDesc,REFDBusPhone,Allergies,HasAlert,AlertStatus,NextLoc,NextDate,RNAVDesc,NARemarks,EVName,dowday,Program,LocalAddress,Phone,NALabel,Plan,PayPlan,RefDoctor,EpPlan,PPlan
+ s (HOSPRowId,PAPMIRowId,CTLOCRowId,SERRowId,dowday)=0
+ s (RESRowID,ResID,ASChildSub,APPTChildSub,PAADMRowId,APPTOEORIDR,HOSPDesc,ROOMCTLOCCode,CTLOCCode,CTLOCDesc,RESRowId,RESCode,RESDesc,ASDate,APPTStatus,APPTRowId,PAPMIName,PAPMIName2,PAPMIName3,PAPERMobPhone,SERDesc,APPTDoctorLetterNotes,PAPMIDOB,CTSEXCode,ASSessionStartTime,EndTime,PAPERTelH,APPTRemarks,PayPlan,slotlength)=""
+ s (PAPERStName,ForeignAddress,City,Zip,Proc,Duration,INSTDesc,AUXITDesc,REFDDesc,REFDBusPhone,PresentComplaint,Allergies,HasAlert,AlertStatus,NextLoc,NextDate,RNAVDesc,NARemarks,EVName,Program,LocalAddress,Phone,NALabel,RefDoctor,Plan,EpPlan,PPlan)=""
+ 
+ s ind=0
+
+ //Convert ODBC dates to cache format
+ s DateFrom=..ConvertDateToCache(DateFrom)
+
+ // Strip white space/control chars from blank variables
+ i $g(Hospital)'="" s Hospital=$zstrip(Hospital,"*WC")
+ i $g(Location)'="" s Location=$zstrip(Location,"*WC")
+ i $g(CareProvider)'="" s CareProvider=$zstrip(CareProvider,"*WC")
+ n RESRowID,Time,ASChildSub,APPTChildSub,APPTID
+ s (RESRowID,Time,ASChildSub,APPTChildSub,APPTID)=""
+ 
+ s RESRowID=""
+  	 f { s RESRowID=$o(^RBAS(RESRowID)) q:RESRowID=""
+		s Time=""
+		 f { s Time=$o(^RBAS(RESRowID,0,"DateSTime",DateFrom,Time)) q:Time=""
+	 		s ASChildSub=""
+	 		f {  s ASChildSub=$o(^RBAS(RESRowID,0,"DateSTime",DateFrom,Time,ASChildSub)) q:ASChildSub=""
+	 			s APPTChildSub=""
+				f { s APPTChildSub=$o(^RBAS(RESRowID,ASChildSub,"APPT",APPTChildSub)) q:APPTChildSub=""
+	 			s APPTID=""
+	 			s APPTID=RESRowID_"||"_ASChildSub_"||"_APPTChildSub
+	 			s APPTStatus=$p($g(^RBAS(RESRowID,ASChildSub,"APPT",APPTChildSub)),"^",3)
+	 			i APPTStatus="P"
+	 				{
+					d GetData
+	 				}
+				}
+			}
+	 	}
+	 }		
+	
+	 //^RB("NA",0,"RES",{NA_RES_DR},{NA_FrDateTime},{NA_RowId})
+	 s ResID=""
+  	 f { s ResID=$o(^RB("NA",0,"RES",ResID)) q:ResID=""
+	 i ResID'=""
+	 	{
+	  	 S FrDtTm=""
+	  	 	 f {s FrDtTm=$o(^RB("NA",0,"RES",ResID,FrDtTm)) q:FrDtTm=""
+	  	 	s NARowId=""
+ 				 f {s NARowId=$o(^RB("NA",0,"RES",ResID,FrDtTm,NARowId)) q:NARowId=""
+ 					i NARowId'=""
+ 						d NotAvail	
+ 					} 			
+	  	 		}	
+	 		}
+  	 	}	
+ 	
+ // Build QHandle (AtEnd,ReportID,Index)
+ Set QHandle=$lb(0,repid,0)
+
+ Quit $$$OK
+
+GetData
+ &SQL(DECLARE APPT CURSOR FOR
+ SELECT 
+ APPT_PAPMI_DR,
+ APPT_ADM_DR,
+ APPT_OEORI_DR,
+  APPT_AS_ParRef->AS_RES_ParRef->RES_CTLOC_DR->CTLOC_Hospital_DR,
+ APPT_AS_ParRef->AS_RES_ParRef->RES_CTLOC_DR->CTLOC_Hospital_DR->HOSP_Desc,
+ APPT_Adm_DR->PAADM_MainMRADM_DR->MRADM_PresentComplaint,
+ APPT_AS_ParRef->AS_RBEffDateSession_DR->SESS_Room_DR->CTLOC_Code as ROOMCTLOCCode,
+ APPT_AS_ParRef->AS_RES_ParRef->RES_CTLOC_DR,
+ APPT_AS_ParRef->AS_RES_ParRef->RES_CTLOC_DR->CTLOC_Code,
+ APPT_AS_ParRef->AS_RES_ParRef->RES_CTLOC_DR->CTLOC_Desc,
+ APPT_AS_ParRef->AS_RES_ParRef->RES_CTPCP_DR,
+ APPT_AS_ParRef->AS_RES_ParRef->RES_CTPCP_DR->CTPCP_Code,
+ APPT_AS_ParRef->AS_RES_ParRef->RES_CTPCP_DR->CTPCP_Desc,
+ APPT_AS_ParRef->AS_Date,
+ APPT_PAPMI_DR->PAPMI_No,
+ APPT_PAPMI_DR->PAPMI_Name,
+ APPT_PAPMI_DR->PAPMI_Name2,
+ APPT_PAPMI_DR->PAPMI_Name3,
+ APPT_PAPMI_DR->PAPMI_PAPER_DR->PAPER_MobPhone,
+ APPT_RBCServ_DR->SER_Desc,
+ APPT_RBCServ_DR->SER_RowId,
+ APPT_PAPMI_DR->PAPMI_DOB,
+ APPT_PAPMI_DR->PAPMI_PAPER_DR->PAPER_SEX_DR->CTSEX_Desc,
+ APPT_AS_ParRef->AS_SessStartTime,
+ APPT_AS_ParRef->AS_SessStartTime+(60*APPT_Duration),
+ APPT_PAPMI_DR->PAPMI_PAPER_DR->PAPER_TelH,
+  APPT_Remarks,
+  APPT_Duration,
+ APPT_AS_PARREF->AS_RBEffdatesession_DR->SESS_DOW_DR->DOW_DAY,
+ APPT_OEORI_DR->OEORI_OEOrdItem2_DR->ITM2_NFMICategDepart_DR->DEP_Desc,
+ '',
+ '',
+ '',
+ APPT_AS_PARREF->AS_RBEffDateSession_DR->SESS_SlotLength
+ INTO :PAPMIRowId,:PAADMRowId,:APPTOEORIDR,:HOSPRowId,:HOSPDesc,:PresentComplaint,:ROOMCTLOCCode,:CTLOCRowId,:CTLOCCode,:CTLOCDesc,:RESRowId,:RESCode,:RESDesc,:ASDate,:PAPMINo,:PAPMIName,:PAPMIName2,:PAPMIName3,:PAPERMobPhone,:SERDesc,:SERRowId,:PAPMIDOB,:CTSEXCode,:ASSessionStartTime,:EndTime,:PAPERTelH,:APPTRemarks,:Duration,:dowday,:Program,:RNAVDesc,:NARemarks,:EVName,:slotlength
+ FROM SQLUser.RB_Appointment
+ WHERE APPT_RowId=:APPTID
+ AND (({fn CONCAT( ',', {fn CONCAT((:Hospital),',')})} [ {fn CONCAT( ',', {fn CONCAT((APPT_AS_ParRef->AS_RES_ParRef->RES_CTLOC_DR->CTLOC_Hospital_DR->HOSP_RowId),',')})}) OR (:Hospital IS NULL))
+ AND (({fn CONCAT( ',', {fn CONCAT((:Location),',')})} [ {fn CONCAT( ',', {fn CONCAT((APPT_AS_ParRef->AS_RES_ParRef->RES_CTLOC_DR->CTLOC_RowId),',')})}) OR (:Location IS NULL))
+ AND (({fn CONCAT( ',', {fn CONCAT((:CareProvider),',')})} [ {fn CONCAT( ',', {fn CONCAT((APPT_AS_ParRef->AS_RES_ParRef->RES_RowId),',')})}) OR (:CareProvider IS NULL)))
+ 
+ &SQL(OPEN APPT)
+ f  &SQL(FETCH APPT) q:SQLCODE'=0  d
+ . s INSTDesc=##class(Custom.AUXX.Report.ZEN.StoredProc.OffSiteAppts).Payor(PAADMRowId,APPTRowId)
+ . d PatDetails
+ . d Procs
+ . d OPlan
+ . d EpPlan
+ . d Allergies
+ . d NextAppt
+ . d FormatDates
+ . d FormatTimes
+ . s PAPMINo="UR No: "_PAPMINo
+ . i PAPMIRowId'="",ForeignAddress="" s LocalAddress=PAPERStName_$CHAR(10)_$CHAR(13)_City_" "_Zip
+ . i PAPMIRowId'="",ForeignAddress'="" s LocalAddress=PAPERStName_$CHAR(10)_$CHAR(13)_ForeignAddress_$CHAR(10)_$CHAR(13)_City_" "_Zip
+ . i PAPMIRowId="" s PAPERStName=""
+ . s HasAlert=##Class(web.PAAlertMsg).GotActiveAlerts(PAPMIRowId)
+ . i HasAlert=1 s AlertStatus="Active Alerts"
+ . i HasAlert=0 s AlertStatus="No Active Alerts"
+ . s Phone="Phone: H: "_PAPERTelH_" M: "_PAPERMobPhone 
+ . s NALabel="Next Appointment: "
+ . i AUXITDesc'="" s Plan=AUXITDesc
+ . i AUXITDesc="" s Plan=EpPlan
+ . s PayPlan="Payor: "_INSTDesc
+ . s PPlan="Plan: "_Plan
+ . s Program="Program: "_Program
+ . s RefDoctor=REFDDesc_$CHAR(10)_$CHAR(13)_REFDBusPhone
+ . s APPTRemarks=##class(websys.Conversions).ListLogicalToHtml(APPTRemarks)
+ . s ind=ind+1
+ . Set ^CacheTemp("TRAK",repid,$ZCVT(HOSPDesc,"U")_" "_$ZCVT(CTLOCDesc,"U")_" "_$ZCVT(RESDesc,"U")_" "_ASSessionStartTime_ind)=$LB(PAPMIRowId,HOSPRowId,HOSPDesc,PresentComplaint,ROOMCTLOCCode,CTLOCRowId,CTLOCCode,CTLOCDesc,RESRowId,RESCode,RESDesc,ASDate,PAPMINo,PAPMIName,PAPMIName2,PAPMIName3,PAPERMobPhone,SERDesc,SERRowId,APPTDoctorLetterNotes,PAPMIDOB,CTSEXCode,ASSessionStartTime,EndTime,PAPERTelH,APPTRemarks,Duration,dowday,Program,RNAVDesc,NARemarks,EVName,slotlength,PAPERStName,ForeignAddress,City,Zip,REFDDesc,REFDBusPhone,Proc,INSTDesc,Plan,Allergies,HasAlert,AlertStatus,NextLoc,NextDate,LocalAddress,Phone,NALabel,PayPlan,PPlan,RefDoctor,APPTID)
+ 
+ &SQL(CLOSE APPT)
+ q
+
+NotAvail
+ &SQL(DECLARE GetNAV CURSOR FOR
+ SELECT
+ '',
+ '',
+ '',
+ NA_RES_dR->RES_CTLOC_DR->CTLOC_Hospital_DR,
+ NA_RES_dR->RES_CTLOC_DR->CTLOC_Hospital_DR->HOSP_Desc,
+ '',
+ '',
+  NA_RES_dR->RES_CTLOC_DR,
+  NA_RES_dR->RES_CTLOC_DR->CTLOC_Code,
+  NA_RES_dR->RES_CTLOC_DR->CTLOC_Desc,
+  NA_RES_dR->RES_CTPCP_DR,
+  NA_RES_dR->RES_CTPCP_DR->CTPCP_Code,
+  NA_RES_dR->RES_CTPCP_DR->CTPCP_Desc,
+ '',
+ '',
+ '',
+ '',
+ '',
+ '',
+ '',
+ '',
+ '',
+ '',
+ NA_FrTime,
+ NA_ToTime,
+ '',
+  '',
+ '',
+ '',
+ '',
+ NA_Reason_DR-> RNAV_Desc,
+ NA_Remarks,
+ NA_RBEvent_DR-> EV_Name,
+ ''
+ INTO :PAPMIRowId,:PAADMRowId,:APPTOEORIDR,:HOSPRowId,:HOSPDesc,:PresentComplaint,:ROOMCTLOCCode,:CTLOCRowId,:CTLOCCode,:CTLOCDesc,:RESRowId,:RESCode,:RESDesc,:ASDate,:PAPMINo,:PAPMIName,:PAPMIName2,:PAPMIName3,:PAPERMobPhone,:SERDesc,:SERRowId,:PAPMIDOB,:CTSEXCode,:ASSessionStartTime,:EndTime,:PAPERTelH,:APPTRemarks,:Duration,:dowday,:Program,:RNAVDesc,:NARemarks,:EVName,:slotlength
+  from SQLUSER.rb_Notavail
+  WHERE  na_rowid=:NARowId and
+  (({fn CONCAT( ',', {fn CONCAT((:Hospital),',')})} [ {fn CONCAT( ',', {fn CONCAT((NA_RES_dR->RES_CTLOC_DR->CTLOC_Hospital_DR->HOSP_RowId),',')})}) OR (:Hospital IS NULL))
+ AND (({fn CONCAT( ',', {fn CONCAT((:Location),',')})} [ {fn CONCAT( ',', {fn CONCAT((NA_RES_DR->RES_CTLOC_DR->CTLOC_RowId),',')})}) OR (:Location IS NULL))
+ AND (({fn CONCAT( ',', {fn CONCAT((:CareProvider),',')})} [ {fn CONCAT( ',', {fn CONCAT((NA_RES_DR->RES_RowId),',')})}) OR (:CareProvider IS NULL))
+ AND
+ (
+ (:DateFrom BETWEEN NA_FrDate and NA_ToDate and NA_DaysOfTheWeek is null) or
+ (:DateFrom BETWEEN NA_FrDate and NA_ToDate and NA_DaysOfTheWeek is not null and :dowday in (NA_DaysOfTheWeek))
+ )
+ )
+ &SQL(OPEN GetNAV)
+ f  &SQL(FETCH GetNAV) q:SQLCODE'=0  d
+ . d FormatTimes
+ . s PAPERStName=""
+ . s PAPERForeignAddress=""
+ . s City="" 
+ . s Zip=""
+ . s REFDDesc=""
+ . s REFDBusPhone=""
+ . s LocalAddress="" 
+ . s Phone=""
+ . s NALabel=""
+ . s PAPMIName=$zstrip($g(PAPMIName),"*C") 
+ . i PAPMIName="" s SERDesc=$zstrip(RNAVDesc_" "_NARemarks_" "_EVName,"*C")
+ . i RNAVDesc'="" s PayPlan=""
+ . i RNAVDesc'="" s PPlan=""
+ . s RefDoctor=""
+ . s AlertStatus=""
+ . s Proc=""
+ . s ind=ind+1
+ . Set ^CacheTemp("TRAK",repid,$ZCVT(HOSPDesc,"U")_" "_$ZCVT(CTLOCDesc,"U")_" "_$ZCVT(RESDesc,"U")_" "_ASSessionStartTime_ind)=$LB(PAPMIRowId,HOSPRowId,HOSPDesc,PresentComplaint,ROOMCTLOCCode,CTLOCRowId,CTLOCCode,CTLOCDesc,RESRowId,RESCode,RESDesc,ASDate,PAPMINo,PAPMIName,PAPMIName2,PAPMIName3,PAPERMobPhone,SERDesc,SERRowId,APPTDoctorLetterNotes,PAPMIDOB,CTSEXCode,ASSessionStartTime,EndTime,PAPERTelH,APPTRemarks,Duration,dowday,Program,RNAVDesc,$zstrip(NARemarks,"*C"),EVName,slotlength,PAPERStName,ForeignAddress,City,Zip,REFDDesc,REFDBusPhone,Proc,INSTDesc,AUXITDesc,Allergies,HasAlert,AlertStatus,NextLoc,NextDate,LocalAddress,Phone,NALabel,PayPlan,PPlan,RefDoctor,APPTID)
+ 
+ &SQL(CLOSE GetNAV)
+ q
+
+PatDetails
+	&sql(SELECT
+	PAPER_StName,
+	PAPER_ForeignAddress,
+	PAPER_CityCode_DR->CTCIT_Desc,
+	PAPER_Zip_DR->CTZIP_Code,
+	PAPER_FamilyDoctor_DR->REFD_Desc,
+	PAPER_FamilyDoctor_DR->REFD_BusPhone
+	INTO :PAPERStName,:ForeignAddress,:City,:Zip,:REFDDesc,:REFDBusPhone
+	FROM SQLUser.PA_Person
+	WHERE	PAPER_RowId=:PAPMIRowId
+	)
+	s PAPERStName=##class(websys.Conversions).ListLogicalToHtml(PAPERStName,$char(10,13))
+	q
+	
+Procs
+	s (ARCIMDesc,Proc)=""
+	&SQL(DECLARE GetProc CURSOR FOR 
+		SELECT
+		OEORI_ItmMast_DR->ARCIM_Desc
+		FROM SQLUser.OE_OrdItem
+		WHERE OEORI_Appt_DR = :APPTID and not OEORI_ItmMast_DR->ARCIM_Desc=OEORI_Appt_DR->APPT_RBCServ_DR->SER_Desc
+		)
+	&SQL(OPEN GetProc)
+	&SQL(FETCH GetProc INTO :ARCIMDesc)
+	while 'SQLCODE {
+		;skip if nothing in ICD field
+		i ARCIMDesc'="" s Proc=$s(Proc="":"",1:Proc_$CHAR(10)_$CHAR(13))_ARCIMDesc_""	
+		s (ARCIMDesc)=""
+		&SQL(FETCH GetProc INTO :ARCIMDesc)
+	}
+	&SQL(CLOSE GetProc)	
+ 
+OPlan
+	&sql(SELECT
+    COV_AuxInsType_DR->AUXIT_Desc 
+	INTO :AUXITDesc
+	FROM SQLUser.AR_ChargesOverride
+	WHERE	COV_OEORI_DR=:APPTOEORIDR
+	)
+	q
+ 
+EpPlan
+	&sql(SELECT
+    INS_AuxInsType_DR->AUXIT_Desc 
+	INTO :EpPlan
+	FROM SQLUser.PA_AdmInsurance
+	WHERE INS_ParRef=:PAADMRowId
+	)
+	q
+
+Allergies
+	s (ALGDesc,RGCat,RGSev,ALGStatus,Allergies)=""
+	&SQL(DECLARE GetAllergies CURSOR FOR 
+		SELECT 
+		case when alg_phcge_dr is not null then alg_phcge_dr->PHCGE_Name when ALG_PHCDM_DR is not null then ALG_PHCDM_DR->PHCD_Name when alg_INGRED_dr is not null then alg_INGRED_dr->INGR_DESC else ALG_TYPE_DR->ALG_DESC END,
+		ALG_Category_DR->ALRGCAT_Desc,
+		ALG_Severity_DR->ALRGSEV_Desc,
+		case when ALG_Status is null then 'Active' when ALG_Status='I' then 'Inactive' else 'Active' end
+		 FROM SQLUser.PA_Allergy
+		WHERE ALG_PAPMI_ParRef = :PAPMIRowId
+		and (ALG_Inactive is null or  ALG_Inactive='N'))
+	&SQL(OPEN GetAllergies)
+	&SQL(FETCH GetAllergies INTO :ALGDesc,:RGCat,:RGSev,:ALGStatus)
+	while 'SQLCODE {
+		;skip if nothing in ALGDesc field
+		i ALGDesc'="" s Allergies=$s(Allergies="":"",1:Allergies_$CHAR(10)_$CHAR(13))_ALGDesc_"-"_RGCat_"-"_RGSev_"-"_ALGStatus
+		s (ALGDesc)=""
+		&SQL(FETCH GetAllergies INTO :ALGDesc,:RGCat,:RGSev,:ALGStatus)
+	}
+	&SQL(CLOSE GetAllergies)
+	q
+
+NextAppt
+	s (NextLoc,NextDate)=""
+
+	&sql(DECLARE GetNextAppt CURSOR FOR SELECT 
+	RES_CTLOC_DR->CTLOC_Desc,
+    AS_Date
+	
+	FROM SQLUser.RB_Resource, SQLUSER.RB_ApptSchedule, SQLUSER.RB_Appointment
+	WHERE RES_RowId=AS_res_Parref and AS_RowId=APPT_AS_ParRef and
+	APPT_PAPMI_DR=:PAPMIRowId and 
+	APPT_Status='P' and AS_Date>:DateFrom and RES_CTLOC_dr->CTLOC_Hospital_Dr=:HOSPRowId
+	order by AS_Date
+	)
+	&SQL(OPEN GetNextAppt)
+	&SQL(FETCH GetNextAppt INTO :NextLoc,:NextDate)
+	&SQL(CLOSE GetNextAppt)
+
+	;Set NextDate=..ConvertDateToODBC(NextDate)
+	q
+
+ /*
+NotAvail
+	s (NAFrTime,NAToTime,RNAVDesc,NARemarks,EVName)=""
+
+ &sql(DECLARE GetNAV CURSOR FOR select
+ NA_FrTime,
+ NA_ToTime,
+ NA_Reason_DR-> RNAV_Desc,
+ NA_Remarks,
+ NA_RBEvent_DR->EV_Name
+ from SQLUSER.rb_Notavail
+ where 
+ NA_RES_dr->res_ctpcp_dr=:RESRowId AND
+ NA_RES_dr->RES_CTLOC_dr=:CTLOCRowId
+ and
+ (
+ (:DateFrom BETWEEN NA_FrDate and NA_ToDate and NA_DaysOfTheWeek is null) or
+ (:DateFrom BETWEEN NA_FrDate and NA_ToDate and NA_DaysOfTheWeek is not null and :dowday in (NA_DaysOfTheWeek))
+ )
+	)
+	&SQL(OPEN GetNAV)
+	&SQL(FETCH GetNAV INTO :NAFrTime,:NAToTime,:RNAVDesc,:NARemarks,:EVName)
+	Set NAFrTime=..ConvertTimeToODBC(NAFrTime)
+	Set NAToTime=..ConvertTimeToODBC(NAToTime)
+	&SQL(CLOSE GetNAV)
+
+	q
+*/
+FormatDates
+ // Convert the dates to ODBC date format
+ Set ASDate=..ConvertDateToODBC(ASDate)
+ ;Set PAPMIDOB=..ConvertDateToODBC(PAPMIDOB)
+ Quit
+
+FormatTimes
+ // Convert the times to ODBC time format
+ Set ASSessionStartTime=..ConvertTimeToODBC(ASSessionStartTime)
+ Set EndTime=..ConvertTimeToODBC(EndTime)
+ Quit
+]]></Implementation>
+</Method>
+
+<Method name="GetApptsFetch">
+<Description>
+This is the Fetch component of the %Library.Query. 
+This should never have to change. It is designed to fetch the row for each subscript of the ^CacheTemp
+global and return this row to the Crystal Report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,&Row:%Library.List,&AtEnd:%Library.Integer=0]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // This fetch method should never have to change. 
+
+ // repid - Report ID
+ // ind   - sequence index which represents each row
+
+ New repid,ind
+
+ // Restore QHandle
+ Set AtEnd=$li(QHandle,1)
+ Set repid=$li(QHandle,2)
+ Set ind=$li(QHandle,3)
+
+ Set ind=$o(^CacheTemp("TRAK",repid,ind))
+ If ind="" {	// if there are no more rows, finish fetching
+ Set AtEnd=1
+ Set Row=""
+ }
+ Else      {	// fetch row
+ Set Row=^CacheTemp("TRAK",repid,ind)
+ }
+
+ // Save QHandle
+ s QHandle=$lb(AtEnd,repid,ind)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Query name="GetAppts">
+<Type>%Library.Query</Type>
+<FormalSpec>DateFrom:%Date,Hospital:%String,Location:%String,CareProvider:%String</FormalSpec>
+<SqlProc>1</SqlProc>
+<Parameter name="CONTAINID" value="0"/>
+<Parameter name="ROWSPEC" value="PAPMIRowId:%Integer,HOSPRowId:%Integer,HOSPDesc:%String(MAXLEN=255),PresentComplaint:%String,ROOMCTLOCCode:%String(MAXLEN=255),CTLOCRowId:%Integer,CTLOCCode:%String(MAXLEN=255),CTLOCDesc:%String(MAXLEN=255),RESRowId:%String(MAXLEN=255),RESCode:%String(MAXLEN=255),RESDesc:%String(MAXLEN=255),ASDate:%Date,PAPMINo:%String(MAXLEN=255),PAPMIName:%String(MAXLEN=255),PAPMIName2:%String(MAXLEN=255),PAPMIName3:%String(MAXLEN=255),PAPERMobPhone:%String(MAXLEN=255),SERDesc:%String(MAXLEN=255),SERRowId:%Integer,APPTDoctorLetterNotes:%String(MAXLEN=255),PAPMIDOB:%String,CTSEXCode:%String(MAXLEN=255),ASSessionStartTime:%String,EndTime:%String,PAPERTelH:%String(MAXLEN=255),APPTRemarks:%String,Duration:%String,dowday:%Integer,Program:%String,RNAVDesc:%String,NARemarks:%String,EVName:%String,slotlength:%String,PAPERStName:%String,ForeignAddress:%String,City:%String,Zip:%String,REFDDesc:%String,REFDBusPhone:%String,Proc:%String(MAXLEN=999),INSTDesc:%String,Plan:%String,Allergies:%String,HasAlert:%String,AlertStatus:%String,NextLoc:%String,NextDate:%String,LocalAddress:%String,Phone:%String,NALabel:%String,PayPlan:%String,PPlan:%String,RefDoctor:%String,APPTID:%String"/>
+</Query>
+
+<Method name="Payor">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>PAADMRowId:%Library.String,APPTRowId:%Library.String</FormalSpec>
+<ReturnType>%Library.String</ReturnType>
+<Implementation><![CDATA[
+	s payor=""
+	
+	;Get payor against the appointment
+	i $g(APPTRowId)'="" d
+	. s oeori=$p($g(^RBAS(+APPTRowId,$p(APPTRowId,"||",2),"APPT",$p(APPTRowId,"||",3))),"^",21)
+	. i $g(oeori)'="" d
+	. . s cov=0 f  s cov=$o(^AR("COV",0,"OEORI",oeori,cov)) q:cov=""  d
+	. . . i $p($g(^AR("COV",cov)),"^")'=$o(^ARC("INST",0,"Code","MC","")) d
+	. . . . i $g(cov)'="" s payor=$p($g(^AR("COV",cov)),"^")
+	. . . . i $g(payor)'="" s payor=$p($g(^ARC("INST",payor)),"^",2)
+	. i (($g(payor)="")||(payor="MC")) d
+	. . s oe=$o(^OEORDi(0,"Appt",APPTRowId,""))
+	. . i $g(oe)'="" s oei=$o(^OEORDi(0,"Appt",APPTRowId,oe,""))
+	. . i $g(oei)'="" s oeori=oe_"||"_oei
+	. . i $g(oeori)'="" d
+	. . . s cov=0 f  s cov=$o(^AR("COV",0,"OEORI",oeori,cov)) q:cov=""  d
+	. . . . i $g(cov)'="" s payor=$p($g(^AR("COV",cov)),"^")
+	. . . . i $g(payor)'="" s payor=$p($g(^ARC("INST",payor)),"^",2)
+	
+	;Get the payor against the appointment linked to the episode
+	i $g(APPTRowId)="",$g(PAADMRowId)'="",$g(payor)="" d
+	. s res1=0 f  s res1=$o(^RBAS("ADM",PAADMRowId,res1)) q:res1=""  d
+	. . s as1=0 f  s as1=$o(^RBAS("ADM",PAADMRowId,res1,as1)) q:as1=""  d
+	. . . s appt1=0 f  s appt1=$o(^RBAS("ADM",PAADMRowId,res1,as1,appt1)) q:appt1=""  d
+	. . . . s oeori=$p($g(^RBAS(res1,as1,"APPT",appt1)),"^",21)
+	. . . . s APPTRowId=res1_"||"_as1_"||"_appt1
+	. . . . i $g(oeori)="" d
+	. . . . . s oe=$o(^OEORDi(0,"Appt",APPTRowId,""))
+	. . . . . i $g(oe)'="" s oei=$o(^OEORDi(0,"Appt",APPTRowId,oe,""))
+	. . . . . i $g(oei)'="" s oeori=oe_"||"_oei
+	. . . . i $g(oeori)'="","A,N"[$p($g(^RBAS(res1,as1,"APPT",appt1)),"^",3) d
+	. . . . . s cov=0 f  s cov=$o(^AR("COV",0,"OEORI",oeori,cov)) q:cov=""  d
+	. . . . . . i $g(cov)'="" s payor=$p($g(^AR("COV",cov)),"^")
+	. . . . . . i $g(payor)'="" s payor=$p($g(^ARC("INST",payor)),"^",2)
+
+	; Get against episode
+	i $g(payor)="",$g(PAADMRowId)'="" d
+	. s ins=0 f  s ins=$o(^PAADM(PAADMRowId,"INS",ins)) q:ins=""  d
+	. . s payor=$p($g(^PAADM(PAADMRowId,"INS",ins)),"^")
+	. . i $g(payor)'="" s payor=$p($g(^ARC("INST",payor)),"^",2)
+	
+	i $g(APPTRowId)'="" s checkdate=$p($g(^RBAS(+APPTRowId,$p(APPTRowId,"||",2))),"^")
+	i $g(PAADMRowId)'="",$g(APPTRowId)="" s checkdate=$p($g(^PAADM(PAADMRowId)),"^",6)
+	;s payor=..GetMappedCode("ARC_InsuranceType","INST_Code","VINAHACC",$g(payor),checkdate)
+	
+	q payor
+]]></Implementation>
+</Method>
+
+<Query name="LookUpResourceLoc">
+<Type>%Library.SQLQuery</Type>
+<FormalSpec>loc:%String,hos:%String</FormalSpec>
+<SqlQuery><![CDATA[SELECT DISTINCT CTLOC_Desc, CTLOC_RowId, CTLOC_Code
+FROM SQLUser.CT_Loc,SQLUSER.RB_Resource
+WHERE ((%ALPHAUP CTLOC_Desc %STARTSWITH %ALPHAUP :loc) OR (%ALPHAUP CTLOC_Code %STARTSWITH %ALPHAUP :loc))
+AND (({fn CONCAT( ',', {fn CONCAT((:hos),',')})} [ {fn CONCAT( ',', {fn CONCAT((RES_CTLOC_dr->CTLOC_HOSPITAL_dr),',')})}) OR (:hos IS NULL))
+AND RES_CTLOC_DR=CTLOC_RowId and CTLOC_Type='E'
+ORDER BY CTLOC_Desc]]></SqlQuery>
+<Parameter name="CONTAINID" value="2"/>
+<Parameter name="ROWSPEC" value="Description:%String,HIDDEN:%String,Code:%String"/>
+</Query>
+
+<Method name="LookUpBrokerResourceLoc">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>itmjs:%Library.String="",itmjsex:%Library.String="",val:%Library.String="",Hospital:%Library.String=""</FormalSpec>
+<Implementation><![CDATA[
+	n id,code,desc
+	s (id,code,desc)=""
+
+	; Try and find a matching code
+	&sql(SELECT DISTINCT
+		CTLOC_Desc,
+		CTLOC_RowId,
+		CTLOC_Code
+		INTO	:desc, :id, :code
+FROM SQLUser.CT_Loc,SQLUSER.RB_Resource
+WHERE ((%ALPHAUP CTLOC_Desc %STARTSWITH %ALPHAUP :val) OR (%ALPHAUP CTLOC_Code %STARTSWITH %ALPHAUP :val))
+ AND (({fn CONCAT( ',', {fn CONCAT((:Hospital),',')})} [ {fn CONCAT( ',', {fn CONCAT((res_CTLOC_DR->CTLOC_Hospital_DR),',')})}) OR (:Hospital IS NULL))
+AND RES_CTLOC_DR=CTLOC_RowId and CTLOC_Type='E' )
+	;
+	i SQLCODE s desc=val q 0
+	s retval=itmjs_"('"_$ZCVT(desc,"O","JS")_"');"
+	i itmjsex'="""" s retval=retval_itmjsex_"('"_$ZCVT(desc,"O","JS")_"^"_id_"^"_$ZCVT(code,"O","JS")_"');"
+	&javascript<#(retval)#>
+	q 1
+]]></Implementation>
+</Method>
+
+<Query name="LookUpResource">
+<Type>%Library.SQLQuery</Type>
+<FormalSpec>res:%String,loc:%String</FormalSpec>
+<SqlQuery><![CDATA[SELECT DISTINCT
+RES_Desc,
+RES_Rowid,
+%EXACT(RES_CTLOC_dr->ctloc_desc)
+FROM  SQLUser.RB_Resource
+WHERE ((%ALPHAUP RES_Desc %STARTSWITH %ALPHAUP :res) OR (%ALPHAUP RES_Code %STARTSWITH %ALPHAUP :res))
+AND (({fn CONCAT( ',', {fn CONCAT((:loc),',')})} [ {fn CONCAT( ',', {fn CONCAT((RES_CTLOC_DR),',')})}) OR (:loc IS NULL))
+ORDER BY res_Desc]]></SqlQuery>
+<Parameter name="CONTAINID" value="2"/>
+<Parameter name="ROWSPEC" value="Description:%String,HIDDEN:%String,Loc:%String"/>
+</Query>
+
+<UDLText name="T">
+<Content><![CDATA[
+// 	AND (({fn CONCAT( ',', {fn CONCAT((:hospID),',')})} [ {fn CONCAT( ',', {fn CONCAT((SSUSR_Hospital_DR),',')})}) OR (:hospID IS NULL))
+
+]]></Content>
+</UDLText>
+
+<Method name="LookUpBrokerResource">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>itmjs:%Library.String="",itmjsex:%Library.String="",res:%Library.String="",loc:%Library.String=""</FormalSpec>
+<Implementation><![CDATA[
+	n id,code,desc
+	s (id,code,desc)=""
+	&SQL(SELECT DISTINCT
+		RES_Desc,
+		RES_RowId,
+		%EXACT(RES_ctloc_dr->ctloc_desc)
+		INTO :desc,:id,:code
+		FROM  SQLUser.RB_Resource
+		WHERE (({fn CONCAT( ',', {fn CONCAT((:loc),',')})} [ {fn CONCAT( ',', {fn CONCAT((RES_CTLOC_DR),',')})}) OR (:loc IS NULL))
+		AND ((%ALPHAUP RES_Desc = %ALPHAUP :res) OR (%ALPHAUP RES_Code = %ALPHAUP :res))
+		ORDER BY RES_Desc)
+	;
+	i SQLCODE s desc=val q 0
+	s retval=itmjs_"('"_$ZCVT(desc,"O","JS")_"');"
+	i itmjsex'="""" s retval=retval_itmjsex_"('"_$ZCVT(desc,"O","JS")_"^"_id_"^"_$ZCVT(code,"O","JS")_"');"
+	&javascript<#(retval)#>
+	q
+]]></Implementation>
+</Method>
+</Class>
+</Export>

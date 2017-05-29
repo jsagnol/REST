@@ -1,0 +1,208 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.AUXX.Report.ZEN.ReceiptsList">
+<Super>Custom.AUXX.Report.ZEN.Abstract</Super>
+<TimeCreated>61586,49220.940602</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/AUXX/Report/ZEN/ReceiptsList.xml#1 $</Default>
+</Parameter>
+
+<UDLText name="T">
+<Content><![CDATA[
+// Report Name: Trak Receipts List <br>
+
+]]></Content>
+</UDLText>
+
+<UDLText name="T">
+<Content><![CDATA[
+// Report Code: AUXX.FIN0008 <br>
+
+]]></Content>
+</UDLText>
+
+<UDLText name="T">
+<Content><![CDATA[
+// LOGTRAK Number: 72213 <br>
+
+]]></Content>
+</UDLText>
+
+<Property name="DateFrom">
+<Type>%String</Type>
+<Parameter name="ZENURL" value="P1"/>
+</Property>
+
+<Property name="DateTo">
+<Type>%String</Type>
+<Parameter name="ZENURL" value="P2"/>
+</Property>
+
+<Property name="Facility">
+<Type>%String</Type>
+<Parameter name="ZENURL" value="P3"/>
+</Property>
+
+<Property name="Cashier">
+<Type>%String</Type>
+<Parameter name="ZENURL" value="P4"/>
+</Property>
+
+<XData name="ReportDefinition">
+<XMLNamespace>http://www.intersystems.com/zen/report/definition</XMLNamespace>
+<Data><![CDATA[
+<report xmlns='http://www.intersystems.com/zen/report/definition'
+   queryClass='Custom.AUXX.Report.ZEN.StoredProc.ReceiptsList' queryName='GetReceipts' name='ReceiptsList'>
+  <parameter expression='..DateFrom'/>
+  <parameter expression='..DateTo'/>
+  <parameter expression='..Facility'/>
+  <parameter expression='..Cashier'/>
+  <attribute name='datefrom' expression='..DisplayDate(..DateFrom)'/>
+  <attribute name='dateto' expression='..DisplayDate(..DateTo)'/>
+  <attribute name='facility' expression='..GetHospListDesc(..Facility)'/>
+  <attribute name='cashier' expression='..GetCashierListDesc(..Cashier)'/>
+  <attribute name='ReportTitle' expression='$$$Text("@ReceiptsList@Receipts List")'/>
+  <attribute name='timestamp' expression='$ZDATETIME($H, 2, 2)'/>  
+  <attribute name='username' expression='..Username'/>
+  
+  
+  <group name="facility" breakOnField="HOSPDesc">
+  <attribute name="description" field="HOSPDesc" />
+   <aggregate name='TotalCash' type='SUM' field='Cash'/>
+  <aggregate name='TotalCredit' type='SUM' field='Credit'/>
+  <aggregate name='TotalCheque' type='SUM' field='Cheque'/>
+  <aggregate name='TotalDeposit' type='SUM' field='Deposit'/>
+  <aggregate name='Other' type='SUM' field='Other'/>
+  <aggregate name='TotalReceipts' type='SUM' field='PAYMAmt'/>
+  <aggregate name='GrandTotal' type='SUM' field='PAYMAmt'/>
+
+  <group name="PAADMSubType" breakOnField="PAADMSubType">
+  <attribute name="description" field="PAADMSubType" />
+ <aggregate name='RecType' type='SUM' field='PAYMAmt'/>
+
+       <group name='Detail'>
+       <attribute field='PAADMSubType' name='PAADMSubType'/>
+       <attribute field='ARRCPNumber' name='ARRCPNumber'/>
+       <attribute field='ARRCPDate' name='ARRCPDate' expression='..DisplayDate(%val)'/>
+       <attribute fields='PAPMIName,PAPMIName2,PAPMIName3' name='PatientName' expression='..DisplayName(%val("PAPMIName"),%val("PAPMIName2"),%val("PAPMIName3"))'/>
+       <attribute field='PAPMINo' name='PAPMINo'/>
+       <attribute field='PAADMAdmNo' name='PAADMAdmNo'/>
+       <attribute field='ARPBLBillNo' name='ARPBLBillNo'/>
+       <attribute field='CTPMDesc' name='CTPMDesc'/>
+       <attribute field='CTPMCode' name='CTPMCode'/>
+       <attribute field='SSUSRInitials' name='CashierCode'/>
+       <attribute field='PAYMAmt' name='PAYMAmt'/>
+       <attribute field='Cash' name='CashAmt'/>
+       <attribute field='Credit' name='CreditAmt'/>
+       <attribute field='Cheque' name='ChequeAmt'/>
+       <attribute field='Deposit' name='DepositAmt'/>
+       <attribute field='Other' name='Other'/>
+       </group>
+ </group>
+ </group>
+  </report>
+]]></Data>
+</XData>
+
+<XData name="ReportDisplay">
+<XMLNamespace>http://www.intersystems.com/zen/report/display</XMLNamespace>
+<Data><![CDATA[
+<report xmlns='http://www.intersystems.com/zen/report/display'
+xmlns:auxxstyle='http://www.intersystems.com/zen/report/display/auxx/style'
+xmlns:auxx='http://www.intersystems.com/zen/report/display/auxx'
+  name='ReceiptsList'>
+ <document width= "#(..ReportWidth)#" height="#(..ReportHeight)#" marginLeft="#(..DocMarginLeft)#" marginRight="#(..DocMarginRight)#" 
+marginTop="#(..DocMarginTop)#" marginBottom="#(..DocMarginBottom)#" footerHeight="#(..DocFooterHeight)#" headerHeight="#(..DocHeaderHeight)#" 
+regionBeforeExtent="#(..DocHeaderHeight)#" regionAfterExtent="#(..DocFooterHeight)#">
+<auxxstyle:auxxgroupheader/>
+<auxxstyle:auxxgroupsummary/>
+<auxxstyle:auxxhospitalheader/>
+<auxxstyle:auxxpagefooter/>
+<auxxstyle:auxxpageheader/>
+<auxxstyle:auxxparameterheader/>
+<auxxstyle:auxxreporttitle/>
+<auxxstyle:auxxtablecolumn/>
+</document>
+<auxx:PageHeader pagetitle='@ReportTitle'/>
+<auxx:ReportFooter username='@username' timestamp='@timestamp'/>
+
+<body>
+<!-- REPORT HEADER -->
+<auxx:ReportHeader reporttitle='@ReportTitle'/>
+<auxx:ReportParameterHeader label='@Facility:@Facility:' field='@facility' class="auxxparameterheader" xcondition="string-length(@facility)>0"/>
+<auxx:ReportParameterHeader label='@Cashier:@Cashier:' field='@cashier' class="auxxparameterheader" xcondition="string-length(@cashier)>0"/>
+<auxx:ReportDateHeader datefrom="@datefrom" dateto="@dateto" class="auxxparameterheader"/>
+
+<line pattern="solid" width="100%"/>
+<line pattern="empty" width="100%"></line> 
+<auxx:NoResults xcondition="not(facility)" />
+<group name='facility' pagebreak="true">
+<auxx:GroupHospitalHeader label="@Facility:@Facility:" field="@description"/>
+<line pattern="empty" lineHeight="1mm" />
+<group name='PAADMSubType'>
+<auxx:GroupHeader label="@EpisodeSubType:@Episode SubType:" field="@description"/>
+<line pattern="empty" lineHeight="1mm" />
+     <table class='auxxtablecolumn' group='Detail' >
+        <item field='@ARRCPNumber' width="12%" caption='@ReceiptNo@Receipt No' too-long-text="wrap" />
+        <item field='@ARRCPDate' width="9%" caption='@TransactionDate@Transaction Date'/>
+        <item field='@PatientName' width="17%" caption="@Name@Name"  />
+        <item field='@PAPMINo' width="12%" caption='@URN@URN' too-long-text="wrap" />
+        <item field='@PAADMAdmNo' width="12%" caption='@EpisodeNo@Episode No' too-long-text="wrap" />
+        <item field='@ARPBLBillNo' width="12%" caption='@InvoiceNo@Invoice No' too-long-text="wrap" /> 
+        <item field='@CTPMDesc' width="10%" caption='@PaymentMethod@Payment Method'/> 
+        <item field='@CashierCode' width="5%" caption='@Cashier@Cashier'/> 
+        <item field='@PAYMAmt' width="10%" formatNumber="#,###,##0.00" style="text-align:right" caption='@Amount@Amount'/>
+     </table>
+     <line pattern="empty" width="100%"></line>
+ 	 <table class='auxxgroupsummary' width="100%">
+	  <item value='' width="50%"/>
+	  <item value='@TotalReceiptsfor:@Total Receipts for:' width="19%" style='font-weight:bold;text-align:right'/>
+	  <item value='' width="2%" style='font-weight:bold;text-align:right' />
+	  <item field='@description' width="19%" style='font-weight:bold;text-align:left' />
+	  <item field="RecType" width="9%" style='font-weight:bold;text-align:right' formatNumber="###,###,##0.00" />
+	 </table>
+        <line pattern="empty" width="100%"></line> 	 
+	 </group> 
+ 	 <table class='auxxgroupsummary' width="100%">
+	  <item value='@PaymentsSummary@Payments Summary' width="50%" style='font-weight:bold;text-align:left'/>
+	  <item value='@TotalReceiptsfor:@Total Receipts for:' width="19%" style='font-weight:bold;text-align:right'/>
+	  <item value='' width="2%" style='font-weight:bold;text-align:right' />
+	  <item field='@description' width="19%" style='font-weight:bold;text-align:left' />
+	  <item field="TotalReceipts" width="9%" style='font-weight:bold;text-align:right' formatNumber="###,###,##0.00" />
+	 </table> 
+        <line pattern="empty" width="100%"></line> 	 
+     <table class='auxxgroupsummary' width="100%">
+	  <item value='@Cash:@Cash:' width="20%" style='font-weight:bold;text-align:left'/>
+	  <item field="TotalCash" width="10%" style='font-weight:bold;text-align:right' formatNumber="###,###,##0.00" />
+     </table>
+     <table class='auxxgroupsummary' width="100%">
+	  <item value='@ChequeMoneyOrder:@Cheque/Money Order:' width="20%" style='font-weight:bold;text-align:left'/>
+	  <item field="TotalCheque" width="10%" style='font-weight:bold;text-align:right' formatNumber="###,###,##0.00" />
+     </table>
+     <table class='auxxgroupsummary' width="100%">
+	  <item value='@DirectPayment:@Direct Payment:' width="20%" style='font-weight:bold;text-align:left'/>
+	  <item field="TotalDeposit" width="10%" style='font-weight:bold;text-align:right' formatNumber="###,###,##0.00" />
+     </table>
+     <table class='auxxgroupsummary' width="100%">
+	  <item value='@CreditCardEFTPOS:@Credit Card/EFTPOS:' width="20%" style='font-weight:bold;text-align:left'/>
+	  <item field="TotalCredit" width="10%" style='font-weight:bold;text-align:right' formatNumber="###,###,##0.00" />
+     </table>
+      <table class='auxxgroupsummary' width="100%" >
+	  <item value='@Other:@Other:' width="20%" style='font-weight:bold;text-align:left'/>
+	  <item field="Other" width="10%" style='font-weight:bold;text-align:right' formatNumber="###,###,##0.00" />
+     </table>
+      <line pattern="empty" width="100%"></line> 	 
+ 	 <table class='auxxgroupsummary' width="100%">
+	  <item value='@GrandTotal:@Grand Total:' width="20%" style='font-weight:bold;text-align:left'/>
+	  <item field="GrandTotal" width="10%" style='font-weight:bold;text-align:right' formatNumber="###,###,##0.00" />
+     </table>
+</group>
+</body>
+</report>
+]]></Data>
+</XData>
+</Class>
+</Export>

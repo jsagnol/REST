@@ -1,0 +1,392 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.SWARH.Report.RptSvc.StoredProc.SWARHRTHR1022">
+<Description><![CDATA[
+<pre>
+**************************************************************************************************************************************
+* Report Code: SWARHRTHR1022
+* Report Description: Theatre Data
+* Menu Caption: Theatre Data
+* Initial release: Developer: Zac Newman
+* Modified: 2013/07/05 – Theatre Data Dump (This is a new report, used by WDHS and SWHC for data analysis) 
+* 	MW - 05/09/2014 - Changed report to select by Anaesthesia start date not adm date.
+*   DC - 26-11-2014 - Added DOB,Age and postcode
+* 	MW - 27/11/2015	- Added Ward Code and Description, modified CacheTemp to us #CACHETEMPSUBSCRIPT.
+*	MW - 19/01/2017 - Added National PPP Code from SQLUSer.PA_WaitingList
+**************************************************************************************************************************************
+</pre>]]></Description>
+<ProcedureBlock>0</ProcedureBlock>
+<Super>Custom.SWARH.Report.RptSvc.StoredProc.Abstract</Super>
+<TimeCreated>62770,51850.644046</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/SWARH/Report/RptSvc/StoredProc/SWARHRTHR1022.xml#1 $</Default>
+</Parameter>
+
+<Method name="SWARHRTHR1022QueryExecute">
+<Description>
+This is the Execute section for the %Library.Query. 
+All of the logic will be performed here.
+A new node for the ^CacheTemp global will be created and each subscript of this global will contain
+a row for the report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,Hospital:%Library.String,DateFrom:%Date,DateTo:%Date]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ New repid,ind
+
+ Set repid=$INCREMENT(^CacheTemp(..#CACHETEMPSUBSCRIPT))
+ 
+	New PAADMRowId,PAADMAdmNo,PAPMINo,PAPMIName,PAPMIName2,PAPMIDOB,PAPERAgeYr,CTZIPCode,APPTBookedDate,APPTBookedTime,ANANo,RBOPApproxTimeOper,RBOPTimeArrived,Anaesthetist,ANMETDesc
+	New INROUDesc,ORINTDesc,ORASADesc,ANADate,ANAAnaStartTime,ANAAreaInDate,ANAAreaInTime,ANATheatreInDate,ANATheatreInTime
+	New ANAFinishDate,ANAAnaFinishTime,ANATheatreOutDate,ANATheatreOutTime,ANADuration,THRDuration,CTPCPCode,Surgeon,ANAOPOpStartTime
+	New ANAOPOpEndTime,TotalProcedureTime,RESDesc,CTLOCDesc,ANAOPEffectiveElective,ANAOPProcedure,ANAPACUStartDate,ANAPACUStartTime
+	New ANAPACUFinishDate,ANAPACUFinishTime,ANAPACUReadyLeaveDate,ANAPACUReadyLeaveTime,TotalPACUTime,PAADMAdmDate,PAADMAdmTime
+	New PAADMDischgDate,PAADMDischgTime,Presentation,DRGCode,DRGDesc,MRADMTotalWIESScore,SPPPCode,SPPPDesc,ANAPAADMParRef,ANAChildsub,ANAOPChildsub,FinCode,SecProcOp,SecProcDesc,SecOperCount,SecProcCode
+	New WARDCode,WARDDesc,PPPCode
+	
+	SET (PAADMRowId,PAADMAdmNo,PAPMINo,PAPMIName,PAPMIName2,PAPMIDOB,PAPERAgeYr,CTZIPCode,APPTBookedDate,APPTBookedTime,ANANo,RBOPApproxTimeOper,RBOPTimeArrived,Anaesthetist,ANMETDesc) =""
+	SET (INROUDesc,ORINTDesc,ORASADesc,ANADate,ANAAnaStartTime,ANAAreaInDate,ANAAreaInTime,ANATheatreInDate,ANATheatreInTime)=""
+	SET (ANAFinishDate,ANAAnaFinishTime,ANATheatreOutDate,ANATheatreOutTime,ANADuration,THRDuration,CTPCPCode,Surgeon,ANAOPOpStartTime)=""
+	SET (ANAOPOpEndTime,TotalProcedureTime,RESDesc,CTLOCDesc,ANAOPEffectiveElective,ANAOPProcedure,ANAPACUStartDate,ANAPACUStartTime)=""
+	SET (ANAPACUFinishDate,ANAPACUFinishTime,ANAPACUReadyLeaveDate,ANAPACUReadyLeaveTime,TotalPACUTime,PAADMAdmDate,PAADMAdmTime)=""
+	SET (PAADMDischgDate,PAADMDischgTime,Presentation,DRGCode,DRGDesc,MRADMTotalWIESScore,SPPPCode,SPPPDesc,ANAPAADMParRef,ANAChildsub,ANAOPChildsub,FinCode,SecProcOp,SecProcDesc,SecProcCode)=""
+	SET (WARDCode,WARDDesc,PPPCode) =""
+	SET (SecOperCount)=0
+
+
+ s ind=1, END=0
+ 
+ s Hospital=$zstrip(Hospital,"*CW")
+ s DateFrom=..ConvertDateToCache(DateFrom)
+ s DateTo=..ConvertDateToCache(DateTo)
+
+
+ &SQL(DECLARE SWARHRTHR1022Cursor CURSOR FOR 
+		SELECT
+		PA.PAADM_RowId,
+		PA.PAADM_AdmNo,
+		PA.PAADM_PAPMI_DR->PAPMI_No,
+		PA.PAADM_PAPMI_DR->PAPMI_Name,
+		PA.PAADM_PAPMI_DR->PAPMI_Name2,
+		PA.PAADM_PAPMI_DR->PAPMI_DOB,
+		PA.PAADM_PAPMI_DR->PAPMI_PAPER_DR->PAPER_AgeYr,
+		PA.PAADM_PAPMI_DR->PAPMI_PAPER_DR->PAPER_Zip_DR->CTZIP_Code,
+		RB.RBOP_Appoint_DR->APPT_BookedDate,
+		RB.RBOP_Appoint_DR->APPT_BookedTime,
+		AN.ANA_No,
+		RB.RBOP_ApproxTimeOper,
+		RB.RBOP_TimeArrived,
+		(AN.ANA_Anaesthetist_DR->CTPCP_FirstName||' '||AN.ANA_Anaesthetist_DR->CTPCP_Surname)As Anaesthetist,
+		AN.ANA_Method->ANMET_Desc,
+		AN.ANA_IntubRoute_DR->INROU_Desc,
+		AN.ANA_IntSize_DR->ORINT_Desc,
+		AN.ANA_ASA_DR->ORASA_Desc,
+		AN.ANA_Date,
+		AN.ANA_AnaStartTime,
+		AN.ANA_AreaInDate,
+		AN.ANA_AreaInTime,
+		AN.ANA_TheatreInDate,
+		AN.ANA_TheatreInTime,
+		AN.ANA_FinishDate,
+		AN.ANA_AnaFinishTime,
+		AN.ANA_TheatreOutDate,
+		AN.ANA_TheatreOutTime,
+		(CASE WHEN DATEDIFF(mi,CONVERT(TIMESTAMP,AN.ANA_AnaStartTime, 103),CONVERT(TIMESTAMP,AN.ANA_AnaFinishTime, 103)) < 0 THEN DATEDIFF(mi,CONVERT(TIMESTAMP,AN.ANA_AnaStartTime, 103),CONVERT(TIMESTAMP,AN.ANA_AnaFinishTime, 103))+1440 ELSE DATEDIFF(mi,CONVERT(TIMESTAMP,AN.ANA_AnaStartTime, 103),CONVERT(TIMESTAMP,AN.ANA_AnaFinishTime, 103)) END) As ANADuration,
+		(CASE WHEN DATEDIFF(mi,CONVERT(TIMESTAMP,AN.ANA_TheatreInTime, 103),CONVERT(TIMESTAMP,AN.ANA_TheatreOutTime, 103)) < 0 THEN DATEDIFF(mi,CONVERT(TIMESTAMP,AN.ANA_TheatreInTime, 103),CONVERT(TIMESTAMP,AN.ANA_TheatreOutTime, 103))+1440 ELSE DATEDIFF(mi,CONVERT(TIMESTAMP,AN.ANA_TheatreInTime, 103),CONVERT(TIMESTAMP,AN.ANA_TheatreOutTime, 103)) END) As THRDuration,
+		RB.RBOP_Surgeon_DR->CTPCP_Code,
+		(RB.RBOP_Surgeon_DR->CTPCP_FirstName||' '||RB.RBOP_Surgeon_DR->CTPCP_Surname)As Surgeon,
+		ANO.ANAOP_OpStartTime,
+		ANO.ANAOP_OpEndTime,
+		(CASE WHEN DATEDIFF(mi,CONVERT(TIMESTAMP,ANO.ANAOP_OpStartTime, 103),CONVERT(TIMESTAMP,ANO.ANAOP_OpEndTime, 103)) < 0 THEN DATEDIFF(mi,CONVERT(TIMESTAMP,ANO.ANAOP_OpStartTime, 103),CONVERT(TIMESTAMP,ANO.ANAOP_OpEndTime, 103))+1440 ELSE DATEDIFF(mi,CONVERT(TIMESTAMP,ANO.ANAOP_OpStartTime, 103),CONVERT(TIMESTAMP,ANO.ANAOP_OpEndTime, 103)) END) As TotalProcedureTime,
+		RB.RBOP_Resource_DR->RES_Desc,
+		RB.RBOP_OperDepartment_DR->CTLOC_Desc,
+		ANO.ANAOP_EffectiveElective,
+		ANO.ANAOP_Procedure,
+		AN.ANA_PACU_StartDate,
+		AN.ANA_PACU_StartTime,
+		AN.ANA_PACU_FinishDate,
+		AN.ANA_PACU_FinishTime,
+		AN.ANA_PACU_ReadyLeaveDate,
+		AN.ANA_PACU_ReadyLeaveTime,
+		(CASE WHEN DATEDIFF(mi,CONVERT(TIMESTAMP,AN.ANA_PACU_StartTime, 103),CONVERT(TIMESTAMP,AN.ANA_PACU_FinishTime, 103)) < 0
+		THEN DATEDIFF(mi,CONVERT(TIMESTAMP,AN.ANA_PACU_StartTime, 103),CONVERT(TIMESTAMP,AN.ANA_PACU_FinishTime, 103))+1440
+		ELSE DATEDIFF(mi,CONVERT(TIMESTAMP,AN.ANA_PACU_StartTime, 103),CONVERT(TIMESTAMP,AN.ANA_PACU_FinishTime, 103)) END) As TotalPACUTime,
+		PA.PAADM_AdmDate,
+		PA.PAADM_AdmTime,
+		PA.PAADM_DischgDate,
+		PA.PAADM_DischgTime,
+		CASE WHEN PA.PAADM_Type = 'E' THEN 'Emergency Pres' ELSE 'Normal' END as Presentation,
+		MA.MRADM_DRG_DR->DRG_Code,
+		MA.MRADM_DRG_DR->DRG_Desc,
+		MA.MRADM_TotalWIESScore,
+		ANO.ANAOP_StatePPP_DR->SPPP_Code,
+		ANO.ANAOP_StatePPP_DR->SPPP_Desc,
+		AN.ANA_PAADM_ParRef,
+		AN.ANA_Childsub,
+		ANO.ANAOP_Childsub,
+		PAADM_CurrentWard_DR->WARD_Code,
+		PAADM_CurrentWard_DR->WARD_Desc,
+        WL.WL_StateProc_DR->SPPP_NPPP_DR->NPPP_Code AS PPPCode
+
+				FROM 
+				SQLUser.OR_Anaesthesia AN INNER JOIN 
+				SQLUser.RB_OperatingRoom RB on RB.RBOP_RowId = AN.ANA_RBOperatingRoom_DR INNER JOIN
+				SQLUser.OR_Anaest_Operation ANO ON ANO.ANAOP_Par_Ref = AN.ANA_RowId INNER JOIN
+				SQLUser.PA_Adm PA on PA.PAADM_RowID = AN.ANA_PAADM_ParRef INNER JOIN 
+				SQLUser.MR_Adm MA on MA.MRADM_RowId = PA.PAADM_MainMRADM_DR
+				LEFT OUTER JOIN SQLUSer.PA_WaitingList WL ON (WL.WL_RBOP_DR = RB.RBOP_RowId)
+
+
+				WHERE ANO.ANAOP_Status <> 'X'
+				AND AN.ANA_Date BETWEEN :DateFrom AND :DateTo
+				AND PAADM_Hospital_DR = :Hospital)
+		
+ &SQL(OPEN SWARHRTHR1022Cursor)
+ 
+ //FETCH FIRST ROW
+ d FetchRow
+  
+ while END=0 {
+	 d FormatDates
+  	 d FormatTimes
+  	 //s ANAOPProcedure = $zstrip(ANAOPProcedure,"*C")
+  	 s ANAOPProcedure = $replace(ANAOPProcedure,$c(10)," ")
+  	 s ANAOPProcedure = $replace(ANAOPProcedure,$c(13)," ")
+  	 d  s SecProcOp= ..GetSecOper(ANAPAADMParRef,ANAChildsub,ANAOPChildsub)
+  	 d  s SecProcDesc=..GetSPPPDesc(SPPPDesc,SecProcOp)
+  	 d  s SecOperCount= ..SecOperCount(ANAPAADMParRef,ANAChildsub,ANAOPChildsub)
+  	 d  s SecProcCode=..GetSecOperCode(ANAPAADMParRef,ANAChildsub,ANAOPChildsub)
+  	 
+ 	 d FinCode
+ 	 
+ 	 s sort = ind
+	 Set ^CacheTemp(..#CACHETEMPSUBSCRIPT,repid,sort)=$LISTBUILD(PAADMRowId,PAADMAdmNo,PAPMINo,PAPMIName,PAPMIName2,PAPMIDOB,PAPERAgeYr,CTZIPCode,APPTBookedDate,APPTBookedTime,ANANo,RBOPApproxTimeOper,RBOPTimeArrived,Anaesthetist,ANMETDesc,INROUDesc,ORINTDesc,ORASADesc,ANADate,ANAAnaStartTime,ANAAreaInDate,ANAAreaInTime,ANATheatreInDate,ANATheatreInTime,ANAFinishDate,ANAAnaFinishTime,ANATheatreOutDate,ANATheatreOutTime,ANADuration,THRDuration,CTPCPCode,Surgeon,ANAOPOpStartTime,ANAOPOpEndTime,TotalProcedureTime,RESDesc,CTLOCDesc,ANAOPEffectiveElective,ANAOPProcedure,ANAPACUStartDate,ANAPACUStartTime,ANAPACUFinishDate,ANAPACUFinishTime,ANAPACUReadyLeaveDate,ANAPACUReadyLeaveTime,TotalPACUTime,PAADMAdmDate,PAADMAdmTime,PAADMDischgDate,PAADMDischgTime,Presentation,DRGCode,DRGDesc,MRADMTotalWIESScore,SPPPCode,SPPPDesc,ANAPAADMParRef,ANAChildsub,ANAOPChildsub,FinCode,SecProcOp,SecProcDesc,SecOperCount,SecProcCode,WARDCode,WARDDesc,PPPCode)
+	 s ind=ind+1
+ 
+	 d FetchRow
+ }
+
+ &SQL(CLOSE SWARHRTHR1022Cursor)
+ 
+ Set QHandle=$lb(0,repid,0)
+
+ Quit $$$OK
+
+FetchRow
+ &sql(FETCH SWARHRTHR1022Cursor INTO :PAADMRowId,:PAADMAdmNo,:PAPMINo,:PAPMIName,:PAPMIName2,:PAPMIDOB,:PAPERAgeYr,:CTZIPCode,:APPTBookedDate,:APPTBookedTime,:ANANo,:RBOPApproxTimeOper,:RBOPTimeArrived,:Anaesthetist,:ANMETDesc,:INROUDesc,:ORINTDesc,:ORASADesc,:ANADate,:ANAAnaStartTime,:ANAAreaInDate,:ANAAreaInTime,:ANATheatreInDate,:ANATheatreInTime,:ANAFinishDate,:ANAAnaFinishTime,:ANATheatreOutDate,:ANATheatreOutTime,:ANADuration,:THRDuration,:CTPCPCode,:Surgeon,:ANAOPOpStartTime,:ANAOPOpEndTime,:TotalProcedureTime,:RESDesc,:CTLOCDesc,:ANAOPEffectiveElective,:ANAOPProcedure,:ANAPACUStartDate,:ANAPACUStartTime,:ANAPACUFinishDate,:ANAPACUFinishTime,:ANAPACUReadyLeaveDate,:ANAPACUReadyLeaveTime,:TotalPACUTime,:PAADMAdmDate,:PAADMAdmTime,:PAADMDischgDate,:PAADMDischgTime,:Presentation,:DRGCode,:DRGDesc,:MRADMTotalWIESScore,:SPPPCode,:SPPPDesc,:ANAPAADMParRef,:ANAChildsub,:ANAOPChildsub,:WARDCode,:WARDDesc,:PPPCode)
+ if SQLCODE '= 0 set END = 1
+ q
+ 
+FormatDates
+	s APPTBookedDate=..ConvertDateToODBC(APPTBookedDate)
+	s ANADate=..ConvertDateToODBC(ANADate)
+	s ANAAreaInDate=..ConvertDateToODBC(ANAAreaInDate)
+	s ANATheatreInDate=..ConvertDateToODBC(ANATheatreInDate)
+	s ANAFinishDate=..ConvertDateToODBC(ANAFinishDate)
+	s ANATheatreOutDate=..ConvertDateToODBC(ANATheatreOutDate)
+	s ANAPACUStartDate=..ConvertDateToODBC(ANAPACUStartDate)
+	s ANAPACUFinishDate=..ConvertDateToODBC(ANAPACUFinishDate)
+	s ANAPACUReadyLeaveDate=..ConvertDateToODBC(ANAPACUReadyLeaveDate)
+	s PAADMAdmDate=..ConvertDateToODBC(PAADMAdmDate)
+	s PAADMDischgDate=..ConvertDateToODBC(PAADMDischgDate)
+	s PAPMIDOB=..ConvertDateToODBC(PAPMIDOB)
+ q
+ 
+FormatTimes
+	s PAADMAdmTime=..ConvertTimeToODBC(PAADMAdmTime)
+	s APPTBookedTime=..ConvertTimeToODBC(APPTBookedTime)
+	s RBOPApproxTimeOper=..ConvertTimeToODBC(RBOPApproxTimeOper)
+	s RBOPTimeArrived=..ConvertTimeToODBC(RBOPTimeArrived)
+	s ANAAnaStartTime=..ConvertTimeToODBC(ANAAnaStartTime)
+	s ANAAreaInTime=..ConvertTimeToODBC(ANAAreaInTime)
+	s ANATheatreInTime=..ConvertTimeToODBC(ANATheatreInTime)
+	s ANAAnaFinishTime=..ConvertTimeToODBC(ANAAnaFinishTime)
+	s ANATheatreOutTime=..ConvertTimeToODBC(ANATheatreOutTime)
+	s ANAOPOpStartTime=..ConvertTimeToODBC(ANAOPOpStartTime)
+	s ANAOPOpEndTime=..ConvertTimeToODBC(ANAOPOpEndTime)
+	s ANAPACUStartTime=..ConvertTimeToODBC(ANAPACUStartTime)
+	s ANAPACUFinishTime=..ConvertTimeToODBC(ANAPACUFinishTime)
+	s ANAPACUReadyLeaveTime=..ConvertTimeToODBC(ANAPACUReadyLeaveTime)
+	s PAADMDischgTime=..ConvertTimeToODBC(PAADMDischgTime)
+ q
+	
+FinCode
+	 s FinCode =..GetFinDetailsForEpisode(PAADMRowId)	
+	q
+]]></Implementation>
+</Method>
+
+<Method name="SWARHRTHR1022QueryFetch">
+<Description>
+This is the Fetch component of the %Library.Query. 
+This should never have to change. It is designed to fetch the row for each subscript of the ^CacheTemp
+global and return this row to the Crystal Report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,&Row:%Library.List,&AtEnd:%Library.Integer=0]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // repid - Report ID
+ // ind   - sequence index which represents each row
+
+ New repid,ind
+
+ // Restore QHandle
+ Set AtEnd=$LIST(QHandle,1)
+ Set repid=$LIST(QHandle,2)
+ Set ind=$LIST(QHandle,3)
+
+ Set ind=$ORDER(^CacheTemp(..#CACHETEMPSUBSCRIPT,repid,ind))
+ If ind="" {	// if there are no more rows, finish fetching
+	 Set AtEnd=1
+	 Set Row=""
+ }
+ Else      {	// fetch row
+ 	Set Row=^CacheTemp(..#CACHETEMPSUBSCRIPT,repid,ind)
+ }
+
+ // Save QHandle
+ Set QHandle=$LISTBUILD(AtEnd,repid,ind)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="SWARHRTHR1022QueryClose">
+<Description>
+This is the Close component of the %Library.Query.
+This is standard code and should never have to change.
+This is where all the cleanup is performed, i.e. the purging of the temporary storage global ^CacheTemp.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>QHandle:%Library.Binary</FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ New repid,ind
+ Set repid=$LIST(QHandle,2)
+ Kill ^CacheTemp(..#CACHETEMPSUBSCRIPT,repid)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Query name="SWARHRTHR1022Query">
+<Type>%Library.Query</Type>
+<FormalSpec>Hospital:%Library.String,DateFrom:%Date,DateTo:%Date</FormalSpec>
+<SqlProc>1</SqlProc>
+<Parameter name="CONTAINID" value="0"/>
+<Parameter name="ROWSPEC" value="PAADMRowId:%Library.Integer,PAADMAdmNo:%Library.String,PAPMINo:%Library.String,PAPMIName:%Library.String,PAPMIName2:%Library.String,PAPMIDOB:%Library.Date,PAPERAgeYr:%Library.Integer,CTZIPCode:%Library.Integer,APPTBookedDate:%Library.Date,APPTBookedTime:%Library.String,ANANo:%Library.Integer,RBOPApproxTimeOper:%Library.String,RBOPTimeArrived:%Library.String,Anaesthetist:%Library.String,ANMETDesc:%Library.String,INROUDesc:%Library.String,ORINTDesc:%Library.String,ORASADesc:%Library.String,ANADate:%Library.Date,ANAAnaStartTime:%Library.String,ANAAreaInDate:%Library.Date,ANAAreaInTime:%Library.String,ANATheatreInDate:%Library.Date,ANATheatreInTime:%Library.String,ANAFinishDate:%Library.Date,ANAAnaFinishTime:%Library.String,ANATheatreOutDate:%Library.Date,ANATheatreOutTime:%Library.String,ANADuration:%Library.Integer,THRDuration:%Library.Integer,CTPCPCode:%Library.String,Surgeon:%Library.String,ANAOPOpStartTime:%Library.String,ANAOPOpEndTime:%Library.String,TotalProcedureTime:%Library.Integer,RESDesc:%Library.String,CTLOCDesc:%Library.String,ANAOPEffectiveElective:%Library.String,ANAOPProcedure:%Library.String,ANAPACUStartDate:%Library.Date,ANAPACUStartTime:%Library.String,ANAPACUFinishDate:%Library.Date,ANAPACUFinishTime:%Library.String,ANAPACUReadyLeaveDate:%Library.Date,ANAPACUReadyLeaveTime:%Library.String,TotalPACUTime:%Library.Integer,PAADMAdmDate:%Library.Date,PAADMAdmTime:%Library.String,PAADMDischgDate:%Library.Date,PAADMDischgTime:%Library.String,Presentation:%Library.String,DRGCode:%Library.String,DRGDesc:%Library.String,MRADMTotalWIESScore:%Float,SPPPCode:%Library.String,SPPPDesc:%Library.String,ANAPAADMParRef:%Library.String,ANAChildsub:%Library.String,ANAOPChildsub:%Library.String,FinCode:%Library.String,SecProcOp:%Library.String,SecProcDesc:%Library.String,SecOperCount:%Library.Integer,SecProcCode:%Library.String,WARDCode:%Library.String,WARDDesc:%Library.String,PPPCode:%Library.String"/>
+<Parameter name="SELECTMODE" value="ODBC"/>
+</Query>
+
+<Method name="GetSecOper">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>ANAPAADMPARREF:%Integer,ANAChildSub:%Integer,ANAOPChildSub:%Integer</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+   s (Count,ORANAOPSPRChildsub,OPERRowId)=0
+   s (OPERCode,OPERDesc,OPERDesc1)=""  
+   
+   If ANAPAADMPARREF="" q ""   
+   If ANAChildSub="" q ""
+   If ANAOPChildSub="" q "" 
+   
+   s ORANAOPSPRChildsub=$o(^OR(ANAPAADMPARREF,"ANA",ANAChildSub,"OP",ANAOPChildSub,"SPR",ORANAOPSPRChildsub))
+       
+   WHILE(ORANAOPSPRChildsub)'="" {
+	s Count=Count+1
+	s OPERRowId=$p($g(^OR(ANAPAADMPARREF,"ANA",ANAChildSub,"OP",ANAOPChildSub,"SPR",ORANAOPSPRChildsub)),"^",1)
+	
+	i OPERRowId '="" { 
+      s OPERCode=$p($g(^PAC("SPPP",OPERRowId)),"^",1)
+      s OPERDesc=$p($g(^PAC("SPPP",OPERRowId)),"^",2)
+       
+      if Count=1 {
+	      if OPERDesc '="" {set OPERDesc1 = " - "_OPERDesc}          
+      }	
+      else {set OPERDesc1 =  OPERDesc1_" - "_OPERDesc}
+    }
+    s ORANAOPSPRChildsub=$o(^OR(ANAPAADMPARREF,"ANA",ANAChildSub,"OP",ANAOPChildSub,"SPR",ORANAOPSPRChildsub))
+    
+     }
+ q OPERDesc1
+]]></Implementation>
+</Method>
+
+<Method name="GetSecOperCode">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>ANAPAADMPARREF:%Integer,ANAChildSub:%Integer,ANAOPChildSub:%Integer</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+   s (Count,ORANAOPSPRChildsub,OPERRowId)=0
+   s (OPERCode,OPERCode1)=""  
+   
+   If ANAPAADMPARREF="" q ""   
+   If ANAChildSub="" q ""
+   If ANAOPChildSub="" q "" 
+   
+   s ORANAOPSPRChildsub=$o(^OR(ANAPAADMPARREF,"ANA",ANAChildSub,"OP",ANAOPChildSub,"SPR",ORANAOPSPRChildsub))
+       
+   WHILE(ORANAOPSPRChildsub)'="" {
+	s Count=Count+1
+	s OPERRowId=$p($g(^OR(ANAPAADMPARREF,"ANA",ANAChildSub,"OP",ANAOPChildSub,"SPR",ORANAOPSPRChildsub)),"^",1)
+	
+	i OPERRowId '="" { 
+      s OPERCode=$p($g(^PAC("SPPP",OPERRowId)),"^",1)      
+      if Count=1 {
+	      if OPERCode '="" {set OPERCode1 = OPERCode}          
+      }	
+      else {set OPERCode1 =  OPERCode1_" , "_OPERCode}
+    }
+    s ORANAOPSPRChildsub=$o(^OR(ANAPAADMPARREF,"ANA",ANAChildSub,"OP",ANAOPChildSub,"SPR",ORANAOPSPRChildsub))
+    
+     }
+ q OPERCode1
+]]></Implementation>
+</Method>
+
+<Method name="SecOperCount">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>ANAPAADMPARREF:%Integer,ANAChildSub:%Integer,ANAOPChildSub:%Integer</FormalSpec>
+<ReturnType>%Integer</ReturnType>
+<Implementation><![CDATA[
+   s (Count,ORANAOPSPRChildsub,OPERRowId)=0 
+   s (OpCount) = 1
+   If ANAPAADMPARREF="" q ""   
+   If ANAChildSub="" q ""
+   If ANAOPChildSub="" q "" 
+   
+   s ORANAOPSPRChildsub=$o(^OR(ANAPAADMPARREF,"ANA",ANAChildSub,"OP",ANAOPChildSub,"SPR",ORANAOPSPRChildsub))
+       
+   WHILE(ORANAOPSPRChildsub)'="" {
+	s Count=Count+1
+      if Count=1 {
+	      set OpCount = 2
+	      }         
+      	else 
+      	 {set OpCount =  OpCount +1 
+      	 }
+       s ORANAOPSPRChildsub=$o(^OR(ANAPAADMPARREF,"ANA",ANAChildSub,"OP",ANAOPChildSub,"SPR",ORANAOPSPRChildsub))
+      } 
+ q OpCount
+]]></Implementation>
+</Method>
+
+<Method name="GetSPPPDesc">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>SPPPDesc:%Integer,OPSecOpers:%Integer</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	Set Op=""
+	If SPPPDesc'=""
+	{
+		set Op=SPPPDesc
+	  	If OPSecOpers'=""{set Op=Op_OPSecOpers}
+	}
+	Else {If OPSecOpers'=""{set Op=OPSecOpers}
+	
+	}
+  q Op
+]]></Implementation>
+</Method>
+</Class>
+</Export>

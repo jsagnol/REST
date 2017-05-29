@@ -1,0 +1,198 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.SWARH.SNAP.StoredProc.ServicesBySpecRes">
+<Description>
+SNAP Get Services By Specialty and / or resource</Description>
+<ProcedureBlock>0</ProcedureBlock>
+<Super>Custom.SWARH.Report.RptSvc.StoredProc.Abstract</Super>
+<TimeCreated>60905,54849</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/SWARH/SNAP/StoredProc/ServicesBySpecRes.xml#1 $</Default>
+</Parameter>
+
+<Method name="ServicesBySpecResClose">
+<Description>
+This is the Close component of the %Library.Query.
+This is standard code and should never have to change.
+This is where all the cleanup is performed, i.e. the purging of the temporary storage global ^CacheTemp.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>QHandle:%Library.Binary</FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Clean up by purging the temporary node in ^CacheTemp global
+ New repid,ind
+ Set repid=$li(QHandle,2)
+
+ //Start Monitor (if configured to capture stats)
+ i mon Do ..MonitorEnd(mon)
+
+ Kill ^CacheTemp("TRAK",repid)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="ServicesBySpecResExecute">
+<Description>
+This is the Execute section for the %Library.Query. 
+All of the logic will be performed here.
+A new node for the ^CacheTemp global will be created and each subscript of this global will contain
+a row for the report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,Hospital:%Library.String,Specialty:%Library.String,Resource:%Library.String,DateFrom:%Date]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Get reportid i.e. use $INCREMENT to add another node to ^CacheTemp global. 
+ // We use ^CacheTemp global because it will always use memory before disk
+ New repid,ind
+
+  // Use $Increment to get the next node
+ Set repid=$I(^CacheTemp("TRAK"))
+ 
+ New SERRowId,SERDesc,SERCTLOCDR,CTLOCHospitalDR,CTLOCCode,SERMinutes,ActiveDateFrom
+ Set (SERRowId,SERCTLOCDR,CTLOCHospitalDR,SERMinutes)=0
+ Set (SERDesc,CTLOCCode,ActiveDateFrom,SERParRef,SESSParRef)=""
+
+ s ind=1, END=0
+
+ //Start Monitor (if configured to capture stats)
+ s mon=..MonitorBegin()
+ 
+ s Hospital=$zstrip(Hospital,"*CW")
+ s Specialty=$zstrip(Specialty,"*CW")
+ s Resource=$zstrip(Resource,"*CW")
+ //Convert ODBC dates to cache format
+ s DateFrom=..ConvertDateToCache(DateFrom)
+ 
+ 
+ 
+ IF (Resource'="") {
+ 	&SQL(DECLARE ServicesCursor CURSOR FOR 
+	
+	SELECT
+	        s.SER_RowId
+		,	s.SER_Desc
+		,	s.SER_CTLOC_DR
+		,	l.CTLOC_Hospital_DR
+		,	l.CTLOC_Code
+		,	MAX(rs.SER_Minutes) AS SER_Minutes
+
+	FROM
+			SQLUser.RBC_Services s INNER JOIN
+			SQLUser.CT_Loc l ON s.SER_CTLOC_DR = l.CTLOC_RowId INNER JOIN
+			SQLUser.RB_ResEffDateSessServices rs ON -- Don't join on rs.SER_RBC_Service_DR as it often has the wrong location service due to a Trak bug!!!
+				(		($PIECE(rs.SER_ARCIM_ARCOS,'&',1) = s.SER_ARCIM_DR OR ($PIECE(rs.SER_ARCIM_ARCOS,'&',1) IS NULL AND s.SER_ARCIM_DR IS NULL))
+					AND ($PIECE(rs.SER_ARCIM_ARCOS,'&',2) = s.SER_ARCOS_DR OR ($PIECE(rs.SER_ARCIM_ARCOS,'&',2) IS NULL AND s.SER_ARCOS_DR IS NULL))
+					AND rs.SER_CTLOC_DR = s.SER_CTLOC_DR
+				) INNER JOIN
+			SQLUser.RB_ResEffDateSession sess ON sess.SESS_RowId=rs.SER_ParRef INNER JOIN
+			SQLUser.RB_ResEffDate d ON d.DATE_RowId = sess.SESS_ParRef LEFT JOIN
+			SQLUser.RB_ResEffDate nd ON nd.DATE_ParRef = d.DATE_ParRef AND nd.DATE_DateFrom > d.DATE_DateFrom AND nd.DATE_DateFrom <= :DateFrom
+	
+	WHERE
+			(s.SER_CTLOC_DR = :Specialty OR :Specialty IS NULL)
+		AND	(l.CTLOC_Hospital_DR = :Hospital OR :Hospital IS NULL)
+		AND (:Resource IS NULL OR rs.SER_Resource_DR = :Resource)
+			--OR SER_ARCIM_DR IN (SELECT DISTINCT $PIECE(SER_ARCIM_ARCOS,'&',1) FROM SQLUser.RB_ResEffDateSessServices WHERE SER_Resource_DR=:Resource))
+		AND	s.SER_ARCIM_DR->ARCIM_Code not in ('NDM','RDM','EDM')
+		AND	s.SER_ServGroup_DR->SG_Code<>'A'
+		AND nd.DATE_RowId IS NULL
+	GROUP BY 
+	        s.SER_RowId
+		,	s.SER_Desc
+		,	s.SER_CTLOC_DR
+		,	l.CTLOC_Hospital_DR
+		,	l.CTLOC_Code
+	ORDER BY d.DATE_DateFrom DESC, s.SER_Desc
+ 	)
+ }
+ 
+ &SQL(OPEN ServicesCursor)
+ 
+ //FETCH FIRST ROW
+ d FetchRow
+  
+ while END=0 {
+  
+	 //d FormatDates
+  	 //d FormatTimes
+  	 
+  	 //s sort = $ZCVT(ActiveDateFrom,"U")_" "_$ZCVT(SERDesc,"U")_" "_ind
+  	 s sort = ind	
+	 s ^CacheTemp("TRAK",repid,sort)=$LB(SERRowId,SERDesc,SERCTLOCDR,CTLOCHospitalDR,CTLOCCode,SERMinutes)
+	 s ind=ind+1
+
+
+	 //fetch rows
+	 d FetchRow
+ }
+
+ &SQL(CLOSE ServicesCursor)
+ 
+ // Build QHandle (AtEnd,ReportID,Index)
+ Set QHandle=$lb(0,repid,0)
+
+ Quit $$$OK
+
+FetchRow
+ &sql(FETCH ServicesCursor INTO :SERRowId,:SERDesc,:SERCTLOCDR,:CTLOCHospitalDR,:CTLOCCode,:SERMinutes)
+ if SQLCODE '= 0 set END = 1
+ q
+ 
+FormatDates
+ //s ActiveDateFrom=..ConvertDateToODBC(ActiveDateFrom)
+ q
+ 
+FormatTimes
+ q
+]]></Implementation>
+</Method>
+
+<Method name="ServicesBySpecResFetch">
+<Description>
+This is the Fetch component of the %Library.Query. 
+This should never have to change. It is designed to fetch the row for each subscript of the ^CacheTemp
+global and return this row to the Crystal Report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,&Row:%Library.List,&AtEnd:%Library.Integer=0]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // This fetch method should never have to change. 
+
+ // repid - Report ID
+ // ind   - sequence index which represents each row
+
+ New repid,ind
+
+ // Restore QHandle
+ Set AtEnd=$li(QHandle,1)
+ Set repid=$li(QHandle,2)
+ Set ind=$li(QHandle,3)
+
+ Set ind=$o(^CacheTemp("TRAK",repid,ind))
+ If ind="" {	// if there are no more rows, finish fetching
+	 Set AtEnd=1
+	 Set Row=""
+ }
+ Else      {	// fetch row
+ 	Set Row=^CacheTemp("TRAK",repid,ind)
+ }
+
+ // Save QHandle
+ s QHandle=$lb(AtEnd,repid,ind)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Query name="ServicesBySpecRes">
+<Type>%Library.Query</Type>
+<FormalSpec>Hospital:%Library.String,Specialty:%Library.String,Resource:%Library.String,DateFrom:%Date</FormalSpec>
+<SqlProc>1</SqlProc>
+<Parameter name="CONTAINID" value="0"/>
+<Parameter name="ROWSPEC" value="SERRowId:%Library.Integer,SERDesc:%Library.String,SERCTLOCDR:%Library.Integer,CTLOCHospitalDR:%Library.Integer,CTLOCCode:%Library.String,SERMinutes:%Integer"/>
+<Parameter name="SELECTMODE" value="ODBC"/>
+</Query>
+</Class>
+</Export>

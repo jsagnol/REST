@@ -1,0 +1,184 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.AUXX.Report.ZEN.StoredProc.OTReturns">
+<ProcedureBlock>0</ProcedureBlock>
+<Super>Report.Abstract</Super>
+<TimeCreated>60166,60336.221586</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/AUXX/Report/ZEN/StoredProc/OTReturns.xml#1 $</Default>
+</Parameter>
+
+<UDLText name="T">
+<Content><![CDATA[
+// Report Name: AUXX Return to OT <br>
+
+]]></Content>
+</UDLText>
+
+<UDLText name="T">
+<Content><![CDATA[
+// Report Code: AUXX.OPT0003 <br>
+
+]]></Content>
+</UDLText>
+
+<UDLText name="T">
+<Content><![CDATA[
+// Report Description: Identifies all patients that return to theatre after their operation is complete. 
+
+]]></Content>
+</UDLText>
+
+<Method name="GetPatientsClose">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>QHandle:%Library.Binary</FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Clean up by purging the temporary node in ^CacheTemp global
+ New repid
+ Set repid=$li(QHandle,2)
+
+ //Start Monitor (if configured to capture stats)
+ i mon Do ..MonitorEnd(mon)
+
+ Kill ^CacheTemp("TRAK",repid)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="GetPatientsExecute">
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,DateFrom:%Library.Date,DateTo:%Library.Date,Hospital:%Library.String]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Get reportid i.e. use $INCREMENT to add another node to ^CacheTemp global. 
+ // We use ^CacheTemp global because it will always use memory before disk
+ New repid,ind,END
+ New ANAOPRowID,ANAPAADMPARREF,PAPMINo,PAPERTTLCode,PAPERName,PAPERName2,PAPERName3,PAPMIVIPFlag,PAPERDOB
+ New SurgTTLCode,SurgCTPCPDesc,SurgCTPCPFirstName,SurgCTPCPOtherName,SurgCTPCPSurname
+ New RBOPReasonReturn,HOSPDesc,ANAOPOpStartDate,ANAOPOpStartTime,FirstOperationDate
+
+ S (ANAOPRowID,ANAPAADMPARREF,PAPMINo,PAPERTTLCode,PAPERName,PAPERName2,PAPERName3,PAPMIVIPFlag,PAPERDOB)=""
+ S (SurgTTLCode,SurgCTPCPDesc,SurgCTPCPFirstName,SurgCTPCPOtherName,SurgCTPCPSurname)=""
+ S (RBOPReasonReturn,HOSPDesc,ANAOPOpStartDate,ANAOPOpStartTime,FirstOperationDate)=""
+ 
+ Set END=0
+
+ // Use $Increment to get the next node
+ Set repid=$I(^CacheTemp("TRAK"))
+
+ //Start Monitor (if configured to capture stats)
+ s mon=..MonitorBegin()
+ 
+ set DateFrom=..ConvertDateToCache(DateFrom)
+ set DateTo=..ConvertDateToCache(DateTo)
+ i $g(Hospital)'="" s Hospital=$zstrip(Hospital,"*CW")
+ 
+ &SQL(DECLARE GetReturns CURSOR FOR
+ SELECT
+ RBOP_RowId,
+ RBOP_PAADM_DR,
+ RBOP_Person_DR->PAPER_PAPMI_DR->PAPMI_No,
+ RBOP_Person_DR->PAPER_Title_DR->TTL_Code,
+ RBOP_Person_DR->PAPER_Name,
+ RBOP_Person_DR->PAPER_Name2,
+ RBOP_Person_DR->PAPER_Name3,
+ RBOP_Person_DR->PAPER_PAPMI_DR->PAPMI_VIPFlag,
+ RBOP_Person_DR->PAPER_DOB,
+ RBOP_Surgeon_DR->CTPCP_Title_DR->TTL_Code,
+ RBOP_Surgeon_DR->CTPCP_Desc,
+ RBOP_Surgeon_DR->CTPCP_FirstName,
+ RBOP_Surgeon_DR->CTPCP_OtherName,
+ RBOP_Surgeon_DR->CTPCP_Surname,
+ RBOP_ReasonReturn_DR->RFR_Desc,
+ RBOP_OperDepartment_DR->CTLOC_Hospital_DR->HOSP_Desc,
+ RBOP_DateOper,
+ RBOP_TimeOper
+ INTO :ANAOPRowID,:ANAPAADMPARREF,:PAPMINo,:PAPERTTLCode,:PAPERName,:PAPERName2,:PAPERName3,:PAPMIVIPFlag,:PAPERDOB,:SurgTTLCode,:SurgCTPCPDesc,:SurgCTPCPFirstName,:SurgCTPCPOtherName,:SurgCTPCPSurname,:RBOPReasonReturn,:HOSPDesc,:ANAOPOpStartDate,:ANAOPOpStartTime
+ FROM  SQLUser.RB_OperatingRoom
+ WHERE RBOP_DateOper between :DateFrom and :DateTo
+ AND RBOP_ReasonReturn_DR IS NOT NULL
+ AND NOT RBOP_Status IN  ('P','X') --Do not count cancelled ones
+ AND (({fn CONCAT( ',', {fn CONCAT((:Hospital),',')})} [ {fn CONCAT( ',', {fn CONCAT((RBOP_OperDepartment_DR->CTLOC_Hospital_DR->HOSP_RowId),',')})}) OR (:Hospital IS NULL)))
+
+ &SQL(OPEN GetReturns)
+ f  &SQL(FETCH GetReturns) q:SQLCODE'=0  d
+ . d GetDateOfFirstProcedure
+ . s PAPERDOB=..ConvertDateToODBC(PAPERDOB)
+ . s FirstOperationDate=..ConvertDateToODBC(FirstOperationDate)
+ . s ANAOPOpStartDate=..ConvertDateToODBC(ANAOPOpStartDate)
+ . s FullSurgeonName=$s(SurgTTLCode'="":SurgTTLCode_" ",1:"")_$s(SurgCTPCPFirstName'="":$zcvt($e(SurgCTPCPFirstName,1),"U")_" ",1:"")_$s(SurgCTPCPOtherName'="":$zcvt($e(SurgCTPCPOtherName,1),"U")_" ",1:"")_$s(SurgCTPCPSurname'="":SurgCTPCPSurname,1:"")
+ . i FullSurgeonName="" s FullSurgeonName=SurgCTPCPDesc
+ . d BuildRow
+ &SQL(CLOSE GetReturns)
+
+ // Build QHandle (AtEnd,ReportID,Index)
+ Set QHandle=$lb(0,repid,0)
+ Quit $$$OK
+
+GetDateOfFirstProcedure 
+ s FirstOperationDate=""
+ 
+ &SQL(SELECT MAX(RBOP_DateOper)
+ 	  INTO :FirstOperationDate
+ 	  FROM SQLUser.RB_OperatingRoom
+ 	  WHERE RBOP_PAADM_DR=:ANAPAADMPARREF AND
+ 	        RBOP_Status='D' AND
+ 	        RBOP_RowId<>:ANAOPRowID AND
+ 	        ((RBOP_DateOper<:ANAOPOpStartDate) or
+ 	        ((RBOP_DateOper=:ANAOPOpStartDate) AND (RBOP_TimeOper<=:ANAOPOpStartTime)))
+ 	        order by RBOP_DateOper desc, RBOP_TimeOper desc)
+ 
+ if SQLCODE'=0 s FirstOperationDate=""
+ q
+
+BuildRow
+ s ind=$i(ind)
+ i FirstOperationDate'="" s ^CacheTemp("TRAK",repid,$ZCVT(HOSPDesc,"U")_ANAOPOpStartDate_ind)=$LB(ANAOPRowID,PAPMINo,PAPERTTLCode,PAPERName,PAPERName2,PAPERName3,PAPMIVIPFlag,PAPERDOB,FullSurgeonName,RBOPReasonReturn,HOSPDesc,FirstOperationDate,ANAOPOpStartDate)
+ q
+]]></Implementation>
+</Method>
+
+<Method name="GetPatientsFetch">
+<Description>
+This is the Fetch component of the %Library.Query. </Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,&Row:%Library.List,&AtEnd:%Library.Integer=0]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // This fetch method should never have to change. 
+
+ New repid,ind
+
+ // Restore QHandle
+ Set AtEnd=$li(QHandle,1)
+ Set repid=$li(QHandle,2)
+ Set ind=$li(QHandle,3)
+
+ Set ind=$o(^CacheTemp("TRAK",repid,ind))
+ If ind="" {	// if there are no more rows, finish fetching
+ Set AtEnd=1
+ Set Row=""
+ }
+ Else      {	// fetch row
+ Set Row=^CacheTemp("TRAK",repid,ind)
+ }
+
+ // Save QHandle
+ s QHandle=$lb(AtEnd,repid,ind)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Query name="GetPatients">
+<Type>%Library.Query</Type>
+<FormalSpec>DateFrom:%Library.Date,DateTo:%Library.Date,Hospital:%Library.String</FormalSpec>
+<SqlProc>1</SqlProc>
+<Parameter name="CONTAINID" value="0"/>
+<Parameter name="ROWSPEC" value="ANAOPRowID:%Library.String(MAXLEN=255),PAPMINo:%Library.String(MAXLEN=255),PAPERTTLCode:%Library.String(MAXLEN=255),PAPERName:%Library.String(MAXLEN=255),PAPERName2:%Library.String(MAXLEN=255),PAPERName3:%Library.String(MAXLEN=255),PAPMIVIPFlag:%Library.String(MAXLEN=255),PAPERDOB:%Library.Date,FullSurgeonName:%Library.String(MAXLEN=255),RBOPReasonReturn:%Library.String(MAXLEN=255),HOSPDesc:%Library.String,FirstOperationDate:%Library.Date,ANAOPOpStartDate:%Library.Date"/>
+</Query>
+</Class>
+</Export>

@@ -1,0 +1,298 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.AUXX.Report.ZEN.StoredProc.PrescriptionForm">
+<Description>
+Report Name: Prescription Form
+Report Code: AUXX.PRE0001
+TRC Number: 146428</Description>
+<ProcedureBlock>0</ProcedureBlock>
+<Super>Report.Abstract</Super>
+<TimeCreated>62970,48071.923811</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/AUXX/Report/ZEN/StoredProc/PrescriptionForm.xml#1 $</Default>
+</Parameter>
+
+<Method name="PrescriptionFormClose">
+<Description>
+This is the Close component of the %Library.Query.
+This is standard code and should never have to change.
+This is where all the cleanup is performed, i.e. the purging of the temporary storage global ^CacheTemp.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>QHandle:%Library.Binary</FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+	// Clean up by purging the temporary node in ^CacheTemp global
+	New repid
+	Set repid=$LIST(QHandle,2)
+
+	//Start Monitor (if configured to capture stats)
+	i mon Do ..MonitorEnd(mon)
+
+	Kill ^CacheTemp("TRAK",repid)
+
+	Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="PrescriptionFormExecute">
+<Description>
+This is the Execute section for the %Library.Query. 
+All of the logic will be performed here.
+A new node for the ^CacheTemp("TRAK") global will be created and each subscript of this global will contain
+a row for the report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,EpisodeID:%Library.String,LabEpisNoHidden:%Library.String,OEOrdItemID:%Library.String]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+	// Get reportid i.e. use $INCREMENT to add another node to ^CacheTemp("TRAK") global. 
+	// We use ^CacheTemp global because CACHETEMP is a memory resident database
+	New repid,ind
+	s (PatientName,URNumber,DateOfBirth,AgeYrs,SpecimenType,SpecimenDate,SpecimenTime)=""
+	// Use $Increment to get the next node and clean up
+	Set repid=$Increment(^CacheTemp("TRAK"))
+	
+	//Start Monitor (if configured to capture stats)
+	s mon=..MonitorBegin()
+	
+	s (OrderingCPP1,OrderingCPP2,OrderingCPP3,OrderingCP,PrescriberNo,WorkPhoneNo,CPAddrLine1,CPAddrLine2,CPAddrLine3P1,CPAddrLine3P2,CPAddrLine3P3,CPAddrLine3)=""
+	s (TTLCode,PAPMIName,PAPMIName2,PAPMIName3,PatientName,MailAddress,MailAddrLine1,MailAddrLine2,MailAddrLine3,PatAddrLine1,PatAddrLine2,PatAddrLine3P1,PatAddrLine3P2,PatAddrLine3P3,PatAddrLine3)=""
+	s (HealthNo,PrescribeNo,PlacedDate,DrugName,OrderDetails,OrderQty,Repeats)=""
+	
+	f j=1:1:$l(OEOrdItemID,"^") {
+		i $p($g(OEOrdItemID),"^",j)'="" {
+			s order=##class(User.OEOrdItem).%OpenId($p(OEOrdItemID,"^",j))
+			i order {
+				; Care Provider Details
+				s OrderingCPP3=order.OEORIDoctorDR.CTPCPSurname
+				s OrderingCPP2=order.OEORIDoctorDR.CTPCPFirstName
+				s OrderingCPP1=order.OEORIDoctorDR.CTPCPTitleDR.TTLCode
+				s OrderingCP=$s(OrderingCPP1="":"",1:OrderingCPP1_" ")_$s(OrderingCPP2="":"",1:OrderingCPP2_" ")_$s(OrderingCPP3="":"",1:OrderingCPP3)
+				s PrescriberNo=order.OEORIDoctorDR.CTPCPPrescriberNumber
+				s WorkPhoneNo=order.OEORIDoctorDR.CTPCPTelO
+				
+				f x=1:1:order.OEORIDoctorDR.ChildCTCareProvAddress.Count() {
+					i order.OEORIDoctorDR.ChildCTCareProvAddress.GetAt(x).ADDRType="R" {
+						i order.OEORIDoctorDR.ChildCTCareProvAddress.GetAt(x).ADDRDateFrom<=+$h,$s(order.OEORIDoctorDR.ChildCTCareProvAddress.GetAt(x).ADDRDateTo="":+$h,1:order.OEORIDoctorDR.ChildCTCareProvAddress.GetAt(x).ADDRDateTo)>=+$h {
+							s CPAddrLine1=order.OEORIDoctorDR.ChildCTCareProvAddress.GetAt(x).ADDRAddress1
+							s CPAddrLine2=order.OEORIDoctorDR.ChildCTCareProvAddress.GetAt(x).ADDRAddress2
+							s CPAddrLine3P1=order.OEORIDoctorDR.ChildCTCareProvAddress.GetAt(x).ADDRSuburbDR.CTCITDesc
+							s CPAddrLine3P2=order.OEORIDoctorDR.ChildCTCareProvAddress.GetAt(x).ADDRStateDR.PROVDesc
+							s CPAddrLine3P3=order.OEORIDoctorDR.ChildCTCareProvAddress.GetAt(x).ADDRPostcodeDR.CTZIPCode
+							s CPAddrLine3=$s(CPAddrLine3P1="":"",1:CPAddrLine3P1_" ")_$s(CPAddrLine3P2="":"",1:CPAddrLine3P2_" ")_$s(CPAddrLine3P3="":"",1:CPAddrLine3P3)
+						}
+					}
+				}
+				i CPAddrLine1="" {
+					s block=$s(order.OEORIDoctorDR.CTPCPBlk'="":"Block "_order.OEORIDoctorDR.CTPCPBlk,1:"")
+					s level=$s(order.OEORIDoctorDR.CTPCPLevel'="":"Level "_order.OEORIDoctorDR.CTPCPLevel,1:"")
+					s unit=$s(order.OEORIDoctorDR.CTPCPUnit'="":"Unit "_order.OEORIDoctorDR.CTPCPUnit,1:"")
+					s CPAddrLine=$s(block'="":block_$c(10),1:"")_$s(level'="":level_$c(10),1:"")_$s(unit'="":unit_$c(10),1:"")
+					s CPAddrLine1=$s(CPAddrLine'="":CPAddrLine,1:order.OEORIDoctorDR.CTPCPStName.GetAt(1))
+					s CPAddrLine2=$s(CPAddrLine="":order.OEORIDoctorDR.CTPCPStName.GetAt(2),1:order.OEORIDoctorDR.CTPCPStName.GetAt(1))
+					s CPAddrLine3P1=order.OEORIDoctorDR.CTPCPCityDR.CTCITDesc
+					s CPAddrLine3P2=order.OEORIDoctorDR.CTPCPCityDR.CTCITProvinceDR.PROVDesc
+					s CPAddrLine3P3=order.OEORIDoctorDR.CTPCPZipDR.CTZIPCode
+					s CPAddrLine3=$s(CPAddrLine3P1="":"",1:CPAddrLine3P1_" ")_$s(CPAddrLine3P2="":"",1:CPAddrLine3P2_" ")_$s(CPAddrLine3P3="":"",1:CPAddrLine3P3)
+				}
+					
+				s TTLCode=order.OEORIOEORDParRef.OEORDAdmDR.PAADMPAPMIDR.PAPMITitleDR.TTLCode
+				s PAPMIName=order.OEORIOEORDParRef.OEORDAdmDR.PAADMPAPMIDR.PAPMIName
+				s PAPMIName2=order.OEORIOEORDParRef.OEORDAdmDR.PAADMPAPMIDR.PAPMIName2
+				s PAPMIName3=order.OEORIOEORDParRef.OEORDAdmDR.PAADMPAPMIDR.PAPMIName3
+				s PatientName=$s(TTLCode="":"",1:TTLCode_" ")_$s(PAPMIName2="":"",1:PAPMIName2_" ")_$s(PAPMIName3="":"",1:PAPMIName3_" ")_$s(PAPMIName="":"",1:PAPMIName)
+
+				s MailAddress=..MailAddress(order.OEORIOEORDParRef.OEORDAdmDR.PAADMPAPMIDR.%Id(),"PA")						; Check for mail address
+				i MailAddress="" s MailAddress=..MailAddress(order.OEORIOEORDParRef.OEORDAdmDR.PAADMPAPMIDR.%Id(),"TA")		; if no mail address check temp address
+				i MailAddress="" s MailAddress=..MailAddress(order.OEORIOEORDParRef.OEORDAdmDR.PAADMPAPMIDR.%Id(),"WA")		; if no temp address check work address
+				i MailAddress="" s MailAddress=..MailAddress(order.OEORIOEORDParRef.OEORDAdmDR.PAADMPAPMIDR.%Id(),"OS")		; if no work address check overseas address
+				i MailAddress'="" {
+					s MailAddrLine1=$p(MailAddress,"^")
+					s MailAddrLine2=$p(MailAddress,"^",2)
+					s MailAddrLine3=$p(MailAddress,"^",3)
+				}
+				
+				s PatAddrLine1=order.OEORIOEORDParRef.OEORDAdmDR.PAADMPAPMIDR.PAPMIPAPERDR.PAPERStName.GetAt(1)
+				s PatAddrLine2=order.OEORIOEORDParRef.OEORDAdmDR.PAADMPAPMIDR.PAPMIPAPERDR.PAPERForeignAddress
+				s PatAddrLine3P1=order.OEORIOEORDParRef.OEORDAdmDR.PAADMPAPMIDR.PAPMIPAPERDR.PAPERCityCodeDR.CTCITDesc
+				s PatAddrLine3P2=order.OEORIOEORDParRef.OEORDAdmDR.PAADMPAPMIDR.PAPMIPAPERDR.PAPERCTProvinceDR.PROVDesc
+				s PatAddrLine3P3=order.OEORIOEORDParRef.OEORDAdmDR.PAADMPAPMIDR.PAPMIPAPERDR.PAPERZipDR.CTZIPCode
+				s PatAddrLine3=$s(PatAddrLine3P1="":"",1:PatAddrLine3P1_" ")_$s(PatAddrLine3P2="":"",1:PatAddrLine3P2_" ")_$s(PatAddrLine3P3="":"",1:PatAddrLine3P3)
+				
+				i MailAddrLine1="" {
+					s MailAddrLine1=PatAddrLine1
+					s MailAddrLine2=PatAddrLine2
+					s MailAddrLine3=PatAddrLine3
+				}
+				
+				/*
+				Patient Medicare No or DVA No
+				Only one should print
+				Logic:
+				1.	Print DVAnumber [PAPMI_DVAnumber] if recorded in PMI
+				2.	If DVAnumber is blank in PMI  than use PAPMIMedicare
+				3.	If Both are present print only DVA number
+				4.	If both are blank do not print anything
+				*/
+				
+				s HealthNo=order.OEORIOEORDParRef.OEORDAdmDR.PAADMPAPMIDR.PAPMIDVAnumber
+				i HealthNo="" s HealthNo=order.OEORIOEORDParRef.OEORDAdmDR.PAADMPAPMIDR.PAPMIMedicare_"/"_order.OEORIOEORDParRef.OEORDAdmDR.PAADMPAPMIDR.PAPMIMedicareCode
+
+				s PageBreak=0
+				i $g(PrescribeNo)'="",order.OEORIPrescNo'=PrescribeNo s PageBreak=1
+				s PrescribeNo=order.OEORIPrescNo
+				s PlacedDate=$zdate(order.OEORIDate,4)
+				
+				s OrderDetails=""
+				/*//2012 version
+				f x=1:1:order.OEORILabelText.Count() {
+					i OrderDetails'="" s OrderDetails=OrderDetails_$c(10,13)_order.OEORILabelText.GetAt(x)
+					i OrderDetails="" s OrderDetails=order.OEORILabelText.GetAt(x)
+				}
+				
+				s OrderQty=order.OEORIPhQtyOrd*/
+				
+				s orderline=##class(web.OEOrderEntryOrderLine).GetOrderLineForList($p(OEOrdItemID,"^",j),"","","",1,2)
+				s OrderDetails=..ConvertHTMLOrderLineToPlain(orderline)
+				s OrderQty=order.OEORIPhQtyOrd
+				s Repeats=order.OEORIMaxNumberOfRepeats
+				
+				i Repeats="" s Repeats=0
+
+				s ind=$i(ind)
+				s ^CacheTemp("TRAK",repid,ind)=$lb(OrderingCPP1,OrderingCPP2,OrderingCPP3,OrderingCP,PrescriberNo,WorkPhoneNo,CPAddrLine1,CPAddrLine2,CPAddrLine3P1,CPAddrLine3P2,CPAddrLine3P3,CPAddrLine3,TTLCode,PAPMIName,PAPMIName2,PAPMIName3,PatientName,MailAddress,MailAddrLine1,MailAddrLine2,MailAddrLine3,PatAddrLine1,PatAddrLine2,PatAddrLine3P1,PatAddrLine3P2,PatAddrLine3P3,PatAddrLine3,HealthNo,PrescribeNo,PlacedDate,DrugName,OrderDetails,OrderQty,Repeats,PageBreak)
+
+				d order.%Close()
+			}
+		}
+	}
+	// Build QHandle (AtEnd,ReportID,Index)
+	Set QHandle=$LISTBUILD(0,repid,0)
+	Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="PrescriptionFormFetch">
+<Description>
+This is the Fetch component of the %Library.Query. 
+This should never have to change. It is designed to fetch the row for each subscript of the 
+^CacheTemp("TRAK" global and return this row to the Report writer</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,&Row:%Library.List,&AtEnd:%Library.Integer=0]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+	// This fetch method should never have to change. 
+	// repid - Report ID
+	// ind   - sequence index which represents each row
+	New repid,ind
+
+	// Restore QHandle
+	Set AtEnd=$LI(QHandle,1)
+	Set repid=$LI(QHandle,2)
+	Set ind=$LI(QHandle,3)
+
+	Set ind=$order(^CacheTemp("TRAK",repid,ind))
+	If ind="" {	// if there are no more rows, finish fetching
+		Set AtEnd=1
+		Set Row=""
+	} else {	// fetch row
+		Set Row=^CacheTemp("TRAK",repid,ind)
+	}
+
+	// Save QHandle
+	Set QHandle=$lb(AtEnd,repid,ind)
+	Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Query name="PrescriptionForm">
+<Description>
+This is the Stored Procedure Template. For Sample use only.
+It expects one parameter of type integer and will return 4 fields:
+Field1 - Integer
+Field2 - String
+Field3 - Date
+Field4 - Time</Description>
+<Type>%Library.Query</Type>
+<FormalSpec>EpisodeID:%Library.String,LabEpisNoHidden:%Library.String,OEOrdItemID:%Library.String</FormalSpec>
+<SqlProc>1</SqlProc>
+<Parameter name="CONTAINID" value="0"/>
+<Parameter name="ROWSPEC" value="OrderingCPP1:%String,OrderingCPP2:%String,OrderingCPP3:%String,OrderingCP:%String,PrescriberNo:%String,WorkPhoneNo:%String,CPAddrLine1:%String,CPAddrLine2:%String,CPAddrLine3P1:%String,CPAddrLine3P2:%String,CPAddrLine3P3:%String,CPAddrLine3:%String,TTLCode:%String,PAPMIName:%String,PAPMIName2:%String,PAPMIName3:%String,PatientName:%String,MailAddress:%String,MailAddrLine1:%String,MailAddrLine2:%String,MailAddrLine3:%String,PatAddrLine1:%String,PatAddrLine2:%String,PatAddrLine3P1:%String,PatAddrLine3P2:%String,PatAddrLine3P3:%String,PatAddrLine3:%String,HealthNo:%String,PrescribeNo:%String,PlacedDate:%Date,DrugName:%String,OrderDetails:%String,OrderQty:%String,Repeats:%String,PageBreak:%String"/>
+</Query>
+
+<Method name="MailAddress">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>patid:%String,type:%String</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	s address=""
+	q:patid="" ""
+	i type="" s type="M"
+	s per=##class(User.PAPerson).%OpenId(patid)
+	i per {
+		f x=1:1:per.ChildPATempAddress.Count() {
+			i per.ChildPATempAddress.GetAt(x).ADDRAddressTypeDR.CTADRCode=type {
+				i per.ChildPATempAddress.GetAt(x).ADDRDateFrom<=+$h,$s(per.ChildPATempAddress.GetAt(x).ADDRDateTo="":+$h,1:per.ChildPATempAddress.GetAt(x).ADDRDateTo)>=+$h {
+					s Line1=per.ChildPATempAddress.GetAt(x).ADDRStreet.GetAt(1)
+					s Line2=per.ChildPATempAddress.GetAt(x).ADDRStreet2.GetAt(1)
+					s Line3Part1=per.ChildPATempAddress.GetAt(x).ADDRCityDR.CTCITDesc
+					s Line3Part2=per.ChildPATempAddress.GetAt(x).ADDRProvinceDR.PROVDesc
+					s Line3Part3=per.ChildPATempAddress.GetAt(x).ADDRZipDR.CTZIPCode
+					s address=Line1_"^"_Line2_"^"_$s(Line3Part1="":"",1:Line3Part1_" ")_$s(Line3Part2="":"",1:Line3Part2_" ")_$s(Line3Part3="":"",1:Line3Part3)
+				}
+			}
+		}
+		d per.%Close()
+	}
+	q address
+]]></Implementation>
+</Method>
+
+<Method name="ConvertHTMLOrderLineToPlain">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>html:%String</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+ 
+ q:html=""
+ 
+ //Copy the HTML string in a TMPStream
+ s tmpstream=##class(%Stream.GlobalCharacter).%New()
+ d tmpstream.Write(html)
+ d tmpstream.Rewind()
+ s websystmpstream=##class(websys.TMPStream).%New()
+ d websystmpstream.Text.CopyFrom(tmpstream)
+ s save=websystmpstream.%Save(0)
+ s websystmpstreamID=websystmpstream.%Id()
+ k websystmpstream,tmpstream
+ 
+ 
+ //Remove HTML tags
+ s stream=##class(%Stream.GlobalCharacter).%New()
+ d ##class(websys.HTMLRichText).ParsePlainText(stream,websystmpstreamID)
+ s save=stream.%Save(0)
+ 
+ //Save the stream without html tags into TMPStream
+ s oTmpStream=##class(websys.TMPStream).%New()
+ d oTmpStream.Text.CopyFrom(stream)
+ s save=oTmpStream.%Save(0)
+ s oTmpStreamId=oTmpStream.%Id()
+ k oTmpStream
+ 
+ //Read the plain stream
+ s oTmpStream=##class(websys.TMPStream).%OpenId(oTmpStreamId)
+ s oTmpStreamTxt=oTmpStream.Text
+ d oTmpStreamTxt.%Open()
+ s line=""
+ While 'oTmpStreamTxt.AtEnd { 
+		s line=line_oTmpStreamTxt.ReadLine(,.sc,.eol)_$char(10,13)
+	}
+	
+	k oTmpStreamTxt
+	q line
+]]></Implementation>
+</Method>
+</Class>
+</Export>

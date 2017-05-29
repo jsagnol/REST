@@ -1,0 +1,213 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.AUXX.Report.ZEN.StoredProc.AdmissionListMedicalRecords">
+<ProcedureBlock>0</ProcedureBlock>
+<Super>Report.Abstract</Super>
+<TimeCreated>59388,55236.125</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/AUXX/Report/ZEN/StoredProc/AdmissionListMedicalRecords.xml#1 $</Default>
+</Parameter>
+
+<UDLText name="T">
+<Content><![CDATA[
+// Report Name: Admission List Medical Records <br>
+
+]]></Content>
+</UDLText>
+
+<UDLText name="T">
+<Content><![CDATA[
+// Report Code: Trak.MED0008 <br>
+
+]]></Content>
+</UDLText>
+
+<UDLText name="T">
+<Content><![CDATA[
+// Logtrak Number: 80221 <br>
+
+]]></Content>
+</UDLText>
+
+<Method name="GetPreadmissionsClose">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>QHandle:%Library.Binary</FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Clean up by purging the temporary node in ^CacheTemp global
+ New repid
+ Set repid=$li(QHandle,2)
+ 
+ //Close Monitor (if configured to capture stats)
+ i mon Do ..MonitorEnd(mon)
+ 
+ Kill ^CacheTemp("TRAK",repid)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="GetPreadmissionsExecute">
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,DateFrom:%Date,DateTo:%Date,Hospital:%String,Location:%String]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+	
+ // Get reportid i.e. use $INCREMENT to add another node to ^CacheTemp global. 
+ // We use ^CacheTemp global because it will always use memory before disk
+ New repid,ind
+
+ // Use $Increment to get the next node
+ Set repid=$I(^CacheTemp("TRAK"))
+ 
+ // Build data into ^CacheTemp(ReportID)
+ // e.g. Set ^CacheTemp(ReportID,Index)=$LB(f1,f2,f3)
+ new paadmrowid,PAPMIRowId,PAADMAdmDate,PAADM2ExpAdmTime,caretypdesc,papmino,CTSEXCode,paperdob,papername,papername2,CTPCPDesc,hospdesc,ExpectedLoc,TerminalDigit,WARDCode,VOLDesc,CurrentLoc,HomeLoc,PREVAdmDate,PREVDisDate
+ set (paadmrowid,PAPMIRowId,PAADMAdmDate,PAADM2ExpAdmTime,caretypdesc,papmino,CTSEXCode,paperdob,papername,papername2,CTPCPDesc,hospdesc,ExpectedLoc,TerminalDigit,WARDCode,VOLDesc,CurrentLoc,HomeLoc,PREVAdmDate,PREVDisDate)=""
+
+ //set (END,NEXT)=0
+ set ind=1
+
+ //Start Monitor (if configured to capture stats)
+ s mon=..MonitorBegin()
+ 
+  //Convert ODBC dates to cache format
+ s DateFrom=..ConvertDateToCache(DateFrom)
+ s DateTo=..ConvertDateToCache(DateTo)
+ 
+ i $g(Hospital)'="" s Hospital=$zstrip(Hospital,"*C")
+ i $g(Location)'="" s Location=$zstrip(Location,"*C")
+   
+ &sql(declare GetPreadmissions cursor for
+select
+paadm_rowid,
+PAADM_PAPMI_DR,
+PAADM_AdmDate,
+paadm_paadm2_dr->paadm2_expadmtime,
+paadm_mainmradm_dr->mradm_caretype_dr->caretyp_desc,
+paadm_papmi_dr->papmi_no,
+paadm_papmi_dr->papmi_paper_dr->paper_SEX_DR->CTSEX_Code,
+paadm_papmi_dr->papmi_paper_dr->paper_dob,
+paadm_papmi_dr->papmi_paper_dr->paper_name,
+paadm_papmi_dr->papmi_paper_dr->paper_name2,
+PAADM_AdmDocCodeDR->CTPCP_Desc,
+paadm_hospital_dr->hosp_desc,
+paadm_paadm2_dr->paadm2_admpointloc_dr->ctloc_code,
+{fn RIGHT(PAADM_PAPMI_DR->PAPMI_No,2)},
+ADM_ParRef->RTMAV_VolDesc, 
+ADM_ParRef->RTMAV_CurrentLoc_DR->CTLOC_Code,
+ADM_ParRef->RTMAV_HomeLoc_DR->CTLOC_Code
+from SQLUser.PA_Adm, SQLUser.RT_MasVolAdm
+ WHERE PAADM_AdmDate between :DateFrom and :DateTo and PAADM_VisitStatus='P' and PAADM_Type='I' and
+ (({fn CONCAT( ',', {fn CONCAT((:Hospital),',')})} [ {fn CONCAT( ',', {fn CONCAT((PAADM_Hospital_DR->HOSP_RowId),',')})}) OR (:Hospital IS NULL))
+ and (({fn CONCAT( ',', {fn CONCAT((:Location),',')})} [ {fn CONCAT( ',', {fn CONCAT((ADM_ParRef->RTMAV_HomeLoc_DR->CTLOC_RowId),',')})}) OR (:Location IS NULL))
+and paadm_rowid=ADM_PAADM_DR
+)
+ &sql(open GetPreadmissions)
+
+ //fetch first row
+ &sql(fetch GetPreadmissions  INTO :paadmrowid,:PAPMIRowId,:PAADMAdmDate,:PAADM2ExpAdmTime,:caretypdesc,:papmino,:CTSEXCode,:paperdob,:papername,:papername2,:CTPCPDesc,:hospdesc,:ExpectedLoc,:TerminalDigit,:VOLDesc,:CurrentLoc,:HomeLoc)
+
+ while 'SQLCODE{	
+		 // build the row
+ 
+  d GetPREVAdmissionDetails
+  d FormatDates
+  d FormatTimes
+  d GetBookedWard
+  
+  
+		 
+ Set ^CacheTemp("TRAK",repid,hospdesc_" "_HomeLoc_" "_TerminalDigit_" "_papmino_ind)=$LB(paadmrowid,PAPMIRowId,PAADMAdmDate,PAADM2ExpAdmTime,caretypdesc,papmino,CTSEXCode,paperdob,papername,papername2,CTPCPDesc,hospdesc,ExpectedLoc,TerminalDigit,VOLDesc,CurrentLoc,HomeLoc,PREVAdmDate,PREVDisDate,WARDCode)
+ s ind=ind+1
+	 
+ 	//fetch rows
+ &sql(fetch GetPreadmissions INTO :paadmrowid,:PAPMIRowId,:PAADMAdmDate,:PAADM2ExpAdmTime,:caretypdesc,:papmino,:CTSEXCode,:paperdob,:papername,:papername2,:CTPCPDesc,:hospdesc,:ExpectedLoc,:TerminalDigit,:VOLDesc,:CurrentLoc,:HomeLoc)}
+
+ &sql(close GetPreadmissions)
+
+ // Build QHandle (AtEnd,ReportID,Index)
+ Set QHandle=$lb(0,repid,0)
+
+ Quit $$$OK
+ 
+ 
+GetPREVAdmissionDetails
+ Set (PREVAdmDate,PREVDisDate) = ""
+
+ &sql(SELECT TOP 1
+	PAADM_AdmDate,
+    PAADM_DischgDate
+	INTO :PREVAdmDate,:PREVDisDate
+	FROM SQLUser.PA_Adm
+	WHERE	PAADM_PAPMI_DR=:PAPMIRowId and PAADM_Type='I' and PAADM_VisitStatus='D'
+	order by PAADM_AdmDate desc	  	      			
+)
+ Quit
+ 
+GetBookedWard
+ Set (WARDCode) = ""
+
+ &sql(SELECT 
+	TRANS_Ward_DR->WARD_Code
+	INTO :WARDCode
+	FROM SQLUser.PA_AdmTransaction
+	WHERE	TRANS_ParRef=:paadmrowId and TRANS_TransType_DR->TRANSTYP_Code='B'			
+)
+ Quit
+ 
+FormatDates
+ // Convert the dates to ODBC date format
+ If PAADMAdmDate Set PAADMAdmDate=..ConvertDateToODBC(PAADMAdmDate)
+ If PREVAdmDate Set PREVAdmDate=..ConvertDateToODBC(PREVAdmDate)
+ If PREVDisDate Set PREVDisDate=..ConvertDateToODBC(PREVDisDate)
+ If paperdob Set paperdob=..ConvertDateToODBC(paperdob)
+ Quit
+
+FormatTimes
+ // Convert the dates to ODBC date format
+ If PAADM2ExpAdmTime Set PAADM2ExpAdmTime=..ConvertTimeToODBC(PAADM2ExpAdmTime)
+ Quit
+]]></Implementation>
+</Method>
+
+<Method name="GetPreadmissionsFetch">
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,&Row:%Library.List,&AtEnd:%Library.Integer=0]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // This fetch method should never have to change. 
+
+ New repid,ind
+
+ // Restore QHandle
+ Set AtEnd=$li(QHandle,1)
+ Set repid=$li(QHandle,2)
+ Set ind=$li(QHandle,3)
+
+ Set ind=$o(^CacheTemp("TRAK",repid,ind))
+ If ind="" {	// if there are no more rows, finish fetching
+ Set AtEnd=1
+ Set Row=""
+ }
+ Else      {	// fetch row
+ Set Row=^CacheTemp("TRAK",repid,ind)
+ }
+
+ // Save QHandle
+ s QHandle=$lb(AtEnd,repid,ind)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Query name="GetPreadmissions">
+<Type>%Library.Query</Type>
+<FormalSpec>DateFrom:%Date,DateTo:%Date,Hospital:%String,Location:%String</FormalSpec>
+<SqlProc>1</SqlProc>
+<Parameter name="CONTAINID" value="0"/>
+<Parameter name="ROWSPEC" value="paadmrowid:%String(MAXLEN=255),PAPMIRowId:%String(MAXLEN=255),PAADMAdmDate:%Date,PAADM2ExpAdmTime:%String(MAXLEN=255),caretypdesc:%String(MAXLEN=255),papmino:%String(MAXLEN=255),CTSEXCode:%String(MAXLEN=255),paperdob:%Date,papername:%String(MAXLEN=255),papername2:%String(MAXLEN=255),CTPCPDesc:%String(MAXLEN=255),hospdesc:%String(MAXLEN=255),ExpectedLoc:%String(MAXLEN=255),TerminalDigit:%String,VOLDesc:%String(MAXLEN=255),CurrentLoc:%String(MAXLEN=255),HomeLoc:%String(MAXLEN=255),PREVAdmDate:%Date,PREVDisDate:%Date,WARDCode:%String(MAXLEN=255)"/>
+</Query>
+</Class>
+</Export>

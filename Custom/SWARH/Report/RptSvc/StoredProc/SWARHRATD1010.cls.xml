@@ -1,0 +1,459 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.SWARH.Report.RptSvc.StoredProc.SWARHRATD1010">
+<Description><![CDATA[
+<pre>
+* Report Name: Ward Attendances 
+* Report Code: SWARHRATD1010 
+* SWARH Developer: Phuong-Dung HOANG 
+* --------------------------------------------
+* Modified: Michael Welsh - 01/03/2013 
+* Added 'D' to VisitStatus filter, WardID parameter and CT_Loc field to rpt.
+* Report now requires a Ward to be selected.
+* --------------------------------------------
+* Modified: Phuong-Dung Hoang - 17/06/2014
+* Added SortType parameter (admission, discharge or current inpatients) -> use of 3 different cursors according to SortType
+* Sort records by ascending admission date/time
+* Format times to HH:mm (removed seconds)
+* Added Transfer Out Ward (ward patient is transfered to from ward selected) when applicable and Transfer Out date/time
+* Added GetNextWardTransChildsub method to get, for a ward attendance the next transaction where the patient is transferred out of the selected ward
+* (this is to ignore transactions with no ward movement such as bed assignments).
+* --------------------------------------------
+* Modified: Phuong-Dung Hoang - 29/01/2015 
+* Added check on transaction type in GetNextWardTransChildsub (to exclude transactions of type "Booked")
+* Added condition (WardId'="") in GetNextWardTransChildsub
+* Exclude transactions to temporary locations
+</pre>
+Class for SWARHRATD1010 Report]]></Description>
+<ProcedureBlock>0</ProcedureBlock>
+<Super>Custom.SWARH.Report.ZEN.StoredProc.Abstract</Super>
+<TimeCreated>62335,45574.688786</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/SWARH/Report/RptSvc/StoredProc/SWARHRATD1010.xml#1 $</Default>
+</Parameter>
+
+<Method name="SWARHRATD1010QueryClose">
+<Description>
+This is the Close component of the %Library.Query.
+This is standard code and should never have to change.
+This is where all the cleanup is performed, i.e. the purging of the temporary storage global ^CacheTemp.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>QHandle:%Library.Binary</FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Clean up by purging the temporary node in ^CacheTemp global
+ New repid,ind
+ Set repid=$li(QHandle,2)
+
+ //Start Monitor (if configured to capture stats)
+ i mon Do ..MonitorEnd(mon)
+
+ Kill ^CacheTemp("TRAK",repid)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="SWARHRATD1010QueryExecute">
+<Description>
+This is the Execute section for the %Library.Query. 
+All of the logic will be performed here.
+A new node for the ^CacheTemp global will be created and each subscript of this global will contain
+a row for the report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,Hospital:%Library.Integer,DateFrom:%Date,DateTo:%Date,WardID:%String,SortType:%String]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Get reportid i.e. use $INCREMENT to add another node to ^CacheTemp global. 
+ // We use ^CacheTemp global because it will always use memory before disk
+ New repid,ind
+
+  // Use $Increment to get the next node
+ Set repid=$I(^CacheTemp("TRAK"))
+ 
+ New Number,String,Date,Time,c,n
+ New PAADMRowId,CTLOCDesc,EpisodeNo,UR,Patient,AdmDate,AdmTime,DischgDate,DischgTime,AdmWard,DchWard,TRANSParRef,TRANSRowId,TRANSChildsub,TRANSTypeCode,
+ TRANSStartDate,TRANSStartTime,TRANSEndDate,TRANSEndTime,TRANSWardDR,WARDCode,TRANSOutWard,TRANSOutDate,TRANSOutTime,HOSPDesc,LocCode 
+ Set (PAADMRowId,TRANSWardDR,TRANSParRef,TRANSChildsub)=0
+ Set (CTLOCDesc,EpisodeNo,UR,Patient,AdmDate,AdmTime,DischgDate,DischgTime,AdmWard,DchWard,TRANSRowId,TRANSTypeCode,TRANSStartDate,TRANSStartTime,
+ TRANSEndDate,TRANSEndTime,WARDCode,TRANSOutWard,TRANSOutDate,TRANSOutTime,HOSPDesc,ReportWardId,ReportWardCode,LocCode)=""
+
+ s ind=1
+
+ //Convert ODBC dates to cache format
+ s DateFrom=$$intdate^SSUTIL4(DateFrom)
+ s DateTo=$$intdate^SSUTIL4(DateTo)
+
+ //Start Monitor (if configured to capture stats)
+ s mon=..MonitorBegin()
+ 
+ if (SortType="admission") {
+ &SQL(DECLARE SWARHRATD1010Cursor CURSOR FOR 
+ SELECT
+ 	p.PAADM_RowId,p.PAADM_DepCode_DR->CTLOC_Desc,
+ 	p.PAADM_AdmNo as EpisodeNo,
+ 	p.PAADM_PAPMI_DR->PAPMI_No as UR,
+ 	{fn concat(p.PAADM_PAPMI_DR->PAPMI_Name,
+ 	{fn concat(', ',p.PAADM_PAPMI_DR->PAPMI_Name2)})} as Patient,
+ 	p.PAADM_AdmDate as AdmDate,
+ 	p.PAADM_AdmTime as AdmTime,
+ 	p.PAADM_DischgDate as DischgDate,
+ 	p.PAADM_DischgTime as DischgTime,
+ 	p.PAADM_CurrentWard_DR->WARD_Code as DchWard,
+ 	pt1.TRANS_ParRef,
+ 	pt1.TRANS_RowId,
+ 	pt1.TRANS_Childsub,
+ 	pt1.TRANS_TransType_DR->TRANSTYP_Code,
+ 	pt1.TRANS_StartDate,
+ 	pt1.TRANS_StartTime,
+ 	pt1.TRANS_EndDate,
+ 	pt1.TRANS_EndTime,
+ 	pt1.TRANS_Ward_DR,
+ 	pt1.TRANS_Ward_DR->WARD_Code,
+	p.PAADM_Hospital_DR->HOSP_Desc,
+	pw.WARD_RowId As ReportWardId,
+	pw.WARD_Code As ReportWardCode,
+	c.CTLOC_Code As LocCode
+	 
+ FROM SQLUser.PA_Adm p
+ 	INNER JOIN SQLUser.PA_AdmTransaction pt on pt.TRANS_ParRef = p.PAADM_RowId
+ 	INNER JOIN SQLUser.PAC_Ward pw on pt.TRANS_Ward_DR = pw.Ward_RowID
+ 	INNER JOIN SQLUser.CT_Loc c on c.CTLOC_RowId = pw.WARD_LocationDR
+ 	LEFT JOIN SQLUser.PA_AdmTransaction pt1 on pt.TRANS_ParRef=pt1.TRANS_ParRef
+ 
+ WHERE p.PAADM_AdmDate BETWEEN :DateFrom and :DateTo
+ 	AND p.PAADM_Hospital_DR = :Hospital
+ 	AND pw.WARD_RowID = :WardID
+	AND p.PAADM_Type='I'
+ 	AND p.PAADM_VisitStatus in ('A','D')
+ 	AND pt.TRANS_Status_DR->REQST_Code in ('D','T')
+ 	AND pt.TRANS_Ward_DR IS NOT NULL
+ 	AND pt.TRANS_TransType_DR->TRANSTYP_Code in ('T','M')
+ 	AND pt1.TRANS_Status_DR->REQST_Code in ('D','T')
+ 	AND pt1.TRANS_Ward_DR IS NOT NULL
+ 	AND pt1.TRANS_TransType_DR->TRANSTYP_Code in ('T','M')
+ GROUP BY p.PAADM_RowId,p.PAADM_DepCode_DR,p.PAADM_AdmNo,p.PAADM_PAPMI_DR,p.PAADM_AdmDate,p.PAADM_AdmTime,p.PAADM_DischgDate, p.PAADM_CurrentWard_DR,
+ 	pt1.TRANS_StartDate,pt1.TRANS_StartTime,pt1.TRANS_Ward_DR
+ ORDER BY p.PAADM_AdmDate asc,p.PAADM_AdmTime asc,pt1.TRANS_StartDate asc,pt1.TRANS_StartTime asc)
+ &SQL(OPEN SWARHRATD1010Cursor)
+ 
+ //FETCH FIRST ROW
+ d FetchRow
+  
+ while 'SQLCODE{
+ 
+ s AdmWard=..GetAdmWardForEpisode(PAADMRowId)
+ s Childsub=..GetNextWardTransChildsub(TRANSParRef,TRANSRowId,TRANSChildsub,TRANSStartDate,TRANSStartTime)
+ if Childsub'="" {
+	s TRANSOutWardId=$p(^PAADM(TRANSParRef,"TRANS",Childsub),"^",9)
+ 	if TRANSOutWardId'="" s TRANSOutWard=$p(^PAWARD(TRANSOutWardId),"^",1)
+ 	s TRANSOutDate=$p(^PAADM(TRANSParRef,"TRANS",Childsub),"^",1)
+ 	s TRANSOutTime=$p(^PAADM(TRANSParRef,"TRANS",Childsub),"^",2)
+ }
+ 
+ d FormatDates
+ d FormatTimes
+ 
+ s sort = ind		// don't sort - uncomment this line if you've sorted in the query
+ //s sort = $ZCVT(HOSPDesc,"U")_" "_$ZCVT(WARDDesc,"U")_" "_$ZCVT(ROOMCode,"U")_" "_$ZCVT(BEDCode,"U")_" "_$ZCVT(CTRLGDesc,"U")_" "_$ZCVT(PAPERName,"U")_" "_$ZCVT(PAPERName2,"U")_" "_$ZCVT(PAPERName3,"U")_ind
+ 
+ s ^CacheTemp("TRAK",repid,sort)=$LB(PAADMRowId,CTLOCDesc,EpisodeNo,UR,Patient,AdmDate,AdmTime,DischgDate,DischgTime,AdmWard,DchWard,TRANSRowId,TRANSParRef,TRANSStartDate,
+ TRANSStartTime,TRANSEndDate,TRANSEndTime,TRANSWardDR,WARDCode,TRANSOutWardId,TRANSOutWard,TRANSOutDate,TRANSOutTime,HOSPDesc,ReportWardId,ReportWardCode,LocCode,Chilsub)
+ s ind=ind+1
+ 
+ //fetch rows
+ d FetchRow
+ s Childsub=""
+ s TRANSOutWard=""
+ s TRANSOutDate=""
+ s TRANSOutTime=""
+ }
+
+ &SQL(CLOSE SWARHRATD1010Cursor)
+ }
+ 
+ if (SortType="discharge") {
+	 &SQL(DECLARE SWARHRATD1010DischCursor CURSOR FOR 
+ SELECT
+ 	p.PAADM_RowId,p.PAADM_DepCode_DR->CTLOC_Desc,
+ 	p.PAADM_AdmNo as EpisodeNo,
+ 	p.PAADM_PAPMI_DR->PAPMI_No as UR,
+ 	{fn concat(p.PAADM_PAPMI_DR->PAPMI_Name,
+ 	{fn concat(', ',p.PAADM_PAPMI_DR->PAPMI_Name2)})} as Patient,
+ 	p.PAADM_AdmDate as AdmDate,
+ 	p.PAADM_AdmTime as AdmTime,
+ 	p.PAADM_DischgDate as DischgDate,
+ 	p.PAADM_DischgTime as DischgTime,
+ 	p.PAADM_CurrentWard_DR->WARD_Code as DchWard,
+ 	pt1.TRANS_ParRef,
+ 	pt1.TRANS_RowId,
+ 	pt1.TRANS_Childsub,
+ 	pt1.TRANS_TransType_DR->TRANSTYP_Code,
+ 	pt1.TRANS_StartDate,
+ 	pt1.TRANS_StartTime,
+ 	pt1.TRANS_EndDate,
+ 	pt1.TRANS_EndTime,
+ 	pt1.TRANS_Ward_DR,
+ 	pt1.TRANS_Ward_DR->WARD_Code,
+	p.PAADM_Hospital_DR->HOSP_Desc,
+	pw.WARD_RowId As ReportWardId,
+	pw.WARD_Code As ReportWardCode,
+	c.CTLOC_Code As LocCode
+	 
+ FROM SQLUser.PA_Adm p
+ 	INNER JOIN SQLUser.PA_AdmTransaction pt on pt.TRANS_ParRef = p.PAADM_RowId
+ 	INNER JOIN SQLUser.PAC_Ward pw on pt.TRANS_Ward_DR = pw.Ward_RowID
+ 	INNER JOIN SQLUser.CT_Loc c on c.CTLOC_RowId = pw.WARD_LocationDR
+ 	LEFT JOIN SQLUser.PA_AdmTransaction pt1 on pt.TRANS_ParRef=pt1.TRANS_ParRef
+ 
+ WHERE p.PAADM_DischgDate BETWEEN :DateFrom and :DateTo
+ 	AND p.PAADM_Hospital_DR = :Hospital
+ 	AND pw.WARD_RowID = :WardID
+	AND p.PAADM_Type='I'
+ 	AND p.PAADM_VisitStatus in ('A','D')
+ 	AND pt.TRANS_Status_DR->REQST_Code='D'
+ 	AND pt.TRANS_Ward_DR IS NOT NULL
+ 	AND pt.TRANS_TransTYpe_DR->TRANSTYP_Code in ('T','M')
+ 	AND pt1.TRANS_Status_DR->REQST_Code='D'
+ 	AND pt1.TRANS_Ward_DR IS NOT NULL
+ 	AND pt1.TRANS_TransType_DR->TRANSTYP_Code in ('T','M')
+ GROUP BY p.PAADM_RowId,p.PAADM_DepCode_DR,p.PAADM_AdmNo,p.PAADM_PAPMI_DR,p.PAADM_AdmDate,p.PAADM_AdmTime,p.PAADM_DischgDate, p.PAADM_CurrentWard_DR,
+ 	pt1.TRANS_StartDate,pt1.TRANS_StartTime,pt1.TRANS_Ward_DR
+ ORDER BY PAADM_RowID asc,p.PAADM_AdmDate asc,p.PAADM_AdmTime,pt1.TRANS_StartDate asc,pt1.TRANS_StartTime)
+ &SQL(OPEN SWARHRATD1010DischCursor)
+ 
+ //FETCH FIRST ROW
+ d FetchRowDisch
+  
+ while 'SQLCODE{
+ 
+ s AdmWard=..GetAdmWardForEpisode(PAADMRowId) 
+ s Childsub=..GetNextWardTransChildsub(TRANSParRef,TRANSRowId,TRANSChildsub,TRANSStartDate,TRANSStartTime)
+ if Childsub'="" {
+ 	s TRANSOutWardId=$p(^PAADM(TRANSParRef,"TRANS",Childsub),"^",9)
+ 	if TRANSOutWardId'="" s TRANSOutWard=$p(^PAWARD(TRANSOutWardId),"^",1)
+ 	s TRANSOutDate=$p(^PAADM(TRANSParRef,"TRANS",Childsub),"^",1)
+ 	s TRANSOutTime=$p(^PAADM(TRANSParRef,"TRANS",Childsub),"^",2)
+ }
+ d FormatDates
+ d FormatTimes
+ 
+ s sort = ind		// don't sort - uncomment this line if you've sorted in the query
+ //s sort = $ZCVT(HOSPDesc,"U")_" "_$ZCVT(WARDDesc,"U")_" "_$ZCVT(ROOMCode,"U")_" "_$ZCVT(BEDCode,"U")_" "_$ZCVT(CTRLGDesc,"U")_" "_$ZCVT(PAPERName,"U")_" "_$ZCVT(PAPERName2,"U")_" "_$ZCVT(PAPERName3,"U")_ind
+ 
+ s ^CacheTemp("TRAK",repid,sort)=$LB(PAADMRowId,CTLOCDesc,EpisodeNo,UR,Patient,AdmDate,AdmTime,DischgDate,DischgTime,AdmWard,DchWard,TRANSRowId,TRANSParRef,TRANSStartDate,
+ TRANSStartTime,TRANSEndDate,TRANSEndTime,TRANSWardDR,WARDCode,TRANSOutWardId,TRANSOutWard,TRANSOutDate,TRANSOutTime,HOSPDesc,ReportWardId,ReportWardCode,LocCode,Childsub)
+ s ind=ind+1
+ 
+ //fetch rows
+ d FetchRowDisch
+ s Childsub=""
+ s TRANSOutWard=""
+ s TRANSOutDate=""
+ s TRANSOutTime=""
+ }
+
+ &SQL(CLOSE SWARHRATD1010DischCursor)
+ }
+ 
+ if (SortType="current inpatients") {
+	 &SQL(DECLARE SWARHRATD1010CurInpatCursor CURSOR FOR 
+ SELECT
+ 	p.PAADM_RowId,p.PAADM_DepCode_DR->CTLOC_Desc,
+ 	p.PAADM_AdmNo as EpisodeNo,
+ 	p.PAADM_PAPMI_DR->PAPMI_No as UR,
+ 	{fn concat(p.PAADM_PAPMI_DR->PAPMI_Name,
+ 	{fn concat(', ',p.PAADM_PAPMI_DR->PAPMI_Name2)})} as Patient,
+ 	p.PAADM_AdmDate as AdmDate,
+ 	p.PAADM_AdmTime as AdmTime,
+ 	p.PAADM_DischgDate as DischgDate,
+ 	p.PAADM_DischgTime as DischgTime,
+ 	p.PAADM_CurrentWard_DR->WARD_Code as DchWard,
+ 	pt1.TRANS_ParRef,
+ 	pt1.TRANS_RowId,
+ 	pt1.TRANS_Childsub,
+ 	pt1.TRANS_TransType_DR->TRANSTYP_Code,
+ 	pt1.TRANS_StartDate,
+ 	pt1.TRANS_StartTime,
+ 	pt1.TRANS_EndDate,
+ 	pt1.TRANS_EndTime,
+ 	pt1.TRANS_Ward_DR,
+ 	pt1.TRANS_Ward_DR->WARD_Code,
+	p.PAADM_Hospital_DR->HOSP_Desc,
+	pw.WARD_RowId As ReportWardId,
+	pw.WARD_Code As ReportWardCode,
+	c.CTLOC_Code As LocCode
+	 
+ FROM SQLUser.PA_Adm p
+ 	INNER JOIN SQLUser.PA_AdmTransaction pt on pt.TRANS_ParRef = p.PAADM_RowId
+ 	INNER JOIN SQLUser.PAC_Ward pw on pt.TRANS_Ward_DR = pw.Ward_RowID
+ 	INNER JOIN SQLUser.CT_Loc c on c.CTLOC_RowId = pw.WARD_LocationDR
+ 	LEFT JOIN SQLUser.PA_AdmTransaction pt1 on pt.TRANS_ParRef=pt1.TRANS_ParRef
+ 
+ WHERE p.PAADM_AdmDate <= :DateTo
+ 	AND p.PAADM_DischgDate > :DateTo
+ 	AND p.PAADM_Hospital_DR = :Hospital
+ 	AND pw.WARD_RowID = :WardID
+	AND p.PAADM_Type='I'
+ 	AND p.PAADM_VisitStatus in ('A','D')
+ 	AND pt.TRANS_Status_DR->REQST_Code='D'
+ 	AND pt.TRANS_Ward_DR IS NOT NULL
+ 	AND pt.TRANS_TransTYpe_DR->TRANSTYP_Code in ('T','M')
+ 	AND pt1.TRANS_Status_DR->REQST_Code='D'
+ 	AND pt1.TRANS_Ward_DR IS NOT NULL
+ 	AND pt1.TRANS_TransType_DR->TRANSTYP_Code in ('T','M')
+ 	AND pt1.TRANS_TempLoc_DR IS NULL
+ 	
+ GROUP BY p.PAADM_RowId,p.PAADM_DepCode_DR,p.PAADM_AdmNo,p.PAADM_PAPMI_DR,p.PAADM_AdmDate,p.PAADM_AdmTime,p.PAADM_DischgDate, p.PAADM_CurrentWard_DR,
+ 	pt1.TRANS_StartDate,pt1.TRANS_StartTime,pt1.TRANS_Ward_DR
+ ORDER BY PAADM_RowID asc,p.PAADM_AdmDate asc,p.PAADM_AdmTime,pt1.TRANS_StartDate asc,pt1.TRANS_StartTime)
+ &SQL(OPEN SWARHRATD1010CurInpatCursor)
+ 
+ //FETCH FIRST ROW
+ d FetchRowCurInpat
+  
+ while 'SQLCODE{
+ s AdmWard=..GetAdmWardForEpisode(PAADMRowId) 
+ s Childsub=..GetNextWardTransChildsub(TRANSParRef,TRANSRowId,TRANSChildsub,TRANSStartDate,TRANSStartTime)
+ if Childsub'="" {
+ 	s TRANSOutWardId=$p(^PAADM(TRANSParRef,"TRANS",Childsub),"^",9)
+ 	if TRANSOutWardId'="" s TRANSOutWard=$p(^PAWARD(TRANSOutWardId),"^",1)
+ 	s TRANSOutDate=$p(^PAADM(TRANSParRef,"TRANS",Childsub),"^",1)
+ 	s TRANSOutTime=$p(^PAADM(TRANSParRef,"TRANS",Childsub),"^",2)
+ }
+ d FormatDates
+ d FormatTimes
+ 
+ 
+ s sort = ind		// don't sort - uncomment this line if you've sorted in the query
+ //s sort = $ZCVT(HOSPDesc,"U")_" "_$ZCVT(WARDDesc,"U")_" "_$ZCVT(ROOMCode,"U")_" "_$ZCVT(BEDCode,"U")_" "_$ZCVT(CTRLGDesc,"U")_" "_$ZCVT(PAPERName,"U")_" "_$ZCVT(PAPERName2,"U")_" "_$ZCVT(PAPERName3,"U")_ind
+ 
+ s ^CacheTemp("TRAK",repid,sort)=$LB(PAADMRowId,CTLOCDesc,EpisodeNo,UR,Patient,AdmDate,AdmTime,DischgDate,DischgTime,AdmWard,DchWard,TRANSStartDate,
+ TRANSStartTime,TRANSEndDate,TRANSEndTime,TRANSWardDR,WARDCode,TRANSOutWardId,TRANSOutWard,TRANSOutDate,TRANSOutTime,HOSPDesc,ReportWardId,ReportWardCode,LocCode,Childsub)
+ s ind=ind+1
+ 
+ //fetch rows
+ d FetchRowCurInpat
+ s Childsub=""
+ s TRANSOutWard=""
+ s TRANSOutDate=""
+ s TRANSOutTime=""
+ }
+
+ &SQL(CLOSE SWARHRATD1010CurInpatCursor)
+ }
+ 
+ // Build QHandle (AtEnd,ReportID,Index)
+ Set QHandle=$lb(0,repid,0)
+
+ Quit $$$OK
+
+FetchRow
+ &sql(fetch SWARHRATD1010Cursor INTO :PAADMRowId,:CTLOCDesc,:EpisodeNo,:UR,:Patient,:AdmDate,:AdmTime,:DischgDate,:DischgTime,:DchWard,:TRANSParRef,:TRANSRowId,:TRANSChildsub,:TRANSTypeCode,:TRANSStartDate,
+ :TRANSStartTime,:TRANSEndDate,:TRANSEndTime,:TRANSWardDR,:WARDCode,:HOSPDesc,:ReportWardId,:ReportWardCode,:LocCode)
+ if SQLCODE '= 0 set END = 1
+ q
+ 
+FetchRowDisch
+ &sql(fetch SWARHRATD1010DischCursor INTO :PAADMRowId,:CTLOCDesc,:EpisodeNo,:UR,:Patient,:AdmDate,:AdmTime,:DischgDate,:DischgTime,:DchWard,:TRANSParRef,:TRANSRowId,:TRANSChildsub,:TRANSTypeCode,:TRANSStartDate,
+ :TRANSStartTime,:TRANSEndDate,:TRANSEndTime,:TRANSWardDR,:WARDCode,:HOSPDesc,:ReportWardId,:ReportWardCode,:LocCode)
+ if SQLCODE '= 0 set END = 1
+ q
+ 
+FetchRowCurInpat
+ &sql(fetch SWARHRATD1010CurInpatCursor INTO :PAADMRowId,:CTLOCDesc,:EpisodeNo,:UR,:Patient,:AdmDate,:AdmTime,:DischgDate,:DischgTime,:DchWard,:TRANSParRef,:TRANSRowId,:TRANSChildsub,:TRANSTypeCode,:TRANSStartDate,
+ :TRANSStartTime,:TRANSEndDate,:TRANSEndTime,:TRANSWardDR,:WARDCode,:HOSPDesc,:ReportWardId,:ReportWardCode,:LocCode)
+ if SQLCODE '= 0 set END = 1
+ q
+ 
+FormatDates
+ if AdmDate s AdmDate=$ZD(AdmDate,3)
+ if DischgDate s DischgDate=$ZD(DischgDate,3)
+ if TRANSStartDate s TRANSStartDate=$ZD(TRANSStartDate,3)
+ if TRANSEndDate s TRANSEndDate=$ZD(TRANSEndDate,3)
+ if TRANSOutDate s TRANSOutDate=$ZD(TRANSOutDate,3)
+ quit
+ 
+FormatTimes
+ if AdmTime s AdmTime=$ZT(AdmTime,2)
+ if DischgTime s DischgTime=$ZT(DischgTime,2)
+ if TRANSStartTime s TRANSStartTime=$ZT(TRANSStartTime,2)
+ if TRANSEndTime s TRANSEndTime=$ZT(TRANSEndTime,2)
+ if TRANSOutTime s TRANSOutTime=$ZT(TRANSOutTime,2)
+ quit
+]]></Implementation>
+</Method>
+
+<Method name="SWARHRATD1010QueryFetch">
+<Description>
+This is the Fetch component of the %Library.Query. 
+This should never have to change. It is designed to fetch the row for each subscript of the ^CacheTemp
+global and return this row to the Crystal Report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,&Row:%Library.List,&AtEnd:%Library.Integer=0]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // This fetch method should never have to change. 
+ // repid - Report ID
+ // ind   - sequence index which represents each row
+
+ New repid,ind
+
+ // Restore QHandle
+ Set AtEnd=$li(QHandle,1)
+ Set repid=$li(QHandle,2)
+ Set ind=$li(QHandle,3)
+
+ Set ind=$o(^CacheTemp("TRAK",repid,ind))
+ If ind="" {	// if there are no more rows, finish fetching
+ Set AtEnd=1
+ Set Row=""
+ }
+ Else      {	// fetch row
+ Set Row=^CacheTemp("TRAK",repid,ind)
+ }
+
+ // Save QHandle
+ s QHandle=$lb(AtEnd,repid,ind)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Query name="SWARHRATD1010Query">
+<Type>%Library.Query</Type>
+<FormalSpec>Hospital:%Library.Integer,DateFrom:%Date,DateTo:%Date,WardID:%String,SortType:%String</FormalSpec>
+<SqlProc>1</SqlProc>
+<Parameter name="CONTAINID" value="0"/>
+<Parameter name="ROWSPEC" value="PAADMRowId:%Integer,CTLOCDesc:%String(MAXLEN=255),EpisodeNo:%String(MAXLEN=255),UR:%String(MAXLEN=255),Patient:%String(MAXLEN=255),AdmDate:%Date,AdmTime:%String,DischgDate:%Date,DischgTime:%String,AdmWard:%String(MAXLEN=255),DchWard:%String(MAXLEN=255),TRANSRowId:%String,TRANSParRef:%Integer,TRANSStartDate:%Date,TRANSStartTime:%String,TRANSEndDate:%Date,TRANSEndTime:%String,TRANSWardDR:%Integer,WARDCode:%String(MAXLEN=255),TRANSOutWardId:%Integer,TRANSOutWard:%String(MAXLEN=255),TRANSOutDate:%Date,TRANSOutTime:%String,HOSPDesc:%String(MAXLEN=255),ReportWardId:%Integer,ReportWardCode:%String(MAXLEN=255),LocCode:%String,Childsub:%Integer"/>
+<Parameter name="SELECTMODE" value="ODBC"/>
+</Query>
+
+<Method name="GetNextWardTransChildsub">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>TParRef,TRowId,TChildsub,TStartDate,TStartTime</FormalSpec>
+<ReturnType>%Integer</ReturnType>
+<Implementation><![CDATA[
+	s (DischWardCode,TransTypeCode,TransStatusCode)=""
+
+ 	s TransAdmWard=$P(^PAADM(TParRef,"TRANS",TChildsub),"^",9)
+ 	s Childsub=TChildsub
+ 	s WardId=""
+ 	For {
+		Set Childsub = $O(^PAADM(TParRef,"TRANS",Childsub))
+		Quit:(Childsub="")
+		Set TransTypeDR = $P(^PAADM(TParRef,"TRANS",Childsub),"^",21)
+		Set TransTempLocDR = $P(^PAADM(TParRef,"TRANS",Childsub),"^",41)
+		Set TransStatusDR = $P(^PAADM(TParRef,"TRANS",Childsub),"^",12)
+		if TransTypeDR'="" s TransTypeCode=$P(^PAC("TRANSTYP",TransTypeDR),"^",1)
+		if TransStatusDR'="" s TransStatusCode=$P(^PAC("REQST",TransStatusDR),"^",1)
+		Set WardId = $P(^PAADM(TParRef,"TRANS",Childsub),"^",9)
+		Quit:((TransTypeCode'="B")&&(TransTempLocDR="")&&(WardId'="")&&((TransStatusCode="D")||(TransStatusCode="T")))
+	}
+ 	
+ 	QUIT Childsub
+]]></Implementation>
+</Method>
+</Class>
+</Export>

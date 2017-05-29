@@ -1,0 +1,326 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.SWARH.JS.PAAdmCoding.Edit3MCoder">
+<Description>
+Component JavaScript for: PAAdmCoding.Edit3MCoder</Description>
+<Modified>0</Modified>
+<Super>websys.AbstractJavaScript</Super>
+<TimeCreated>63537,10517.71764</TimeCreated>
+
+<Method name="JSContent">
+<Description>
+ </Description>
+<Internal>0</Internal>
+<Language>javascript</Language>
+<ClientMethod>1</ClientMethod>
+<Implementation><![CDATA[
+var canOpenLoader = document.getElementById("CanOpenLoader");
+var txtOutputPacket = document.getElementById("txtOutputPacket");
+var txtInputPacket = document.getElementById("txtInputPacket");
+var isLocked = document.getElementById("IsLocked");
+var lockDetail = document.getElementById("LockDetail");
+var patLockDetail = document.getElementById("PatLockDetail");
+
+var coderInterface;
+var timerID = null;
+var timerRunning = false;
+var DELAY = 1000;
+
+function unloadCodeFinder() {
+	try {		
+		stopTimer();
+		
+		if (coderInterface == null)
+			return;
+
+		var codestat = coderInterface.checkCoderStatus();
+
+		var coder = self.document.getElementById("coderInstance");
+		var dll = self.document.getElementById("dllInstance");
+
+		if (dll) {
+			// brute force method to destroy 3M instance
+			var i;
+			for (i=1;i<6;i++)
+			{
+				try {
+					if (dll.value!="") {
+	 					var status = coderInterface.destroy3mInstanceById(i, parseInt(dll.value));
+						if (status == 1) {
+							//alert("unload " + codestat);
+							break;
+						}
+					}
+				} catch(ex) { }
+				//coderInterface.destroy3mInstanceById(parseInt(coder.value), parseInt(dll.value));
+			}
+		}
+	
+		coderInterface = null;
+	} catch(e) {
+		alert("error in unloadCodeFinder " + e);
+	}
+}
+
+function startLoad(e) {
+      
+	var diagInfo = document.getElementById("ExtraDiagInfo");
+	var procInfo = document.getElementById("ExtraProcInfo");
+	var frmDrgcoding;
+	var frmTrakmain = window.parent.frames["TRAK_main"];
+	if (frmTrakmain) {
+		frmDrgcoding = frmTrakmain.frames["PAAdmDRGCoding"];
+		if (frmDrgcoding) {
+			var diagFields = frmDrgcoding.document.getElementById("DIAGFields");
+			var procFields = frmDrgcoding.document.getElementById("PROCFields");
+
+			if (diagFields && diagInfo) diagInfo.value = diagFields.value;
+			if (procFields && procInfo) procInfo.value = procFields.value;
+		}
+	}
+	//alert("DIAG " + diagInfo.value);
+	//alert("PROC " + procInfo.value);
+
+
+	if (canOpenLoader && canOpenLoader.value=="N")
+		return;
+
+	if (txtInputPacket == null) {
+		alert("FATAL ERROR: txtInputPacket is NOT FOUND\nCannot continue.");
+		return;
+	}
+	if (txtOutputPacket == null) {
+		alert("FATAL ERROR: txtOutputPacket is NOT FOUND\nCannot continue.");
+		return;
+	}
+	
+	if (isLocked == null) {
+		alert("FATAL ERROR: IsLocked component item is NOT FOUND\nCannot continue.");
+		return;
+	}
+	
+	if (isLocked.value == "") {
+		if (txtInputPacket.value.length > 0) {
+			loadCodeFinder();
+			sendInputPacket();
+		}
+		else {
+			alert(t['NOT_STARTED']);
+		}
+	}
+	else {
+		//var detail = lockDetail.value.split("|");
+		alert(isLocked.value + "\n\nDesc.:" + lockDetail.value + "\nPatient: " + patLockDetail.value);
+	}
+}
+
+function loadCodeFinder() {
+	try {
+		if (coderInterface == null)
+			coderInterface = new ActiveXObject("tk3MCoderInterface.cls3MCoderLoader");			
+	} catch(e) {
+		alert(e);
+	}
+}
+
+function stopTimer() { 
+	if (timerRunning) 
+		clearTimeout(timerID);
+	timerRunning = false;
+} 
+
+function checkCoderStatus() {
+	var status;
+	timerRunning = true;
+
+	if (coderInterface) 
+	{
+		// the following get the ready status 
+		status = coderInterface.checkCoderStatus();
+		
+		//self.status = "Status " + status;
+
+		var objFlag = self.document.getElementById("IsCoderRunning")
+
+		// NOTE: When CodeFinder is complete and the output packet is ready 
+		// to be retrieved the status will be set to 3
+		if (status == 3)
+		{
+			if (objFlag)
+				objFlag.value = "0";
+		
+			stopTimer();
+			
+			txtOutputPacket.value = coderInterface.receivePacket();			
+			
+			unloadCodeFinder();
+
+			var errorTag = txtOutputPacket.value.split("\n");
+			var errCode = errorTag[0].split(":");
+			if (errCode[1] == 0) {
+				saveOutput();
+			}
+		}
+		else
+		{
+			// we check every DELAY second to check if packet is ready to be read
+			timerID = self.setTimeout("checkCoderStatus()", DELAY);
+		}
+	}
+} 
+
+function saveOutput() {
+	if (canOpenLoader) canOpenLoader.value="N";
+
+	complete3M_click(); // this will initiate websysSave3MCoder() in web.PAAdmCoding
+
+	var PatientID = document.getElementById("PatientID").value;
+	var EpisodeID = document.getElementById("EpisodeID").value;
+	
+	// should preserve the workflow  
+	var objContext=document.getElementById("CONTEXT");
+	var objTWKFL =document.getElementById("TWKFL");
+	var objTWKFLI=document.getElementById("TWKFLI");
+	
+	var CONTEXT="";
+	var TWKFL="";
+	var TWKFLI="";
+
+	if (objTWKFL) TWKFL=objTWKFL.value;
+	if (objTWKFLI) TWKFLI=objTWKFLI.value;
+	if (objContext) CONTEXT=objContext.value;
+
+	var link  = "paadm.drgcoding.csp?PatientID=" + PatientID + "&EpisodeID=" + EpisodeID;
+	    link += "&TWKFL=" + TWKFL + "&TWKFLI=" + TWKFLI + "&CONTEXT=" + CONTEXT;
+
+	//alert(link);	
+
+	websys_createWindow(link,"TRAK_main");
+
+	return false;
+}
+
+function sendInputPacket() {
+	try {
+		var inputPacket = txtInputPacket.value;
+
+		if (inputPacket.length > 0) {
+			if (inputPacket.indexOf("CMD") != 0) {
+				var s = "Cannot start Encoder program\n";
+				alert(s + inputPacket);  // inputPacket contains error lines
+				return;
+			}
+
+			// get registry info to get the dll path			
+			var status = coderInterface.getPathFromRegistry();
+
+			if (status > 0) {
+				var dll = self.document.getElementById("dllInstance");
+
+				if (dll) dll.value = status;
+
+				// create instance of 3M Coder
+				status = coderInterface.create3mInstance();
+			}
+
+			var errMsg;
+			
+			// check the error status returned by create3mInstance
+			// NOTE: it is our own generated number not 3M's
+			switch(status) {
+				case -1000:
+					errMsg = t['ERR1000'];
+					break;
+				case -1001:
+					errMsg = t['ERR1001'];
+					break;
+				case -1002:
+					errMsg = t['ERR1002'];
+					break;
+				case -1003:
+					errMsg = t['ERR1003'];
+					break;
+				case -1004:
+					errMsg = t['ERR1004'];
+					break;
+				default:
+					var coderid = self.document.getElementById("coderInstance");
+
+					if (coderid) coderid.value = status;
+					break;
+			}
+			if (errMsg) {
+				alert(t['ERROR'] + "\n\n" + t['DESC'] + "\n" + errMsg);
+			}
+			else {
+
+				status = coderInterface.sendPacket(inputPacket);
+
+				if (status < 1) {
+					displaySendPacketError(status);
+				}
+				else {
+					var objFlag = self.document.getElementById("IsCoderRunning")
+					if (objFlag)
+						objFlag.value = "1";
+				
+					// the following will start a timer to check CodeFinder's ready status periodically
+					checkCoderStatus();
+				}
+			}
+		}
+		else {
+			alert(t['NOT_STARTED']);
+		}
+	} catch(e) { 
+		alert("Error when sending input packet " + e);
+	}
+}
+
+function displaySendPacketError(status) {
+	var errMsg = "";
+
+	switch(status) {
+		case -2002:
+			errMsg = t['ERR2002'];
+			break;
+		case -2001:
+			errMsg = t['ERR2001'];
+			break;
+		case -2003:
+			errMsg = t['ERR2003'];
+			break;
+		case -2004:
+			errMsg = t['ERR2004'];
+			break;
+		case -2005:
+			errMsg = "Another instance of 3M CodeFinder is still open";			
+			break;
+	}
+	/*var note1 = "If 3M CodeFinder is still not functioning after browser restart."
+	var note2 = "Please close CodeFinder using Unload32.exe provided by 3M."
+	var note3 = "Consult with 3M Help Desk on how to use it."
+	var msg = "\n\n" + "NOTE:" + "\n" + note1 + "\n" + note2 + "\n" + note3;
+	*/
+	var err = "Error while loading 3M CodeFinder\n\n";
+
+	if (errMsg !="")
+		alert(err + errMsg + "\n\nNOTE: " + t['RESTART']);
+}
+
+document.body.onload=startLoad;
+document.body.onunload=unloadCodeFinder; // this must be done, at least the best solution out of the worst options
+
+//websys_addListener("load","onload",startLoad); 
+//websys_addListener("load","onunload",unloadCodeFinder);
+]]></Implementation>
+</Method>
+
+<Parameter name="SrcVer">
+<Description>
+This Parameter is updated by Perforce</Description>
+<Internal>0</Internal>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/SWARH/JS/PAAdmCoding/Edit3MCoder.xml#2 $</Default>
+</Parameter>
+</Class>
+</Export>

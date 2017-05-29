@@ -1,0 +1,353 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.SWARH.JS.questionnaire.QVCONPART3.Edit">
+<Description>
+Component JavaScript for: questionnaire.QVCONPART3.Edit</Description>
+<Modified>0</Modified>
+<Super>websys.AbstractJavaScript</Super>
+<TimeCreated>63537,10519.797442</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+This Parameter is updated by Perforce</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/SWARH/JS/questionnaire/QVCONPART3/Edit.xml#1 $</Default>
+</Parameter>
+
+<Method name="JSContent">
+<Description>
+ </Description>
+<Language>javascript</Language>
+<ClientMethod>1</ClientMethod>
+<Implementation><![CDATA[
+var securityGroup = session['LOGON.GROUPDESC'];
+//var lookupicon = document.getElementById("ld50022iQHOSPITAL");
+var hospfield = document.getElementById("QHOSPITAL");
+if (securityGroup != 'TRAKHEALTH' && securityGroup != 'VCON') {
+	//lookupicon.style.display='none';
+	//hospfield.disabled = true;
+}
+else {
+	var QPart1ID = document.getElementById("QPart1ID");
+	if (QPart1ID.value=="") {
+		hospfield.value="";
+	}
+}
+
+// make sure that Part 1 ID field contains digits only
+function QPart1ID_changehandler(e) {
+	var eSrc=document.getElementById('QPart1ID');
+	if (eSrc.value!='') {
+		if (!isNumeric(eSrc.value)) {
+			eSrc.className='clsInvalid';		
+			websys_setfocus('QPart1ID');
+			alert('digits only');
+			return  websys_cancel();
+		}
+	}
+	if (eSrc.readOnly) {eSrc.className='clsReadOnly'} else {eSrc.className=''}
+		window.setTimeout("ForceChange('QPart1ID');",1);
+}
+
+var obj=document.getElementById('QPart1ID');
+if (obj) obj.onchange=QPart1ID_changehandler;
+
+function isNumeric(strString) {
+   var strValidChars = "0123456789";
+   var strChar;
+   var blnResult = true;
+   var size;
+
+   if (strString.length == 0) return false;
+
+   for (i = 0; i < strString.length && blnResult == true; i++) {
+      strChar = strString.charAt(i);
+      if (strValidChars.indexOf(strChar) == -1) {
+         blnResult = false;
+      }
+   }
+
+   return blnResult;
+}
+
+if (document.getElementById("QSiteSubMetaList")) {document.getElementById("QSiteSubMetaList").tkItemPopulate=1;}
+
+QRegionFirstRecur_changehandlerX_IS = QRegionFirstRecur_changehandlerX;
+
+QRegionFirstRecur_changehandlerX = function() {
+	if (QRegionFirstRecur_changehandlerX_IS.apply(this,arguments) === false) {
+		return false;
+	} else {
+		var obj=document.getElementById('QRegionFirstRecur');
+		if (obj.value!='') {
+			var QDateFirstRecur=document.getElementById('QDateFirstRecur');
+			if (QDateFirstRecur) {
+				var DateFirstRecur=QDateFirstRecur.value;
+			}
+			if (DateFirstRecur!="") {
+				if (obj.value=="0: None, patient is disease-free") {
+					obj.className='clsInvalid';
+					websys_setfocus('QRegionFirstRecur');
+					alert("Region code cannot be 0 if date of first recurrence is not blank.");
+					return websys_cancel();
+				}
+			}
+			else {
+				if ((obj.value!="0: None, patient is disease-free") && (obj.value!="")) {
+					obj.className='clsInvalid';
+					websys_setfocus('QRegionFirstRecur');
+					alert("Region code must be 0 or blank if date of first recurrence blank.");
+					return websys_cancel();
+				}	
+			}	
+		}
+	}
+}
+
+function QUESStatusDR_lookupsel(value) {
+	try {
+		var obj=document.getElementById('QUESStatusDR');
+		if (obj) {
+  			obj.value=unescape(value);
+			if (obj.readOnly) {obj.className='clsReadOnly'} else {obj.className=''}
+			try {QUESStatusDR_lookuptoggle(value);} catch(err) {};
+			if (doneInit) {
+				var status=obj.value;
+				if (status=="Authorised") {
+					obj.className='clsInvalid';
+					websys_setfocus('QUESStatusDR');
+					return websys_cancel();
+				}
+				else {
+					websys_nextfocusElement(obj);
+				}
+			}
+		}
+	} catch(e) {};
+}
+
+QUESStatusDR_changehandlerX_IS = QUESStatusDR_changehandlerX;
+
+QUESStatusDR_changehandlerX = function() {
+	if (QUESStatusDR_changehandlerX_IS.apply(this,arguments) === false) {
+		return false;
+	} else {
+		var obj=document.getElementById('QUESStatusDR');
+		if (obj.value=="Authorised") {
+			obj.className='clsInvalid';
+			websys_setfocus('QUESStatusDR');
+			alert('Status must not be changed to "Authorised" for the VCON forms');
+			return websys_cancel();
+		}
+	}
+}
+
+
+function QDateFirstRecur_changehandler(e) {
+	var eSrc=document.getElementById('QDateFirstRecur');
+	var objDOB=document.getElementById('BANNERDOB');
+	if (!IsValidDate(eSrc)) {
+		eSrc.className='clsInvalid';
+		websys_setfocus('QDateFirstRecur');
+		websys_cancel();
+	} else {
+		if (eSrc.value!='') {
+			if (!compareDate(eSrc.value,objDOB.value)) {
+				eSrc.className='clsInvalid';
+				websys_setfocus('QDateFirstRecur');
+				alert('Date of First Recurrence cannot be prior to DOB ' + objDOB.value);
+				return  websys_cancel();
+			}
+		}
+		if (eSrc.readOnly) {eSrc.className='clsReadOnly'} else {eSrc.className=''}
+		window.setTimeout("ForceChange('QDateFirstRecur');",1);
+	}
+}
+var obj=document.getElementById('QDateFirstRecur');
+if (obj) obj.onchange=QDateFirstRecur_changehandler;
+
+function compareDate(str1,str2) {
+    var dd1  = str1.substring(0,2); 
+    var mm1 = str1.substring(3,5); 
+    var yyyy1  = str1.substring(6,10); 
+    var dd2  = str2.substring(0,2); 
+    var mm2 = str2.substring(3,5); 
+    var yyyy2  = str2.substring(6,10); 
+    var date1 = new Date(yyyy1 + "/" + mm1 + "/" + dd1);
+    var date2 = new Date(yyyy2 + "/" + mm2 + "/" + dd2);
+    if (date1<date2) {return false;}
+    else {return true;}
+}
+
+//Hide String fields for loading list boxes
+//var objMetaSite = document.getElementById('QSiteSubMetaString')
+//objMetaSite.style.display='none';
+
+// end sjehu (SWARH) Nov 08 - Make Usercode and Password input boxes invisible on page load for biometrics
+
+function InitCustom() {
+
+    var obj=document.getElementById('update1');
+	if (obj) obj.onclick=UpdateAll;
+	if (tsc['update1']) websys_sckeys[tsc['update1']]=UpdateAll;
+
+    var obj=document.getElementById('Delete1');
+	if (obj) obj.onclick=DeleteClickHandler;
+}
+
+//srees SWARH May 09 Site of Subsequent Metastasis List
+
+function RemoveFromList(obj) {
+	var frm=document.fquestionnaire_QVCONPART3_Edit;
+	//TDIRTY=document.getElementById("TDIRTY")
+	frm.TDIRTY.value=2
+	for (var i=(obj.length-1); i>=0; i--) {
+		if (obj.options[i].selected)
+			obj.options[i]=null;
+	}
+}
+
+function UpdateMetaSiteList() {
+	var arrItems = new Array();
+	var lst = document.getElementById("QSiteSubMetaList");
+	if (lst) {
+		for (var j=0; j<lst.options.length; j++) {			
+			arrItems[j] = lst.options[j].value;
+		}
+		var el = document.getElementById("QSiteSubMetaString");
+		if (el) el.value = arrItems.join(String.fromCharCode(1));
+	}
+}
+
+
+
+function DeleteClickHandler() {
+	//Delete items from EMCDesc listbox when a "Delete" button is clicked.
+	var obj=document.getElementById("QSiteSubMetaList")
+	if (obj)
+		RemoveFromList(obj);
+	return false;
+}
+
+
+function AddItemToList(list,code,desc) {
+	//Add an item to a listbox
+	var frm=document.fquestionnaire_QVCONPART3_Edit;
+	//TDIRTY=document.getElementById("TDIRTY")
+	frm.TDIRTY.value=2
+	//alert("and now..."+frm.TDIRTY.value);
+	code=String.fromCharCode(2)+code
+	list.options[list.options.length] = new Option(desc,code);
+}
+
+
+
+function QSiteSubMeta_AddToList(txt) {
+//Add an item to QSiteSubMetaList when an item is selected from
+	//the Lookup, then clears the Item text field.
+	var adata=txt.split("^");
+	//alert("adata="+adata);
+	var obj=document.getElementById("QSiteSubMetaList");
+
+	if (obj) {
+		//Need to check if Condition already exists in the List and alert the user
+		for (var i=0; i<obj.options.length; i++) {
+			if (obj.options[i].value == String.fromCharCode(2)+adata[1]) {
+				alert("Code has already been selected");
+				var obj=document.getElementById("QSiteSubMeta")
+				if (obj) obj.value="";
+				return;
+			}
+			if  ((adata[1] != "") && (obj.options[i].text == adata[0])) {
+			alert("Code has already been selected");
+				var obj=document.getElementById("QSiteSubMeta")
+				if (obj) obj.value="";
+				return;
+			}
+			//alert(obj.options[i].value+"****"+adata[1])
+		}
+	}
+	AddItemToList(obj,adata[1],adata[0]);
+
+	var obj=document.getElementById("QSiteSubMeta")
+	if (obj) obj.value="";
+	//alert("adata="+adata);
+}
+
+// reload listbox with values from hidden field.
+//this is due to page being refreshed upon error message (such as invalid pin)
+function QSiteSubMetaReload() {
+	var el = document.getElementById("QSiteSubMetaString");
+	var lst = document.getElementById("QSiteSubMetaList");
+	if ((lst)&&(el.value!="")) {
+		var arrITEM=el.value.split(String.fromCharCode(1));
+		for (var i=0; i<arrITEM.length; i++) {
+			var arrITEMVAL=arrITEM[i].split(String.fromCharCode(2));
+			//don't add ones that have a child rowid as they would already be populated
+/*			if ((arrITEMVAL[0]=="")&&(arrITEMVAL[2]!="")) {
+				AddItemToList(lst,arrITEMVAL[1],arrITEMVAL[2]);
+			}*/
+			if ((arrITEMVAL[0]=="")&&(arrITEMVAL[1]!="")) {
+				AddItemToList(lst,arrITEMVAL[1],arrITEMVAL[1]);
+			}
+		}
+	}
+}
+
+function encodestr(code,desc) {
+  return desc+'^'+code;
+}
+  /*var QSiteSubMeta_lookupselOLD = QSiteSubMeta_lookupsel;
+  QSiteSubMeta_lookupsel = function(v) {
+    if (QSiteSubMeta_lookupselOLD) QSiteSubMeta_lookupselOLD(v);
+    var obj=document.getElementById("QSiteSubMeta")
+    if (obj && obj.value!='') {
+      QSiteSubMeta_AddToList(encodestr(obj.value,obj.value));
+    }
+  }*/
+
+
+//call this outside onload call so it can be called straight away, and not wait till everything has loaded.
+
+//QSiteSubMetaReload();
+
+function UpdateAll() {
+	//if (!CheckInvalidFields())  { return false; }
+	//if (!CheckRequiredFields()) { return false; }
+	//UpdateMetaSiteList();
+	return update1_click();
+}
+
+websys_addListener("load","onload",InitCustom);
+//document.body.onload=InitCustom;
+
+//tknoll-miller (SWARH) 2009-09-16 Load authorise script
+var authcfg = {
+   'buttons': [
+      'update1'
+   ],
+   'fields': {
+      'username': 'UserName',
+      'password': 'PIN'
+   }
+};
+
+//tknoll-miller (SWARH) 2009-09-16 Load authorise script
+// Scope variables
+(function() {
+   var loadScript = function(type, src) {
+      var head = document.getElementsByTagName('head')[0];
+      var script = document.createElement('script');
+      script.type = type;
+      script.src = src;
+      head.appendChild(script);
+      websys_addListener('load', 'onload', function(){document.isLoaded=true});
+      return script;
+   };
+
+   loadScript('text/javascript', '../custom/SWARH/scripts/authorise4.js');
+})();
+//end tknoll-miller (SWARH) 2009-09-16 Load authorise script
+]]></Implementation>
+</Method>
+</Class>
+</Export>

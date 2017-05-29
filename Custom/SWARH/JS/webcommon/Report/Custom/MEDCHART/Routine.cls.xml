@@ -1,0 +1,217 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.SWARH.JS.webcommon.Report.Custom.MEDCHART.Routine">
+<Description>
+Component JavaScript for: webcommon.Report.Custom</Description>
+<Modified>0</Modified>
+<Super>websys.AbstractJavaScript</Super>
+<TimeCreated>63537,10520.573068</TimeCreated>
+
+<Method name="JSContent">
+<Description>
+ </Description>
+<Internal>0</Internal>
+<Language>javascript</Language>
+<ClientMethod>1</ClientMethod>
+<Implementation><![CDATA[
+//*********************************************************************
+//Version 1.0
+//
+//- Validation for report MEDCHART
+//
+//REMEMBER to update the versions with initials, date and description for each modification...
+//IF	14/01/2010			Created script
+//IF	14/01/2010			- Date Validation
+//IF	15/06/2010			- Added validation for 3 character min limit on custom1 and custom2 parameters
+//IF	06/06/2011			- Added timedelay to allow for validations
+//
+//**********************************************************************/
+
+
+//document.body.onload=CustomParamChangeHandler;
+
+function CustomParamChangeHandler() {
+	BodyLoadHandler();
+
+	var obj1=document.getElementById('custom1');
+	if (obj1) obj1.onblur=EpisodeChangehandler;
+	
+	var obj2=document.getElementById('custom2');
+	if (obj2) obj2.onblur=EpisodeChangehandler;
+	
+	var obj3=document.getElementById('custom3');
+	if (obj3) obj3.onblur=WardChangehandler;
+	
+	var obj4=document.getElementById('ld1906icustom1');
+	if (obj4) obj4.onclick=ValidateCustom1;
+	
+	var obj4=document.getElementById('ld1906icustom2');
+	if (obj4) obj4.onclick=ValidateCustom2;
+	
+	var print=document.getElementById('Print');
+	if (print) print.onclick=timedelayonPrint;
+
+	var preview=document.getElementById('Preview');
+	if (preview) preview.onclick=timedelayonPreview;
+}
+
+function timedelayonPrint() {
+	setTimeout("CustomPrintclickhandler()",1500);
+	return false;
+}
+
+function timedelayonPreview() {
+	setTimeout("CustomPreviewclickhandler()",1500);
+	return false;
+}
+
+function ValidateCustom1() {
+	var obj4=document.getElementById('custom1');
+	if (obj4) {
+		if (obj4.value.length<3) {
+			alert("Lookup value must be greater than 3 characters.");
+		} else {
+			custom1_lookuphandler();
+		}
+	}
+}
+
+function ValidateCustom2() {
+	var obj4=document.getElementById('custom2');
+	if (obj4) {
+		if (obj4.value.length<3) {
+			alert("Lookup value must be greater than 3 characters.");
+		} else {
+			custom2_lookuphandler();
+		}
+	}
+}
+
+function EpisodeChangehandler() {
+	var pat=document.getElementById('custom1');
+	var adm=document.getElementById('custom2');
+	if ((adm.value=="")&&(pat.value=="")) {
+		EnableField("custom3");
+		EnableField("ld1906icustom3");
+		labelNormal("custom2");
+	} else {
+		DisableField("custom3");
+		DisableField("ld1906icustom3");
+		labelMandatory("custom2");
+	}
+}
+
+function WardChangehandler() {
+	var ward=document.getElementById('custom3');
+	if (ward.value=="") {
+		EnableField("custom1");
+		EnableField("ld1906icustom1");
+		EnableField("custom2");
+		EnableField("ld1906icustom2");
+	} else {
+		DisableField("custom1");
+		DisableField("ld1906icustom1");
+		DisableField("custom2");
+		DisableField("ld1906icustom2");
+		labelMandatory("custom3");
+	}
+}
+
+function CustomPreviewclickhandler() {
+	val = tkMakeServerCall("Custom.MedicationChart","DateValidation",document.getElementById('date1').value,document.getElementById('date2').value);
+	if( val == 1 ) {
+		alert("Date From cannot be greater than Date To");
+		document.getElementById('date1').className="clsInvalid";
+		return false;
+	}
+	var ward="";
+	var obj=document.getElementById('custom3');
+	if (obj) ward=obj.value;
+	if (ward=="") {
+		var date1="";
+		var date2="";
+		var episode="";
+		if (document.getElementById('date1')) date1=document.getElementById('date1').value;
+		if (document.getElementById('date2')) date2=document.getElementById('date2').value;
+		if (document.getElementById('custom2')) episode=document.getElementById('custom2').value;
+	
+		newurl = tkMakeServerCall("Custom.MedicationChart","GetPreviewURL",date1+"^"+date2+"^"+episode+"^"+location.href);
+		window.open(newurl); 
+	} else {
+		alert("Ward Preview is not available.  Only single patient reports can be previewed.");
+	}
+}
+
+function CustomPrintclickhandler() {
+	val = tkMakeServerCall("Custom.MedicationChart","DateValidation",document.getElementById('date1').value,document.getElementById('date2').value);
+	if( val == 1 ) {
+		alert("Date From cannot be greater than Date To");
+		document.getElementById('date1').className="clsInvalid";
+		return false;
+	}
+	//run normal handler
+	PrintOptionclickhandler();
+}
+
+function labelMandatory(fld) {
+    var lbl = document.getElementById('c' + fld)
+    if (lbl) {
+        lbl.className = "clsRequired";
+    }
+}
+function labelNormal(fld) {
+    var lbl = document.getElementById('c' + fld)
+    if (lbl) {
+        lbl.className = "";
+    }
+}
+
+function EnableField(fldName) {
+    var fld = document.getElementById(fldName);
+    var lbl = document.getElementById('c'+fldName);
+    if (fld) {
+        fld.disabled = false;
+        if (fld.type!="button") fld.className = "";
+        if (fld.type=="button") fld.className = "clsButton";
+    }
+}
+
+function DisableField(fldName,NoClear) {
+    var fld = document.getElementById(fldName);
+    var lbl = document.getElementById('c'+fldName);
+    if (fld) {
+        if ((fld.tagName=="TEXTAREA")||(fld.tagName=="INPUT")||(fld.tagName=="SELECT")) {
+            if ((fld.type!="button")&&(fld.type!="checkbox")&&(!NoClear)) fld.value = "";
+            if ((fld.type=="checkbox")&&(!NoClear)) fld.checked=false;
+            fld.disabled = true;
+            if (fld.type!="button") fld.className = "disabledField";
+            if (fld.type=="button") {fld.className = "clsButtonDisabled";DisableShortcutKey(fld);}
+            if (lbl) lbl.className = "";
+        }
+        // ab 22.04.08 - disable links
+        if (fld.tagName=="A") {
+            fld.disabled=true;
+            fld.className='DisabledLink'
+            fld.onclick=LinkDisable;
+            DisableShortcutKey(fld);
+        }
+        
+        //do not add this yet as there is no correct toggling for EnableHRT and DisableHRT
+        //so anyone who consciously need to en/disable HRT would need to consider the side effects
+        //if ((fld.tagName=="IFRAME")&&(document.getElementById(fldname+'_ToolbarContainer'))) DisableHRT(el);
+    }
+}
+
+websys_removeListener("load","onload",BodyLoadHandler); 
+websys_addListener("load","onload",CustomParamChangeHandler);
+]]></Implementation>
+</Method>
+
+<Parameter name="SrcVer">
+<Description>
+This Parameter is updated by Perforce</Description>
+<Internal>0</Internal>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/SWARH/JS/webcommon/Report/Custom/MEDCHART/Routine.xml#1 $</Default>
+</Parameter>
+</Class>
+</Export>

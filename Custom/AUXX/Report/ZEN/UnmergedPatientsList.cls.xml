@@ -1,0 +1,134 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.AUXX.Report.ZEN.UnmergedPatientsList">
+<Super>Custom.AUXX.Report.ZEN.Abstract</Super>
+<TimeCreated>61543,54494.035066</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/AUXX/Report/ZEN/UnmergedPatientsList.xml#1 $</Default>
+</Parameter>
+
+<UDLText name="T">
+<Content><![CDATA[
+// Report Name: Unmerged Patients List <br>
+
+]]></Content>
+</UDLText>
+
+<UDLText name="T">
+<Content><![CDATA[
+// Report Code: Trak.UnmergedPatientsList <br>
+
+]]></Content>
+</UDLText>
+
+<UDLText name="T">
+<Content><![CDATA[
+// LOGTRAK Number: 72436 <br>
+
+]]></Content>
+</UDLText>
+
+<Property name="DateFrom">
+<Type>%String</Type>
+<Parameter name="ZENURL" value="P1"/>
+</Property>
+
+<Property name="DateTo">
+<Type>%String</Type>
+<Parameter name="ZENURL" value="P2"/>
+</Property>
+
+<Property name="Facility">
+<Type>%String</Type>
+<Parameter name="ZENURL" value="P3"/>
+</Property>
+
+<XData name="ReportDefinition">
+<XMLNamespace>http://www.intersystems.com/zen/report/definition</XMLNamespace>
+<Data><![CDATA[
+<report xmlns='http://www.intersystems.com/zen/report/definition'
+   queryClass='Custom.AUXX.Report.ZEN.StoredProc.UnmergedPatientsList' queryName='UnmergedPatientsList' name='UnmergedPatientsList'>
+  <parameter expression='..DateFrom'/>
+  <parameter expression='..DateTo'/>
+  <parameter expression='..Facility'/>
+  <attribute name='ReportTitle' expression='$$$Text("@UnmergedPatientsList@Unmerged Patients List")'/>
+  <attribute name='timestamp' expression='$ZDATETIME($H, 2, 2)'/>
+  <attribute name='username' expression='..Username'/>
+  <attribute name='facility' expression="..GetHospListDesc(..Facility)"/>
+  <attribute name="datefrom" expression="..DisplayDate(..DateFrom)"/>
+  <attribute name="dateto" expression="..DisplayDate(..DateTo)"/>
+   
+   <group name="facility" breakOnField="HOSPDesc">
+   <attribute name="description" field="HOSPDesc" />
+     <aggregate name='UnmergedPatientsList' type='CUSTOM' field='UNMRGRowId' class='%ZEN.Report.Aggregate.CountDistinct'/>
+      <group name='Detail'>
+ 	    <attribute field='UNMRGDate' name='UNMRGDate' expression='..DisplayDate(%val)'/> 
+	    <attribute field='UNMRGTime' name='UNMRGTime'/>   
+        <attribute field='SSUSRInitials' name='SSUSRInitials'/>       
+	    <attribute field='FromPAPMINo' name='FromPAPMINo'/>
+        <attribute fields='FromPAPMIName,FromPAPMIName2,FromPAPMIName3' name='FromPatientName' expression='..DisplayName(%val("FromPAPMIName"),%val("FromPAPMIName2"),%val("FromPAPMIName3"))'/>
+        <attribute field='ToPAPMINo' name='ToPAPMINo'/>
+        <attribute fields='ToPAPMIName,ToPAPMIName2,ToPAPMIName3' name='ToPatientName' expression='..DisplayName(%val("ToPAPMIName"),%val("ToPAPMIName2"),%val("ToPAPMIName3"))'/>
+      </group>
+   </group>
+</report>
+]]></Data>
+</XData>
+
+<XData name="ReportDisplay">
+<XMLNamespace>http://www.intersystems.com/zen/report/display</XMLNamespace>
+<Data><![CDATA[
+<report xmlns='http://www.intersystems.com/zen/report/display'
+xmlns:auxxstyle='http://www.intersystems.com/zen/report/display/auxx/style'
+xmlns:auxx='http://www.intersystems.com/zen/report/display/auxx'
+   name='UnmergedPatientsList'>
+<document width= "#(..ReportWidth)#" height="#(..ReportHeight)#" marginLeft="#(..DocMarginLeft)#" marginRight="#(..DocMarginRight)#" 
+marginTop="#(..DocMarginTop)#" marginBottom="#(..DocMarginBottom)#" footerHeight="#(..DocFooterHeight)#" headerHeight="#(..DocHeaderHeight)#" 
+regionBeforeExtent="#(..DocHeaderHeight)#" regionAfterExtent="#(..DocFooterHeight)#" >
+<auxxstyle:auxxgroupheader/>
+<auxxstyle:auxxgroupsummary/>
+<auxxstyle:auxxhospitalheader/>
+<auxxstyle:auxxpageheader/>
+<auxxstyle:auxxpagefooter/>
+<auxxstyle:auxxparameterheader/>
+<auxxstyle:auxxreporttitle/>
+<auxxstyle:auxxtablecolumn/>
+
+</document>
+<auxx:PageHeader pagetitle='@ReportTitle'/>
+<auxx:ReportFooter username='@username' timestamp='@timestamp'/>
+<body>
+<!-- REPORT HEADER -->
+<auxx:ReportHeader reporttitle='@ReportTitle'/>
+<auxx:ReportParameterHeader label='@Facility:@Facility:' field='@facility' class="auxxparameterheader" xcondition="string-length(@facility)>0"/>
+<auxx:ReportDateHeader datefrom="@datefrom" dateto="@dateto" class="auxxparameterheader"/>
+
+<line pattern="solid" width="100%"/>
+<line pattern="empty" width="100%"></line> 
+<auxx:NoResults xcondition="not(facility)" />
+<group name='facility' pagebreak="true">
+<auxx:GroupHospitalHeader label="@Facility:@Facility:" field="@description" />
+<line pattern="empty" lineHeight="1mm" />
+     <table class='auxxtablecolumn' group='Detail'>
+		<item field='@UNMRGDate' width="9%" caption='@DateofUnmerge@Date of Unmerge'/>
+		<item field='@UNMRGTime' width="7%" caption='@TimeofUnmerge@Time of Unmerge'/>
+        <item field='@SSUSRInitials' width='12%' caption='@Unmergedby@Unmerged by'/>
+		<item field='@FromPAPMINo' width="9%" caption='@UnmergedFromURN@Unmerged From URN'/>
+       	<item value='' width="1%" />
+ 		<item field='@FromPatientName' width="26%" caption='@UnmergedFromPatientName@Unmerged From Patient Name'/>
+		<item field='@ToPAPMINo' width="9%" caption='@UnmergedToURN@Unmerged To URN'/>
+		<item value='' width="1%" />
+        <item field='@ToPatientName' width="26%" caption='@UnmergedToPatientName@Unmerged To Patient Name'/>
+     </table>
+	<line pattern="empty" width="100%"></line> 
+	<auxx:GroupSummary label="@TotalPatientUnmergesfor@Total Patient Unmerges for" group="@description" summaryvalue="UnmergedPatientsList" />
+</group>
+</body>
+</report>
+]]></Data>
+</XData>
+</Class>
+</Export>

@@ -1,0 +1,229 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.AUXX.Report.ZEN.StoredProc.SCTTFamilySocialProfile">
+<Description>
+Report Name: Confidential Referral Coversheet
+Report Code: AUXX.SCTT0001
+TRC Number: 152012</Description>
+<ProcedureBlock>0</ProcedureBlock>
+<Super>Report.Abstract</Super>
+<TimeCreated>62970,48071.923811</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/AUXX/Report/ZEN/StoredProc/SCTTFamilySocialProfile.xml#1 $</Default>
+</Parameter>
+
+<Method name="FSPClose">
+<Description>
+This is the Close component of the %Library.Query.
+This is standard code and should never have to change.
+This is where all the cleanup is performed, i.e. the purging of the temporary storage global ^CacheTemp.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>QHandle:%Library.Binary</FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+	// Clean up by purging the temporary node in ^CacheTemp global
+	New repid
+	Set repid=$LIST(QHandle,2)
+
+	//Start Monitor (if configured to capture stats)
+	i mon Do ..MonitorEnd(mon)
+
+	Kill ^CacheTemp("TRAK",repid)
+
+	Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="FSPExecute">
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,EpisodeID:%Library.String,ReferralID:%Library.String]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+	// Get reportid i.e. use $INCREMENT to add another node to ^CacheTemp("TRAK") global. 
+	// We use ^CacheTemp global because CACHETEMP is a memory resident database
+	New repid,ind
+
+	// Use $Increment to get the next node and clean up
+	Set repid=$Increment(^CacheTemp("TRAK"))
+	
+	//Start Monitor (if configured to capture stats)
+	s mon=..MonitorBegin()
+	
+	
+	s (ClientName,DOB,Sex,UR,qid,Name,Sex,Age,DateOfBirth,Relation,Alert,Address,LivesWith,GroupType,SubGroupType,GroupTypeNo,SubGroupTypeNo)=""
+	s (grpcnt1,grpcnt2,grpcnt3,grpcnt4)=0
+	
+	s adm=EpisodeID
+	
+	i adm,ReferralID {
+		s pat=$p($g(^PAADM(adm)),"^")
+
+		s patobj=##class(User.PAPatMas).%OpenId(pat)
+		i patobj {
+			s ClientName=patobj.PAPMIName_", "_patobj.PAPMIName2
+			s DOB=patobj.PAPMIDOB
+			i DOB s DOB=$zd(DOB,4,,4)
+			s Sex=patobj.PAPMISexDR.CTSEXDesc
+			s UR=patobj.PAPMINo
+			k patobj
+		}
+		
+		s qid=0
+		f {
+			s qid=$o(^questionnaire.QAUXXIRISCRI("IndexPAPatMasID",pat,qid))
+			q:qid=""
+			
+			s qobj=##class(questionnaire.QAUXXIRISCR).%OpenId(qid)
+			i qobj {
+				i qobj.QIRISCR9'=1 {
+					i qobj.QIRISCR7<=+$h,$s(qobj.QIRISCR8="":+$h,1:qobj.QIRISCR8)>=+$h {
+						s Name=qobj.QIRISCR3_" "_qobj.QIRISCR2
+						s Sex=qobj.QIRISCR261
+						i Sex s Sex=$p($g(^CT("SEX",Sex)),"^",1)
+						s Age=qobj.QIRISCR262
+						i Age="",qobj.QIRISCR260'="" s Age=+$h-qobj.QIRISCR260
+						
+						s DateOfBirth=qobj.QIRISCR260
+						i DateOfBirth s DateOfBirth=$zd(DateOfBirth,4,,4)
+						s Relation=qobj.QIRISCR12
+						i Relation s Type=$p($g(^CT("RLT",Relation)),"^",1),Relation=$p($g(^CT("RLT",Relation)),"^",2)
+						s Alert=..GetTextArea(qobj,"IRISCR4")
+						s Address=..GetTextArea(qobj,"IRISCR5")
+						s LivesWith=qobj.QIRISCR267
+						
+						i ",EPOAF,EPOAG,EPOAM,HUSB,MOTHER,FATHR,WIFE,DIL,SIL,GRD,GRANF,GRANM,GDS,ORF,ORM,DAUG,BRO,SIS,SON,"[(","_Type_",") {
+							s GroupType="Family Network"
+							
+							i Age<17 {
+								s grpcnt1=$i(grpcnt1)
+								s SubGroupType="Children, young people",SubGroupTypeNo=1_"."_grpcnt1,GroupTypeNo=1
+							} elseif ",EPOAF,WIFE,EPOAG,EPOAM,HUSB,MOTHER,FATHR,"[(","_Type_",") {
+								s grpcnt2=$i(grpcnt2)
+								s SubGroupType="Adults – parents, guardian, primary carer",SubGroupTypeNo=2_"."_grpcnt2,GroupTypeNo=2
+							} elseif ",DIL,SIL,GRD,GRANF,GRANM,GDS,ORF,ORM,DAUG,BRO,SIS,SON,"[(","_Type_",") {
+								s grpcnt3=$i(grpcnt3)
+								s SubGroupType="Other family – grandparents, extended family members",SubGroupTypeNo=3_"."_grpcnt3,GroupTypeNo=3
+							} else {
+								s grpcnt4=$i(grpcnt4)
+								s GroupType="Significant Others",GroupTypeNo=2
+								s SubGroupType="Friends, mentors, team/club member, teachers",SubGroupTypeNo=4_"."_grpcnt4,GroupTypeNo=4
+							}
+						} else {
+							s grpcnt4=$i(grpcnt4)
+							s GroupType="Significant Others",GroupTypeNo=2
+							s SubGroupType="Friends, mentors, team/club member, teachers",SubGroupTypeNo=4_"."_grpcnt4,GroupTypeNo=4
+						}
+						s ind=$i(ind)
+						s ^CacheTemp("TRAK",repid,GroupTypeNo_" "_SubGroupTypeNo_" "_ind)=$lb(ClientName,DOB,Sex,UR,qid,Name,Sex,Age,DateOfBirth,Relation,Alert,Address,LivesWith,GroupType,SubGroupType,GroupTypeNo,SubGroupTypeNo)
+					}
+				}
+				k qobj
+			}
+		}
+		f x=1:1:8 {
+			i grpcnt1<9 {
+				s grpcnt1=$i(grpcnt1)
+				s GroupType="Family Network",SubGroupType="Children, young people"
+				s GroupTypeNo=1,SubGroupTypeNo=1_"."_grpcnt1
+				s ind=$i(ind)
+				s ^CacheTemp("TRAK",repid,GroupTypeNo_" "_SubGroupTypeNo_" "_ind)=$lb(ClientName,DOB,Sex,UR,qid,Name,Sex,Age,DateOfBirth," ","","","",GroupType,SubGroupType,GroupTypeNo,SubGroupTypeNo)
+			}
+			i grpcnt3<9 {
+				s grpcnt3=$i(grpcnt3)
+				s GroupType="Family Network",SubGroupType="Other family – grandparents, extended family members"
+				s GroupTypeNo=3,SubGroupTypeNo=3_"."_grpcnt3
+				s ind=$i(ind)
+				s ^CacheTemp("TRAK",repid,GroupTypeNo_" "_SubGroupTypeNo_" "_ind)=$lb(ClientName,DOB,Sex,UR,qid,Name,Sex,Age,DateOfBirth," ","","","",GroupType,SubGroupType,GroupTypeNo,SubGroupTypeNo)
+			}
+		}
+		f x=1:1:7 {
+			i grpcnt2<8 {
+				s grpcnt2=$i(grpcnt2)
+				s GroupType="Family Network",SubGroupType="Adults – parents, guardian, primary carer"
+				s GroupTypeNo=2,SubGroupTypeNo=2_"."_grpcnt2
+				s ind=$i(ind)
+				s ^CacheTemp("TRAK",repid,GroupTypeNo_" "_SubGroupTypeNo_" "_ind)=$lb(ClientName,DOB,Sex,UR,qid,Name,Sex,Age,DateOfBirth," ","","","",GroupType,SubGroupType,GroupTypeNo,SubGroupTypeNo)
+			}
+			i grpcnt4<8 {
+				s grpcnt4=$i(grpcnt4)
+				s GroupType="Significant Others",SubGroupType="Friends, mentors, team/club member, teachers"
+				s GroupTypeNo=4,SubGroupTypeNo=4_"."_grpcnt4
+				s ind=$i(ind)
+				s ^CacheTemp("TRAK",repid,GroupTypeNo_" "_SubGroupTypeNo_" "_ind)=$lb(ClientName,DOB,Sex,UR,qid,Name,Sex,Age,DateOfBirth," ","","","",GroupType,SubGroupType,GroupTypeNo,SubGroupTypeNo)
+			}
+		}
+	}
+			
+
+	// Build QHandle (AtEnd,ReportID,Index)
+	Set QHandle=$LISTBUILD(0,repid,0)
+	Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="FSPFetch">
+<Description>
+This is the Fetch component of the %Library.Query. 
+This should never have to change. It is designed to fetch the row for each subscript of the 
+^CacheTemp("TRAK" global and return this row to the Report writer</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,&Row:%Library.List,&AtEnd:%Library.Integer=0]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+	// This fetch method should never have to change. 
+	// repid - Report ID
+	// ind   - sequence index which represents each row
+	New repid,ind
+
+	// Restore QHandle
+	Set AtEnd=$LI(QHandle,1)
+	Set repid=$LI(QHandle,2)
+	Set ind=$LI(QHandle,3)
+
+	Set ind=$order(^CacheTemp("TRAK",repid,ind))
+	If ind="" {	// if there are no more rows, finish fetching
+		Set AtEnd=1
+		Set Row=""
+	} else {	// fetch row
+		Set Row=^CacheTemp("TRAK",repid,ind)
+	}
+
+	// Save QHandle
+	Set QHandle=$lb(AtEnd,repid,ind)
+	Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Query name="FSP">
+<Description>
+This is the Stored Procedure Template. For Sample use only.
+It expects one parameter of type integer and will return 4 fields:
+Field1 - Integer
+Field2 - String
+Field3 - Date
+Field4 - Time</Description>
+<Type>%Library.Query</Type>
+<FormalSpec>EpisodeID:%Library.String,ReferralID:%Library.String</FormalSpec>
+<SqlProc>1</SqlProc>
+<Parameter name="CONTAINID" value="0"/>
+<Parameter name="ROWSPEC" value="ClientName:%String,DOB:%String,Sex:%String,UR:%String,qid:%String,Name:%String,Sex:%String,Age:%String,DateOfBirth:%String,Relation:%String,Alert:%String,Address:%String,LivesWith:%String,GroupType:%String,SubGroupType:%String,GroupTypeNo:%String,SubGroupTypeNo:%String"/>
+</Query>
+
+<Method name="GetTextArea">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>obj:%CacheObject,num:%String</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	s text=""
+	f z=1:1:$METHOD($PROPERTY(obj,"Q"_num),"Count") {
+		i text'="" s text=text_$c(13,10)_$METHOD($PROPERTY(obj,"Q"_num),"GetAt",z)
+		i text="" s text=$METHOD($PROPERTY(obj,"Q"_num),"GetAt",z)
+	}
+	q text
+]]></Implementation>
+</Method>
+</Class>
+</Export>

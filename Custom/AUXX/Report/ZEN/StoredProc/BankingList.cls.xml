@@ -1,0 +1,325 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.AUXX.Report.ZEN.StoredProc.BankingList">
+<ProcedureBlock>0</ProcedureBlock>
+<Super>Report.Abstract</Super>
+<TimeCreated>59388,55236.125</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/AUXX/Report/ZEN/StoredProc/BankingList.xml#1 $</Default>
+</Parameter>
+
+<UDLText name="T">
+<Content><![CDATA[
+// Report Name: Trak Banking List <br>
+
+]]></Content>
+</UDLText>
+
+<UDLText name="T">
+<Content><![CDATA[
+// Report Code: AUXX.FIN0002 <br>
+
+]]></Content>
+</UDLText>
+
+<UDLText name="T">
+<Content><![CDATA[
+// LOGTRAK Number: 72207 <br>
+
+]]></Content>
+</UDLText>
+
+<Method name="BankingListClose">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>QHandle:%Library.Binary</FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Clean up by purging the temporary node in ^CacheTemp global
+ New repid
+ Set repid=$LIST(QHandle,2)
+ 
+ //Start Monitor (if configured to capture stats)
+ i mon Do ..MonitorEnd(mon)
+ Kill ^CacheTemp("TRAK",repid)
+ 
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="BankingListExecute">
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,Hospital:%String,Location:%String,Cashier:%String,InclInBankRun:%String]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ 	// Get reportid i.e. use $INCREMENT to add another node to ^CacheTemp global. 
+ 	// We use ^CacheTemp global because it will always use memory before disk
+ 	New repid,ind,END
+
+ 	// Use $Increment to get the next node
+ 	Set repid=$I(^CacheTemp("TRAK"))
+ 	
+ 	//Start Monitor (if configured to capture stats)
+ 	s mon=..MonitorBegin()
+ 	
+ 	new ARRCPNumber,PAYMParRef,PAYMDrawer,PAPMIName,PAPMIName2,PAPMIName3,CTPMRowId,CTPMCode,CTPMDesc,CTPMGrpCode
+ 	new CMCBMRowId,CMCBMCode,CMCBMDesc,PAYMBranch,PAYMCardChequeNo,PAYMAmt,ARRCPRowId,BankBranch,ReceiptSort
+ 	new CTLOCRowId,CTLOCCode,CTLOCDesc,HOSPRowId,HOSPCode,HOSPDesc,ARRCPCancelComments,ARRCPAddUserID
+ 	new PAADMADMNo,PAPMINo
+ 	
+ 	set (ARRCPNumber,PAYMDrawer,PAPMIName,PAPMIName2,PAPMIName3,CTPMCode,CTPMDesc,CTPMGrpCode)="" 	
+ 	set (CMCBMCode,CMCBMDesc,PAYMBranch,PAYMCardChequeNo,BankBranch,ReceiptSort)=""
+ 	set (CTLOCCode,CTLOCDesc,HOSPCode,HOSPDesc,ARRCPCancelComments,ARRCPAddUserID)=""
+ 	set (PAYMAmt,PAYMParRef,CTPMRowId,CMCBMRowId,CTLOCRowId,HOSPRowId,ARRCPRowId)=0
+ 	set (PAADMADMNo,PAPMINo)=""
+ 	
+ 	new CashAmt,CreditAmt,ChequeAmt,DepositAmt,EftPosAmt,GroupFlag,SubTot1,SubTot2
+ 	set (CashAmt,CreditAmt,ChequeAmt,DepositAmt,EftPosAmt,GroupFlag,SubTot1,SubTot2)=0
+ 	
+ 	new ARRCPInvalidFlag,ARRCPIncludedInBankRun,PAYMInvalidFlag
+ 	set (ARRCPInvalidFlag,ARRCPIncludedInBankRun,PAYMInvalidFlag)=""
+ 
+ 	new SectionDesc,SectionCode,CashierCode
+ 	set (SectionDesc,SectionCode,CashierCode)=""
+ 	
+ 	set ind=1
+ 	set END=0 
+ 	
+ 	if $g(Hospital)'="" s Hospital=$zstrip(Hospital,"*CW")
+	if $g(Location)'="" s Location=$zstrip(Location,"*CW")
+	if $g(Cashier)'="" s Cashier=$zstrip(Cashier,"*CW")
+
+ 	&sql(declare BankingList cursor for
+ 	SELECT
+ 		ARRCP_RowId,
+        ARRCP_Number,
+        PAYM_ParRef,
+        PAYM_Drawer,
+        CASE WHEN ARRCP_PAPMI_DR->PAPMI_Name IS NOT NULL THEN ARRCP_PAPMI_DR->PAPMI_Name ELSE ARRAL_ADMISSION_dR->PAADM_PAPMI_dR->PAPMI_Name end,
+        CASE WHEN ARRCP_PAPMI_DR->PAPMI_Name2 IS NOT NULL THEN ARRCP_PAPMI_DR->PAPMI_Name2 ELSE ARRAL_ADMISSION_dR->PAADM_PAPMI_dR->PAPMI_Name2 end,
+        CASE WHEN ARRCP_PAPMI_DR->PAPMI_Name3 IS NOT NULL THEN ARRCP_PAPMI_DR->PAPMI_Name3 ELSE ARRAL_ADMISSION_dR->PAADM_PAPMI_dR->PAPMI_Name3 end,
+        PAYM_PayMode_DR->CTPM_RowId,
+        PAYM_PayMode_DR->CTPM_Code,
+        PAYM_PayMode_DR->CTPM_Desc,
+        PAYM_PayMode_DR->CTPM_GrpCode,
+        PAYM_CMBank_DR->CMCBM_RowId,
+        PAYM_CMBank_DR->CMCBM_Code,
+        PAYM_CMBank_DR->CMCBM_Desc,
+        PAYM_Branch,
+        PAYM_CardChequeNo,
+        PAYM_Amt,
+        ARRCP_Location_DR->CTLOC_RowId,
+        ARRCP_Location_DR->CTLOC_Code,
+        ARRCP_Location_DR->CTLOC_Desc,
+        ARRCP_Location_DR->CTLOC_Hospital_DR->HOSP_RowId,
+        ARRCP_Location_DR->CTLOC_Hospital_DR->HOSP_Code,
+        ARRCP_Location_DR->CTLOC_Hospital_DR->HOSP_Desc,
+        ARRCP_CancelComments,
+        ARRCP_AddUserID,
+        ARRCP_InvalidFlag,
+        ARRCP_IncludedInBankRun,
+        PAYM_InvalidFlag,
+        ARRCP_AddUserID->SSUSR_Initials,
+        ARRAL_ADMISSION_DR->PAADM_AdmNo,        
+        CASE WHEN ARRCP_PAPMI_DR->PAPMI_No IS NOT NULL THEN ARRCP_PAPMI_DR->PAPMI_NO ELSE ARRAL_ADMISSION_dR->PAADM_PAPMI_dR->PAPMI_No end,
+        ARRAL_ADMISSION_DR->PAADM_Type
+    FROM SQLUser.AR_Receipts, SQLUser.AR_RcptPayMode,SQLUser.AR_RcptAlloc
+    WHERE ARRCP_RowId=PAYM_ParRef    
+    AND ARRCP_RowId=ARRAL_ARRCP_ParRef
+    and PAYM_Amt<>0    
+    AND (({fn CONCAT( ',', {fn CONCAT((:Hospital),',')})} [ {fn CONCAT( ',', {fn CONCAT((ARRCP_Location_DR->CTLOC_Hospital_DR->HOSP_RowId),',')})}) OR (:Hospital IS NULL))
+    AND (({fn CONCAT( ',', {fn CONCAT((:Location),',')})} [ {fn CONCAT( ',', {fn CONCAT((ARRCP_Location_DR->CTLOC_RowId),',')})}) OR (:Location IS NULL))
+    AND (({fn CONCAT( ',', {fn CONCAT((:Cashier),',')})} [ {fn CONCAT( ',', {fn CONCAT((ARRCP_AddUserID->SSUSR_RowId),',')})}) OR (:Cashier IS NULL))
+    GROUP BY ARRCP_Hospital_DR->HOSP_Desc,ARRCP_Number,PAYM_Rowid)
+        
+ 	&sql(open BankingList)
+
+ 	//fetch first row
+ 	d Fetch
+ 	while 'END{
+	 	
+	 	I (PAYMInvalidFlag'="Y") && (ARRCPInvalidFlag'="Y") && (ARRCPIncludedInBankRun'="Y") {
+		 	set GroupFlag = 0
+		 	if PAYMAmt = "" set PAYMAmt = 0	
+			if CTPMGrpCode="CH" {Set CashAmt=PAYMAmt}
+			elseif CTPMGrpCode="CC" {Set CreditAmt=PAYMAmt}
+			elseif CTPMGrpCode="CQ" {Set ChequeAmt=PAYMAmt}
+			elseif CTPMGrpCode="DP" {
+				Set DepositAmt = PAYMAmt 
+				Set GroupFlag = 1
+			}
+			else {set PAYMAmt = 0}
+			Set SubTot1=(CashAmt+ChequeAmt+CreditAmt)
+			Set SubTot2=DepositAmt
+ 			
+ 			if GroupFlag = 0 {
+	 			set SectionCode = "1"
+	 			set SectionDesc = "1: Cashier Receipts"
+ 			}
+ 			else {
+	 			set SectionCode = "2"
+	 			set SectionDesc = "2: Direct Deposits"
+ 			}
+ 			set BankBranch = ""
+ 			if CMCBMCode '= "" set BankBranch = CMCBMDesc
+ 			if PAYMBranch '= "" {
+	 			if BankBranch = "" {
+		 			set BankBranch = PAYMBranch
+	 			} else {
+		 			set BankBranch = BankBranch_"/ "_PAYMBranch
+	 			}			
+ 			}
+ 			
+ 			If PAADMADMNo = "" {
+	 			If PAPMINo '= "" {set PAADMADMNoURN = PAPMINo}
+ 			}
+	 			Else {s PAADMADMNoURN = PAADMADMNo}
+ 			
+ 			if PAYMAmt'=0{
+	 			do SortAlign	 			 
+ 				set ^CacheTemp("TRAK",repid,$ZCVT(HOSPDesc,"U")_" "_$ZCVT(SectionDesc,"U")_" "_$ZCVT(ReceiptSort,"U")_" "_ind)=$LB(ARRCPNumber,PAYMParRef,PAYMDrawer,PAYMInvalidFlag,PAPMIName,PAPMIName2,PAPMIName3,CTPMRowId,CTPMCode,CTPMDesc,CTPMGrpCode,CMCBMRowId,CMCBMCode,CMCBMDesc,PAYMBranch,PAYMCardChequeNo,PAYMAmt,CTLOCRowId,CTLOCCode,CTLOCDesc,HOSPRowId,HOSPCode,HOSPDesc,ARRCPCancelComments,CashAmt,CreditAmt,ChequeAmt,DepositAmt,EftPosAmt,GroupFlag,ARRCPAddUserID,SectionDesc,SectionCode,CashierCode,SubTot1,SubTot2,BankBranch,ReceiptSort,PAADMADMNo,PAPMINo,ARRALPAADMType,PAADMADMNoURN)
+ 				set ind=ind+1
+ 			}
+ 			
+ 			if InclInBankRun="Y" D MarkAsIncluded
+ 		
+ 			S (CashAmt,CreditAmt,ChequeAmt,DepositAmt,EftPosAmt,GroupFlag,SubTot1,SubTot2)=0
+	 	}
+ 
+ 		//fetch rows
+ 		d Fetch
+ 	}
+
+ 	&sql(close BankingList)
+
+ 	// Build QHandle (AtEnd,ReportID,Index)
+ 	Set QHandle=$lb(0,repid,0)
+
+ 	Quit $$$OK
+
+Fetch     
+ 	&sql(fetch BankingList into :ARRCPRowId,:ARRCPNumber,:PAYMParRef,:PAYMDrawer,:PAPMIName,:PAPMIName2,:PAPMIName3,:CTPMRowId,:CTPMCode,:CTPMDesc,:CTPMGrpCode,:CMCBMRowId,:CMCBMCode,:CMCBMDesc,:PAYMBranch,:PAYMCardChequeNo,:PAYMAmt,:CTLOCRowId,:CTLOCCode,:CTLOCDesc,:HOSPRowId,:HOSPCode,:HOSPDesc,:ARRCPCancelComments,:ARRCPAddUserID,:ARRCPInvalidFlag,:ARRCPIncludedInBankRun,:PAYMInvalidFlag,:CashierCode,:PAADMADMNo,:PAPMINo,:ARRALPAADMType)
+ 	i SQLCODE {
+	 	s END=1
+ 	}
+ 	q
+ 	
+SortAlign
+	set ReceiptSort = ARRCPNumber
+	if (($ISVALIDNUM(ReceiptSort) = 1) || (ReceiptSort = "")) {
+		set ReceiptSort = $Justify(ReceiptSort,20)
+	}
+ 	q
+ 	
+MarkAsIncluded
+	&sql(UPDATE SQLUser.AR_Receipts
+		SET ARRCP_IncludedInBankRun='Y'
+		WHERE ARRCP_RowId=:ARRCPRowId )
+	q
+
+ListOfPaymentCodes
+	New x
+	Set x=0 for  Set ward=$Order(^CT("CTPM",x)) Quit:x=""  Do
+	.Set PayCode=$Piece($Get(^CT("CTPM",x)),"^",1)
+	.If PayCode'="" Set ^CacheTemp("TRAK",repid,"PayCode",PayCode)=""
+	Quit
+]]></Implementation>
+</Method>
+
+<Method name="BankingListFetch">
+<Description>
+This is the Fetch component of the %Library.Query. 
+This should never have to change. It is designed to fetch the row for each subscript of the ^CacheTemp
+global and return this row to the Crystal Report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,&Row:%Library.List,&AtEnd:%Library.Integer=0]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // This fetch method should never have to change. 
+
+ // repid - Report ID
+ // ind   - sequence index which represents each row
+
+ New repid,ind
+
+ // Restore QHandle
+ Set AtEnd=$LI(QHandle,1)
+ Set repid=$LI(QHandle,2)
+ Set ind=$LI(QHandle,3)
+
+ Set ind=$order(^CacheTemp("TRAK",repid,ind))
+ If ind="" {	// if there are no more rows, finish fetching
+ 	Set AtEnd=1
+ 	Set Row=""
+ }  Else  {	// fetch row
+ 	Set Row=^CacheTemp("TRAK",repid,ind)
+ }
+
+ // Save QHandle
+ Set QHandle=$lb(AtEnd,repid,ind)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Query name="BankingList">
+<Type>%Library.Query</Type>
+<FormalSpec>Hospital:%String,Location:%String,Cashier:%String,InclInBankRun:%String</FormalSpec>
+<SqlProc>1</SqlProc>
+<Parameter name="CONTAINID" value="0"/>
+<Parameter name="ROWSPEC" value="ARRCPNumber:%String(MAXLEN=225),PAYMParRef:%Integer,PAYMDrawer:%String(MAXLEN=225),PAYMInvalidFlag:%String(MAXLEN=255),PAPMIName:%String(MAXLEN=225),PAPMIName2:%String(MAXLEN=225),PAPMIName3:%String(MAXLEN=225),CTPMRowId:%Integer,CTPMCode:%String(MAXLEN=225),CTPMDesc:%String(MAXLEN=225),CTPMGrpCode:%String(MAXLEN=255),CMCBMRowId:%Integer,CMCBMCode:%String(MAXLEN=225),CMCBMDesc:%String(MAXLEN=225),PAYMBranch:%String(MAXLEN=225),PAYMCardChequeNo:%String(MAXLEN=225),PAYMAmt:%Float,CTLOCRowId:%Integer,CTLOCCode:%String(MAXLEN=225),CTLOCDesc:%String(MAXLEN=225),HOSPRowId:%Integer,HOSPCode:%String(MAXLEN=225),HOSPDesc:%String(MAXLEN=225),ARRCPCancelComments:%String(MAXLEN=225),CashAmt:%Float,CreditAmt:%Float,ChequeAmt:%Float,DepositAmt:%Float,EftPosAmt:%Float,GroupFlag:%Integer,ARRCPAddUserID:%Integer,SectionDesc:%String(MAXLEN=225),SectionCode:%String(MAXLEN=225),CashierCode:%String(MAXLEN=225),SubTot1:%Float,SubTot2:%Float,BankBranch:%String,ReceiptSort:%String,PAADMADMNo:%String,PAPMINo:%String,ARRALPAADMType:%String,PAADMADMNoURN:%String"/>
+</Query>
+
+<Method name="GetPrevDateTo">
+<ClassMethod>1</ClassMethod>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	
+	n PrePrintDateTo
+	n HOSPID
+	
+	s PrePrintDateTo=""
+
+	s HOSPID=$g(%session.Data("LOGON.HOSPID"))
+	
+	&sql(select print.p5 
+		into :PrePrintDateTo
+		from websys.printhistory print,websys.report report
+        where print.reportdr=report.id
+        and report.code='BankingList'
+		and print.p1=:HOSPID
+        order by print.ID desc)
+        
+     i SQLCODE s PrePrintDateTo=""
+     
+     q PrePrintDateTo
+]]></Implementation>
+</Method>
+
+<Method name="GetPrevDateFrom">
+<ClassMethod>1</ClassMethod>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	n PrePrintDateFrom,today
+	n HOSPID
+	
+	s PrePrintDateFrom=""
+
+	s HOSPID=$g(%session.Data("LOGON.HOSPID"))
+	
+	&sql(select print.p4 
+		into :PrePrintDateFrom
+		from websys.printhistory print,websys.report report
+        where print.reportdr=report.id
+        and report.code='BankingList'
+		and print.p1=:HOSPID
+        order by print.ID desc)
+        
+     i SQLCODE s PrePrintDateFrom=""   
+     
+     q PrePrintDateFrom
+]]></Implementation>
+</Method>
+</Class>
+</Export>

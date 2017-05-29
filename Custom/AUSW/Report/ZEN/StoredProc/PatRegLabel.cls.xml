@@ -1,0 +1,171 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.AUSW.Report.ZEN.StoredProc.PatRegLabel">
+<ProcedureBlock>0</ProcedureBlock>
+<Super>Report.Abstract</Super>
+<TimeCreated>59388,55236.125</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/AUSW/Report/ZEN/StoredProc/PatRegLabel.xml#1 $</Default>
+</Parameter>
+
+<Method name="PatLabelsClose">
+<Description>
+********************************************************************
+* Trak.AUSW001 Trak SWARH Patient Label Sheet    
+*
+* Initial release: 01/06/2012
+* 
+* Logtrak Number: 104203
+********************************************************************</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>QHandle:%Library.Binary</FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Clean up by purging the temporary node in ^CacheTemp global
+ New repid
+ Set repid=$LIST(QHandle,2)
+ 
+ //Start Monitor (if configured to capture stats)
+ i mon Do ..MonitorEnd(mon)
+
+ Kill ^CacheTemp("TRAK",repid)
+ 
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="PatLabelsExecute">
+<Description>
+This is the Execute section for the %Library.Query. 
+All of the logic will be performed here.
+A new node for the ^CacheTemp global will be created and each subscript of this global will contain
+a row for the report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,PatientID:%String]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Get reportid i.e. use $INCREMENT to add another node to ^CacheTemp global. 
+ // We use ^CacheTemp global because it will always use memory before disk
+ New repid,ind
+
+ // Use $Increment to get the next node
+ Set repid=$Increment(^CacheTemp("TRAK"))
+ 
+ //Start Monitor (if configured to capture stats)
+ s mon=..MonitorBegin()
+  
+ // Build data into ^CacheTemp("TRAK",ReportID)
+ // e.g. Set ^CacheTemp("TRAK",ReportID,Index)=$LB(f1,f2,f3)
+ New Number,String,Date,Time,c,n,URNDetails,VertCount,VertLabels
+ New PAPMIMedicareExpDate,PAPERStName,PAPERForeignAddress,CTCITDesc,CTZIPCode,PAPERTelH,PAPMIName,PAPMIName2,PAPMIName3,CTSEXCode,PAPERAgeYr,PAPMIDOB,PAPERMobPhone,PAPMIRowId,PAPMIVIPFlag,PAPERTelO,PAPMIMedicare,PAPMIMedicareCode,PAPMINo,BarCodeData,CurrentDate
+ Set (PAPMIRowId)=0
+ Set (PAPMIMedicareExpDate,PAPERStName,PAPERForeignAddress,CTCITDesc,CTZIPCode,PAPERTelH,PAPMIName,PAPMIName2,PAPMIName3,CTSEXCode,PAPERAgeYr,PAPMIDOB,PAPERMobPhone,PAPMIVIPFlag,PAPERTelO,PAPMIMedicare,PAPMIMedicareCode,PAPMINo,BarCodeData,CurrentDate)=""
+
+ Set ind=1
+ Set VertCount=0
+ Set VertLabels=8 ; Print 12 labels on an A4 sheet
+
+
+ &SQL(DECLARE PatientLabel CURSOR FOR
+ SELECT 
+ PAPMI_MedicareExpDate,
+ PAPMI_PAPER_DR->PAPER_StName,
+ PAPMI_PAPER_DR->PAPER_ForeignAddress,
+ PAPMI_PAPER_DR->PAPER_CityCode_DR->CTCIT_Desc,
+ PAPMI_PAPER_DR->PAPER_Zip_DR->CTZIP_Code,
+ PAPMI_PAPER_DR->PAPER_TelH,
+ PAPMI_Name,
+ PAPMI_Name2,
+ PAPMI_Name3,
+ PAPMI_PAPER_DR->PAPER_Sex_DR->CTSEX_Code,
+ PAPMI_PAPER_DR->PAPER_AgeYr,
+ PAPMI_DOB,
+ PAPMI_PAPER_DR->PAPER_MobPhone,
+ PAPMI_RowId,
+ PAPMI_VIPFlag,
+ PAPMI_PAPER_DR->PAPER_TelO,
+ PAPMI_Medicare,
+ PAPMI_MedicareCode,
+ PAPMI_No
+ INTO :PAPMIMedicareExpDate,:PAPERStName,:PAPERForeignAddress,:CTCITDesc,:CTZIPCode,:PAPERTelH,:PAPMIName,:PAPMIName2,:PAPMIName3,:CTSEXCode,:PAPERAgeYr,:PAPMIDOB,:PAPERMobPhone,:PAPMIRowId,:PAPMIVIPFlag,:PAPERTelO,:PAPMIMedicare,:PAPMIMedicareCode,:PAPMINo
+ FROM SQLUser.PA_PatMas
+ WHERE PAPMI_RowId=:PatientID)
+ 
+ &SQL(OPEN PatientLabel)
+ 
+ f  &SQL(FETCH PatientLabel) q:SQLCODE'=0  d
+ . set BarCodeData = "*"_PAPMINo_"*"
+ . do ProcessData
+ 
+ &SQL(CLOSE PatientLabel)
+   
+ // Build QHandle (AtEnd,ReportID,Index)
+ Set QHandle=$LISTBUILD(0,repid,0)
+ Quit $$$OK
+  
+ProcessData
+ set PAPMIDOB=..ConvertDateToODBC(PAPMIDOB)
+ set PAPMIMedicareExpDate=..ConvertDateToODBC(PAPMIMedicareExpDate)
+ set PAPERStName=$zstrip(PAPERStName,"*C")
+ set PAPERForeignAddress=$zstrip(PAPERForeignAddress,"*C")
+ set CurrentDate=$H
+ set CurrentDate=..ConvertDateToODBC(CurrentDate)
+ set VertCount = 0
+ while VertCount < VertLabels {
+	 do BuildRow
+	 set VertCount = VertCount + 1
+ }
+ quit
+  
+BuildRow
+ s ^CacheTemp("TRAK",repid,ind)=$LB(PAPMIMedicareExpDate,$ZCVT(PAPERStName,"U"),PAPERForeignAddress,CTCITDesc,CTZIPCode,PAPERTelH,$ZCVT(PAPMIName,"U"),PAPMIName2,PAPMIName3,CTSEXCode,PAPERAgeYr,PAPMIDOB,PAPERMobPhone,PAPMIRowId,PAPMIVIPFlag,PAPERTelO,PAPMIMedicare,PAPMIMedicareCode,PAPMINo,BarCodeData,CurrentDate)
+ s ind=$i(ind)
+ quit
+]]></Implementation>
+</Method>
+
+<Method name="PatLabelsFetch">
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,&Row:%Library.List,&AtEnd:%Library.Integer=0]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // This fetch method should never have to change. 
+
+ // repid - Report ID
+ // ind   - sequence index which represents each row
+
+ New repid,ind
+
+ // Restore QHandle
+ Set AtEnd=$LI(QHandle,1)
+ Set repid=$LI(QHandle,2)
+ Set ind=$LI(QHandle,3)
+
+ Set ind=$order(^CacheTemp("TRAK",repid,ind))
+ If ind="" {	// if there are no more rows, finish fetching
+ 	Set AtEnd=1
+ 	Set Row=""
+ }  Else  {	// fetch row
+ 	Set Row=^CacheTemp("TRAK",repid,ind)
+ }
+
+ // Save QHandle
+ Set QHandle=$lb(AtEnd,repid,ind)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Query name="PatLabels">
+<Description>
+Patient Labels Sheet</Description>
+<Type>%Library.Query</Type>
+<FormalSpec>PatientID:%String</FormalSpec>
+<SqlProc>1</SqlProc>
+<Parameter name="CONTAINID" value="0"/>
+<Parameter name="ROWSPEC" value="PAPMIMedicareExpDate:%Date,PAPERStName:%String(MAXLEN=255),PAPERForeignAddress:%String(MAXLEN=255),CTCITDesc:%String(MAXLEN=255),CTZIPCode:%String(MAXLEN=255),PAPERTelH:%String(MAXLEN=255),PAPMIName:%String(MAXLEN=255),PAPMIName2:%String(MAXLEN=255),PAPMIName3:%String(MAXLEN=255),CTSEXCode:%String(MAXLEN=255),PAPERAgeYr:%String(MAXLEN=255),PAPMIDOB:%Date,PAPERMobPhone:%String(MAXLEN=255),PAPMIRowId:%Integer,PAPMIVIPFlag:%String(MAXLEN=255),PAPERTelO:%String(MAXLEN=255),PAPMIMedicare:%String(MAXLEN=255),PAPMIMedicareCode:%String(MAXLEN=255),PAPMINo:%String(MAXLEN=255),BarCodeData:%String(MAXLEN=255),CurrentDate:%Date"/>
+</Query>
+</Class>
+</Export>

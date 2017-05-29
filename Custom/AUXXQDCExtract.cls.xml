@@ -1,0 +1,1883 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.AUXXQDCExtract">
+<Description><![CDATA[
+Version 6.8
+TRC22003	8/05/2008
+TRC23657	26/6/08 (Extract Summaries)
+TRC23657	08/07/2008
+TRC23657	14/07/2008
+TRC25318	20/08/2008
+TRC26527	01/12/2008
+TRC34531	14/07/2009
+TRC37541	26/10/2009
+TRC42421	04/03/2010 T69 change search for (T68->T69 Edit) to find
+TRCXXXXX	26/10/2010 New PDRSS Plan Codes
+WRC742393	05/01/2011 Updated for 2010
+TRC70568	03/05/2011
+TRC75229 	24/06/2011 Updated queries
+TRC78269	24/08/2011 Correct summary counts
+TRC84181	15/09/2011 Made correction to Element7 section, error in code filtering the datefrom/dateto
+TRC84181	16/09/2011 Fixed XML error
+TRC111964	26/06/2012	- Created from Custom.VICQDCExtract ver 4.15 and update for AUXX foundation to AUXXQDCExtract ver 6.0
+IND922		19/10/2012	service hours element should only be reported against service user outlet element with the same STO number
+TRC??		11/09/2012	- adjustments post DHS testing
+FD 20/09/2012 - incident 574 - Error in STO Number
+			20/12/2012	- Confirm as Version released for DHS R2 add version and history version 6.2, linked extract specification version 6.2
+IF			21/04/2013	- Fixed <<INVALID OREF>zElement5+10^Custom.AUXXQDCExtract.1
+IF			18/06/2013 - I5602 - I79 method to allow by order execute date for contacts prior to data migration
+IF			07/10/2013 - TRC159900 - Edition changes
+IF			08/10/2013 - I8489 - Added running check so only 1 extract can be running at a time
+IF			13/11/2013 - Updated mappings
+FD			19/02/2014 - I11989 - Error in retrieving the executed date in I79 
+FD			24/02/2014 - I11034 - Send SLK all the time - rule 999999999<birthyear><sexcode> absolete
+FD			26/02/2014 - I11989 - Report all contacts in element 6 where STO number is included in the QDC extract element 2 for the quarter
+IF			08/04/2014 - I14098 - Resolve duplicate records from reporting.  Updated dhs_activity_sub_type_codeno to report the plan group 1 from the contact
+IF			23/04/2014 - I14393 - Resolve count of clients by STO
+IF			16/07/2014 - TRC177427 - Updated to allow for new payor/plans
+IF			27/07/2014 - Resolved "<PROPERTY DOES NOT EXIST>zElement5+119^Region.AUXX.Reports.Extract.QDC.1 *IPPREVIEW,questionnaire.QAUXXQDC"
+]]></Description>
+<ClassType/>
+<ProcedureBlock>0</ProcedureBlock>
+<Super>%Library.RegisteredObject,Report.Abstract</Super>
+<TimeCreated>60511,74809.244698</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/AUXXQDCExtract.xml#1 $</Default>
+</Parameter>
+
+<Method name="CheckRunning">
+<Description>
+When Print method is called the running flag is set
+Check if extract is running so we don't execute again
+Called from webcommon.Report.Custom_VINAH.js</Description>
+<ClassMethod>1</ClassMethod>
+<ReturnType>%Integer</ReturnType>
+<Implementation><![CDATA[
+	s run=$g(^zCacheTemp("AUXX.QDCExtract","RUNNING"))
+	i $g(run)="" s run=0
+	q run
+]]></Implementation>
+</Method>
+
+<Method name="Print">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>Quarter:%String,Year:%String,Agency:%String,Site:%String</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	i '..CheckRunning() {
+		s $ZTRAP="ProcessError"
+		s rs=##class(%ResultSet).%New("Custom.AUXXQDCExtract:QDCExtract")
+		i rs {
+			try {
+				s ^zCacheTemp("AUXX.QDCExtract","RUNNING")=1
+				d rs.Prepare()
+				s sc=rs.Execute(Quarter,Year,Agency,Site)
+			} catch {
+				d ProcessError
+			}
+			d rs.Close()
+		}
+		s ^zCacheTemp("AUXX.QDCExtract","RUNNING")=0
+	}
+	q 1
+
+ProcessError
+ s error=$ZERROR
+ s reportdr=##class(websys.Report).GetIdFromCodeOrDescription("AUXX.QDCExtract")
+ s rhid=$o(^websys.PrintHistoryI("ReportDRP1Index",reportdr," "_Quarter,""),-1)
+ i $g(rhid)'="" d
+ . s obj=##class(websys.PrintHistory).%OpenId(rhid)
+ . i obj d
+ . . ; If parameters match then update print history with error
+ . . i obj.P1=Quarter,obj.P2=Year,obj.P3=Agency,obj.P4=Site d
+ . . . s obj.ErrorDescription=$g(error)
+ . . . s obj.Status="E"
+ . . . d obj.%Save(0)
+ . . d obj.%Close()
+ q
+]]></Implementation>
+</Method>
+
+<Method name="GetMappedCode">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>TableName:%Library.String,FieldName:%Library.String,ReportType:%Library.String,ActualValue:%Library.String</FormalSpec>
+<ReturnType>%Library.String</ReturnType>
+<Implementation><![CDATA[
+	n MappedValue
+	s MappedValue=""
+	s ReportType=$o(^PAC("REPTYPE",0,"Code",##class(%Collation).AlphaUp(ReportType),""))
+	
+	q:TableName="" ActualValue
+	q:FieldName="" ActualValue
+	s TableName=##class(%Collation).AlphaUp(TableName)
+	s FieldName=##class(%Collation).AlphaUp(FieldName)
+	
+	i $g(ReportType)'="" d
+	. s nat=0 f  s nat=$o(^PAC("NATC",0,"Table",TableName,FieldName,ReportType,nat)) q:nat=""  d
+	. . q:$p($g(^PAC("NATC",nat)),"^",2)'=""
+	. . i $p($g(^PAC("NATC",nat)),"^",8)=$g(ActualValue) s MappedValue=$p($g(^PAC("NATC",nat)),"^",9)
+	i $g(MappedValue)="" d
+	. s ReportType=$o(^PAC("REPTYPE",0,"Code",##class(%Collation).AlphaUp("CCDS"),""))
+	. i $g(ReportType)'="" d
+	. . s nat=0 f  s nat=$o(^PAC("NATC",0,"Table",TableName,FieldName,ReportType,nat)) q:nat=""  d
+	. . . q:$p($g(^PAC("NATC",nat)),"^",2)'=""
+	. . . i $p($g(^PAC("NATC",nat)),"^",8)=$g(ActualValue) s MappedValue=$p($g(^PAC("NATC",nat)),"^",9)
+	
+	i $g(MappedValue)="" s MappedValue=ActualValue
+	q MappedValue
+]]></Implementation>
+</Method>
+
+<Method name="GetIdFromCode">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>var:%String</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	s agencycodeno=""
+	s gov=0 f  s gov=$o(^CT("GOVCAT",gov)) q:gov=""  d
+	. s sub=0 f  s sub=$o(^CT("GOVCAT",gov,"SUB",sub)) q:sub=""  d
+	. . q:$p($g(^CT("GOVCAT",gov,"SUB",sub)),"^",1)'=$g(var)
+	. . s agencycodeno=gov
+	q agencycodeno
+]]></Implementation>
+</Method>
+
+<Method name="QDCExtractClose">
+<Description>
+This is the Close component of the %Library.Query.
+This is standard code and should never have to change.
+This is where all the cleanup is performed, i.e. the purging of the temporary storage global ^||CacheTemp.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>QHandle:%Library.Binary</FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Clean up by purging the temporary node in ^||CacheTemp global
+ New repid
+ Set repid=$li(QHandle,2)
+ 
+ //Start Monitor (if configured to capture stats)
+ i mon Do ..MonitorEnd(mon)
+
+ Kill ^||CacheTemp(repid)
+ 
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="QDCExtractExecute">
+<Description>
+This is the Execute section for the %Library.Query. 
+All of the logic will be performed here.
+A new node for the ^||CacheTemp global will be created and each subscript of this global will contain
+a row for the report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,Quarter:%String,Year:%String,Agency:%String,Site:%String]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Get reportid i.e. use $INCREMENT to add another node to ^||CacheTemp global. 
+ // We use ^||CacheTemp global because it will always use memory before disk
+ New repid,ind,END0,DateFrom,DateTo,Flag,counter,count,END1,END2,inc,Element,END,check,Flag1,Flag2,passed,SUH
+ s (ind,END0,Flag,counter,count,END1,END2,inc,END,check,Flag1,Flag2,passed,SUH)=0
+ s Element=""
+ 
+ // Use $Increment to get the next node
+ Set repid=$I(^||CacheTemp) 
+ 
+ k ^||zCacheTemp("QDCExtract",repid),^||zCacheTemp("Updates",repid),^||zCacheTemp("QDCExtract_1",repid),^||zCacheTemp("SLK",repid)
+ 
+ k ^QDC.agencyD,^QDC.outletresponseD,^QDC.servicehoursD,^QDC.serviceuserD,^QDC.serviceuserresponseD,^QDC.serviceuseroutletD
+
+ //Start Monitor (if configured to capture stats)
+ s mon=..MonitorBegin()
+ 
+ 
+ i Quarter'="" s Quarter=$zstrip(Quarter,"*C") 
+ i Year'="" s Year=$zstrip(Year,"*CW")
+ 
+ i Quarter="July - September" s DateFrom=Year_"/07/01",DateTo=Year_"/09/30"
+ i Quarter="October - December" s DateFrom=Year_"/10/01",DateTo=Year_"/12/31"
+ i Quarter="January - March" s DateFrom=Year_"/01/01",DateTo=Year_"/03/31"
+ i Quarter="April - June" s DateFrom=Year_"/04/01",DateTo=Year_"/06/30"
+ 
+ s DateFrom=$$intdate^SSUTIL4(DateFrom)
+ s DateTo=$$intdate^SSUTIL4(DateTo)
+ 
+ i Agency'="" s Agency=$zstrip(Agency,"*C")
+ 
+ n hospid,trustid,id,outlet,AgencyE2,contactsid,ord
+ s (hospid,trustid,id,outlet,AgencyE2,contactsid,ord)=""
+ 
+ n Data,Payor,Plan,INSInsTypeDR,INSAuxInsTypeDR,PlanGroup1,PlanDesc,PlanGroup6,OEORIQuestionnaire
+ s (Data,Payor,Plan,INSInsTypeDR,INSAuxInsTypeDR,PlanGroup1,PlanDesc,PlanGroup6,OEORIQuestionnaire)=""
+ 
+ n EXTDate,EXTTime
+ s EXTDate=+$h
+ s EXTTime=$p($h,",",2)
+ 
+ n I0,I1,I2,I3,I4,I5,I6,I7,I8,I9,I10,I11,I12,I13,I14,I15,I16,I17,I18,I19,I20,I21,I22,I23,I24,I25,I26,I27,I28,I29,I30,I31,I32,I33,I34,I35,I36,I37,I38,I39,I40,I41,I42,I43,I44,I45,I46,I47,I48,I49,I50,I51,I52,I53,I54,I55,I56,I57,I58,I59,I60,I61,I62,I63,I64,I65,I66,I67,I68,I69,I70,I71,I72,I73,I74,I75,I76,I77,I78,I79,I80,I81,I82,I83,I84,I85,I86,I87,I88,I89
+ s (I0,I1,I2,I3,I4,I5,I6,I7,I8,I9,I10,I11,I12,I13,I14,I15,I16,I17,I18,I19,I20,I21,I22,I23,I24,I25,I26,I27,I28,I29,I30,I31,I32,I33,I34,I35,I36,I37,I38,I39,I40,I41,I42,I43,I44,I45,I46,I47,I48,I49,I50,I51,I52,I53,I54,I55,I56,I57,I58,I59,I60,I61,I62,I63,I64,I65,I66,I67,I68,I69,I70,I71,I72,I73,I74,I75,I76,I77,I78,I79,I80,I81,I82,I83,I84,I85,I86,I87,I88,I89)=""
+ 
+ s ^||SITE=""
+ i $zstrip($g(Site),"*WC")'="" {
+	 s ^||SITE=$zstrip($g(Site),"*WC")
+ } else {
+	 s conf=##class(websys.Configuration).%OpenId(1)
+	 i conf {
+		 s ^||SITE=conf.Region
+		 d conf.%Close()
+	 }
+ }
+ 
+ i ^||SITE="AUXX" {
+	 i $g(Agency)="" {
+		 s agcode=0
+		 f {
+			 s agcode=$o(^websys.CustomTypeD("CUST","AUXXSTO","ITM",agcode))
+			 q:agcode=""
+			 s ^||zCacheTemp("QDCExtract_1",repid,agcode)=$p($g(^websys.CustomTypeD("CUST","AUXXSTO","ITM",agcode)),"^")
+		 }
+	 }
+	 i $g(Agency)'="" {
+		 f idx=1:1:$l(Agency,",") {
+			 s ^||zCacheTemp("QDCExtract_1",repid,$p($p(Agency,",",idx),"||",2))=$p($g(^websys.CustomTypeD("CUST","AUXXSTO","ITM",$p($p(Agency,",",idx),"||",2))),"^")
+		 }
+	 }
+ } else {
+	  ; Get Agency list
+	 i $g(Agency)="" {
+		 s govcat=0
+		 f {
+			 s govcat=$o(^CT("GOVCAT",govcat)) q:govcat=""
+			 s ^||zCacheTemp("QDCExtract_1",repid,govcat)=govcat
+		 }
+	 }
+	 i $g(Agency)'="" {
+		 f idx=1:1:$l(Agency,",") {
+			 s ^||zCacheTemp("QDCExtract_1",repid,$p(Agency,",",idx))=$p(Agency,",",idx)
+		 }
+	 }
+ }
+ 
+ s idx=0
+ f {
+	 s idx=$o(^||zCacheTemp("QDCExtract_1",repid,idx))
+	 q:idx=""
+	 d ..BuildDataIndex(idx,Quarter,Year,DateFrom,DateTo)
+	 ; Check for records to be included from the qdc questionnaire
+	 d ..Updates(idx)
+	 s counter=0
+	 d ..Element1(idx,DateFrom,Quarter,Year)
+ }
+
+
+ d ..GenerateFile(Quarter,Year,EXTDate,EXTTime)
+
+ k ^||zCacheTemp("QDCExtract",repid),^||zCacheTemp("Updates",repid),^||zCacheTemp("QDCExtract_1",repid),^||zCacheTemp("SLK",repid)
+ // Build QHandle (AtEnd,ReportID,Index)
+ Set QHandle=$lb(0,repid,0)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="QDCExtractFetch">
+<Description>
+This is the Fetch component of the %Library.Query. 
+This should never have to change. It is designed to fetch the row for each subscript of the ^||CacheTemp
+global and return this row to the Crystal Report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,&Row:%Library.List,&AtEnd:%Library.Integer=0]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // This fetch method should never have to change. 
+
+ // repid - Report ID
+ // ind   - sequence index which represents each row
+
+ New repid,ind
+
+ // Restore QHandle
+ Set AtEnd=$li(QHandle,1)
+ Set repid=$li(QHandle,2)
+ Set ind=$li(QHandle,3)
+
+ Set ind=$o(^||CacheTemp(repid,ind))
+ If ind="" {	// if there are no more rows, finish fetching
+ Set AtEnd=1
+ Set Row=""
+ }
+ Else      {	// fetch row
+ Set Row=^||CacheTemp(repid,ind)
+ }
+
+ // Save QHandle
+ s QHandle=$lb(AtEnd,repid,ind)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Query name="QDCExtract">
+<Description>
+This is the Stored Procedure Template. For Sample use only.
+It expects one parameter of type integer and will return 4 fields:
+Field1 - Integer
+Field2 - String
+Field3 - Date
+Field4 - Time</Description>
+<Type>%Library.Query</Type>
+<FormalSpec>Quarter:%String,Year:%String,Agency:%String,Site:%String</FormalSpec>
+<SqlProc>1</SqlProc>
+<Parameter name="CONTAINID" value="0"/>
+<Parameter name="ROWSPEC" value="Element:%String"/>
+</Query>
+
+<Method name="UploadXML">
+<Description>
+Method used to import a previous file to the QDC.* tables</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>file:%String</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	k ^QDC.agencyD,^QDC.outletresponseD,^QDC.servicehoursD,^QDC.serviceuserD,^QDC.serviceuserresponseD,^QDC.serviceuseroutletD
+	
+	s reader=##class(%XML.Reader).%New()
+	s sc=reader.OpenFile(file)
+	i $$$ISERR(sc) d $system.OBJ.DisplayError(sc) q
+	d reader.Correlate("agency","QDC.agency")
+	While reader.Next(.agency,.sc) {
+		w !,agency.agencycodeno_" imported."
+		s sc=agency.%Save()
+		i $$$ISERR(sc) d $system.OBJ.DisplayError(sc) q
+	}
+	d reader.Close()
+	i $$$ISERR(sc) d $system.OBJ.DisplayError(sc) q
+	q 1
+]]></Implementation>
+</Method>
+
+<Method name="QDCSummary">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>filepath:%Library.String,id:%Library.String</FormalSpec>
+<Implementation><![CDATA[
+ s agencycode=$o(^PAC("TRUST",0))
+ i agencycode'="" d
+ . s agencycode=$p($g(^PAC("TRUST",agencycode)),"^",1)
+ . i agencycode'="" s agencycode=..GetMappedCode("PAC_Trust","TRUST_Code","QDC1",$g(agencycode))
+
+ i $f(filepath,"/") s filename=$p(filepath,"/",$l(filepath,"/")-1)_".csv"
+ i $f(filepath,"\") s filename=$p(filepath,"\",$l(filepath,"\")-1)_".csv"
+ 
+ s filepath=filepath_"QDC Summary"_$e(filename,4,$l(filename))
+
+ s obj=##class(QDC.agency).%OpenId(id)
+ i obj d
+ . s file=##class(%File).%New(filepath)
+ . d file.Open("WSN",3)
+ . d file.WriteLine("QDC - EXTRACT SUMMARY REPORT")
+ . d file.WriteLine("Element 1,"_$g(agencycode)_",Agency ID")
+ . d file.WriteLine("Element 1,"_obj.qdcid_",Reporting Quarter")
+ . d file.WriteLine(",Element 1,Element 6,Element 3,Element 7")
+ . d file.WriteLine(",service_type_outlet_codeno,end_date,Service Users,Service_hours")
+ . d file.WriteLine(",List of STO Numbers included,Count of Client with Discharge Date by STO,Count of Clients by STO ,Total Count of Service Hours by STO")
+ . k STO,DisSTO,STOHours
+ . f x=1:1:obj.serviceuser.Count() d
+ . . s key=obj.serviceuser.GetAt(x).statslinkkey
+ . . f y=1:1:obj.serviceuser.GetAt(x).serviceuseroutlet.Count() d
+ . . . s num=obj.serviceuser.GetAt(x).serviceuseroutlet.GetAt(y).servicetypeoutletcodeno
+ . . . i '$d(STO(num,key)) s STO(num)=$i(STO(num)),STO(num,key)=key
+ . . . i obj.serviceuser.GetAt(x).serviceuseroutlet.GetAt(y).enddate'="",'$d(DisSTO(num,key)) s DisSTO(num)=$i(DisSTO(num)),DisSTO(num,key)=key
+ . . . f z=1:1:obj.serviceuser.GetAt(x).serviceuseroutlet.GetAt(y).servicehours.Count() d
+ . . . . i $g(STOHours(num))="" s STOHours(num)=0
+ . . . . s STOHours(num)=STOHours(num)+obj.serviceuser.GetAt(x).serviceuseroutlet.GetAt(y).servicehours.GetAt(z).servicehours
+ . s cnt=0 f  s cnt=$o(STO(cnt)) q:cnt=""  d
+ . . s exists=0
+ . . s e2=0 f  s e2=$o(^QDC.outletresponseD(e2)) q:e2=""  d
+ . . . s qdcobj=##class(QDC.outletresponse).%OpenId(e2)
+ . . . i qdcobj d
+ . . . . i qdcobj.servicetypeoutletcodeno=cnt s exists=1
+ . . . . k qdcobj
+ . . d file.WriteLine(","_cnt_$s(exists=0:" (No Element 2 Recorded or No Valid Clients Against This STO)",1:"")_","_$g(DisSTO(cnt))_","_$g(STO(cnt))_","_$g(STOHours(cnt)))
+ . d file.WriteLine("")
+ . ;
+ . k response
+ . s summary=""
+ . s out=0 f  s out=$o(^QDC.outletresponseD(out)) q:out=""  d
+ . . s resp=##class(QDC.outletresponse).%OpenId(out)
+ . . i resp d
+ . . . i resp.questionfieldname="AIHWServiceType" d
+ . . . . i summary'="" s summary=summary_","_resp.servicetypeoutletcodeno_$s($g(STO(resp.servicetypeoutletcodeno))="":"(No hours against STO for the quarter)",1:"")
+ . . . . i summary="" s summary=resp.servicetypeoutletcodeno_$s($g(STO(resp.servicetypeoutletcodeno))="":"(No hours against STO for the quarter)",1:"")
+ . . . i $g(response(resp.questionfieldname))'="" s response(resp.questionfieldname)=response(resp.questionfieldname)_","_resp.value
+ . . . i $g(response(resp.questionfieldname))="" s response(resp.questionfieldname)=resp.value
+ . . d resp.%Close()
+ . d file.WriteLine("Element 2  Summary,,"_summary)
+ . d file.WriteLine("S01,AIHWServiceType,"_$g(response("AIHWServiceType")))
+ . d file.WriteLine("S02,FullQuarterOperation,"_$g(response("FullQuarterOperation")))
+ . d file.WriteLine("S03,WeeksPerQuarter,"_$g(response("WeeksPerQuarter")))
+ . d file.WriteLine("S04,DaysPerWeek,"_$g(response("DaysPerWeek")))
+ . d file.WriteLine("S05,HoursPerDay,"_$g(response("HoursPerDay")))
+ . d file.WriteLine("S06,CurrentCapacity,"_$g(response("CurrentCapacity")))
+ . d file.WriteLine("S07,OutletTypePDSS-RR,"_$g(response("OutletTypePDSS-RR")))
+ . d file.WriteLine("S08,PaidStaffHrsRefWeek,"_$g(response("PaidStaffHrsRefWeek")))
+ . d file.WriteLine("S09,UnPaidStaffHrsRefWeek,"_$g(response("UnPaidStaffHrsRefWeek")))
+ . d file.WriteLine("S10,StaffEngagedDirect,"_$g(response("StaffEngagedDirect")))
+ . d file.WriteLine("S11,StaffEngagedIndirect,"_$g(response("StaffEngagedIndirect")))
+ . d file.WriteLine("S12,SleepOverNights,"_$g(response("SleepOverNights")))
+ . d file.WriteLine("S13,NbrServiceUsers,"_$g(response("NbrServiceUsers")))
+ . d file.WriteLine("S14,MSSHActivitiesProvided,"_$g(response("MSSHActivitiesProvided")))
+ . d file.WriteLine("S18,SupportGroupsConsumers,"_$g(response("SupportGroupsConsumers")))
+ . d file.WriteLine("S19,ParticipantsConsumers,"_$g(response("ParticipantsConsumers")))
+ . d file.WriteLine("S20,SupportGroupsCarer-Fam-Frnd,"_$g(response("SupportGroupsCarer-Fam-Frnd")))
+ . d file.WriteLine("S21,ParticipantsCarers-Fam-Frnd,"_$g(response("ParticipantsCarers-Fam-Frnd")))
+ . d file.WriteLine("S22,SupportGroupsFemale,"_$g(response("SupportGroupsFemale")))
+ . d file.WriteLine("S23,EdTrainGroupsConsumer,"_$g(response("EdTrainGroupsConsumer")))
+ . d file.WriteLine("S24,EdTrainParticipantsConsumer,"_$g(response("EdTrainParticipantsConsumer")))
+ . d file.WriteLine("S25,EdTrainGroupsCarerFamily,"_$g(response("EdTrainGroupsCarerFamily")))
+ . d file.WriteLine("S26,EdTrainParticipantsCarerFamily,"_$g(response("EdTrainParticipantsCarerFamily")))
+ . d file.WriteLine("S27,EdTrainGroupsCommunity,"_$g(response("EdTrainGroupsCommunity")))
+ . d file.WriteLine("S28,EdTrainParticipantsCommunity,"_$g(response("EdTrainParticipantsCommunity")))
+ . d file.WriteLine("S29,EdTrainGroupsProf,"_$g(response("EdTrainGroupsProf")))
+ . d file.WriteLine("S30,EdTrainParticipantsProf,"_$g(response("EdTrainParticipantsProf")))
+ . d file.WriteLine("S31,WaitingListExistence,"_$g(response("WaitingListExistence")))
+ . d file.WriteLine("S32,WaitingListNbrPeople,"_$g(response("WaitingListNbrPeople")))
+ . d file.WriteLine("S40,AnnualQualityPlan,"_$g(response("AnnualQualityPlan")))
+ . d file.Close()
+ q 1
+]]></Implementation>
+</Method>
+
+<Method name="GenerateFile">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>Quarter:%String,Year:%String,EXTDate:%String,EXTTime:%String</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	n file,path,FILERowId,PATHChildsub,x,unixpath,winpath
+	s (file,unixpath,winpath,FILERowId,PATHChildsub,path)=""
+	s x=0
+	
+	s FILERowId=$o(^COUNT("FILE",0,"Desc","QDC",0))
+	s PATHChildsub=0
+	while PATHChildsub'="" {
+		s PATHChildsub=$o(^COUNT("FILE",FILERowId,"PATH",PATHChildsub))
+		i PATHChildsub'="" {
+			s unixpath=$p($g(^COUNT("FILE",FILERowId,"PATH",PATHChildsub)),"^",2)
+			i unixpath="" s winpath=$p($g(^COUNT("FILE",FILERowId,"PATH",PATHChildsub)),"^",1)
+		}
+	}
+	
+	s ind=0 f  s ind=$o(^QDC.agencyD(ind)) q:ind=""  d
+	. s agencyid=##class(QDC.agency).%OpenId(ind)
+	. i agencyid d
+	. . s path="",file=""
+	. . i unixpath'="" s path=unixpath_"QDC "_agencyid.qdcid_"_"_Quarter_" "_Year_"_"_$tr($zd(EXTDate,4),"/","_")_"_"_$zstrip($zt(EXTTime,2),"*P")_"/"
+	. . i winpath'="" s path=winpath_"QDC "_agencyid.qdcid_"_"_Quarter_" "_Year_"_"_$tr($zd(EXTDate,4),"/","_")_"_"_$zstrip($zt(EXTTime,2),"*P")_"\"
+	. . d ##class(%File).CreateDirectoryChain(path)
+	. . i path'="" s file=path_agencyid.agencycodeno_"HS_"_agencyid.qdcid_".xml"
+	. . i path="" s file=agencyid.agencycodeno_"HS_"_agencyid.qdcid_".xml"
+	. . s xml=##class(%XML.Writer).%New()
+	. . s xml.Indent=1
+	. . s sc=xml.OutputToFile(file)
+	. . s sc=xml.RootObject(agencyid)
+	. . d agencyid.%Close()
+	. . d ..QDCSummary(path,ind)
+	
+	q 1
+]]></Implementation>
+</Method>
+
+<Method name="GetPayorPlan">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>PAADMRowId:%String</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	s (Payor,Plan,PlanDesc,PlanGroup1,PlanGroup6,PayorCode4)=""
+	
+	s obj=##class(User.PAAdm).%OpenId(PAADMRowId)
+	i obj {
+		i ^||SITE="AUXX" {
+			i obj.PAADMPAAdm2DR.PAADM2NFMICategDepartDR {
+				s Payor=..GetMappedCode("CT_NFMI_Category","NFMI_Code","QDC1",obj.PAADMPAAdm2DR.PAADM2NFMICategDepartDR.DEPParRef.NFMICode)
+				s PayorCode4=..GetMappedCode("NFMI_GovSubCateg","SUB_Code","QDC1",obj.PAADMPAAdm2DR.PAADM2NFMICategDepartDR.DEPParRef.NFMIGovSubCategDR.SUBCode)
+				s Plan=..GetMappedCode("CT_NFMI_CategDepart","DEP_Code","QDC1",obj.PAADMPAAdm2DR.PAADM2NFMICategDepartDR.DEPCode)
+				s PlanDesc=..GetMappedCode("CT_NFMI_CategDepart","DEP_Desc","QDC1",obj.PAADMPAAdm2DR.PAADM2NFMICategDepartDR.DEPDesc)
+				s PlanGroup1=..GetMappedCode("ARC_AuxilInsurType","AUXIT_PlanGroup1","QDC1",obj.PAADMPAAdm2DR.PAADM2NFMICategDepartDR.DEPCode)
+				s PlanGroup6=..GetMappedCode("ARC_AuxilInsurType","AUXIT_PlanGroup6","QDC1",obj.PAADMPAAdm2DR.PAADM2NFMICategDepartDR.DEPCode)
+			} else {
+				f x=1:1:obj.ChildPAAdmInsurance.Count() {
+					i obj.ChildPAAdmInsurance.GetAt(x).INSInsTypeDR,obj.ChildPAAdmInsurance.GetAt(x).INSAuxInsTypeDR {
+						s Payor=obj.ChildPAAdmInsurance.GetAt(x).INSInsTypeDR.INSTCode
+						s PayorCode4=obj.ChildPAAdmInsurance.GetAt(x).INSInsTypeDR.INSTCode4
+						s Plan=obj.ChildPAAdmInsurance.GetAt(x).INSAuxInsTypeDR.AUXITCode
+						s PlanDesc=obj.ChildPAAdmInsurance.GetAt(x).INSAuxInsTypeDR.AUXITDesc
+						s PlanGroup1=obj.ChildPAAdmInsurance.GetAt(x).INSAuxInsTypeDR.AUXITPlanGroup1
+						s PlanGroup6=obj.ChildPAAdmInsurance.GetAt(x).INSAuxInsTypeDR.AUXITPlanGroup6
+					}
+				}
+			}
+		} else {
+			f x=1:1:obj.ChildPAAdmInsurance.Count() {
+				i obj.ChildPAAdmInsurance.GetAt(x).INSInsTypeDR,obj.ChildPAAdmInsurance.GetAt(x).INSAuxInsTypeDR {
+					s Payor=obj.ChildPAAdmInsurance.GetAt(x).INSInsTypeDR.INSTCode
+					s PayorCode4=obj.ChildPAAdmInsurance.GetAt(x).INSInsTypeDR.INSTCode4
+					s Plan=obj.ChildPAAdmInsurance.GetAt(x).INSAuxInsTypeDR.AUXITCode
+					s PlanDesc=obj.ChildPAAdmInsurance.GetAt(x).INSAuxInsTypeDR.AUXITDesc
+					s PlanGroup1=obj.ChildPAAdmInsurance.GetAt(x).INSAuxInsTypeDR.AUXITPlanGroup1
+					s PlanGroup6=obj.ChildPAAdmInsurance.GetAt(x).INSAuxInsTypeDR.AUXITPlanGroup6
+				}
+			}
+		}
+		k obj
+	}
+	i ^||SITE="AUXX" s PlanGroup6=Plan
+	q Payor_"^"_Plan_"^"_PlanDesc_"^"_PlanGroup1_"^"_PlanGroup6_"^"_PayorCode4
+]]></Implementation>
+</Method>
+
+<Method name="SetOutletResp">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>id:%String,STO:%String,question:%String,value:%String</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	s save=0
+	s obj=##class(QDC.outletresponse).%New()
+	i obj {
+		s obj.questionfieldname=question
+		s obj.value=value
+		s obj.servicetypeoutletcodeno=STO
+		d obj.agencySetObjectId(id)
+		s save=obj.%Save()
+		d obj.%Close()
+	}
+	q save
+]]></Implementation>
+</Method>
+
+<Method name="SetServiceUserResp">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>serviceuserid:%String,question:%String,value:%String</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	s save=0
+	s obj=##class(QDC.serviceuserresponse).%New()
+	i obj {
+		s obj.questionfieldname=question
+		s obj.value=value
+		d obj.serviceuserSetObjectId(serviceuserid)
+		s save=obj.%Save()
+		d obj.%Close()
+	}
+	q save
+]]></Implementation>
+</Method>
+
+<Method name="BuildDataIndex">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>idx:%String,Quarter:%String,Year:%String,DateFrom:%String,DateTo:%String</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	i $g(^||SITE)="AUXX" d
+	. ; Check for current episodes
+	. s admid=0 f  s admid=$o(^PAADMi("PAADM_VisitStatus","A",admid)) q:admid=""  d
+	. . q:$p($g(^PAADM(admid)),"^",2)'="O"
+	. . q:$p($g(^PAADM(admid)),"^",6)>DateTo
+	. . s PayorPlanList=..GetPayorPlan(admid)
+	. . s Payor=$p(PayorPlanList,"^")
+	. . s PayorCode4=$p(PayorPlanList,"^",6)
+	. . i ((PayorCode4="DSD")||(PayorCode4="PDRSS")) s Payor=PayorCode4
+	. . s PlanDesc=$p(PayorPlanList,"^",3)
+	. . i ((Payor="DSD")||(Payor="PDRSS")),PlanDesc'="" d
+	. . . ;
+	. . . s qid=$o(^questionnaire.QAUXXQDCI("IndexPAAdmID",admid,""),-1)
+	. . . i qid'="" d
+	. . . . s (agencydesc,agencycode)=""
+	. . . . s qdc=##class(questionnaire.QAUXXQDC).%OpenId(qid)
+	. . . . i qdc d
+	. . . . . s agencycode=qdc.QSERVTYPETNO1
+	. . . . . k qdc
+	. . . . i agencycode'="" d
+	. . . . . s agencycode=$o(^websys.CustomTypeD("CUST","AUXXSTO","ITM",0,"Code",agencycode,""))
+	. . . . . i agencycode=idx s ^||zCacheTemp("QDCExtract",repid,PlanDesc,admid,$p(^PAADM(admid),"^",1))=$p(^PAADM(admid),"^",1)
+ 	. ;
+	. ; Check for discharged episodes
+	. f date=DateFrom:1:$o(^PAADMi("DischDate",""),-1) d
+	. . s admid=0 f  s admid=$o(^PAADMi("DischDate",date,admid)) q:admid=""  d
+	. . . s PayorPlanList=..GetPayorPlan(admid)
+	. . . s Payor=$p(PayorPlanList,"^")
+	. . . s PayorCode4=$p(PayorPlanList,"^",6)
+	. . . i ((PayorCode4="DSD")||(PayorCode4="PDRSS")) s Payor=PayorCode4
+	. . . s PlanDesc=$p(PayorPlanList,"^",3)
+	. . . i (Payor="DSD")||(Payor="PDRSS"),PlanDesc'="" d
+	. . . . s qid=$o(^questionnaire.QAUXXQDCI("IndexPAAdmID",admid,""),-1)
+	. . . . i qid'="" d
+	. . . . . s (agencydesc,agencycode)=""
+	. . . . . s qdc=##class(questionnaire.QAUXXQDC).%OpenId(qid)
+	. . . . . i qdc d
+	. . . . . . s agencycode=qdc.QSERVTYPETNO1
+	. . . . . . k qdc
+	. . . . . i agencycode'="" d
+	. . . . . . s agencycode=$o(^websys.CustomTypeD("CUST","AUXXSTO","ITM",0,"Code",agencycode,""))
+	. . . . . . i agencycode=idx s ^||zCacheTemp("QDCExtract",repid,PlanDesc,admid,$p(^PAADM(admid),"^",1))=$p(^PAADM(admid),"^",1)
+ 	. ;
+	. ; Check against executed orders
+	. s stat=$o(^OEC("STAT",0,"Code","C",""))
+	. f date=DateFrom:1:DateTo d
+	. . s oe=0 f  s oe=$o(^OEORDi(0,"ExDateExec",date,stat,oe)) q:oe=""  d
+	. . . s oei=0 f  s oei=$o(^OEORDi(0,"ExDateExec",date,stat,oe,oei)) q:oei=""  d
+	. . . . n itemcat,itemid,ordercatid,ordercat
+	. . . . s itemid=$p($g(^OEORD(oe,"I",oei,1)),"^",2) 
+	. . . . s itemcat=$p($g(^ARCIM(+itemid,1,1)),"^",10)
+	. . . . i $p($g(^ARC("IC",+itemcat)),"^",8)=$o(^OEC("ORCAT",0,"Code","CON","")) d
+	. . . . . s admid=$p($g(OEORD(oe)),"^",1)
+	. . . . . s (Payor,PlanDesc)=""
+	. . . . . s cov=$o(^AR("COV",0,"OEORI",oe_"||"_oei,""),-1)
+	. . . . . i $g(cov) d
+	. . . . . . s Payor=$p($g(^AR("COV",cov)),"^",1)
+	. . . . . . s PlanDesc=$p($g(^AR("COV",cov)),"^",2)
+	. . . . . . i $g(Payor)'="",PlanDesc'="" d
+	. . . . . . . s Payor=$p($g(^ARC("INST",Payor)),"^",1)
+	. . . . . . . s PlanDesc=$p($g(^ARC("AUXIT",PlanDesc)),"^",2)
+	. . . . . . . i "DSD,PDRSS"[$g(PayorCode4) d
+	. . . . . . . . i admid'="" d
+	. . . . . . . . . s qid=$o(^questionnaire.QAUXXQDCI("IndexPAAdmID",admid,""),-1)
+	. . . . . . . . . i $g(qid)'="" d
+	. . . . . . . . . . s (agencydesc,agencycode)=""
+	. . . . . . . . . . s qdc=##class(questionnaire.QAUXXQDC).%OpenId(qid)
+	. . . . . . . . . . i qdc d
+	. . . . . . . . . . . s agencycode=qdc.QSERVTYPETNO1
+	. . . . . . . . . . . k qdc
+	. . . . . . . . . . i agencycode'="" d
+	. . . . . . . . . . . s agencycode=$o(^websys.CustomTypeD("CUST","AUXXSTO","ITM",0,"Code",agencycode,""))
+	. . . . . . . . . . . i agencycode=idx s ^||zCacheTemp("QDCExtract",repid,PlanDesc,admid,$p(^PAADM(admid),"^",1))=$p(^PAADM(admid),"^",1)
+
+	i $g(^||SITE)'="AUXX" d
+	. ; Check for current episodes
+	. s admid=0 f  s admid=$o(^PAADMi("PAADM_VisitStatus","A",admid)) q:admid=""  d
+	. . q:$p($g(^PAADM(admid)),"^",2)'="O"
+	. . q:$p($g(^PAADM(admid)),"^",6)>DateTo
+	. . s PayorPlanList=..GetPayorPlan(admid)
+	. . s Payor=$p(PayorPlanList,"^",1)
+	. . s PayorCode4=$p(PayorPlanList,"^",6)
+	. . i ((PayorCode4="DSD")||(PayorCode4="PDRSS")) s Payor=PayorCode4
+	. . s PlanDesc=$p(PayorPlanList,"^",3)
+	. . i (Payor="DSD")||(Payor="PDRSS"),PlanDesc'="" d
+	. . . s qid=$o(^questionnaire.QQDCI("IndexPAAdmID",admid,""),-1)
+	. . . i qid'="" d
+	. . . . s (agencydesc,agencycode)=""
+	. . . . s agencydesc=$lg(^questionnaire.QQDCD(qid),21)
+	. . . . i agencydesc'="" d
+	. . . . . s agencycode=..GetIdFromCode($zstrip(agencydesc,"*W"))
+	. . . . . i agencycode=idx s ^||zCacheTemp("QDCExtract",repid,PlanDesc,admid,$p(^PAADM(admid),"^",1))=$p(^PAADM(admid),"^",1)
+ 	. ;
+	. ; Check for discharged episodes
+	. f date=DateFrom:1:$o(^PAADMi("DischDate",""),-1) d
+	. . s admid=0 f  s admid=$o(^PAADMi("DischDate",date,admid)) q:admid=""  d
+	. . . s PayorPlanList=..GetPayorPlan(admid)
+	. . . s Payor=$p(PayorPlanList,"^",1)
+	. . . s PayorCode4=$p(PayorPlanList,"^",6)
+	. . . i ((PayorCode4="DSD")||(PayorCode4="PDRSS")) s Payor=PayorCode4
+	. . . s PlanDesc=$p(PayorPlanList,"^",3)
+	. . . i (Payor="DSD")||(Payor="PDRSS"),PlanDesc'="" d
+	. . . . s qid=$o(^questionnaire.QQDCI("IndexPAAdmID",admid,""),-1)
+	. . . . i qid'="" d
+	. . . . . s (agencydesc,agencycode)=""
+	. . . . . s agencydesc=$lg(^questionnaire.QQDCD(qid),21)
+	. . . . . i agencydesc'="" d
+	. . . . . . s agencycode=..GetIdFromCode($zstrip(agencydesc,"*W"))
+	. . . . . . i agencycode=idx s ^||zCacheTemp("QDCExtract",repid,PlanDesc,admid,$p(^PAADM(admid),"^",1))=$p(^PAADM(admid),"^",1)
+ 	. ;
+	. ; Check against executed orders
+	. s stat=$o(^OEC("STAT",0,"Code","C",""))
+	. f date=DateFrom:1:DateTo d       
+	. . s oe=0 f  s oe=$o(^OEORDi("0","DateExecuted",date,oe)) q:oe=""  d
+	. . . s oei=0 f  s oei=$o(^OEORDi("0","DateExecuted",date,oe,oei)) q:oei=""  d
+	. . . . n itemcat,itemid,ordercatid,ordercat
+	. . . . s itemid=$p($g(^OEORD(oe,"I",oei,1)),"^",2)
+	. . . . s itemcat=$p($g(^ARCIM(+itemid,1,1)),"^",10) 
+	. . . . i $p($g(^ARC("IC",+itemcat)),"^",8)=$o(^OEC("ORCAT",0,"Code","CON","")) d
+	. . . . . s (Payor,PlanDesc)=""
+	. . . . . ;s cov=$o(^AR("COV",0,"OEORI",oe_"||"_oei,""),-1)
+	. . . . . ;i $g(cov) d
+	. . . . . . ;s Payor=$p($g(^AR("COV",cov)),"^",1)
+	. . . . . . ;s PlanDesc=$p($g(^AR("COV",cov)),"^",2)
+	. . . . . s oeori=(oe_"||"_oei) s enqId=$o(^PAENQi("OEORI",oeori,"")) 
+	. . . . . i $g(enqId) d
+	. . . . . . s Payor=$p(^PAENQ(enqId),"^",22) 
+	. . . . . . s PlanDesc=$p(^PAENQ(enqId),"^",23)
+	. . . . . . i $g(Payor)'="",PlanDesc'="" d
+	. . . . . . . s Payor=$p($g(^ARC("INST",Payor)),"^",1)
+	. . . . . . . s PlanDesc=$p($g(^ARC("AUXIT",PlanDesc)),"^",2)
+	. . . . . . . i "DSD,PDRSS"[Payor d
+	. . . . . . . . s admid=$p($g(^OEORD(oe)),"^",1) 
+	. . . . . . . . i admid'="" d
+	. . . . . . . . . s qid=$o(^questionnaire.QQDCI("IndexPAAdmID",admid,""),-1)
+	. . . . . . . . . i $g(qid)'="" d
+	. . . . . . . . . . s (agencydesc,agencycode)=""
+	. . . . . . . . . . s agencydesc=$lg(^questionnaire.QQDCD(qid),21)
+	. . . . . . . . . . i agencydesc'="" d
+	. . . . . . . . . . . s agencycode=..GetIdFromCode($zstrip(agencydesc,"*W"))
+	. . . . . . . . . . . i agencycode=idx s ^||zCacheTemp("QDCExtract",repid,PlanDesc,admid,$p(^PAADM(admid),"^",1))=$p(^PAADM(admid),"^",1)
+	
+ q 1
+]]></Implementation>
+</Method>
+
+<Method name="Updates">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>idx:%String</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	i $g(^||SITE)'="AUXX" d
+	. s admid=0 f  s admid=$o(^questionnaire.QCONTACTSI("IndexPAAdmID",admid)) q:admid=""  d
+	. . s qid=0 f  s qid=$o(^questionnaire.QCONTACTSI("IndexPAAdmID",admid,qid)) q:qid=""  d
+	. . . s con=##class(questionnaire.QCONTACTS).%OpenId(qid)
+	. . . i con d
+	. . . . i con.QCONT12=1 d
+	. . . . . s (agencydesc,agencycode)=""
+	. . . . . s agencydesc=con.QCONT11
+	. . . . . i $g(agencydesc)'="" d
+	. . . . . . i ..GetIdFromCode(agencydesc)=idx d
+	. . . . . . . s PlanDesc=$p(..GetPayorPlan(admid),"^",3)
+	. . . . . . . i PlanDesc'="" d
+	. . . . . . . . s (contactsid,ord)=""
+	. . . . . . . . s contactsid=$o(^SSU("WIN",0,"Code","CONTACTS",0))_"||"_qid
+	. . . . . . . . s ^||zCacheTemp("Updates",repid,PlanDesc,admid,contactsid)=contactsid
+	. . . . . . . . ; After we get the record turn off the flag so it is not included in the next run
+	. . . . . . . . s con.QCONT12=0
+	. . . . . . . . d con.%Save()
+	. . . . d con.%Close()
+	
+	i $g(^||SITE)="AUXX" d
+	. s id=0 f  s id=$o(^PAENQ(id)) q:id=""  d
+	. . s ENQYesNo4=$s($p($g(^PAENQ(id)),"^",38)="Y":1,1:0)
+	. . i ENQYesNo4 d
+	. . . s (agencydesc,agencycode)=""
+	. . . s agencycode=$p($g(^PAENQ(id)),"^",31)
+	. . . i $g(agencycode)'="" d
+	. . . . i $o(^websys.CustomTypeD("CUST","AUXXSTO","ITM",0,"Code",agencycode,""))=idx d
+	. . . . . s PlanDesc=$p(..GetPayorPlan(admid),"^",3)
+	. . . . . i PlanDesc'="" d
+	. . . . . . s oe=+$p($g(^PAENQ(id)),"^",42)
+	. . . . . . i $g(oe)'="" d
+	. . . . . . . s ^||zCacheTemp("Updates",repid,PlanDesc,$p($g(^OEORD(oe)),"^"),id)=id
+	. . . . . . . ; After we get the record turn off the flag so it is not included in the next run
+	. . . . . . . s $p(^PAENQ(id),"^",38)="N"
+	q 1
+]]></Implementation>
+</Method>
+
+<Method name="Element1">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>idx:%String,DateFrom:%String,quarter:%String,year:%String</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	i ^||SITE'="AUXX" {
+		s outlet=$p($g(^CT("GOVCAT",idx)),"^",1)
+		s agency=$p($g(^CT("GOVCAT",idx)),"^",2)
+	} else {
+		s outlet=$p($g(^websys.CustomTypeD("CUST","AUXXSTO","ITM",idx)),"^")
+		s agency=$p($g(^websys.CustomTypeD("CUST","AUXXSTO","ITM",idx)),"^",2)
+	}
+	
+	n StartDate,loop
+	s (loop,I2)=0
+	s StartDate="06/01/2002"
+	s StartDate=$$intdate^SSUTIL4(StartDate)
+	s I2=2
+	for StartDate=StartDate:1:DateFrom {
+		i loop<=3 {
+			i "Jan"=$p($zd(StartDate,0)," ",2),loop=0 s I2=$i(I2),loop=$i(loop)
+			i "Apr"=$p($zd(StartDate,0)," ",2),loop=1 s I2=$i(I2),loop=$i(loop)
+			i "Jul"=$p($zd(StartDate,0)," ",2),loop=2 s I2=$i(I2),loop=$i(loop)
+			i "Oct"=$p($zd(StartDate,0)," ",2),loop=3 s I2=$i(I2),loop=$i(loop)
+		}
+		i loop=4 s loop=0
+	}
+
+	s obj=##class(QDC.agency).%New()
+	i obj {
+		s obj.agencycodeno=..GetMappedCode("PAC_Trust","TRUST_Code","QDC1",$g(outlet))
+		s obj.qdcid=I2
+		d obj.%Save()
+		s agencyid=obj.%Id()
+		d obj.%Close()
+	}
+	
+	s planindex=0
+	while planindex'="" {
+		s planindex=$o(^||zCacheTemp("QDCExtract",repid,planindex))
+		i planindex'="" {
+			d ..Element2(agencyid,agency,quarter,year,planindex)
+		}
+	}
+	q 1
+]]></Implementation>
+</Method>
+
+<Method name="Element2">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>agencyid:%String,agency:%String,quarter:%String,year:%String,plan:%String</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	i ^||SITE="AUXX" {
+		s id=0
+		f {
+			s id=$o(^Custom.QDCExtractD(id))
+			q:id=""
+			s qdc=##class(Custom.QDCExtract).%OpenId(id)
+			i $g(qdc) {
+				s check=0
+				i qdc.Plan=plan s check=1
+				i qdc.Program.DEPDesc=plan s check=1
+				i qdc.ServiceTypeOutlet=$p($g(^websys.CustomTypeD("CUST","AUXXSTO","ITM",agencyid)),"^"),qdc.Quarter=quarter,qdc.Year=year,check {
+					d ..SetOutletResp(agencyid,qdc.ServiceTypeOutlet,"AIHWServiceType",qdc.AIHWServiceType)
+					d ..SetOutletResp(agencyid,qdc.ServiceTypeOutlet,"FullQuarterOperation",..GetMappedCode("Custom.QDCExtract","FullQuarterOperation","QDC1",qdc.FullQuarterOperation))
+					d ..SetOutletResp(agencyid,qdc.ServiceTypeOutlet,"WeeksPerQuarter",qdc.WeeksPerQuarter)
+					d ..SetOutletResp(agencyid,qdc.ServiceTypeOutlet,"DaysPerWeek",qdc.DaysPerWeek)
+					d ..SetOutletResp(agencyid,qdc.ServiceTypeOutlet,"HoursPerDay",qdc.HoursPerDay)
+					i qdc.CurrentCapacity'="" d ..SetOutletResp(agencyid,qdc.ServiceTypeOutlet,"CurrentCapacity",qdc.CurrentCapacity)
+					i qdc.OutletTypePDSSRR'="" d ..SetOutletResp(agencyid,qdc.ServiceTypeOutlet,"OutletTypePDSS-RR",qdc.OutletTypePDSSRR)
+					d ..SetOutletResp(agencyid,qdc.ServiceTypeOutlet,"PaidStaffHrsRefWeek",qdc.PaidStaffHrsRefWeek)
+					d ..SetOutletResp(agencyid,qdc.ServiceTypeOutlet,"UnPaidStaffHrsRefWeek",qdc.UnPaidStaffHrsRefWeek)
+					i qdc.StaffEngagedDirect'="" d ..SetOutletResp(agencyid,qdc.ServiceTypeOutlet,"StaffEngagedDirect",qdc.StaffEngagedDirect)
+					i qdc.StaffEngagedIndirect'="" d ..SetOutletResp(agencyid,qdc.ServiceTypeOutlet,"StaffEngagedIndirect",qdc.StaffEngagedIndirect)
+					i qdc.SleepOverNights'="" d ..SetOutletResp(agencyid,qdc.ServiceTypeOutlet,"SleepOverNights",qdc.SleepOverNights)
+					i qdc.NbrServiceUsers'="" d ..SetOutletResp(agencyid,qdc.ServiceTypeOutlet,"NbrServiceUsers",qdc.NbrServiceUsers)
+					i qdc.MSSHActivitiesProvided'="" d ..SetOutletResp(agencyid,qdc.ServiceTypeOutlet,"MSSHActivitiesProvided",qdc.MSSHActivitiesProvided)
+					i qdc.SupportGroupsConsumers'="" d ..SetOutletResp(agencyid,qdc.ServiceTypeOutlet,"SupportGroupsConsumers",qdc.SupportGroupsConsumers)
+					i qdc.ParticipantsConsumers'="" d ..SetOutletResp(agencyid,qdc.ServiceTypeOutlet,"ParticipantsConsumers",qdc.ParticipantsConsumers)
+					i qdc.SupportGroupsCarerFamFrnd'="" d ..SetOutletResp(agencyid,qdc.ServiceTypeOutlet,"SupportGroupsCarer-Fam-Frnd",qdc.SupportGroupsCarerFamFrnd)
+					i qdc.ParticipantsCarersFamFrnd'="" d ..SetOutletResp(agencyid,qdc.ServiceTypeOutlet,"ParticipantsCarers-Fam-Frnd",qdc.ParticipantsCarersFamFrnd)
+					i qdc.SupportGroupsFemale'="" d ..SetOutletResp(agencyid,qdc.ServiceTypeOutlet,"SupportGroupsFemale",qdc.SupportGroupsFemale)
+					i qdc.EdTrainGroupsConsumer'="" d ..SetOutletResp(agencyid,qdc.ServiceTypeOutlet,"EdTrainGroupsConsumer",qdc.EdTrainGroupsConsumer)
+					i qdc.EdTrainParticipantsConsumer'="" d ..SetOutletResp(agencyid,qdc.ServiceTypeOutlet,"EdTrainParticipantsConsumer",qdc.EdTrainParticipantsConsumer)
+					i qdc.EdTrainGroupsCarerFamily'="" d ..SetOutletResp(agencyid,qdc.ServiceTypeOutlet,"EdTrainGroupsCarerFamily",qdc.EdTrainGroupsCarerFamily)
+					i qdc.EdTrainParticipantsCarerFamily'="" d ..SetOutletResp(agencyid,qdc.ServiceTypeOutlet,"EdTrainParticipantsCarerFamily",qdc.EdTrainParticipantsCarerFamily)
+					i qdc.EdTrainGroupsCommunity'="" d ..SetOutletResp(agencyid,qdc.ServiceTypeOutlet,"EdTrainGroupsCommunity",qdc.EdTrainGroupsCommunity)
+					i qdc.EdTrainParticipantsCommunity'="" d ..SetOutletResp(agencyid,qdc.ServiceTypeOutlet,"EdTrainParticipantsCommunity",qdc.EdTrainParticipantsCommunity)
+					i qdc.EdTrainGroupsProf'="" d ..SetOutletResp(agencyid,qdc.ServiceTypeOutlet,"EdTrainGroupsProf",qdc.EdTrainGroupsProf)
+					i qdc.EdTrainParticipantsProf'="" d ..SetOutletResp(agencyid,qdc.ServiceTypeOutlet,"EdTrainParticipantsProf",qdc.EdTrainParticipantsProf)
+					i qdc.WaitingListExistence'="" d ..SetOutletResp(agencyid,qdc.ServiceTypeOutlet,"WaitingListExistence",qdc.WaitingListExistence)
+					i qdc.WaitingListNbrPeople'="" d ..SetOutletResp(agencyid,qdc.ServiceTypeOutlet,"WaitingListNbrPeople",qdc.WaitingListNbrPeople)
+					i qdc.AnnualQualityPlan'="" d ..SetOutletResp(agencyid,qdc.ServiceTypeOutlet,"AnnualQualityPlan",qdc.AnnualQualityPlan)
+				}
+				k qdc
+			}
+		}
+	} else {
+		s id=0
+		f {
+			s id=$o(^Custom.QDCExtractD(id))
+			q:id=""
+			s qdc=##class(Custom.QDCExtract).%OpenId(id)
+			i $g(qdc) {
+				i qdc.GovCategory=agency,qdc.Quarter=quarter,qdc.Year=year,qdc.Plan=plan {
+					d ..SetOutletResp(agencyid,qdc.ServiceTypeOutlet,"AIHWServiceType",qdc.AIHWServiceType)
+					d ..SetOutletResp(agencyid,qdc.ServiceTypeOutlet,"FullQuarterOperation",..GetMappedCode("Custom.QDCExtract","FullQuarterOperation","QDC1",qdc.FullQuarterOperation))
+					d ..SetOutletResp(agencyid,qdc.ServiceTypeOutlet,"WeeksPerQuarter",qdc.WeeksPerQuarter)
+					d ..SetOutletResp(agencyid,qdc.ServiceTypeOutlet,"DaysPerWeek",qdc.DaysPerWeek)
+					d ..SetOutletResp(agencyid,qdc.ServiceTypeOutlet,"HoursPerDay",qdc.HoursPerDay)
+					i qdc.CurrentCapacity'="" d ..SetOutletResp(agencyid,qdc.ServiceTypeOutlet,"CurrentCapacity",qdc.CurrentCapacity)
+					i qdc.OutletTypePDSSRR'="" d ..SetOutletResp(agencyid,qdc.ServiceTypeOutlet,"OutletTypePDSS-RR",qdc.OutletTypePDSSRR)
+					d ..SetOutletResp(agencyid,qdc.ServiceTypeOutlet,"PaidStaffHrsRefWeek",qdc.PaidStaffHrsRefWeek)
+					d ..SetOutletResp(agencyid,qdc.ServiceTypeOutlet,"UnPaidStaffHrsRefWeek",qdc.UnPaidStaffHrsRefWeek)
+					i qdc.StaffEngagedDirect'="" d ..SetOutletResp(agencyid,qdc.ServiceTypeOutlet,"StaffEngagedDirect",qdc.StaffEngagedDirect)
+					i qdc.StaffEngagedIndirect'="" d ..SetOutletResp(agencyid,qdc.ServiceTypeOutlet,"StaffEngagedIndirect",qdc.StaffEngagedIndirect)
+					i qdc.SleepOverNights'="" d ..SetOutletResp(agencyid,qdc.ServiceTypeOutlet,"SleepOverNights",qdc.SleepOverNights)
+					i qdc.NbrServiceUsers'="" d ..SetOutletResp(agencyid,qdc.ServiceTypeOutlet,"NbrServiceUsers",qdc.NbrServiceUsers)
+					i qdc.MSSHActivitiesProvided'="" d ..SetOutletResp(agencyid,qdc.ServiceTypeOutlet,"MSSHActivitiesProvided",qdc.MSSHActivitiesProvided)
+					i qdc.SupportGroupsConsumers'="" d ..SetOutletResp(agencyid,qdc.ServiceTypeOutlet,"SupportGroupsConsumers",qdc.SupportGroupsConsumers)
+					i qdc.ParticipantsConsumers'="" d ..SetOutletResp(agencyid,qdc.ServiceTypeOutlet,"ParticipantsConsumers",qdc.ParticipantsConsumers)
+					i qdc.SupportGroupsCarerFamFrnd'="" d ..SetOutletResp(agencyid,qdc.ServiceTypeOutlet,"SupportGroupsCarer-Fam-Frnd",qdc.SupportGroupsCarerFamFrnd)
+					i qdc.ParticipantsCarersFamFrnd'="" d ..SetOutletResp(agencyid,qdc.ServiceTypeOutlet,"ParticipantsCarers-Fam-Frnd",qdc.ParticipantsCarersFamFrnd)
+					i qdc.SupportGroupsFemale'="" d ..SetOutletResp(agencyid,qdc.ServiceTypeOutlet,"SupportGroupsFemale",qdc.SupportGroupsFemale)
+					i qdc.EdTrainGroupsConsumer'="" d ..SetOutletResp(agencyid,qdc.ServiceTypeOutlet,"EdTrainGroupsConsumer",qdc.EdTrainGroupsConsumer)
+					i qdc.EdTrainParticipantsConsumer'="" d ..SetOutletResp(agencyid,qdc.ServiceTypeOutlet,"EdTrainParticipantsConsumer",qdc.EdTrainParticipantsConsumer)
+					i qdc.EdTrainGroupsCarerFamily'="" d ..SetOutletResp(agencyid,qdc.ServiceTypeOutlet,"EdTrainGroupsCarerFamily",qdc.EdTrainGroupsCarerFamily)
+					i qdc.EdTrainParticipantsCarerFamily'="" d ..SetOutletResp(agencyid,qdc.ServiceTypeOutlet,"EdTrainParticipantsCarerFamily",qdc.EdTrainParticipantsCarerFamily)
+					i qdc.EdTrainGroupsCommunity'="" d ..SetOutletResp(agencyid,qdc.ServiceTypeOutlet,"EdTrainGroupsCommunity",qdc.EdTrainGroupsCommunity)
+					i qdc.EdTrainParticipantsCommunity'="" d ..SetOutletResp(agencyid,qdc.ServiceTypeOutlet,"EdTrainParticipantsCommunity",qdc.EdTrainParticipantsCommunity)
+					i qdc.EdTrainGroupsProf'="" d ..SetOutletResp(agencyid,qdc.ServiceTypeOutlet,"EdTrainGroupsProf",qdc.EdTrainGroupsProf)
+					i qdc.EdTrainParticipantsProf'="" d ..SetOutletResp(agencyid,qdc.ServiceTypeOutlet,"EdTrainParticipantsProf",qdc.EdTrainParticipantsProf)
+					i qdc.WaitingListExistence'="" d ..SetOutletResp(agencyid,qdc.ServiceTypeOutlet,"WaitingListExistence",qdc.WaitingListExistence)
+					i qdc.WaitingListNbrPeople'="" d ..SetOutletResp(agencyid,qdc.ServiceTypeOutlet,"WaitingListNbrPeople",qdc.WaitingListNbrPeople)
+					i qdc.AnnualQualityPlan'="" d ..SetOutletResp(agencyid,qdc.ServiceTypeOutlet,"AnnualQualityPlan",qdc.AnnualQualityPlan)
+				}
+				k qdc
+			}
+		}
+	}		
+		
+	s admid=0 f  s admid=$o(^||zCacheTemp("QDCExtract",repid,plan,admid)) q:admid=""  d
+	. q:$d(^||zCacheTemp("Episode",admid))
+	. s ^||zCacheTemp("Episode",admid)=""
+	. s Flag=..Element3(agencyid,admid,repid)
+	. s serviceuserid=$p(Flag,"^",2)
+	. s patid=$o(^||zCacheTemp("QDCExtract",repid,plan,admid,""))
+	. s Flag=$p(Flag,"^")
+	. d ..Element5(serviceuserid,patid,admid,Flag)
+	. d ..Element6(serviceuserid,admid,DateFrom,DateTo,Year,repid)
+	d ..Update2(repid,DateFrom,DateTo)
+ 	
+ 	q 1
+]]></Implementation>
+</Method>
+
+<Method name="Element3">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>agencyid:%String,admid:%String,repid:%String</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	s save=0,serviceuserid=""
+	s adm=##class(User.PAAdm).%OpenId(admid)
+	i adm d
+	. s su=##class(QDC.serviceuser).%New()
+	. i su d
+	. . s su.postcode=..GetMappedCode("CT_Zip","CTZIP_Code","QDC1",adm.PAADMPAPMIDR.PAPMIPAPERDR.PAPERZipDR.CTZIPCode)
+	. . i $g(^||SITE)'="AUXX" s su.hascarertype=..GetMappedCode("PAC_TransportUsed","TRU_Code","QDC1",adm.PAADMPAPMIDR.PAPMIPAPERDR.PAPERTransportUsedDR.TRUCode)
+	. . i $g(^||SITE)="AUXX" s su.hascarertype=..GetMappedCode("PAC_CarerAvailability","CARAVL_Code","QDC1",adm.PAADMPAPMIDR.PAPMIPAPERDR.PAPERCarerAvailabilityDR.CARAVLCode)
+	. . i su.hascarertype="" s su.hascarertype="N"
+	. . i adm.PAADMPAPMIDR.PAPMIPAPERDR.PAPERDob s su.birthdate=$zd(adm.PAADMPAPMIDR.PAPMIPAPERDR.PAPERDob,0,,4)
+	. . i adm.PAADMPAPMIDR.PAPMIPAPERDR.PAPEREstDOB="Y" { s su.birthdateestind="Y" } else { s su.birthdateestind="N" }
+	. . s su.sexcode=..GetMappedCode("CT_Sex","CTSEX_Code","QDC1",adm.PAADMPAPMIDR.PAPMIPAPERDR.PAPERSexDR.CTSEXCode)
+	. . s su.suburb=..GetMappedCode("CT_City","CTCIT_Desc","QDC1",adm.PAADMPAPMIDR.PAPMIPAPERDR.PAPERCityCodeDR.CTCITDesc)
+	. . s su.statecode=..GetMappedCode("CT_Province","PROV_Code","QDC1",adm.PAADMPAPMIDR.PAPMIPAPERDR.PAPERCTProvinceDR.PROVCode)
+	. . ;
+	. . ; TRC89593 - Default consent to given
+	. . ;s Consent=adm.PAADMConsentRecFundInfo
+	. . s Consent="Y"
+	. . s Flag=0
+	. . s pi=0 f  s pi=$o(^||zCacheTemp("QDCExtract",repid,pi)) q:pi=""  d
+	. . . s id1=0 f  s id1=$o(^||zCacheTemp("QDCExtract",repid,pi,id1)) q:id1=""  d
+	. . . . i $p($g(^PAADM(id1)),"^",1)=adm.PAADMPAPMIDR.%Id(),admid'=id1 d
+	. . . . . i Consent'=$p($g(^PAADM(id1,2)),"^",19) s Flag=1
+	. . i Consent="Y" s su.consenttype=1 
+	. . i Consent'="Y" s su.consenttype=2
+	. . i Flag=1 s su.consenttype=2
+	. . ;
+	. . s rt=0 f  s rt=$o(^RT(0,"PAT",adm.PAADMPAPMIDR.%Id(),rt)) q:rt=""  d
+	. . . i $p($g(^RT(rt)),"^",6)=$o(^RTC("TYPE",0,"Code","SLK","")) d
+	. . . . s su.statslinkkey=$p($g(^RT(rt)),"^")
+	. . i su.consenttype="2" s su.statslinkkey="999999999"_$p(su.birthdate," ",3)_su.sexcode
+	. . s ^||zCacheTemp("SLK",repid,admid)=su.statslinkkey
+	. . d su.agencySetObjectId(agencyid)
+	. . s save=su.%Save()
+	. . s serviceuserid=su.%Id()
+	. . s ind=$i(ind)
+	. . s ^||CacheTemp(repid,ind)=$LB("Element: 3, Episode No: "_adm.PAADMADMNo_", Patient No: "_adm.PAADMPAPMIDR.PAPMINo_", SLK: "_su.statslinkkey)
+	. . d su.%Close()
+	. ;
+	. d adm.%Close()
+
+	q Flag_"^"_serviceuserid
+]]></Implementation>
+</Method>
+
+<Method name="Element5">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>serviceuserid:%String,patid:%String,admid:%String,Flag:%String</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	s mr=$p($g(^PAADM(admid)),"^",61)
+	s contactlist=$o(^PAC("CONTTP",0,"Code","CAR",""))
+	s contactlist=contactlist_","_$o(^PAC("CONTTP",0,"Code","COR",""))
+	s contactlist=contactlist_","_$o(^PAC("CONTTP",0,"Code","NRC",""))
+	s (I2,I3,I4)=""
+	s nok=0 f  s nok=$o(^PAPER(patid,"NOK",nok)) q:nok=""  d
+	. q:(","_contactlist_",")[(","_$p($g(^PAPER(patid,"NOK",nok)),"^",6)_",")
+	. q:$p($g(^PAPER(patid,"NOK",nok)),"^",5)'=""
+	. s nokobj=##class(User.PANok).%OpenId(patid_"||"_nok)
+	. i nokobj d
+	. . i nokobj.NOKPAPERDR s NOKPAPERDR=nokobj.NOKPAPERDR.%Id()
+	. . s I2=nokobj.NOKContactTypeDR.CONTTPCode
+	. . s I3=nokobj.NOKRelationDR.CTRLTCode
+	. . s I4=nokobj.NOKPAPERDR.PAPERAgeYr
+	. . d nokobj.%Close()
+	. . s nok=$g(^PAPER(patid,"NOK",0))
+	
+	s I2=..GetMappedCode("PAC_ContactType","CONTTP_Code","QDC1",I2)
+	s I3=..GetMappedCode("CT_Relation","CTRLT_Code","QDC1",I3)
+	i I2="" s I2=2
+	d ..SetServiceUserResp(serviceuserid,"CarerResidence",I2)
+	i $g(I3)'="" d ..SetServiceUserResp(serviceuserid,"CarerRelationship",I3)
+	i I4'="" d
+	. i I4<15 s I4=1
+	. i I4>=15,I4<=24 s I4=2
+	. i I4>=24,I4<=44 s I4=3
+	. i I4>=44,I4<=64 s I4=4
+	. i I4>=65 s I4=5
+	i $g(I4)'="" d ..SetServiceUserResp(serviceuserid,"CarerAgeGroup",I4)
+	
+	s I6=$p($g(^PAPER(patid,"PER",4)),"^",22)
+	i I6'="" s I6=$p($g(^PAC("INDST",I6)),"^",1)
+	i I6'="" d ..SetServiceUserResp(serviceuserid,"IndigenousStatus",..GetMappedCode("PAC_IndigStatus","INDST_Code","QDC1",$g(I6)))
+	
+	s I7=$p($g(^PAPER(patid,"ALL")),"^",11)
+	i I7'="" s I7=$p($g(^CT("COU",I7)),"^",1)
+	i I7'="" d ..SetServiceUserResp(serviceuserid,"BirthCountry",..GetMappedCode("CT_Country","CTCOU_Code","QDC1",$g(I7)))
+
+	s I8=$p($g(^PAPER(patid,"PER",4)),"^",24)
+	i I8'="" s I8=$p($g(^PAC("PREFL",I8)),"^",1)
+	i I8'="" d ..SetServiceUserResp(serviceuserid,"Language",..GetMappedCode("PAC_PreferredLanguage","PREFL_Code","QDC1",$g(I8)))
+	
+	i $g(^||SITE)'="AUXX" d
+	. i $g(mr)'="" d
+	. . s dia=0 f  s dia=$o(^MR(mr,"DIA",dia)) q:dia=""  d
+	. . . s typ=$p($g(^MR(mr,"DIA",dia)),"^",13)
+	. . . i $g(typ)'="" d
+	. . . . i $p($g(^MRC("GRP1",typ)),"^",1)="PDX" d
+	. . . . . s I13=$p($g(^MR(mr,"DIA",dia)),"^",1)
+	. . . . . i I13'="" s I13=$p($g(^MRC("ID",I13)),"^",1)
+	. . . . i $p($g(^MRC("GRP1",typ)),"^",1)="POT" d
+	. . . . . s I14=$p($g(^MR(mr,"DIA",dia)),"^",1)
+	. . . . . i I14'="" s I14=$p($g(^MRC("ID",I14)),"^",1)
+	. ;
+	. i I13'="",$p(planindex,"-",1)="PDRSS" d ..SetServiceUserResp(serviceuserid,"PrimaryDiagnosisPDSS",..GetMappedCode("MRC_ICDDx","MRCID_Code","QDC1",$g(I13)))
+	. i I14'="",$p(planindex,"-",1)="PDRSS" d ..SetServiceUserResp(serviceuserid,"AdditionalDiagnosisPDSS",..GetMappedCode("MRC_ICDDx","MRCID_Code","QDC1",$g(I14)))
+	
+	i ^||SITE="AUXX" {
+		s qid=$o(^questionnaire.QAUXXQDCI("IndexPAAdmID",admid,""),-1)
+		i qid'="" s qdc=##class(questionnaire.QAUXXQDC).%OpenId(qid)
+	} else {
+		s qid=$o(^questionnaire.QQDCI("IndexPAAdmID",admid,""),-1)
+		i qid'="" s qdc=##class(questionnaire.QQDC).%OpenId(qid)
+	}
+	
+	i $g(^||SITE)="AUXX" d
+	. i qdc d
+	. . i qdc.QDIAG'="",$p(planindex,"-",1)="PDRSS" d ..SetServiceUserResp(serviceuserid,"PrimaryDiagnosisPDSS",qdc.QDIAG)
+	. . i qdc.QOTHDIAG'="",$p(planindex,"-",1)="PDRSS" d ..SetServiceUserResp(serviceuserid,"AdditionalDiagnosisPDSS",qdc.QOTHDIAG)
+
+	s I15=$p($g(^PAPER(patid,"PER",5)),"^",28)
+	i I15'="" s I15=$p($g(^PAC("LIVARR",I15)),"^",1)
+	i I15'="" d ..SetServiceUserResp(serviceuserid,"LivingArrangements",..GetMappedCode("PAC_LivingArrangement","LIVARR_Code","QDC1",$g(I15)))
+	
+	s I16=$p($g(^PAPER(patid,"PER",6)),"^",1)
+	i I16'="" s I16=$p($g(^PAC("DEPCHL",I16)),"^",1)
+	s Age=$$CalAge^at182($p($g(^PAPER(patid,"ALL")),"^",6),+$H,"","","")
+	s Age=$p(Age,"|",12)
+	i Age>=12,I16'="",$p(planindex,"-",1)="PDRSS" d ..SetServiceUserResp(serviceuserid,"DependentChildren",..GetMappedCode("PAC_DependentChildren","DEPCHL_Code","QDC1",$g(I16)))
+	
+	s I26=$p($g(^PAPER(patid,"PAT",4)),"^",4)
+	i I26'="" s I26=$p($g(^PAC("PENSTYPE",I26)),"^",1)
+	i I26'="",$p(planindex,"-",1)="PDRSS" d ..SetServiceUserResp(serviceuserid,"PensionBenefitStatus",..GetMappedCode("PAC_PensionType","PENSTYPE_Code","QDC1",$g(I26)))
+	
+	s PlanGroup6=$p(..GetPayorPlan(admid),"^",5)
+	
+	i $g(^||SITE)'="AUXX" {
+		s cpw=0 
+		f {
+			s cpw=$o(^MR(mr,"CPW",cpw)) q:cpw=""
+			s CPWRowId=$p($g(^MR(mr,"CPW",cpw)),"^",5)
+			s CPWCode=$p($g(^MRC("CPW",CPWRowId)),"^",1)
+			i $p($g(^MR(mr,"CPW",cpw)),"^",14)'="",$p(planindex,"-",1)="DSD" {
+				i CPWCode="IPP-AOUT",PlanGroup6="DSDAOS" d ..SetServiceUserResp(serviceuserid,"PPCreateDateAccOutreach",$p($g(^MR(mr,"CPW",cpw)),"^",14))
+				i CPWCode="IPP-COMM",PlanGroup6="DSDDCO" d ..SetServiceUserResp(serviceuserid,"PPCreateDateCO",$p($g(^MR(mr,"CPW",cpw)),"^",14))
+				i CPWCode="IPP-CC",PlanGroup6="DSDCC" d ..SetServiceUserResp(serviceuserid,"PPCreateDateCongCare",$p($g(^MR(mr,"CPW",cpw)),"^",14))
+				i CPWCode="IPP-DAYP",PlanGroup6="DSDCP" d ..SetServiceUserResp(serviceuserid,"PPCreateDateDP",$p($g(^MR(mr,"CPW",cpw)),"^",14))
+				i CPWCode="IPP-FYA",PlanGroup6="DSDFYA" d ..SetServiceUserResp(serviceuserid,"PPCreateDateFFYA",$p($g(^MR(mr,"CPW",cpw)),"^",14))
+				i CPWCode="IPP-HOME",PlanGroup6="DSDHOME" d ..SetServiceUserResp(serviceuserid,"PPCreateDateHomeFirst",$p($g(^MR(mr,"CPW",cpw)),"^",14))
+				i CPWCode="IPP-ISP",PlanGroup6="DSDISP" d ..SetServiceUserResp(serviceuserid,"PPCreateDateISP",$p($g(^MR(mr,"CPW",cpw)),"^",14))
+				i CPWCode="IPP-SS",PlanGroup6="DSDSS" d ..SetServiceUserResp(serviceuserid,"PPCreateDateShareSup",$p($g(^MR(mr,"CPW",cpw)),"^",14))
+				i CPWCode="IPP-ISP",PlanGroup6="DSDISP" d ..SetServiceUserResp(serviceuserid,"PPReviewDateISP",$p($g(^MR(mr,"CPW",cpw)),"^",14))
+				i CPWCode="IPP-SS",PlanGroup6="DSDSS" d ..SetServiceUserResp(serviceuserid,"PPReviewDateSharedSup",$p($g(^MR(mr,"CPW",cpw)),"^",14))
+			}
+			i $p($g(^MR(mr,"CPW",cpw)),"^",14)'="",$p(planindex,"-",1)="PDRSS" {
+				i CPWCode="PDSS",PlanGroup6="PDSS" d ..SetServiceUserResp(serviceuserid,"PPCreateDatePDSS",$p($g(^MR(mr,"CPW",cpw)),"^",14))
+				i CPWCode="PDSS",PlanGroup6="PDSS" d ..SetServiceUserResp(serviceuserid,"PPReviewDatePDSS",$p($g(^MR(mr,"CPW",cpw)),"^",14))
+			}
+			i $p($g(^MR(mr,"CPW",cpw)),"^",10)'="",$p(planindex,"-",1)="DSD" {
+				i CPWCode="IPP-AOUT",PlanGroup6="DSDAOS" d ..SetServiceUserResp(serviceuserid,"PPReviewDateAccOutreach",$p($g(^MR(mr,"CPW",cpw)),"^",10))
+				i CPWCode="IPP-COMM",PlanGroup6="DSDDCO" d ..SetServiceUserResp(serviceuserid,"PPReviewDateCO",$p($g(^MR(mr,"CPW",cpw)),"^",10))
+				i CPWCode="IPP-CC",PlanGroup6="DSDCC" d ..SetServiceUserResp(serviceuserid,"PPReviewDateCongCare",$p($g(^MR(mr,"CPW",cpw)),"^",10))
+				i CPWCode="IPP-DP",PlanGroup6="DSDCP" d ..SetServiceUserResp(serviceuserid,"PPReviewDateDP",$p($g(^MR(mr,"CPW",cpw)),"^",10))
+				i CPWCode="IPP-FYA",PlanGroup6="DSDFYA" d ..SetServiceUserResp(serviceuserid,"PPReviewDateFFYA",$p($g(^MR(mr,"CPW",cpw)),"^",10))
+				i CPWCode="IPP-HOME",PlanGroup6="DSDHOME" d ..SetServiceUserResp(serviceuserid,"PPReviewDateHomeFirst",$p($g(^MR(mr,"CPW",cpw)),"^",10))
+			}
+		}
+	} else {
+		i qdc.QIPPCREATE'="",PlanGroup6=17008 d ..SetServiceUserResp(serviceuserid,"PPCreateDateAccOutreach", qdc.QIPPCREATE)
+		i qdc.QIPPCREATE'="",PlanGroup6=17082 d ..SetServiceUserResp(serviceuserid,"PPCreateDateCO", qdc.QIPPCREATE)
+		i qdc.QIPPCREATE'="",PlanGroup6=17017 d ..SetServiceUserResp(serviceuserid,"PPCreateDateCongCare", qdc.IPPCREATE)
+		i qdc.QIPPCREATE'="",PlanGroup6=17022 d ..SetServiceUserResp(serviceuserid,"PPCreateDateDP", qdc.QIPPCREATE)
+		i qdc.QIPPCREATE'="",PlanGroup6=17201 d ..SetServiceUserResp(serviceuserid,"PPCreateDateFFYA", qdc.IPPCREATE)
+		i qdc.QIPPCREATE'="",PlanGroup6=17200 d ..SetServiceUserResp(serviceuserid,"PPCreateDateHomeFirst", qdc.QIPPCREATE)
+		i qdc.QIPPCREATE'="",PlanGroup6=17081 d ..SetServiceUserResp(serviceuserid,"PPCreateDateISP", qdc.QIPPCREATE)
+		i qdc.QIPPCREATE'="",PlanGroup6=17016 d ..SetServiceUserResp(serviceuserid,"PPCreateDateShareSup", qdc.QIPPCREATE)
+		i qdc.QIPPREVIEW'="",PlanGroup6=17081 d ..SetServiceUserResp(serviceuserid,"PPReviewDateISP", qdc.QIPPREVIEW)
+		i qdc.QIPPREVIEW'="",PlanGroup6=17016 d ..SetServiceUserResp(serviceuserid,"PPReviewDateSharedSup", qdc.QIPPREVIEW)
+		i qdc.QIPPCREATE'="",(",15034,15037,15035,15038,15055,")[(","_PlanGroup6_",") d ..SetServiceUserResp(serviceuserid,"PPCreateDatePDSS", qdc.QIPPCREATE)
+		i qdc.QIPPREVIEW'="",(",15034,15037,15035,15038,15055,")[(","_PlanGroup6_",") d ..SetServiceUserResp(serviceuserid,"PPReviewDatePDSS", qdc.QIPPREVIEW)    
+		
+		i qdc.QIPPREVIEW'="",PlanGroup6=17008 d ..SetServiceUserResp(serviceuserid,"PPReviewDateAccOutreach", qdc.QIPPREVIEW)
+		i qdc.QIPPREVIEW'="",PlanGroup6=17082 d ..SetServiceUserResp(serviceuserid,"PPReviewDateCO", qdc.QIPPREVIEW)
+		i qdc.QIPPREVIEW'="",PlanGroup6=17017 d ..SetServiceUserResp(serviceuserid,"PPReviewDateCongCare", qdc.QIPPREVIEW)
+		i qdc.QIPPREVIEW'="",PlanGroup6=17022 d ..SetServiceUserResp(serviceuserid,"PPReviewDateDP", qdc.QIPPREVIEW)
+		i qdc.QIPPREVIEW'="",PlanGroup6=17201 d ..SetServiceUserResp(serviceuserid,"PPReviewDateFFYA", qdc.QIPPREVIEW)
+		i qdc.QIPPREVIEW'="",PlanGroup6=17200 d ..SetServiceUserResp(serviceuserid,"PPReviewDateHomeFirst", qdc.QIPPREVIEW)		
+	}
+	
+	s admdate=$p($g(^PAADM(admid)),"^",6)
+	i admdate s admdate=$zd(admdate,0,,4)
+	
+	i PlanGroup6="DSDCJS" d ..SetServiceUserResp(serviceuserid,"ReferralDate-DSBCrimJustice",admdate)
+	i PlanGroup6="DSDBIS" d ..SetServiceUserResp(serviceuserid,"ReferralDateDSB-BIS",admdate)
+	i PlanGroup6="DSDCM" d ..SetServiceUserResp(serviceuserid,"ReferralDateDSB-CM",admdate)
+	i PlanGroup6="DSDHBOS" d ..SetServiceUserResp(serviceuserid,"ReferralDatePDSS-HBOS",admdate)
+	i PlanGroup6="PDSS-RES" d ..SetServiceUserResp(serviceuserid,"ReferralDatePDSS-Respite",admdate)
+	i PlanGroup6="PDSS-PSRDP" d ..SetServiceUserResp(serviceuserid,"ReferralDatePDSS-PSRDP",admdate)
+	i PlanGroup6="PDSS-ResiReh" d ..SetServiceUserResp(serviceuserid,"ReferralDatePDSS-ResiReh",admdate)
+	i PlanGroup6="PDSS-SAccom" d ..SetServiceUserResp(serviceuserid,"ReferralDatePDSS-SAccom",admdate)
+	i PlanGroup6="DSDTherapy" d ..SetServiceUserResp(serviceuserid,"ReferralDatePDSS-DSBTherapy",admdate)
+	
+	i qdc d
+	. i qdc.QCARPRIMSTAT d ..SetServiceUserResp(serviceuserid,"CarerPrimary",..GetMappedCode("questionnaire.QQDC","QCARPRIMSTAT","QDC1",qdc.QCARPRIMSTAT))
+	. i Flag=1 { s I5=2 } else { s I5=4 }
+	. i I5'="",$p(planindex,"-",1)="PDRSS" d ..SetServiceUserResp(serviceuserid,"CarerPDSSClient",I5)
+	. i qdc.QINTERP'="" d ..SetServiceUserResp(serviceuserid,"InterpreterServices",..GetMappedCode("questionnaire.QQDC","QINTERP","QDC1",qdc.QINTERP))
+	. i qdc.QCOMMMETH'="" d ..SetServiceUserResp(serviceuserid,"CommunicationMethod",..GetMappedCode("questionnaire.QQDC","QCOMMMETH","QDC1",qdc.QCOMMMETH))
+	. i qdc.QDISABPRIM'="",$p(planindex,"-",1)="DSD" d ..SetServiceUserResp(serviceuserid,"PrimaryDisabilityCSTDA",..GetMappedCode("questionnaire.QQDC","QDISABPRIM","QDC1",qdc.QDISABPRIM))
+	. s I12=qdc.QDISABOTHER
+	. f c=1:1:$l(qdc.QDISABOTHER,",") d
+	. . i $p(qdc.QDISABOTHER,",",c)'="",$p(planindex,"-",1)="DSD" d ..SetServiceUserResp(serviceuserid,"OtherDisabilityCSTDA",..GetMappedCode("questionnaire.QQDC","QDISABOTHER","QDC1",$p(qdc.QDISABOTHER,",",c)))
+	. ;
+	. i qdc.QLIVARRPRIOR'="",$p(planindex,"-",1)="PDRSS" d ..SetServiceUserResp(serviceuserid,"LivesWithAtEntry",..GetMappedCode("questionnaire.QQDC","QLIVARRPRIOR","QDC1",qdc.QLIVARRPRIOR))
+	. i qdc.QLIVARREXIT'="",$p(planindex,"-",1)="PDRSS" d ..SetServiceUserResp(serviceuserid,"LivesWithAtExit",..GetMappedCode("questionnaire.QQDC","QLIVARREXIT","QDC1",qdc.QLIVARREXIT))
+	. ;
+	. s I19=$p($g(^PAPER(patid,"PER",6)),"^",4)
+	. i I19'="" s I19=$p($g(^PAC("ACCOMS",I19)),"^",1)
+	. i I19'="" d ..SetServiceUserResp(serviceuserid,"ResidentialSetting",..GetMappedCode("PAC_AccomSetting","ACCOMS_Code","QDC1",$g(I19)))
+	. ;
+	. i qdc.QRESSETPRIOR'="" d ..SetServiceUserResp(serviceuserid,"AccommodationPrior",..GetMappedCode("questionnaire.QQDC","QRESSETPRIOR","QDC1",qdc.QRESSETPRIOR))
+	. i qdc.QRESSETEXIT'="",$p(planindex,"-",1)="PDRSS" d ..SetServiceUserResp(serviceuserid,"AccommodationExit",..GetMappedCode("questionnaire.QQDC","QRESSETEXIT","QDC1",qdc.QRESSETEXIT))
+	. i qdc.QHBOSNOM'="",$p(planindex,"-",1)="PDRSS" d ..SetServiceUserResp(serviceuserid,"HBOSNominationRights",..GetMappedCode("questionnaire.QQDC","QHBOSNOM","QDC1",qdc.QHBOSNOM))
+	. i qdc.QLABFORSTAT'="" d ..SetServiceUserResp(serviceuserid,"LabourForceStatus",..GetMappedCode("questionnaire.QQDC","QLABFORSTAT","QDC1",qdc.QLABFORSTAT))
+	. i qdc.QMAINSOURCEINC'="" d ..SetServiceUserResp(serviceuserid,"IncomeSource",..GetMappedCode("questionnaire.QQDC","QMAINSOURCEINC","QDC1",qdc.QMAINSOURCEINC))
+	. i qdc.QCARERALLOW'="" d ..SetServiceUserResp(serviceuserid,"CarerAllowance",..GetMappedCode("questionnaire.QQDC","QCARERALLOW","QDC1",qdc.QCARERALLOW))
+	. i qdc.QPARTGETAR'="",$p(planindex,"-",1)="DSD" d ..SetServiceUserResp(serviceuserid,"ParticipateOutsideNoTransport",..GetMappedCode("questionnaire.QQDC","QPARTGETAR","QDC1",qdc.QPARTGETAR))
+	. i qdc.QPARTTRANS'="",$p(planindex,"-",1)="DSD" d ..SetServiceUserResp(serviceuserid,"ParticipateTransport",..GetMappedCode("questionnaire.QQDC","QPARTTRANS","QDC1",qdc.QPARTTRANS))
+	. i qdc.QPARTFAMREL'="",$p(planindex,"-",1)="DSD" d ..SetServiceUserResp(serviceuserid,"ParticipateFamily",..GetMappedCode("questionnaire.QQDC","QPARTFAMREL","QDC1",qdc.QPARTFAMREL))
+	. i qdc.QPARTSOCREL'="",$p(planindex,"-",1)="DSD" d ..SetServiceUserResp(serviceuserid,"ParticipateSocial",..GetMappedCode("questionnaire.QQDC","QPARTSOCREL","QDC1",qdc.QPARTSOCREL))
+	. i qdc.QPARTRECLEIS'="",$p(planindex,"-",1)="DSD" d ..SetServiceUserResp(serviceuserid,"ParticipateLeisure",..GetMappedCode("questionnaire.QQDC","QPARTRECLEIS","QDC1",qdc.QPARTRECLEIS))
+	. i qdc.QPARTWORK'="",$p(planindex,"-",1)="DSD" d ..SetServiceUserResp(serviceuserid,"ParticipateWorking",..GetMappedCode("questionnaire.QQDC","QPARTWORK","QDC1",qdc.QPARTWORK))
+	. i qdc.QPARTHANDMON'="",$p(planindex,"-",1)="DSD" d ..SetServiceUserResp(serviceuserid,"ParticipateMoney",..GetMappedCode("questionnaire.QQDC","QPARTHANDMON","QDC1",qdc.QPARTHANDMON))
+	. i qdc.QSUPPSELFCARE'="" d ..SetServiceUserResp(serviceuserid,"SupportSelfCare",..GetMappedCode("questionnaire.QQDC","QSUPPSELFCARE","QDC1",qdc.QSUPPSELFCARE))
+	. i qdc.QSUPPMOB'="" d ..SetServiceUserResp(serviceuserid,"SupportMobility",..GetMappedCode("questionnaire.QQDC","QSUPPMOB","QDC1",qdc.QSUPPMOB))
+	. i qdc.QSUPPCOMM'="" d ..SetServiceUserResp(serviceuserid,"SupportCommunication",..GetMappedCode("questionnaire.QQDC","QSUPPCOMM","QDC1",qdc.QSUPPCOMM))
+	. i qdc.QSUPPINTREL'="" d ..SetServiceUserResp(serviceuserid,"SupportInterpersonal",..GetMappedCode("questionnaire.QQDC","QSUPPINTREL","QDC1",qdc.QSUPPINTREL))
+	. i qdc.QSUPPLEARN'="" d ..SetServiceUserResp(serviceuserid,"SupportLearning",..GetMappedCode("questionnaire.QQDC","QSUPPLEARN","QDC1",qdc.QSUPPLEARN))
+	. i qdc.QSUPPEDUC'="" d ..SetServiceUserResp(serviceuserid,"SupportEducation",..GetMappedCode("questionnaire.QQDC","QSUPPEDUC","QDC1",qdc.QSUPPEDUC))
+	. i qdc.QSUPPCOMMECON'="" d ..SetServiceUserResp(serviceuserid,"SupportCommunity",..GetMappedCode("questionnaire.QQDC","QSUPPCOMMECON","QDC1",qdc.QSUPPCOMMECON))
+	. i qdc.QSUPPDOMEST'="" d ..SetServiceUserResp(serviceuserid,"SupportDomestic",..GetMappedCode("questionnaire.QQDC","QSUPPDOMEST","QDC1",qdc.QSUPPDOMEST))
+	. i qdc.QSUPPWORK'="" d ..SetServiceUserResp(serviceuserid,"SupportWorking",..GetMappedCode("questionnaire.QQDC","QSUPPWORK","QDC1",qdc.QSUPPWORK))
+	. i qdc.QSOURCECLINSUPP'="",$p(planindex,"-",1)="PDRSS" d ..SetServiceUserResp(serviceuserid,"SourceClinicalSupport",..GetMappedCode("questionnaire.QQDC","QSOURCECLINSUPP","QDC1",qdc.QSOURCECLINSUPP))
+	. i qdc.QCONTACTSUPPPROV'="",$p(planindex,"-",1)="PDRSS" d ..SetServiceUserResp(serviceuserid,"ContactCaseManager",..GetMappedCode("questionnaire.QQDC","QCONTACTSUPPPROV","QDC1",qdc.QCONTACTSUPPPROV))
+	. i qdc.QINDFUNDSTATUS'="" d ..SetServiceUserResp(serviceuserid,"IndividualFundingStatus",..GetMappedCode("questionnaire.QQDC","QINDFUNDSTATUS","QDC1",qdc.QINDFUNDSTATUS))
+	. i qdc.QGOALSMET'="",$p(planindex,"-",1)="PDRSS" d ..SetServiceUserResp(serviceuserid,"PPGoals",..GetMappedCode("questionnaire.QQDC","QGOALSMET","QDC1",qdc.QGOALSMET))
+	. i qdc.QPROPEFT'="",$p(planindex,"-",1)="DSD",PlanGroup6="DSDCP" d ..SetServiceUserResp(serviceuserid,"ClientEFT-DayProg",..GetMappedCode("questionnaire.QQDC","QPROPEFT","QDC1",qdc.QPROPEFT))
+	. ;
+	. i qdc.QREASONPLANRESP'="",$p(planindex,"-",1)="PDRSS" d ..SetServiceUserResp(serviceuserid,"ReasonRespite",..GetMappedCode("questionnaire.QQDC","QREASONPLANRESP","QDC1",qdc.QREASONPLANRESP))
+	. i qdc.QNIGHTSRESP'="",$p(planindex,"-",1)="PDRSS" d ..SetServiceUserResp(serviceuserid,"NightsReceivedPDSSRespite",..GetMappedCode("questionnaire.QQDC","QNIGHTSRESP","QDC1",qdc.QNIGHTSRESP))
+	. i qdc.QNIGHTSRESREHAB'="",$p(planindex,"-",1)="PDRSS" d ..SetServiceUserResp(serviceuserid,"NightsReceived-PDSSResiRehab",..GetMappedCode("questionnaire.QQDC","QNIGHTSRESREHAB","QDC1",qdc.QNIGHTSRESREHAB))
+	. d qdc.%Close()
+	
+	s episode=##class(User.PAAdm).%OpenId(admid)
+	i episode d
+	. s ind=$i(ind) 
+	. s ^||CacheTemp(repid,ind)=$LB("Element: 5, Episode No: "_episode.PAADMADMNo_", Patient No: "_episode.PAADMPAPMIDR.PAPMINo_", SLK: "_$g(^||zCacheTemp("SLK",repid,admid)))
+	. d episode.%Close()
+	s (I1,I2,I3,I4,I5,I6,I7,I8,I9,I10,I11,I12,I13,I14,I15,I16,I17,I18,I19,I20,I21,I22,I23,I24,I25,I26,I27,I28,I29,I30,I31,I32,I33,I34,I35,I36,I37,I38,I39,I40,I41,I42,I43,I44,I45,I46,I47,I48,I49,I50,I51,I52,I53,I54,I55,I56,I57,I58,I59,I60,I61,I62,I63,I64,I65,I66,I67,I68,I69,I70,I71,I72,I73,I74,I75,I76,I77,I78)=""
+	q 1
+]]></Implementation>
+</Method>
+
+<Method name="Element6">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>serviceuserid:%String,admid:%String,DateFrom:%String,DateTo:%String,Year:%String,repid:%String</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	s (END1,inc,count,cnt)=0
+	
+	//TRC75229 24/06/2011 Updated query
+	;i $g(^||SITE)'="AUXX" d
+	. ;s oe=0 f  s oe=$o(^OEORD(0,"Adm",admid,oe)) q:oe=""  d
+	. . ;s oei=0 f  s oei=$o(^OEORD(oe,"I",oei)) q:oei=""  d
+	. . . ;i $p($g(^OEORD(oe,"I",oei,1)),"^",13)=$o(^OEC("OSTAT",0,"Code","E",0)) d
+	. . . . ;i $p($g(^OEORD(oe,"I",oei,12)),"^",15)'="" d
+	. . . . . ;s oee=0 f  s oee=$o(^OEORD(oe,"I",oei,"X",oee)) q:oee=""  d
+	. . . . . . ;i $p($g(^OEORD(oe,"I",oei,"X",oee)),"^",19)'="" d
+	. . . . . . . ;i $p($g(^OEORD(oe,"I",oei,"X",oee)),"^",19)>=DateFrom,$p($g(^OEORD(oe,"I",oei,"X",oee)),"^",19)<=DateTo d
+	. . . . . . . . ;s order=##class(User.OEOrdExec).%OpenId(oe_"||"_oei_"||"_oee)
+	. . . . . . . . ;s cnt=$i(cnt)
+	. . . . . . . . ;i cnt=1 d
+	. . . . . . . . .; s suo=##class(QDC.serviceuseroutlet).%New()
+	. . . . . . . . . ;i suo d
+	. . . . . . . . . .; s suo.startdate=..I79(admid)
+	. . . . . . . . . . ;i suo.startdate'="" s suo.startdate=$zd(suo.startdate,0,"",4)
+	. . . . . . . . . . ;s suo.lastservicedate=..I81(admid,DateFrom,DateTo)
+	. . . . . . . . . . ;i suo.lastservicedate'="" s suo.lastservicedate=$zd(suo.lastservicedate,0,"",4)
+	. . . . . . . . . . ;s I80=$p($g(^PAADM(admid)),"^",17)
+	. . . . . . . . . . ;s I82=$p($g(^PAADM(admid)),"^",61)
+	. . . . . . . . . . ;i $g(I82)'="" d
+	. . . . . . . . . . . ;s I82=$p($g(^MR(I82,"PRO",1)),"^",54)
+	. . . . . . . . . . . ;i $g(I82)'="" s I82=$p($g(^PAC("DSCL",I82)),"^",1)
+	. . . . . . . . . . ;i I80'="",I80>DateTo s (I80,I82)=""
+	. . . . . . . . . . ;i I80'="" s I80=$zd(I80,0,"",4)
+	. . . . . . . . . . ;s I84=$p($g(^PAADM(admid,2)),"^",10)
+	. . . . . . . . . . ;i $g(I84)'="" s I84=$p($g(^PAC("ATTEND",I84)),"^",1)
+	. . . . . . . . . . ;s suo.enddate=I80
+	. . . . . . . . . . ;s suo.endreasoncode=..GetMappedCode("PAC_DischClassification","DSCL_Code","QDC1",$g(I82))
+	. . . . . . . . . . ;i $zd($p($g(^OEORD(oe,"I",oei,"X",oee)),"^",19),11)="Wed",Quarter="April - June" d
+	. . . . . . . . . . . ;i $p($g(^OEORD(oe,"I",oei,"X",oee)),"^",19)>=$$intdate^SSUTIL4("24/06/"_Year),$p($g(^OEORD(oe,"I",oei,"X",oee)),"^",19)<=$$intdate^SSUTIL4("30/06/"_Year) d
+	. . . . . . . . . . . . ;s suo.snapshottype="Y"
+	. . . . . . . . . . ;i suo.snapshottype="" s suo.snapshottype="N"
+	. . . . . . . . . . ;s suo.referralsourcecode=..GetMappedCode("PAC_SourceOfAttendance","ATTEND_Code","QDC1",$g(I84))
+	. . . . . . . . . . ;i $p(OEORIQuestionnaire,"||")=$o(^SSU("WIN",0,"Code","CONTACTS","")) d
+	. . . . . . . . . . . ;s OEORIQuestionnaire=$p(OEORIQuestionnaire,"||",2)
+	. . . . . . . . . . . ;i $g(OEORIQuestionnaire)'="" s suo.servicetypeoutletcodeno=$zstrip($lg(^questionnaire.QCONTACTSD(OEORIQuestionnaire),31),"*WP")
+	. . . . . . . . . . ;i suo.servicetypeoutletcodeno="" d
+	. . . . . . . . . . . ;s qid=$o(^questionnaire.QQDCI("IndexPAAdmID",admid,""),-1)
+	. . . . . . . . . . . ;i qid'="" d
+	. . . . . . . . . . . . ;s suo.servicetypeoutletcodeno=$lg(^questionnaire.QQDCD(qid),21)
+	. . . . . . . . . . . . ;s suo.servicetypeoutletcodeno=$zstrip(suo.servicetypeoutletcodeno,"*W")
+	. . . . . . . . . . ;d suo.serviceuserSetObjectId(serviceuserid)
+	. . . . . . . . . . ;s save=suo.%Save()
+	. . . . . . . . . . ;s suoid=suo.%Id()
+	. . . . . . . . . . ;
+	. . . . . . . . . . ;i order d
+	. . . . . . . . . . . ;s ind=$i(ind)
+	. . . . . . . . . . . ;s ^||CacheTemp(repid,ind)=$LB("Element: 6, Episode No: "_order.OEOREOEORIParRef.OEORIOEORDParRef.OEORDAdmDR.PAADMADMNo_", Patient No: "_order.OEOREOEORIParRef.OEORIOEORDParRef.OEORDAdmDR.PAADMPAPMIDR.PAPMINo_", SLK: "_$g(^||zCacheTemp("SLK",repid,admid))_", Start Date: "_suo.startdate_", Last Date: "_suo.lastservicedate_", STO: "_suo.servicetypeoutletcodeno)
+	. . . . . . . . . . ;d suo.%Close()
+	. . . . . . . . ;
+	. . . . . . . . ;d ..GetPayorPlan(admid)
+	. . . . . . . . ;s (I86,I87)=$p($g(^OEORD(oe,"I",oei,"X",oee)),"^",19)
+	. . . . . . . . ;i I86 s I86=$zd(I86,0,,4)
+	. . . . . . . . ;i I87 s I87=$zd(I87,0,,4)
+	. . . . . . . . ;s I88=$p($g(^OEORD(oe,"I",oei,"X",oee)),"^",5)
+	. . . . . . . . ;s I89=PlanGroup1
+	. . . . . . . . ;i I89'="" s I89=$e(I89,1,15)
+	. . . . . . . . ;s sh=##class(QDC.servicehours).%New()
+	. . . . . . . . ;i sh d
+	. . . . . . . . . ;d sh.serviceuseroutletSetObjectId(suoid)
+	. . . . . . . . . ;s sh.fromdate=I86
+	. . . . . . . . . ;s sh.todate=I87
+	. . . . . . . . . ;s sh.servicehours=I88
+	. . . . . . . . . ;s sh.dhsactivitysubtypecodeno=I89
+	. . . . . . . . . ;s save=sh.%Save()
+	. . . . . . . . . ;i order d
+	. . . . . . . . . . ;s ind=$i(ind)
+	. . . . . . . . . . ;s ^||CacheTemp(repid,ind)=$LB("Element: 7, Episode No: "_order.OEOREOEORIParRef.OEORIOEORDParRef.OEORDAdmDR.PAADMADMNo_", Patient No: "_order.OEOREOEORIParRef.OEORIOEORDParRef.OEORDAdmDR.PAADMPAPMIDR.PAPMINo_", SLK: "_$g(^||zCacheTemp("SLK",repid,admid))_", Item: "_order.OEOREOEORIParRef.OEORIItmMastDR.ARCIMDesc_", Date Executed: "_$zd(order.OEOREDateExecuted,3))
+	. . . . . . . . . ;d sh.%Close()
+	. . . . . . . . ;i $g(order) d order.%Close()
+	. . . . . . . . ;s (OEOREDateExecuted,I79,I80,I81,I82,I83,I84,I85,I86,I87,I88,I89,OEORIQuestionnaire)=""
+	
+	;i $g(^||SITE)="AUXX" 
+	d
+	. s oe=0 f  s oe=$o(^OEORD(0,"Adm",admid,oe)) q:oe=""  d
+	. . s oei=0 f  s oei=$o(^OEORD(oe,"I",oei)) q:oei=""  d
+	. . . i $p($g(^OEORD(oe,"I",oei,1)),"^",13)=$o(^OEC("OSTAT",0,"Code","E",0)) d
+	. . . . s con=$o(^PAENQi("OEORI",oe_"||"_oei,""))
+	. . . . i $g(con) d
+	. . . . . s contact=##class(User.PAEnquiryContact).%OpenId(con)
+	. . . . . i contact d
+	. . . . . . i contact.ENQDate>=DateFrom,contact.ENQDate<=DateTo,contact.ENQText1'="" d
+	. . . . . . . s exists=0
+	. . . . . . . s e2=0 f  s e2=$o(^QDC.outletresponseD(e2)) q:e2=""  d
+	. . . . . . . . s qdcobj=##class(QDC.outletresponse).%OpenId(e2)
+	. . . . . . . . i qdcobj d
+	. . . . . . . . . i qdcobj.servicetypeoutletcodeno=contact.ENQText1 s exists=1
+	. . . . . . . . . k qdcobj
+	. . . . . . . i exists=1 d
+	. . . . . . . . ;i cnt=1 d
+	. . . . . . . . ;i cnt>=1 
+	. . . . . . . . s suo=##class(QDC.serviceuseroutlet).%New()
+	. . . . . . . . i suo d
+	. . . . . . . . . s suo.startdate=..I79(admid)
+	. . . . . . . . . i suo.startdate'="" s suo.startdate=$zd(suo.startdate,0,"",4)
+	. . . . . . . . . s suo.lastservicedate=..I81(admid,DateFrom,DateTo)
+	. . . . . . . . . i suo.lastservicedate'="" s suo.lastservicedate=$zd(suo.lastservicedate,0,"",4)
+	. . . . . . . . . s I80=$p($g(^PAADM(admid)),"^",17)
+	. . . . . . . . . s I82=$p($g(^PAADM(admid)),"^",61)
+	. . . . . . . . . i $g(I82)'="" d
+	. . . . . . . . . . s I82=$p($g(^MR(I82,"PRO",1)),"^",54)
+	. . . . . . . . . . i $g(I82)'="" s I82=$p($g(^PAC("DSCL",I82)),"^",1)
+	. . . . . . . . . i I80'="",I80>DateTo s (I80,I82)=""
+	. . . . . . . . . i I80'="" s I80=$zd(I80,0,"",4)
+	. . . . . . . . . s I84=$p($g(^PAADM(admid,2)),"^",10)
+	. . . . . . . . . i $g(I84)'="" s I84=$p($g(^PAC("ATTEND",I84)),"^",1)
+	. . . . . . . . . s suo.enddate=I80
+	. . . . . . . . . s suo.endreasoncode=..GetMappedCode("PAC_DischClassification","DSCL_Code","QDC1",$g(I82))
+	. . . . . . . . . i $zd(contact.ENQDate,11)="Wed",Quarter="April - June" d
+	. . . . . . . . . . i contact.ENQDate>=$$intdate^SSUTIL4("24/06/"_Year),contact.ENQDate<=$$intdate^SSUTIL4("30/06/"_Year) d
+	. . . . . . . . . . . s suo.snapshottype="Y"
+	. . . . . . . . . i suo.snapshottype="" s suo.snapshottype="N"
+	. . . . . . . . . s suo.referralsourcecode=..GetMappedCode("PAC_SourceOfAttendance","ATTEND_Code","QDC1",$g(I84))
+	. . . . . . . . . s suo.servicetypeoutletcodeno=$zstrip(contact.ENQText1,"*W")
+	. . . . . . . . . d suo.serviceuserSetObjectId(serviceuserid)
+	. . . . . . . . . s save=suo.%Save()
+	. . . . . . . . . s suoid=suo.%Id()
+	. . . . . . . . . ;
+	. . . . . . . . . i contact d
+	. . . . . . . . . . s ind=$i(ind)
+	. . . . . . . . . . s ^||CacheTemp(repid,ind)=$LB("Element: 6, Episode No: "_contact.ENQOEOrdItemDR.OEORIOEORDParRef.OEORDAdmDR.PAADMADMNo_", Patient No: "_contact.ENQPAPERDR.PAPERPAPMIDR.PAPMINo_", SLK: "_$g(^||zCacheTemp("SLK",repid,admid))_", Start Date: "_suo.startdate_", Last Date: "_suo.lastservicedate_", STO: "_suo.servicetypeoutletcodeno)
+	. . . . . . . . . d suo.%Close()
+	. . . . . . . i contact.ENQText1'="" d
+	. . . . . . . . ;d ..GetPayorPlan(admid)
+	. . . . . . . . s (I86,I87)=contact.ENQDate
+	. . . . . . . . i I86 s I86=$zd(I86,0,,4)
+	. . . . . . . . i I87 s I87=$zd(I87,0,,4)
+	. . . . . . . . s I88=contact.ENQDuration
+	. . . . . . . . ;s I89=PlanGroup1
+	. . . . . . . . i contact.ENQAuxInsTypeDR s I89=contact.ENQAuxInsTypeDR.AUXITPlanGroup1
+	. . . . . . . . i I89'="" s I89=$e(I89,1,15)
+	. . . . . . . . s sh=##class(QDC.servicehours).%New()
+	. . . . . . . . i sh d
+	. . . . . . . . . d sh.serviceuseroutletSetObjectId(suoid)
+	. . . . . . . . . s sh.fromdate=I86
+	. . . . . . . . . s sh.todate=I87
+	. . . . . . . . . s sh.servicehours=I88
+	. . . . . . . . . s sh.dhsactivitysubtypecodeno=I89
+	. . . . . . . . . s save=sh.%Save()
+	. . . . . . . . . i contact d
+	. . . . . . . . . . s ind=$i(ind)
+	. . . . . . . . . . s ^||CacheTemp(repid,ind)=$LB("Element: 7, Episode No: "_contact.ENQOEOrdItemDR.OEORIOEORDParRef.OEORDAdmDR.PAADMADMNo_", Patient No: "_contact.ENQPAPERDR.PAPERPAPMIDR.PAPMINo_", SLK: "_$g(^||zCacheTemp("SLK",repid,admid))_", Item: "_contact.ENQOEOrdItemDR.OEORIItmMastDR.ARCIMDesc_", Date Executed: "_$zd(contact.ENQDate,3))
+	. . . . . . . . . d sh.%Close()
+	. . . . . . . . i $g(contact) d contact.%Close()
+	. . . . . . . s (I79,I80,I81,I82,I83,I84,I85,I86,I87,I88,I89)=""
+	
+	d ..Updates1(repid,DateTo,Year)
+	d ..Updates2(repid,DateTo)
+	q
+]]></Implementation>
+</Method>
+
+<Method name="I79">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>admid:%String</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	//TRC75229 24/06/2011 Updated query
+	s I79=""
+	;&SQL(SELECT TOP 1 OEORE_DateExecuted INTO :I79 FROM SqLUser.OE_OrdExec WHERE OEORE_OEORI_ParRef->OEORI_OEORD_ParRef->OEORD_Adm_DR=:admid AND OEORE_DateExecuted IS NOT NULL AND OEORE_OEORI_ParRef->OEORI_Questionnaire IS NOT NULL ORDER BY OEORE_DateExecuted ASC)
+	
+	;i $g(^||SITE)'="AUXX" d
+	. ;s oe1=0 f  s oe1=$o(^OEORD(0,"Adm",admid,oe1)) q:oe1=""  d
+	. . ;s oei1=0 f  s oei1=$o(^OEORD(oe1,"I",oei1)) q:oei1=""  d
+	. . . ;i $p($g(^OEORD(oe1,"I",oei1,1)),"^",13)=$o(^OEC("OSTAT",0,"Code","E",0)) d
+	. . . . ;i $p($g(^OEORD(oe1,"I",oei1,12)),"^",15)'="" d
+	. . . . . ;s oee1=0 f  s oee1=$o(^OEORD(oe1,"I",oei1,"X",oee1)) q:oee1=""  d
+	. . . . . . ;i $p($g(^OEORD(oe1,"I",oei1,"X",oee1)),"^",19)'="" d
+	. . . . . . . ;i $g(I79)="" s I79=$p($g(^OEORD(oe1,"I",oei1,"X",oee1)),"^",19)
+	. . . . . . . ;i $g(I79)>=$p($g(^OEORD(oe1,"I",oei1,"X",oee1)),"^",19) s I79=$p($g(^OEORD(oe1,"I",oei1,"X",oee1)),"^",19)
+	
+	;i $g(^||SITE)="AUXX" 
+	i $p($g(^PAADM(admid)),"^",6)<$zdh("2013-07-01",3) d
+	. s oe1=0 f  s oe1=$o(^OEORD(0,"Adm",admid,oe1)) q:oe1=""  d
+	. . s oei1=0 f  s oei1=$o(^OEORD(oe1,"I",oei1)) q:oei1=""  d
+	. . . i $p($g(^OEORD(oe1,"I",oei1,1)),"^",13)=$o(^OEC("OSTAT",0,"Code","E",0)) d
+	. . . . i $p($g(^OEORD(oe1,"I",oei1,12)),"^",15)'="" d
+	. . . . . s oee1=0 f  s oee1=$o(^OEORD(oe1,"I",oei1,"X",oee1)) q:oee1=""  d
+	. . . . . . i $p($g(^OEORD(oe1,"I",oei1,"X",oee1)),"^",19)'="" d
+	. . . . . . . i $g(I79)="" s I79=$p($g(^OEORD(oe1,"I",oei1,"X",oee1)),"^",19)
+	. . . . . . . i $g(I79)>=$p($g(^OEORD(oe1,"I",oei1,"X",oee1)),"^",19) s I79=$p($g(^OEORD(oe1,"I",oei1,"X",oee1)),"^",19)
+	
+	i I79="" d
+	. s oe1=0 f  s oe1=$o(^OEORD(0,"Adm",admid,oe1)) q:oe1=""  d
+	. . s oei1=0 f  s oei1=$o(^OEORD(oe1,"I",oei1)) q:oei1=""  d
+	. . . i $p($g(^OEORD(oe1,"I",oei1,1)),"^",13)=$o(^OEC("OSTAT",0,"Code","E",0)) d
+	. . . . s con1=$o(^PAENQi("OEORI",oe1_"||"_oei1,""))
+	. . . . i $g(con1) d
+	. . . . . s contact1=##class(User.PAEnquiryContact).%OpenId(con1)
+	. . . . . i contact1 d
+	. . . . . . i $g(I79)="" s I79=contact1.ENQDate
+	. . . . . . i $g(I79)>=contact1.ENQDate s I79=contact1.ENQDate
+	. . . . . . d contact1.%Close()
+
+	q I79
+]]></Implementation>
+</Method>
+
+<Method name="I81">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>admid:%String,DF:%String,DT:%String</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	//TRC75229 24/06/2011 Updated query
+	;&SQL(SELECT TOP 1 OEORE_DateExecuted INTO :I81 FROM SqLUser.OE_OrdExec WHERE OEORE_OEORI_ParRef->OEORI_OEORD_ParRef->OEORD_Adm_DR=:admid AND OEORE_DateExecuted IS NOT NULL AND OEORE_OEORI_ParRef->OEORI_Questionnaire IS NOT NULL AND OEORE_DateExecuted BETWEEN :DateFrom AND :DateTo ORDER BY OEORE_DateExecuted DESC)
+	s I81=""
+	
+	;i $g(^||SITE)'="AUXX" d
+	. ;s oe1=0 f  s oe1=$o(^OEORD(0,"Adm",admid,oe1)) q:oe1=""  d
+	. . ;s oei1=0 f  s oei1=$o(^OEORD(oe1,"I",oei1)) q:oei1=""  d
+	. . . ;i $p($g(^OEORD(oe1,"I",oei1,1)),"^",13)=$o(^OEC("OSTAT",0,"Code","E",0)) d
+	. . . .; i $p($g(^OEORD(oe1,"I",oei1,12)),"^",15)'="" d
+	. . . . . ;s oee1=0 f  s oee1=$o(^OEORD(oe1,"I",oei1,"X",oee1)) q:oee1=""  d
+	. . . . . . ;;i $p($g(^OEORD(oe1,"I",oei1,"X",oee1)),"^",19)'="" d
+	. . . . . . . ;i $g(DF)'="" d
+	. . . . . . . . ;i $p($g(^OEORD(oe1,"I",oei1,"X",oee1)),"^",19)>=DF,$p($g(^OEORD(oe1,"I",oei1,"X",oee1)),"^",19)<=DT d
+	. . . . . . . . .; i $g(I81)="" s I81=$p($g(^OEORD(oe1,"I",oei1,"X",oee1)),"^",19)
+	. . . . . . . . . ;i $g(I81)<=$p($g(^OEORD(oe1,"I",oei1,"X",oee1)),"^",19) s I81=$p($g(^OEORD(oe1,"I",oei1,"X",oee1)),"^",19)
+	. . . . . . . ;i $g(DF)="" d
+	. . . . . . . .; i $g(I81)="" s I81=$p($g(^OEORD(oe1,"I",oei1,"X",oee1)),"^",19)
+	. . . . . . . . ;i $g(I81)<=$p($g(^OEORD(oe1,"I",oei1,"X",oee1)),"^",19) s I81=$p($g(^OEORD(oe1,"I",oei1,"X",oee1)),"^",19)
+	
+	;i $g(^||SITE)="AUXX"
+	d
+	. s oe1=0 f  s oe1=$o(^OEORD(0,"Adm",admid,oe1)) q:oe1=""  d
+	. . s oei1=0 f  s oei1=$o(^OEORD(oe1,"I",oei1)) q:oei1=""  d
+	. . . i $p($g(^OEORD(oe1,"I",oei1,1)),"^",13)=$o(^OEC("OSTAT",0,"Code","E",0)) d
+	. . . . ;i $p($g(^OEORD(oe1,"I",oei1,12)),"^",15)'="" d //TRC 574
+	. . . . s con1=$o(^PAENQi("OEORI",oe1_"||"_oei1,""))
+	. . . . i $g(con1) d
+	. . . . . s contact1=##class(User.PAEnquiryContact).%OpenId(con1)
+	. . . . . i contact1 d
+	. . . . . . i $g(DF)'="" d
+	. . . . . . . i contact1.ENQDate>=DF,contact1.ENQDate<=DT d
+	. . . . . . . . i $g(I81)="" s I81=contact1.ENQDate
+	. . . . . . . . i $g(I81)<=contact1.ENQDate s I81=contact1.ENQDate
+	. . . . . . i $g(DF)="" d
+	. . . . . . . i $g(I81)="" s I81=contact1.ENQDate
+	. . . . . . . i $g(I81)<=contact1.ENQDate s I81=contact1.ENQDate
+	q I81
+]]></Implementation>
+</Method>
+
+<Method name="Updates1">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>repid:%String,DateTo:%String,Year:%String</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	n updplan,updadmid
+	i $d(^||zCacheTemp("Updates",repid)) d
+	. s updplan=0 f  s updplan=$o(^||zCacheTemp("Updates",repid,updplan)) q:updplan=""  d
+	. . i $d(^||zCacheTemp("Updates",repid,updplan,admid)) d
+	. . . s ord=0 f  s ord=$o(^||zCacheTemp("Updates",repid,updplan,admid,ord)) q:ord=""  d
+	. . . . s (END1,inc,count)=0
+	. . . . d ..UpdElement6(ord,DateTo)
+	
+	q 1
+]]></Implementation>
+</Method>
+
+<Method name="Updates2">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>repid:%String,DateTo:%String</FormalSpec>
+<Implementation><![CDATA[
+	n updplan,updadmid
+	i $d(^||zCacheTemp("Updates",repid)) d
+	. s updplan=0 f  s updplan=$o(^||zCacheTemp("Updates",repid,updplan)) q:updplan=""  d
+	. . i $d(^||zCacheTemp("Updates",repid,updplan,admid)) d
+	. . . s ord=0 f  s ord=$o(^||zCacheTemp("Updates",repid,updplan,admid,ord)) q:ord=""  d
+	. . . . d ..UpdElement7(ord,DateTo)
+	q 1
+]]></Implementation>
+</Method>
+
+<Method name="Update2">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>repid:%String,DateFrom:%String,DateTo:%String</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	n updplan,updadmid,updpatid
+	i $d(^||zCacheTemp("Updates",repid)) d
+	. s updplan=0 f  s updplan=$o(^||zCacheTemp("Updates",repid,updplan)) q:updplan=""  d
+	. . s updadmid=0 f  s updadmid=$o(^||zCacheTemp("Updates",repid,updplan,updadmid)) q:updadmid=""  d
+	. . . i $p($g(^PAADM(updadmid)),"^",17)'="" d
+	. . . . s passed=0
+	. . . . i ($p($g(^PAADM(updadmid)),"^",17)<=DateFrom)||($p($g(^PAADM(updadmid)),"^",17)>=DateTo) d
+	. . . . . s admid=updadmid
+	. . . . . s patid=$p(^PAADM(admid),"^",1)
+	. . . . . s Flag=..Element3(agencyid,admid,repid)
+	. . . . . s serviceuserid=$p(Flag,"^",2)
+	. . . . . s Flag=$p(Flag,"^")
+	. . . . . d ..Element5(serviceuserid,patid,admid,Flag)
+	. . . . . s ord=0 f  s ord=$o(^||zCacheTemp("Updates",repid,updplan,admid,ord)) q:ord=""  d
+	. . . . . . d ..UpdElement6(ord,DateTo)
+	. . . . . . d ..UpdElement7(ord,DateTo)
+	. . . . . . s passed=1
+	q
+]]></Implementation>
+</Method>
+
+<Method name="UpdElement6">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>ord:%String,DateTo:%String</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	s save=0
+	s (END1,inc,count)=0
+	
+	i $g(^||SITE)'="AUXX" d
+	. s con=##class(questionnaire.QCONTACTS).%OpenId(ord)
+	. i con d
+	. . s OEOREDateExecuted=con.QUESOEOrdExecDR.OEOREDateExecuted
+	. . s I80=con.QUESPAAdmDR.PAADMDischgDate
+	. . s I82=con.QUESPAAdmDR.PAADMMainMRADMDR.MRADMDischClassifDR.DSCLCode
+	. . s I84=con.QUESPAAdmDR.PAADMSourceOfAttendDR.ATTENDCode
+	. . s OEORIQuestionnaire=con.QUESOEOrdExecDR.OEOREOEORIParRef.OEORIQuestionnaire
+	. . i con.QUESOEOrdExecDR.OEOREOEORIParRef.OEORIItemStatDR.OSTATCode="E" d
+	. . . s suo=##class(QDC.serviceuseroutlet).%New()
+	. . . i suo d
+	. . . . s suo.startdate=..I79(admid)
+	. . . . i suo.startdate'="" s suo.startdate=$zd(suo.startdate,0,"",4)
+	. . . . s suo.lastservicedate=..I81(admid,"","")
+	. . . . i suo.lastservicedate'="" s suo.lastservicedate=$zd(suo.lastservicedate,0,"",4)
+	. . . . i I80'="",I80>DateTo s (I80,I82)=""
+	. . . . i I80'="" s I80=$zd(I80,0,"",4)
+	. . . . s suo.enddate=I80
+	. . . . s suo.endreasoncode=..GetMappedCode("PAC_DischClassification","DSCL_Code","QDC1",$g(I82))
+	. . . . i $zd(OEOREDateExecuted,11)="Wed",Quarter="April - June" d
+	. . . . . i OEOREDateExecuted>=$$intdate^SSUTIL4("24/06/"_Year),OEOREDateExecuted<=$$intdate^SSUTIL4("30/06/"_Year) d
+	. . . . . . s suo.snapshottype="Y"
+	. . . . i $g(suo.snapshottype)="" s suo.snapshottype="N"
+	. . . . s suo.referralsourcecode=..GetMappedCode("PAC_SourceOfAttendance","ATTEND_Code","QDC1",$g(I84))
+	. . . . i $p(OEORIQuestionnaire,"||")=$o(^SSU("WIN",0,"Code","CONTACTS","")) d
+	. . . . . s suo.servicetypeoutletcodeno=$zstrip(con.QCONT11,"*WP")
+	. . . . i suo.servicetypeoutletcodeno="" d
+	. . . . . s qid=$o(^questionnaire.QQDCI("IndexPAAdmID",admid,""),-1)
+	. . . . . i qid'="" d
+	. . . . . . s suo.servicetypeoutletcodeno=$lg(^questionnaire.QQDCD(qid),21)
+	. . . . . . s suo.servicetypeoutletcodeno=$zstrip(suo.servicetypeoutletcodeno,"*W")
+	. . . . s save=suo.%Save()
+	. . . . s ind=$i(ind)
+	. . . . s ^||CacheTemp(repid,ind)=$LB("Element: 6, Episode No: "_con.QUESOEOrdExecDR.OEOREOEORIParRef.OEORIOEORDParRef.OEORDAdmDR.PAADMADMNo_", Patient No: "_con.QUESOEOrdExecDR.OEOREOEORIParRef.OEORIOEORDParRef.OEORDAdmDR.PAADMPAPMIDR.PAPMINo_", SLK: "_$g(^||zCacheTemp("SLK",repid,admid))_", Start Date: "_suo.startdate_", Last Date: "_suo.lastservicedate_", STO: "_suo.servicetypeoutletcodeno)
+	. . . . d suo.%Close()
+	. . . . s (OEOREDateExecuted,I80,I82,I84,OEORIQuestionnaire,I79,I81)=""
+	. . d con.%Close()
+	
+	i $g(^||SITE)="AUXX" d
+	. s contact=##class(User.PAEnquiryContact).%OpenId(ord)
+	. i contact d
+	. . s I80=contact.ENQOEOrdItemDR.OEORIOEORDParRef.OEORDAdmDR.PAADMDischgDate
+	. . s I82=contact.ENQOEOrdItemDR.OEORIOEORDParRef.OEORDAdmDR.PAADMMainMRADMDR.MRADMDischClassifDR.DSCLCode
+	. . s I84=contact.ENQOEOrdItemDR.OEORIOEORDParRef.OEORDAdmDR.PAADMSourceOfAttendDR.ATTENDCode
+	. . i contact.ENQOEOrdItemDR.OEORIItemStatDR.OSTATCode="E" d
+	. . . s suo=##class(QDC.serviceuseroutlet).%New()
+	. . . i suo d
+	. . . . s suo.startdate=..I79(admid)
+	. . . . i suo.startdate'="" s suo.startdate=$zd(suo.startdate,0,"",4)
+	. . . . s suo.lastservicedate=..I81(admid,"","")
+	. . . . i suo.lastservicedate'="" s suo.lastservicedate=$zd(suo.lastservicedate,0,"",4)
+	. . . . i I80'="",I80>DateTo s (I80,I82)=""
+	. . . . i I80'="" s I80=$zd(I80,0,"",4)
+	. . . . s suo.enddate=I80
+	. . . . s suo.endreasoncode=..GetMappedCode("PAC_DischClassification","DSCL_Code","QDC1",$g(I82))
+	. . . . i $zd(contact.ENQDate,11)="Wed",Quarter="April - June" d
+	. . . . . i contact.ENQDate>=$$intdate^SSUTIL4("24/06/"_Year),contact.ENQDate<=$$intdate^SSUTIL4("30/06/"_Year) d
+	. . . . . . s suo.snapshottype="Y"
+	. . . . i $g(suo.snapshottype)="" s suo.snapshottype="N"
+	. . . . s suo.referralsourcecode=..GetMappedCode("PAC_SourceOfAttendance","ATTEND_Code","QDC1",$g(I84))
+	. . . . s suo.servicetypeoutletcodeno=$zstrip(contact.ENQText1,"*W")
+	. . . . s save=suo.%Save()
+	. . . . s ind=$i(ind)
+	. . . . s ^||CacheTemp(repid,ind)=$LB("Element: 6, Episode No: "_contact.ENQOEOrdItemDR.OEORIOEORDParRef.OEORDAdmDR.PAADMADMNo_", Patient No: "_contact.ENQPAPERDR.PAPERPAPMIDR.PAPMINo_", SLK: "_$g(^||zCacheTemp("SLK",repid,admid))_", Start Date: "_suo.startdate_", Last Date: "_suo.lastservicedate_", STO: "_suo.servicetypeoutletcodeno)
+	. . . . d suo.%Close()
+	. . . . s (I80,I82,I84,I79,I81)=""
+	. . d contact.%Close()
+	
+	q save
+]]></Implementation>
+</Method>
+
+<Method name="UpdElement7">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>ord:%String,DateTo:%String</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	s save=0
+	
+	i $g(^||SITE)'="AUXX" d
+	. s con=##class(questionnaire.QCONTACTS).%OpenId(ord)
+	. i con d
+	. . i con.QUESOEOrdExecDR.OEOREOEORIParRef.OEORIItemStatDR.OSTATCode="E" d
+	. . . s I89=$p(..GetPayorPlan(admid),"^",4)
+	. . . i I89'="" s I89=$e(I89,1,15)
+	. . . i con.QCONT11'="",con.QUESOEOrdExecDR.OEOREQtyAdmin'="" d
+	. . . . s suh=##class(QDC.servicehours).%New()
+	. . . . i suh d
+	. . . . . s rt=0 f  s rt=$o(^RT(0,"PAT",con.QUESPAPatMasDR.%Id(),rt)) q:rt=""  d
+	. . . . . . i $p($g(^RT(rt)),"^",6)=$o(^RTC("TYPE",0,"Code","SLK","")) d
+	. . . . . . . s sh.serviceuseroutlet=$p($g(^RT(rt)),"^")
+	. . . . . s suh.fromdate=con.QUESOEOrdExecDR.OEOREDateExecuted
+	. . . . . i suh.fromdate s suh.fromdate=$zd(suh.fromdate,0,,4)
+	. . . . . s suh.todate=con.QUESOEOrdExecDR.OEOREDateExecuted
+	. . . . . i suh.todate s suh.todate=$zd(suh.todate,0,,4)
+	. . . . . s suh.servicehours=con.QUESOEOrdExecDR.OEOREQtyAdmin
+	. . . . . s suh.dhsactivitysubtypecodeno=I89
+	. . . . . s save=suh.%Save()
+	. . . . . s ind=$i(ind)
+	. . . . . s ^||CacheTemp(repid,ind)=$LB("Element: 7, Episode No: "_con.QUESOEOrdExecDR.OEOREOEORIParRef.OEORIOEORDParRef.OEORDAdmDR.PAADMADMNo_", Patient No: "_con.QUESOEOrdExecDR.OEOREOEORIParRef.OEORIOEORDParRef.OEORDAdmDR.PAADMPAPMIDR.PAPMINo_", SLK: "_$g(^||zCacheTemp("SLK",repid,admid))_", Item: "_con.QUESOEOrdExecDR.OEOREOEORIParRef.OEOREOEORIParRef.OEORIItmMastDR.ARCIMDesc_", Date Executed: "_$zd(con.QUESOEOrdExecDR.OEOREDateExecuted,3))
+	. . . . . d suh.%Close()
+	. . . s I89=""
+	. . d con.%Close()
+	
+	i $g(^||SITE)="AUXX" d
+	. s contact=##class(User.PAEnquiryContact).%OpenId(ord)
+	. i contact d
+	. . i contact.ENQOEOrdItemDR.OEORIItemStatDR.OSTATCode="E" d
+	. . . s I89=$p(..GetPayorPlan(admid),"^",4)
+	. . . i I89'="" s I89=$e(I89,1,15)
+	. . . i contact.ENQText1'="",contact.ENQDuration'="" d
+	. . . . s suh=##class(QDC.servicehours).%New()
+	. . . . i suh d
+	. . . . . s rt=0 f  s rt=$o(^RT(0,"PAT",contact.ENQPAPERDR.%Id(),rt)) q:rt=""  d
+	. . . . . . i $p($g(^RT(rt)),"^",6)=$o(^RTC("TYPE",0,"Code","SLK","")) d
+	. . . . . . . s sh.serviceuseroutlet=$p($g(^RT(rt)),"^")
+	. . . . . s suh.fromdate=contact.ENQDate
+	. . . . . i suh.fromdate s suh.fromdate=$zd(suh.fromdate,0,,4)
+	. . . . . s suh.todate=contact.ENQDate
+	. . . . . i suh.todate s suh.todate=$zd(suh.todate,0,,4)
+	. . . . . s suh.servicehours=contact.ENQDuration
+	. . . . . s suh.dhsactivitysubtypecodeno=I89
+	. . . . . s save=suh.%Save()
+	. . . . . s ind=$i(ind)
+	. . . . . s ^||CacheTemp(repid,ind)=$LB("Element: 7, Episode No: "_contact.ENQOEOrdItemDR.OEORIOEORDParRef.OEORDAdmDR.PAADMADMNo_", Patient No: "_contact.ENQPAPERDR.PAPMINo_", SLK: "_$g(^||zCacheTemp("SLK",repid,admid))_", Item: "_contact.ENQOEOrdItemDR.OEORIItmMastDR.ARCIMDesc_", Date Executed: "_$zd(contact.ENQDate,3))
+	. . . . . d suh.%Close()
+	. . . s I89=""
+	. . d contact.%Close()
+
+	q save
+]]></Implementation>
+</Method>
+
+<Query name="LookUpAgency">
+<Type>%Library.SQLQuery</Type>
+<FormalSpec>Agency:%String</FormalSpec>
+<SqlQuery><![CDATA[SELECT TRUST_Desc, TRUST_RowId, TRUST_Code
+FROM SQLUser.PAC_Trust
+WHERE ((%ALPHAUP TRUST_Desc %STARTSWITH %ALPHAUP :Agency) OR (%ALPHAUP TRUST_Code %STARTSWITH %ALPHAUP :Agency))
+AND (TRUST_DateFrom <= CURRENT_DATE)
+AND ((TRUST_DateTo IS NULL) OR (TRUST_DateTo >= CURRENT_DATE))
+ORDER BY TRUST_Desc]]></SqlQuery>
+<Parameter name="CONTAINID" value="2"/>
+<Parameter name="ROWSPEC" value="Description:%String,HIDDEN:%String,Code:%String"/>
+</Query>
+
+<Method name="LookUpBrokerAgency">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>itmjs:%Library.String="",itmjsex:%Library.String="",Agency:%Library.String=""</FormalSpec>
+<Implementation><![CDATA[
+ n id,code,desc,activedate
+
+ s (id,code,desc)=""
+
+ ; Try and find a matching code
+ &sql(SELECT	TRUST_Desc, TRUST_RowId, TRUST_Code
+ INTO	:desc, :id, :code
+ FROM	SQLUser.PAC_Trust
+ WHERE	((%ALPHAUP TRUST_Desc = %ALPHAUP :Agency) OR (%ALPHAUP TRUST_Code = %ALPHAUP :Agency))
+ AND (TRUST_DateFrom <= CURRENT_DATE)
+ AND ((TRUST_DateTo IS NULL) OR (TRUST_DateTo >= CURRENT_DATE))
+ )
+ ;
+ i SQLCODE s desc=Agency q 0
+ s retval=itmjs_"('"_$ZCVT(desc,"O","JS")_"');"
+ i itmjsex'="""" s retval=retval_itmjsex_"('"_$ZCVT(desc,"O","JS")_"^"_id_"^"_$ZCVT(code,"O","JS")_"');"
+ &javascript<#(retval)#>
+ q 1
+]]></Implementation>
+</Method>
+
+<Method name="LookUpYearClose">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>QHandle:%Library.Binary</FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+	n repid
+	s repid=$li(QHandle,2)
+ 
+	i mon Do ..MonitorEnd(mon)
+	k ^CacheTemp("TRAK",repid)
+	q $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="LookUpYearExecute">
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,val:%String]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+	n repid,ind
+	s repid=$I(^CacheTemp("TRAK"))
+
+	s mon=..MonitorBegin()
+	
+	s currentyear=$p($zd(+$h,3),"-")
+	s startyear=currentyear-5
+	s stopyear=currentyear+5
+	
+	i val="" {
+		f y=startyear:1:stopyear {
+			s ind=$i(ind)
+			s ^CacheTemp("TRAK",repid,ind)=$LB(y)
+		}
+	} else {
+		f y=startyear:1:stopyear {
+			i val=$e(y,1,$l(val)) {
+				s ind=$i(ind)
+				s ^CacheTemp("TRAK",repid,ind)=$LB(y)
+			}
+		}
+	}			
+	s QHandle=$lb(0,repid,0)
+	q $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="LookUpYearFetch">
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,&Row:%Library.List,&AtEnd:%Library.Integer=0]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+	n repid,ind
+
+	s AtEnd=$li(QHandle,1)
+	s repid=$li(QHandle,2)
+	s ind=$li(QHandle,3)
+
+	s ind=$o(^CacheTemp("TRAK",repid,ind))
+	i ind="" {
+		s AtEnd=1
+		s Row=""
+	} else {
+		s Row=^CacheTemp("TRAK",repid,ind)
+	}
+	s QHandle=$lb(AtEnd,repid,ind)
+	q $$$OK
+]]></Implementation>
+</Method>
+
+<Query name="LookUpYear">
+<Type>%Library.Query</Type>
+<FormalSpec>val:%String</FormalSpec>
+<SqlProc>1</SqlProc>
+<Parameter name="CONTAINID" value="0"/>
+<Parameter name="ROWSPEC" value="Year:%String"/>
+</Query>
+
+<Method name="LookUpBrokerByYear">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>itmjs:%Library.String,itmjsex:%Library.String="",val:%Library.String=""</FormalSpec>
+<ReturnType>%Library.Boolean</ReturnType>
+</Method>
+
+<Method name="LookUpQuarterClose">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>QHandle:%Library.Binary</FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+	n repid
+	s repid=$li(QHandle,2)
+ 
+	i mon Do ..MonitorEnd(mon)
+	k ^CacheTemp("TRAK",repid)
+	q $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="LookUpQuarterExecute">
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,val:%String]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+	n repid,ind
+	s repid=$I(^CacheTemp("TRAK"))
+
+	s mon=..MonitorBegin()
+	
+	s quarterdesclist="January - March,April - June,July - September,October - December"
+	
+	i val="" {
+		f y=1:1:4 {
+			s ind=$i(ind)
+			s ^CacheTemp("TRAK",repid,ind)=$LB($p(quarterdesclist,",",y))
+		}
+	} else {
+		f y=1:1:4 {
+			s listvalue=$e($p(quarterdesclist,",",y),1,$l(val))
+			i $zcvt(val,"U")=$zcvt(listvalue,"U") {
+				s ind=$i(ind)
+				s ^CacheTemp("TRAK",repid,ind)=$LB($p(quarterdesclist,",",y))
+			}
+		}
+	}
+	
+	s QHandle=$lb(0,repid,0)
+	q $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="LookUpQuarterFetch">
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,&Row:%Library.List,&AtEnd:%Library.Integer=0]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+	n repid,ind
+
+	s AtEnd=$li(QHandle,1)
+	s repid=$li(QHandle,2)
+	s ind=$li(QHandle,3)
+
+	s ind=$o(^CacheTemp("TRAK",repid,ind))
+	i ind="" {
+		s AtEnd=1
+		s Row=""
+	} else {
+		s Row=^CacheTemp("TRAK",repid,ind)
+	}
+	s QHandle=$lb(AtEnd,repid,ind)
+	q $$$OK
+]]></Implementation>
+</Method>
+
+<Query name="LookUpQuarter">
+<Type>%Library.Query</Type>
+<FormalSpec>val:%String</FormalSpec>
+<SqlProc>1</SqlProc>
+<Parameter name="CONTAINID" value="0"/>
+<Parameter name="ROWSPEC" value="Year:%String"/>
+</Query>
+
+<Method name="LookUpBrokerByQuarter">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>itmjs:%Library.String,itmjsex:%Library.String="",val:%Library.String=""</FormalSpec>
+<ReturnType>%Library.Boolean</ReturnType>
+</Method>
+
+<Query name="LookUpGovCat">
+<Type>%Library.SQLQuery</Type>
+<FormalSpec>var1:%String</FormalSpec>
+<SqlQuery>SELECT GOVCAT_Desc, GOVCAT_RowId, GOVCAT_Code
+FROM SQLUser.CT_GovernCateg
+WHERE ((%ALPHAUP GOVCAT_Desc %STARTSWITH %ALPHAUP :var1) OR (%ALPHAUP GOVCAT_Code %STARTSWITH %ALPHAUP :var1))
+ORDER BY GOVCAT_Desc</SqlQuery>
+<Parameter name="CONTAINID" value="2"/>
+<Parameter name="ROWSPEC" value="Description:%String,HIDDEN:%String,Code:%String"/>
+</Query>
+
+<Method name="LookUpBrokerGovCat">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>itmjs:%Library.String="",itmjsex:%Library.String="",var1:%Library.String=""</FormalSpec>
+<ReturnType>%Library.Boolean</ReturnType>
+</Method>
+
+<Query name="LookUpServiceLocation">
+<Type>%Library.SQLQuery</Type>
+<FormalSpec>var1:%String</FormalSpec>
+<SqlQuery>SELECT Description, ID, Code
+FROM websys.CustomTypeItem
+WHERE ((%ALPHAUP Description %STARTSWITH %ALPHAUP :var1) OR (%ALPHAUP Code %STARTSWITH %ALPHAUP :var1))
+AND ParRef='AUXXSTO'
+ORDER BY Description</SqlQuery>
+<Parameter name="CONTAINID" value="2"/>
+<Parameter name="ROWSPEC" value="Description:%String,HIDDEN:%String,Code:%String"/>
+</Query>
+
+<Method name="LookUpServiceLocationBroker">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>itmjs:%Library.String="",itmjsex:%Library.String="",var1:%Library.String=""</FormalSpec>
+<ReturnType>%Library.Boolean</ReturnType>
+</Method>
+</Class>
+</Export>

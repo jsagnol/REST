@@ -1,0 +1,341 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.SWARH.Report.RptSvc.StoredProc.SWARHRFIN1005">
+<Description><![CDATA[
+<pre>
+***************************************************************************************************************************************
+* Report Code: SWARHRFIN1005
+* Report Description: Community Revenue Report returns revenue data for the report period.
+* 	This class is used by SWARHFIN1005s (Summary) and SWARHFIN1005d (Detailed) reporting services reports.
+* Menu Caption: Community Revenue Report
+* Initial release: Developer: Michael Welsh 
+* Modified:	
+***************************************************************************************************************************************
+</pre>]]></Description>
+<ProcedureBlock>0</ProcedureBlock>
+<Super>Custom.SWARH.Report.ZEN.StoredProc.Abstract</Super>
+<TimeCreated>59388,55236.125</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/SWARH/Report/RptSvc/StoredProc/SWARHRFIN1005.xml#1 $</Default>
+</Parameter>
+
+<Method name="SWARHRFIN1005Close">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)
+This is the Close component of the %Library.Query.
+This is standard code and should never have to change.
+This is where all the cleanup is performed, i.e. the purging of the temporary storage global ^CacheTemp.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>QHandle:%Library.Binary</FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Clean up by purging the temporary node in ^CacheTemp global
+ New repid,ind
+ Set repid=$li(QHandle,2)
+
+ //Start Monitor (if configured to capture stats)
+ i mon Do ..MonitorEnd(mon)
+
+ Kill ^CacheTemp("TRAK",repid)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="SWARHRFIN1005Execute">
+<Description>
+This is the Execute section for the %Library.Query. 
+All of the logic will be performed here.
+A new node for the ^CacheTemp global will be created and each subscript of this global will contain
+a row for the report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,Hospital:%Integer,DateFrom:%Date,DateTo:%Date,SumDet:%String]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+		   
+ New repid,ind
+
+ Set repid=$I(^CacheTemp("TRAK"))
+ 
+ New OrderBillStatus,Billed,BillStatus,OEORICategDR,ORCATCode,ORCATDesc,ItmMastDR,ARCIMCode,ARCIMDesc,OrdDeptDR,CTLOCCode,CTLOCDesc,OEORDAdmDR
+ 	,URNo,EpisodeNo,Surname,GivenName,OtherGivenName,DOB,SEX,Address,Address2,City,PostCode,SpecialtyDR 	
+ 	,ReceiptRowID,ReceiptNo,ReceiptDate,PatientID,AdmissionDR,EpSpecRowID,EpSpecCode,EpSpecDesc,BillNo,BillAmount,ReceiptAmount
+ 	,PayModeRowID,PayModeCode,PayModeDesc,LocationRowID,LocationCode,LocationDesc,CashierDR,GLCCCRowID,GLCCCCode,GLCCCDesc,CashierName
+ 	,HospCode,PayorGrpCode,InsCode,InsDesc,PATIENTBILLPAYOR
+ 	,BillItmAmount,BillItmDate,BillItmServiceCode,BillItemServiceDesc,BillDate,OutstandingTotal
+ 	,EPISODEPAYOR,EPISODEPLAN,PayorDateFrom,PayorDateTo,PayorComments
+  
+ New MappedValue,ActualValue,preReceiptNo,preBillNo
+
+ Set (OrderBillStatus,Billed,BillStatus,ORCATCode,ORCATDesc,ItmMastDR,ARCIMCode,ARCIMDesc,CTLOCCode,CTLOCDesc
+ 	,URNo,EpisodeNo,Surname,GivenName,OtherGivenName,DOB,SEX,Address,Address2,City,PostCode,SpecialtyDR 
+ 	,ReceiptNo,ReceiptDate,AdmissionDR,EpSpecCode,EpSpecDesc,BillNo,PayModeCode,PayModeDesc,LocationCode,LocationDesc,CashierDR
+ 	,GLCCCCode,GLCCCDesc,CashierName,HospCode,PayorGrpCode,InsCode,InsDesc,PATIENTBILLPAYOR
+ 	,BillItmDate,BillItmServiceCode,BillItemServiceDesc,BillDate
+ 	,EPISODEPAYOR,EPISODEPLAN,PayorDateFrom,PayorDateTo,PayorComments) = ""
+ 	
+ Set (MappedValue,ActualValue,preReceiptNo,preBillNo) = ""
+ 
+ Set (OEORICategDR,OrdDeptDR,OEORDAdmDR,ReceiptRowID,PatientID,EpSpecRowID,BillAmount,ReceiptAmount,PayModeRowID,LocationRowID,GLCCCRowID,DepRowID,BillItmAmount,OutstandingTotal)= 0
+ 
+ s ind=1, END=0
+
+ //Start Monitor (if configured to capture stats)
+ s mon=..MonitorBegin()
+ 
+ //Convert ODBC dates to cache format
+ s DateFrom=$$intdate^SSUTIL4(DateFrom)
+ s DateTo=$$intdate^SSUTIL4(DateTo)
+ 
+ &SQL(DECLARE SWARHRFIN1005 CURSOR FOR
+	SELECT
+        CASE OrdItem.OEORI_Billed
+                WHEN 'B' THEN 'B'
+                WHEN 'R' THEN 'E'
+                WHEN 'P' THEN 'C'
+                WHEN 'TB' THEN 'A'
+                WHEN 'TR' THEN 'D'
+                WHEN 'I' THEN 'F'
+                ELSE 'N/A' END AS OrderBillStatus
+        ,OrdItem.OEORI_Billed AS Billed
+        ,CASE OrdItem.OEORI_Billed
+                WHEN 'B' THEN 'Billed'
+                WHEN 'R' THEN 'Refunded'
+                WHEN 'P' THEN 'Paid'
+                WHEN 'TB' THEN 'To Bill'
+                WHEN 'TR' THEN 'To Refund'
+                WHEN 'I' THEN 'Ignore'
+                ELSE 'N/A' END AS BillStatus
+        ,OrdItem.OEORI_Categ_DR AS OEORICategDR
+        ,OrdItem.OEORI_Categ_DR->ORCAT_Code AS ORCATCode
+        ,OrdItem.OEORI_Categ_DR->ORCAT_Desc AS ORCATDesc
+        ,OrdItem.OEORI_ItmMast_DR AS ItmMastDR
+        ,OrdItem.OEORI_ItmMast_DR->ARCIM_Code AS ARCIMCode
+        ,OrdItem.OEORI_ItmMast_DR->ARCIM_Desc AS ARCIMDesc
+        ,OrdItem.OEORI_OrdDept_DR  AS OrdDeptDR 
+        ,OrdItem.OEORI_OrdDept_DR->CTLOC_Code AS CTLOCCode
+        ,OrdItem.OEORI_OrdDept_DR->CTLOC_Desc AS CTLOCDesc
+        ,OrdItem.OEORI_OEORD_ParRef->OEORD_Adm_DR AS OEORDAdmDR
+
+		,Adm.PAADM_PAPMI_DR->PAPMI_No AS URNo
+        ,Adm.PAADM_AdmNo AS EpisodeNo
+        ,Adm.PAADM_PAPMI_DR->PAPMI_Name AS Surname
+        ,Adm.PAADM_PAPMI_DR->PAPMI_Name2 AS GivenName
+        ,Adm.PAADM_PAPMI_DR->PAPMI_Name3 AS OtherGivenName
+        ,Adm.PAADM_PAPMI_DR->PAPMI_DOB AS DOB
+        ,Adm.PAADM_PAPMI_DR->PAPMI_PAPER_DR->PAPER_Sex_DR->CTSEX_Code AS SEX
+        ,Adm.PAADM_PAPMI_DR->PAPMI_PAPER_DR->PAPER_StName AS Address
+        ,Adm.PAADM_PAPMI_DR->PAPMI_PAPER_DR->PAPER_ForeignAddress AS Address2
+        ,Adm.PAADM_PAPMI_DR->PAPMI_PAPER_DR->PAPER_CityCode_DR->CTCIT_Desc AS City
+        ,Adm.PAADM_PAPMI_DR->PAPMI_PAPER_DR->PAPER_Zip_DR->CTZIP_Code AS PostCode
+
+        ,OrdItem.OEORI_Specialty_DR AS SpecialtyDR
+
+        ,Receipts.ARRCP_RowID AS ReceiptRowID
+        ,Receipts.ARRCP_Number AS ReceiptNo
+        ,Receipts.ARRCP_Date AS ReceiptDate
+
+        ,RcptAlloc.ARRAL_ADMISSION_DR->PAADM_PAPMI_DR AS PatientID
+        ,RcptAlloc.ARRAL_ADMISSION_DR AS AdmissionDR
+        
+        ,RcptAlloc.ARRAL_ADMISSION_DR->PAADM_DepCode_DR->CTLOC_RowID AS EpSpecRowID
+        ,RcptAlloc.ARRAL_ADMISSION_DR->PAADM_DepCode_DR->CTLOC_Code AS EpSpecCode
+        ,RcptAlloc.ARRAL_ADMISSION_DR->PAADM_DepCode_DR->CTLOC_Desc AS EpSpecDesc
+
+        ,RcptAlloc.ARRAL_ARPBIL_DR->ARPBL_BillNo AS BillNo
+        ,PatientBill.ARPBL_Totalallowed AS BillAmount
+        ,Receipts.ARRCP_PayAmount AS ReceiptAmount
+
+        ,PayMode.PAYM_PayMode_DR->CTPM_RowId AS PayModeRowID
+        ,PayMode.PAYM_PayMode_DR->CTPM_Code AS PayModeCode
+        ,PayMode.PAYM_PayMode_DR->CTPM_Desc AS PayModeDesc
+
+        ,Receipts.ARRCP_Location_DR->CTLOC_RowID AS LocationRowID
+        ,Receipts.ARRCP_Location_DR->CTLOC_Code AS LocationCode
+        ,Receipts.ARRCP_Location_DR->CTLOC_Desc AS LocationDesc
+        ,Receipts.ARRCP_Location_DR->CTLOC_Cashier_DR AS CashierDR
+
+        ,Receipts.ARRCP_Location_DR->CTLOC_GLCCC_DR->GLCCC_RowID AS GLCCCRowID
+        ,Receipts.ARRCP_Location_DR->CTLOC_GLCCC_DR->GLCCC_Code AS GLCCCCode
+        ,Receipts.ARRCP_Location_DR->CTLOC_GLCCC_DR->GLCCC_Desc AS GLCCCDesc
+
+        ,Receipts.ARRCP_AddUserID->SSUSR_Name AS CashierName
+
+        ,Receipts.ARRCP_Location_DR->CTLOC_Hospital_DR->HOSP_Code AS HospCode
+        ,RcptAlloc.ARRAL_ARPBIL_DR->ARPBL_AuxInsType_DR->AUXIT_InsType_DR->INST_PayorGroup_DR->PGRP_Code AS PayorGrpCode
+        ,RcptAlloc.ARRAL_ARPBIL_DR->ARPBL_AuxInsType_DR->AUXIT_Code AS InsCode
+        ,RcptAlloc.ARRAL_ARPBIL_DR->ARPBL_AuxInsType_DR->AUXIT_Desc AS InsDesc
+        ,RcptAlloc.ARRAL_ARPBIL_DR->ARPBL_INSURANCETYPE_DR->INST_DESC AS PATIENTBILLPAYOR
+
+        ,PatBillGrpCharges.ITM_LineTotal AS BillItmAmount
+        ,PatBillGrpCharges.ITM_Date AS BillItmDate
+        ,PatBillGrpCharges.ITM_ARCIM_DR->ARCIM_Code AS BillItmServiceCode
+        ,PatBillGrpCharges.ITM_ARCIM_DR->ARCIM_Desc AS BillItemServiceDesc
+        ,PatientBill.ARPBL_DatePrinted AS BillDate
+        ,PatientBill.ARPBL_AmountToPay AS OutstandingTotal
+        
+        ,INS_INSTYPE_DR->INST_DESC AS EPISODEPAYOR
+        ,INS_AUXINSTYPE_DR->AUXIT_DESC AS EPISODEPLAN
+		,AdmInsurance.INS_DateTypeFrom AS PayorDateFrom
+        ,AdmInsurance.INS_DateTypeTo AS PayorDateTo
+        ,AdmInsurance.INS_PayorVariationComments AS PayorComments
+    FROM
+        SQLUser.OE_OrdItem OrdItem
+                LEFT JOIN SQLUser.OE_Order Ord ON (Ord.OEORD_RowId = OrdItem.OEORI_OEORD_ParRef)
+                LEFT JOIN SQLUser.PA_Adm Adm ON (Adm.PAADM_ROWID = Ord.OEORD_Adm_DR)
+                LEFT JOIN SQLUser.PA_AdmInsurance AdmInsurance ON (AdmInsurance.INS_ParRef = Adm.PAADM_ROWID)
+                LEFT JOIN SQLUser.AR_PatBillGroupCharges PatBillGrpCharges ON (PatBillGrpCharges.ITM_OEORI_DR = OrdItem.OEORI_RowId)
+                LEFT JOIN SQLUser.AR_PatBillGroup PatBillGrp ON (PatBillGrp.BGRP_RowId = PatBillGrpCharges.ITM_ParRef)
+                LEFT JOIN SQLUser.AR_PatientBill PatientBill ON (PatientBill.ARPBL_RowID = PatBillGrp.BGRP_ParRef)
+                LEFT JOIN SQLUser.AR_RcptAlloc RcptAlloc ON (RcptAlloc.ARRAL_ARPBIL_DR = PatientBill.ARPBL_RowID)
+                LEFT JOIN SQLUser.AR_Receipts Receipts ON (Receipts.ARRCP_RowID = RcptAlloc.ARRAL_ARRCP_ParRef)
+                LEFT JOIN SQLUser.AR_RcptPayMode PayMode ON (PayMode.PAYM_ParRef = Receipts.ARRCP_RowId)
+
+	WHERE
+        OrdItem.OEORI_OEORD_ParRef->OEORD_Adm_DR->PAADM_Hospital_DR = :Hospital
+	AND
+        OrdItem.OEORI_Date BETWEEN :DateFrom AND :DateTo
+	AND
+        OrdItem.OEORI_Billed <> 'I' -- Ignore
+	AND
+        OrdItem.OEORI_Categ_DR IN (15,21,24) -- Appointments, Actions & Consumables
+	AND
+        (PatientBill.ARPBL_Totalallowed > 0 OR PatientBill.ARPBL_Totalallowed IS NULL)
+
+	ORDER BY
+        OrderBillStatus)
+
+                
+ &SQL(OPEN SWARHRFIN1005)
+ 
+ d FetchRow //Fetch first row
+  
+ while END=0 {
+	 
+	 If preReceiptNo = ReceiptNo {set ReceiptAmount = 0} 
+	 If preBillNo = BillNo {set BillAmount = 0, OutstandingTotal= 0}
+  
+	 d GetMappedValue
+	 d FormatDates, FormatTimes, FormatStrings
+  	 s sort = ind
+	 s ^CacheTemp("TRAK",repid,sort)=$LB(OrderBillStatus,Billed,BillStatus,OEORICategDR,ORCATCode,ORCATDesc,ItmMastDR,ARCIMCode,ARCIMDesc,OrdDeptDR,CTLOCCode,CTLOCDesc,OEORDAdmDR
+ 	,URNo,EpisodeNo,Surname,GivenName,OtherGivenName,DOB,SEX,Address,Address2,City,PostCode,SpecialtyDR 	
+ 	,ReceiptRowID,ReceiptNo,ReceiptDate,PatientID,AdmissionDR,EpSpecRowID,EpSpecCode,EpSpecDesc,BillNo,BillAmount,ReceiptAmount
+ 	,PayModeRowID,PayModeCode,PayModeDesc,LocationRowID,LocationCode,LocationDesc,CashierDR,GLCCCRowID,GLCCCCode,GLCCCDesc,CashierName
+ 	,HospCode,PayorGrpCode,InsCode,InsDesc,PATIENTBILLPAYOR
+ 	,BillItmAmount,BillItmDate,BillItmServiceCode,BillItemServiceDesc,BillDate,OutstandingTotal
+ 	,EPISODEPAYOR,EPISODEPLAN,PayorDateFrom,PayorDateTo,PayorComments
+ 	,MappedValue,ActualValue)
+	 s preReceiptNo = ReceiptNo
+	 s preBillNo = BillNo
+	 s ind=ind+1
+ 	 d FetchRow //Fetch next row
+ 	 
+ }
+
+ &SQL(CLOSE SWARHRFIN1005)
+ 
+ // Build QHandle (AtEnd,ReportID,Index)
+ Set QHandle=$lb(0,repid,0)
+
+ Quit $$$OK
+
+FetchRow
+ &sql(FETCH SWARHRFIN1005 INTO :OrderBillStatus,:Billed,:BillStatus,:OEORICategDR,:ORCATCode,:ORCATDesc,:ItmMastDR,:ARCIMCode,:ARCIMDesc,:OrdDeptDR
+ 	,:CTLOCCode,:CTLOCDesc,:OEORDAdmDR
+ 	,:URNo,:EpisodeNo,:Surname,:GivenName,:OtherGivenName,:DOB,:SEX,:Address,:Address2,:City,:PostCode,:SpecialtyDR 	
+ 	,:ReceiptRowID,:ReceiptNo,:ReceiptDate,:PatientID,:AdmissionDR,:EpSpecRowID,:EpSpecCode,:EpSpecDesc,:BillNo,:BillAmount,:ReceiptAmount
+ 	,:PayModeRowID,:PayModeCode,:PayModeDesc,:LocationRowID,:LocationCode,:LocationDesc,:CashierDR,:GLCCCRowID,:GLCCCCode,:GLCCCDesc,:CashierName
+ 	,:HospCode,:PayorGrpCode,:InsCode,:InsDesc,:PATIENTBILLPAYOR
+ 	,:BillItmAmount,:BillItmDate,:BillItmServiceCode,:BillItemServiceDesc,:BillDate,:OutstandingTotal
+ 	,:EPISODEPAYOR,:EPISODEPLAN,:PayorDateFrom,:PayorDateTo,:PayorComments)
+
+ if SQLCODE '= 0 set END = 1
+ q
+ 
+FormatDates
+	s ReceiptDate =..ConvertDateToODBC(ReceiptDate)
+	s DOB =..ConvertDateToODBC(DOB)
+	s BillItmDate =..ConvertDateToODBC(BillItmDate)
+	s BillDate =..ConvertDateToODBC(BillDate)
+	s PayorDateFrom =..ConvertDateToODBC(PayorDateFrom)
+	s PayorDateTo =..ConvertDateToODBC(PayorDateTo)
+ q
+ 
+FormatTimes
+ q
+ 
+FormatStrings
+	s Address = $ZSTRIP(Address,"*C") //Removes control characters (0-31,127-159)
+ 	s Address = $ZSTRIP(Address,"*",$C(34,35,39,44,46)) //Removes 34-Quotes,35-Hash,39-Single quote,44-Comma,46-Period
+ 	s Address = $ZCONVERT(Address,"U")
+	s Address2 = $ZSTRIP(Address2,"*C")
+ 	s Address2 = $ZSTRIP(Address2,"*",$C(34,35,39,44,46)) 
+ 	s PayorComments = $ZSTRIP(PayorComments,"*C")
+ 	s PayorComments = $ZSTRIP(PayorComments,"*",$C(34,35,39,44,46))
+ q
+ 
+GetMappedValue
+	s ActualValue = HospCode_"/"_PayorGrpCode_"//"_GLCCCCode_"/"
+	&SQL(SELECT NATC_MappedValue
+    INTO
+    	:MappedValue
+	FROM
+        SQLUser.PAC_NationalCodes
+	WHERE
+		NATC_TableName = 'GLC_CC'
+	AND
+		NATC_FieldName = 'GLCCC_Desc'
+	AND
+		NATC_ActualValue = :ActualValue)
+ q
+]]></Implementation>
+</Method>
+
+<Method name="SWARHRFIN1005Fetch">
+<Description>
+This is the Fetch component of the %Library.Query. 
+This should never have to change. It is designed to fetch the row for each subscript of the ^CacheTemp
+global and return this row to the Crystal Report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,&Row:%Library.List,&AtEnd:%Library.Integer=0]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // This fetch method should never have to change. 
+ // repid - Report ID
+ // ind   - sequence index which represents each row
+
+ New repid,ind
+
+ // Restore QHandle
+ Set AtEnd=$li(QHandle,1)
+ Set repid=$li(QHandle,2)
+ Set ind=$li(QHandle,3)
+
+ Set ind=$o(^CacheTemp("TRAK",repid,ind))
+ If ind="" {	// if there are no more rows, finish fetching
+	 Set AtEnd=1
+	 Set Row=""
+ }
+ Else      {	// fetch row 
+ 	Set Row=^CacheTemp("TRAK",repid,ind)
+ }
+
+ // Save QHandle 
+ s QHandle=$lb(AtEnd,repid,ind)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Query name="SWARHRFIN1005">
+<Type>%Library.Query</Type>
+<FormalSpec>Hospital:%Integer,DateFrom:%Date,DateTo:%Date,SumDet:%String</FormalSpec>
+<SqlProc>1</SqlProc>
+<Parameter name="CONTAINID" value="0"/>
+<Parameter name="ROWSPEC" value="OrderBillStatus:%String,Billed:%String,BillStatus:%String,OEORICategDR:%Integer,ORCATCode:%String,ORCATDesc:%String,ItmMastDR:%String,ARCIMCode:%String,ARCIMDesc:%String,OrdDeptDR:%Integer,CTLOCCode:%String,CTLOCDesc:%String,OEORDAdmDR:%Integer,URNo:%String,EpisodeNo:%String,Surname:%String,GivenName:%String,OtherGivenName:%String,DOB:%Date,SEX:%String,Address:%String,Address2:%String,City:%String,PostCode:%String,SpecialtyDR:%String,ReceiptRowID:%Integer,ReceiptNo:%String,ReceiptDate:%Date,PatientID:%Integer,AdmissionDR:%Integer,EpSpecRowID:%Integer,EpSpecCode:%String,EpSpecDesc:%String,BillNo:%Integer,BillAmount:%Float,ReceiptAmount:%Float,PayModeRowID:%Integer,PayModeCode:%String,PayModeDesc:%String,LocationRowID:%Integer,LocationCode:%String,LocationDesc:%String,CashierDR:%String,GLCCCRowID:%Integer,GLCCCCode:%String,GLCCCDesc:%String,CashierName:%String,HospCode:%String,PayorGrpCode:%String,InsCode:%String,InsDesc:%String,PATIENTBILLPAYOR:%String,BillItmAmount:%Float,BillItmDate:%Date,BillItmServiceCode:%String,BillItemServiceDesc:%String,BillDate:%Date,OutstandingTotal:%Float,EPISODEPAYOR:%String,EPISODEPLAN:%String,PayorDateFrom:%Date,PayorDateTo:%Date,PayorComments:%String,MappedValue:%String,ActualValue:%String"/>
+<Parameter name="SELECTMODE" value="ODBC"/>
+</Query>
+</Class>
+</Export>

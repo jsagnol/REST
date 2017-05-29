@@ -1,0 +1,607 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.Report.ZEN.questionnaire.Child.C50108YSYS">
+<ProcedureBlock>0</ProcedureBlock>
+<Super>Report.ZEN.Abstract</Super>
+<TimeCreated>63399,36858.457789</TimeCreated>
+
+<Property name="CompName">
+<Type>%String</Type>
+<InitialExpression>"questionnaire.QMEDRECQQ190.Edit"</InitialExpression>
+</Property>
+
+<Property name="ReportName">
+<Type>%String</Type>
+<InitialExpression>"COMP.C50108YSYS"</InitialExpression>
+</Property>
+
+<Property name="ShowAudit">
+<Type>%Integer</Type>
+<InitialExpression>"0"</InitialExpression>
+<Parameter name="ZENURL" value="ShowAudit"/>
+</Property>
+
+<Property name="ShowMonitor">
+<Type>%Integer</Type>
+<InitialExpression>"0"</InitialExpression>
+<Parameter name="ZENURL" value="ShowMonitor"/>
+</Property>
+
+<Method name="%OnBeforeReport">
+<ProcedureBlock>0</ProcedureBlock>
+<ReturnType>%Status</ReturnType>
+<Implementation><![CDATA[ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="CreateRecSet">
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&pSC:%Status,&params:%String]]></FormalSpec>
+<ProcedureBlock>0</ProcedureBlock>
+<ReturnType>%ResultSet</ReturnType>
+<Implementation><![CDATA[
+ ; kill off the PROCESS-PRIVATE global
+ k ^||%ZENReport("ZENReportCompCache") 
+ n innerrs
+ s innerrs=##class(%ResultSet).%New("Custom.Report.ZEN.questionnaire.Child.C50108YSYS:RS")
+ s pSC=innerrs.Execute(params(1),0)
+ quit innerrs
+]]></Implementation>
+</Method>
+
+<Method name="CreateRecSetPerRow">
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&pSC:%Status,&params:%String]]></FormalSpec>
+<ProcedureBlock>0</ProcedureBlock>
+<ReturnType>%ResultSet</ReturnType>
+<Implementation><![CDATA[
+ ; params(1) contains the complete Result List
+ n (QHandle,%request, %session, params)
+ s perrowrs=##class(%ResultSet).%New("Custom.Report.ZEN.questionnaire.Child.C50108YSYS:PerRowRS")
+ i 'perrowrs s pSC=0 q "" 
+ s pSC=perrowrs.Execute(params(1))
+ quit perrowrs
+]]></Implementation>
+</Method>
+
+<Method name="DateLogicalToHtml">
+<FormalSpec>h:%String</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[ q ##class(websys.Conversions).DateLogicalToHtml(h)
+]]></Implementation>
+</Method>
+
+<Method name="Eval">
+<FormalSpec>item:%String,val:%String</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[ q $lg(val,item)
+]]></Implementation>
+</Method>
+
+<Method name="ExeExpression">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>valget:%String,rs</FormalSpec>
+<ProcedureBlock>0</ProcedureBlock>
+<Implementation><![CDATA[
+ ; need this as some itm.ValueGet will desrtoy my variables
+ n (%request, %session, rs, valget, val)
+ d ##class(websys.Expression).Execute(valget)
+ quit
+]]></Implementation>
+</Method>
+
+<Method name="GetReportName">
+<ProcedureBlock>0</ProcedureBlock>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[ q ..ReportName 
+]]></Implementation>
+</Method>
+
+<Method name="PerRowRSClose">
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary]]></FormalSpec>
+<ProcedureBlock>0</ProcedureBlock>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[ Quit $$$OK 
+]]></Implementation>
+</Method>
+
+<Method name="PerRowRSExecute">
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,GlobalRef:%Library.String]]></FormalSpec>
+<ProcedureBlock>0</ProcedureBlock>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ New (QHandle, cmpid, %request, %session, GlobalRef)
+ s AtEnd=0
+ Set QHandle=$lb(AtEnd,GlobalRef,0)
+ Quit $$$OK 
+]]></Implementation>
+</Method>
+
+<Method name="PerRowRSFetch">
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,&Row:%Library.List,&AtEnd:%Integer=0]]></FormalSpec>
+<ProcedureBlock>0</ProcedureBlock>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ New (%request, %session, QHandle, Row, AtEnd)
+ Set AtEnd=$LI(QHandle,1)
+ Set GlobalRef=$LI(QHandle,2)
+ Set ind=$LI(QHandle,3)
+ i GlobalRef'="" {
+ 	Set ind=$order(@GlobalRef@(ind))
+ 	If ind="" { 
+ 		Set AtEnd=1, Row=""
+ 	} Else { 
+ 		Set Row=$g(@GlobalRef@(ind))
+ 		
+ 	} 
+ } else {
+ 		Set AtEnd=1, Row=""
+ }
+ Set QHandle=$lb(AtEnd,$LI(QHandle,2),ind)
+ Quit $$$OK 
+]]></Implementation>
+</Method>
+
+<Method name="RSClose">
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary]]></FormalSpec>
+<ProcedureBlock>0</ProcedureBlock>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ n cmpid
+ Set cmpid=$li($LI(QHandle,2),1)
+ i cmpid k ^||%ZENReport("ZENReportCompCache",cmpid)
+ Quit $$$OK 
+]]></Implementation>
+</Method>
+
+<Method name="RSExecute">
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,cmpid:%Library.String,IsNested:%String]]></FormalSpec>
+<ProcedureBlock>0</ProcedureBlock>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ n (QHandle, AtEnd, pSC, pParameters, %request, %session, cmpid, IsNested)
+ s pSC=0,AtEnd=1,(comp,compName)=""
+ s comp=##class(websys.Component).%OpenId(cmpid)
+ i 'comp Set QHandle=$lb(AtEnd,"",0) q $$$OK
+ s %request.Data("XMLONLY",1)=1
+ s intrs="",rsID=""
+ ; OPEN THE RESULTSET FROM THE COMPONENT!!!
+ s params=""
+ i comp.QueryName'="" {
+ 	s intrs=##class(%ResultSet).%New(comp.ClassName_":"_comp.QueryName)
+ 	f j=1:1:intrs.GetParamCount() {
+ 		s paramname=intrs.GetParamName(j)
+ 		s val=$g(%request.Data(paramname,1))
+ 		i $l(val,"""")>1 s val="" f ival=1:1:$l($g(%request.Data(paramname,1)),"""") s $p(val,"""""",ival)=$p(%request.Data(paramname,1),"""",ival)
+ 		i val'="",val'?1n.n i $zcvt(paramname,"U")["DATE" s val=##Class(websys.Conversions).DateHtmlToLogical(val)
+ 		i val'="",val'?1n.n i $zcvt(paramname,"U")["TIME" s val=##Class(websys.Conversions).TimeHtmlToLogical(val)
+ 		s params=params_$s(params'="":",",1:"")_""""_val_""""
+ 	}
+ 	s x="s pSC=intrs.Execute("_params_")"
+ 	s QryRowId=intrs.ContainsId()
+ 	x x
+ } elseif comp.QuerySQLParsed'="" {
+ 	s intrs=##class(%ResultSet).%New("%DynamicQuery:SQL")
+ 	s x="s pSC=intrs.Prepare("""_comp.QuerySQLParsed_""")"
+ 	x x
+ 	f j=1:1:$ll(comp.QuerySQLNames) {
+ 		s paramname=$lg(comp.QuerySQLNames,j)
+ 		s val=$g(%request.Data(paramname,1))
+ 		i $l(val,"""")>1 s val="" f ival=1:1:$l($g(%request.Data(paramname,1)),"""") s $p(val,"""""",ival)=$p(%request.Data(paramname,1),"""",ival)
+ 		i val'="",val'?1n.n i $zcvt(paramname,"U")["DATE" s val=##Class(websys.Conversions).DateHtmlToLogical(val)
+ 		i val'="",val'?1n.n i $zcvt(paramname,"U")["TIME" s val=##Class(websys.Conversions).TimeHtmlToLogical(val)
+ 		s params=params_$s(params'="":",",1:"")_""""_val_""""
+ 	}
+ 	; assume the FIRST column is the RowID in embedded queries
+ 	s QryRowId=1
+ 	i pSC s x="s pSC=intrs.Execute("_params_")" x x
+ }
+ Set rsID=$Increment(^||%ZENReport("ZENReportCompCache",cmpid,"DATA")),intind=0
+ i pSC {
+ 	s AtEnd=0
+ 	f {
+ 		q:'intrs.Next()
+ 		s tmplist=""
+ 		s intind=$i(intind)
+ 		; try and get the RowId defined for the query - else zero..
+ 		; used to display audit trail
+ 		s qryID=$s(QryRowId:intrs.GetData(QryRowId),1:0)
+ 		f intj="1","2","3","4","5","6","7","8","9","10","11" {
+ 			q:'intj
+ 			s intitm=comp.TableItems.GetAt(intj) i 'intitm continue
+ 			i intitm.Hidden continue
+ 			s val=""
+ 			d ..ExeExpression(intitm.ValueGet, intrs)
+ 			i intitm.DisplayType="IP" {
+ 				s retval=""
+ 				d ##Class(epr.CTIconProfile).Show(comp.%Id(),"t"_comp.%Id()_"i"_comp.Name_"z",intitm.IconProfile,val,"",1,.retval) k ARY
+ 				s val=retval
+ 			} 
+ 			else
+ 			{
+ 				i (val="") 
+ 				{
+ 					i ($length(intitm.Image) > 0) 
+ 					{
+ 						d ..ExeExpression("s val="_intitm.Image, intrs)
+ 						i $LENGTH(val, "/") > 1
+ 						{
+ 							s val =$piece(val,"/",$LENGTH(val, "/"))
+ 						}
+ 						else{
+ 							s val =$piece(val,"\",$LENGTH(val, "\"))
+ 						}
+ 					}
+ 				}
+ 			}
+ 			; special stuff for %Stream data
+ 			i $e(intitm.DataType)="%",$zcvt(intitm.DataType,"U")["STREAM" { 
+ 				n objStream,tempstr,tempread s (tempstr,longval)="" 
+ 				s tempObj=val,val=""
+ 				i tempObj'="" {
+ 					s objStream=$$InvokeMethod^%apiOBJ($lg(tempObj,2),"",$lg(tempObj,3),$lg(tempObj,1),$lg(tempObj,4))
+ 					i objStream { 
+ 						d objStream.Rewind() n len do { 
+ 							s tempread=objStream.Read(.len) 
+ 							i $l(tempstr_tempread)'<31997 s tempstr=tempstr_"...",len=0 q 
+ 							s tempstr=tempstr_tempread 
+ 						} while (len>0)
+ 						k objStream
+ 					}
+ 					k tempObj
+ 				}
+ 				;
+ 				s val=tempstr
+ 			}else{
+ 				s val = ##class(epr.XMLChart).RemoveHTMLLinkTag(val)
+ 				i (intitm.DisplayType="TA"){
+ 					if ($length(val) >200){
+ 						s val="See Attachment "_..#AttachmentPrefix_"."_intind_"."_intj
+ 					}
+ 				}
+ 			}
+ 			; if a List return null..
+ 			i $ListValid(val) s val=""
+ 			s $li(tmplist,intj)=val
+ 		}
+ 		s ^||%ZENReport("ZENReportCompCache",cmpid,"DATA",rsID,intind)=$lb(qryID,tmplist)
+ 		; split into a certain number of columns, for embedding a separate tbale per row
+ 		; return:
+ 		;  rowID (in all cases)
+ 		;  entire record set (used as we want the values for and nested tables (1 or 0 to indicate if we show or not)
+ 		;  but all the DISPLAYABLE data is in cols 3 onwards
+ 		s ^||%ZENReport("ZENReportCompCache",cmpid,"DATA",rsID,intind,1)=$lb(qryID,tmplist,$lg(tmplist,1),$lg(tmplist,2),$lg(tmplist,3),$lg(tmplist,4),$lg(tmplist,5),$lg(tmplist,6),$lg(tmplist,7))
+ 		s ^||%ZENReport("ZENReportCompCache",cmpid,"DATA",rsID,intind,2)=$lb(qryID,tmplist,$lg(tmplist,8),$lg(tmplist,9),$lg(tmplist,10),$lg(tmplist,11))
+ 	}
+ } else {
+ 	s AtEnd=1
+ }
+ Set QHandle=$lb(AtEnd,$lb(cmpid,rsID),0)
+ Quit $$$OK 
+]]></Implementation>
+</Method>
+
+<Method name="RSFetch">
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,&Row:%Library.List,&AtEnd:%Integer=0]]></FormalSpec>
+<ProcedureBlock>0</ProcedureBlock>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ New cmpid, rsID, ind
+ Set AtEnd=$LI(QHandle,1)
+ Set cmpid=$li($LI(QHandle,2),1)
+ Set rsID=$li($LI(QHandle,2),2)
+ Set ind=$LI(QHandle,3)
+ i rsID {
+ 	Set ind=$order(^||%ZENReport("ZENReportCompCache",cmpid,"DATA",rsID,ind))
+ 	If ind="" { 
+ 		Set AtEnd=1, Row="" 
+ 	} Else { 
+ 		Set Row=$lb($lg(^||%ZENReport("ZENReportCompCache",cmpid,"DATA",rsID,ind),1),$lg(^||%ZENReport("ZENReportCompCache",cmpid,"DATA",rsID,ind),2), $na(^||%ZENReport("ZENReportCompCache",cmpid,"DATA",rsID,ind)) ) 
+ 	}
+ } else {
+ 	Set AtEnd=1, Row=""
+ }
+ Set QHandle=$lb(AtEnd,$LI(QHandle,2),ind)
+ Quit $$$OK 
+]]></Implementation>
+</Method>
+
+<Method name="TimeLogicalToHtml">
+<FormalSpec>h:%String</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[ q ##class(websys.Conversions).TimeLogicalToHtml(h)
+]]></Implementation>
+</Method>
+
+<Parameter name="AttachmentPrefix"/>
+
+<Parameter name="DEFAULTMODE">
+<Default>PDF</Default>
+</Parameter>
+
+<Parameter name="GENERATIONBUILD">
+<Default>26</Default>
+</Parameter>
+
+<Parameter name="XSLTMODE">
+<Default>server</Default>
+</Parameter>
+
+<Query name="PerRowRS">
+<Type>%Library.Query</Type>
+<FormalSpec><![CDATA[&params:%Library.String]]></FormalSpec>
+<Parameter name="CONTAINID" value="1"/>
+<Parameter name="ROWSPEC" value="RowId:%String,ResultList:%List,Column1:%String,Column2:%String,Column3:%String,Column4:%String,Column5:%String,Column6:%String,Column7:%String"/>
+</Query>
+
+<Query name="RS">
+<Type>%Library.Query</Type>
+<FormalSpec><![CDATA[&params:%Library.String]]></FormalSpec>
+<Parameter name="CONTAINID" value="1"/>
+<Parameter name="ROWSPEC" value="RowId:%String,ResultList:%List,GlobalRef:%String"/>
+</Query>
+
+<XData name="Header50108">
+<Data><![CDATA[
+<HeaderRows>
+ <HeaderRow num='1'>
+ 	<HeaderCol1>Edit</HeaderCol1>
+ 	<HeaderCol2>Date</HeaderCol2>
+ 	<HeaderCol3>Time</HeaderCol3>
+ 	<HeaderCol4>Issue</HeaderCol4>
+ 	<HeaderCol5>Proposed Action</HeaderCol5>
+ 	<HeaderCol6>Identified By</HeaderCol6>
+ 	<HeaderCol7>Contact Number</HeaderCol7>
+ </HeaderRow>
+ <HeaderRow num='2'>
+ 	<HeaderCol1>Person Responsible</HeaderCol1>
+ 	<HeaderCol2>Date of Action</HeaderCol2>
+ 	<HeaderCol3>Result of Action</HeaderCol3>
+ 	<HeaderCol4>Delete</HeaderCol4>
+ </HeaderRow>
+</HeaderRows>
+]]></Data>
+</XData>
+
+<XData name="ReportDefinition">
+<XMLNamespace>http://www.intersystems.com/zen/report/definition</XMLNamespace>
+<Data><![CDATA[
+<report xmlns='http://www.intersystems.com/zen/report/definition' 
+ 	name='!..GetReportName()'
+ 	OnCreateResultSet='CreateRecSet' >
+ 	<parameter expression="50108"/>
+ 	<attribute name='Name' expression='&quot;questionnaire.QMEDRECQQ190.Edit&quot;'/>
+ 	<include class='Custom.Report.ZEN.questionnaire.Child.C50108YSYS' xdata='Header50108' />
+ <group name='ResultRow' xmlns='http://www.intersystems.com/zen/report/definition' >
+ 	<attribute expression="$G(%node(1))" name='num'/>
+ 	<group name='ResultData' OnCreateResultSet='CreateRecSetPerRow' >
+ 		<parameter field='GlobalRef'/>
+ 		<group name='ResultColumns'>
+ 			<element field='RowId' name='RowId' />
+ 		<element field='Column1' name='DataCol1' />
+ 		<element field='Column2' name='DataCol2' />
+ 		<element field='Column3' name='DataCol3' />
+ 		<element field='Column4' name='DataCol4' />
+ 		<element field='Column5' name='DataCol5' />
+ 		<element field='Column6' name='DataCol6' />
+ 		<element field='Column7' name='DataCol7' />
+   </group>  <!-- ResultColumns -->
+  </group> <!-- ResultData -->
+ 	<!-- No audit required for questionnaire table -->
+ </group>  <!-- ResultRow -->
+ <aggregate name='Monitor50108' type='CUSTOM' class='ZENReport.Generated.Aggregate.Monitor' /> 
+</report>
+]]></Data>
+</XData>
+
+<XData name="ReportDisplay">
+<XMLNamespace>http://www.intersystems.com/zen/report/display</XMLNamespace>
+<Data><![CDATA[
+ <report xmlns='http://www.intersystems.com/zen/report/display'
+ xmlns:trakstyle='http://www.intersystems.com/zen/report/display/trak/style'
+ xmlns:trak='http://www.intersystems.com/zen/report/display/trak'
+ name='!%report.GetReportName()'>
+<document width= "#(..ReportWidth)#" height="#(..ReportHeight)#" marginLeft="#(..DocMarginLeft)#" marginRight="#(..DocMarginRight)#" 
+marginTop="#(..DocMarginTop)#" marginBottom="#(..DocMarginBottom)#" footerHeight="#(..DocFooterHeight)#" headerHeight="#(..DocHeaderHeight)#" 
+regionBeforeExtent="#(..DocHeaderHeight)#" regionAfterExtent="#(..DocFooterHeight)#"  >
+<trakstyle:trakgroupheader/>
+<trakstyle:trakgroupsummary/>
+<trakstyle:trakhospitalheader/>
+<trakstyle:trakpageheader/>
+<trakstyle:trakpagefooter/>
+<trakstyle:traklrparameterheader/>
+<trakstyle:trakreporttitle/>
+<trakstyle:traklrtablecolumn/>
+
+
+           <class name='table.nodata' >
+                <att name='height' value='0%' />
+           </class>
+      
+            <class name='table.traktablenoheader' >
+                        <att name='table-layout' value='fixed'/>
+                        <att name='border-style' value='none'/> 
+						<att name="border-collapse" value="collapse" />
+            </class>
+            <class name='th.traktablenoheader'>
+                        <att name='border-style' value='none'/> 
+						<att name="border-collapse" value="collapse" />
+
+            </class>
+            <class name='td.traktablenoheader'>
+                        <att name='font-family' value='Arial' />
+                        <att name='font-size' value='9pt'/>
+                        <att name='font-weight' value='normal'/>
+                        <att name='text-align' value='left'/>
+                        <att name='border-style' value='solid'/> 
+                        <att name='border-width' value='0.5pt'/>
+            </class>     
+           
+           
+            <class name='th.traklrtablecolumn'>
+                        <att name='keep-with-next.within-line' value='auto' />
+                        <att name='font-family' value='Arial' />
+                        <att name='font-size' value='10pt'/>
+                        <att name='font-weight' value='bold'/>
+            </class>
+            <class name='td.traklrtablecolumn'>
+                        <att name='font-family' value='Arial' />
+                        <att name='font-size' value='9pt'/>
+                        <att name='font-weight' value='normal'/>
+                        <att name='display-align' value='before' />
+                        <att name='text-align' value='left'/>
+                        <att name='border-style' value='solid'/> 
+                        <att name='border-width' value='0.5pt'/>
+                        <att name='border-color' value='black'/>
+ 
+            </class>
+            
+            
+        	<class name='table.traktablenoborder' >
+        	  <att name='border-style' value='none'/> 
+			  <att name="border-collapse" value="collapse" />
+            </class>
+            <class name='tr.traktablenoborder'>
+              <att name='border-style' value='none'/> 
+			  <att name="border-collapse" value="collapse" />
+			</class>
+            <class name='td.traktablenoborder'>
+              <att name='border-style' value='none'/> 
+			  <att name="border-collapse" value="collapse" />
+            </class>
+            
+           
+            
+            <class name='td.trakheaderbold'>
+            	<att name="border-collapse" value="collapse" />
+                <att name='keep-with-next.within-page' value='auto' />
+                <att name='font-family' value='Arial' />
+                <att name='font-size' value='10pt'/>
+                <att name='font-weight' value='bold'/>
+                <att name='display-align' value='before' />
+                <att name='padding' value='2pt' />
+                <att name='text-align' value='left'/>
+                <att name='border-style' value='solid'/> 
+                <att name='border-width' value='1.3pt'/> 
+                <att name='border-color' value='#7BA1C7'/>
+                <att name='color' value='#FFFFFF'/>
+                <att name='background-color' value='#567498'/>      
+            </class>
+            
+            <class name='td.trakheaderboldnested'>
+            	<att name="border-collapse" value="collapse" />
+                <att name='keep-with-next.within-page' value='auto' />
+                <att name='font-family' value='Arial' />
+                <att name='font-size' value='8pt'/>
+                <att name='font-weight' value='bold'/>
+                <att name='display-align' value='before' />
+                <att name='padding' value='2pt' />
+                <att name='text-align' value='left'/>
+                <att name='border-style' value='solid'/> 
+                <att name='border-width' value='1.3pt'/> 
+                <att name='border-color' value='#88B2DB'/>
+                <att name='color' value='#FFFFFF'/>
+                <att name='background-color' value='#6B91BF'/>      
+            </class>
+            
+             <class name='table.trakheaderbold'>
+                <att name='background-color' value='#567498'/>
+                <att name='color' value='#FFFFFF'/>
+                <att name='border-color' value='#ffffff'/>
+            </class>
+            
+            <class name='table.traktablenested' >
+            <att name='padding-before' value='40pt' />
+                        <att name='keep-with-previous' value='always' />
+                        <att name='border-style' value='solid'/> 
+                        <att name='border-color' value='black'/> 
+                        <att name='border-width' value='0.5pt'/> 
+            </class>
+            <class name='th.traktablenested'>
+                        <att name='font-family' value='Arial' />
+                        <att name='font-size' value='7pt'/>
+                        <att name='font-weight' value='bold'/>
+                        <att name='padding-before' value='5pt' />
+                        <att name='border-style' value='none'/> 
+
+            </class>
+            <class name='td.traktablenested'>
+                         <att name='font-family' value='Arial' />
+                        <att name='font-size' value='7pt'/>
+                        <att name='font-weight' value='italic'/>
+                        <att name='display-align' value='before' />
+                        <att name='padding-before' value='5pt' />
+                        <att name='text-align' value='left'/>
+                        <att name='border-style' value='none'/> 
+            </class> 
+            <class name='table.traktableaudit' >
+                        <att name='padding' value='2pt 0pt' />
+            </class>
+            <class name='th.traktableaudit'>
+                        <att name='font-family' value='Arial' />
+                        <att name='font-size' value='8pt'/>
+                        <att name='font-weight' value='bold'/>
+                        <att name='padding' value='2pt 0pt' />
+            </class>
+            <class name='td.traktableaudit'>
+                        <att name='font-family' value='Arial' />
+                        <att name='font-size' value='8pt'/>
+                        <att name='font-weight' value='normal'/>
+                        <att name='display-align' value='before' />
+                        <att name='padding' value='2pt' />
+                        <att name='text-align' value='left'/>
+       
+           		 </class>
+      </document>
+ <body>
+	<group name='HeaderRows' >
+ 		<table group ='HeaderRow' orient='col' class='trakheaderbold' >
+ 		<item field='HeaderCol1' width='112.14px' breakOnLineFeed='false' too-long-text='truncate' />
+ 		<item field='HeaderCol2' width='112.14px' breakOnLineFeed='false' too-long-text='truncate' />
+ 		<item field='HeaderCol3' width='112.14px' breakOnLineFeed='false' too-long-text='truncate' />
+ 		<item field='HeaderCol4' width='112.14px' breakOnLineFeed='false' too-long-text='truncate' />
+ 		<item field='HeaderCol5' width='112.14px' breakOnLineFeed='false' too-long-text='truncate' />
+ 		<item field='HeaderCol6' width='112.14px' breakOnLineFeed='false' too-long-text='truncate' />
+ 		<item field='HeaderCol7' width='112.14px' breakOnLineFeed='false' too-long-text='truncate' />
+		</table>
+	</group> <!-- HeaderRows -->
+ <group name='ResultRow' >
+   <table orient='row' class='traktablenoborder'>
+   	<table group ='ResultData' pagebreak='true' orient='col' class='traktablenoheader'>
+    		<group name='ResultColumns' >
+     			<table orient='col' style='padding:2pt'>
+     				<item field='DataCol1' width='112.14px' breakOnLineFeed='true' too-long-text='truncate' 
+     					stylecall='stylealtcolor' styleparams='../../@num' styleparamNames='num' />
+     				<item field='DataCol2' width='112.14px' breakOnLineFeed='true' too-long-text='truncate' 
+     					stylecall='stylealtcolor' styleparams='../../@num' styleparamNames='num' />
+     				<item field='DataCol3' width='112.14px' breakOnLineFeed='true' too-long-text='truncate' 
+     					stylecall='stylealtcolor' styleparams='../../@num' styleparamNames='num' />
+     				<item field='DataCol4' width='112.14px' breakOnLineFeed='true' too-long-text='truncate' 
+     					stylecall='stylealtcolor' styleparams='../../@num' styleparamNames='num' />
+     				<item field='DataCol5' width='112.14px' breakOnLineFeed='true' too-long-text='truncate' 
+     					stylecall='stylealtcolor' styleparams='../../@num' styleparamNames='num' />
+     				<item field='DataCol6' width='112.14px' breakOnLineFeed='true' too-long-text='truncate' 
+     					stylecall='stylealtcolor' styleparams='../../@num' styleparamNames='num' />
+     				<item field='DataCol7' width='112.14px' breakOnLineFeed='true' too-long-text='truncate' 
+     					stylecall='stylealtcolor' styleparams='../../@num' styleparamNames='num' />
+     			</table>
+  			</group> <!-- ResultColumns -->
+ 		</table> <!-- ResultData -->
+ 	<!-- No audit required for questionnaire table -->
+ <table group='nodata'  class='nodata'>
+ 		<item value='' />
+ </table> 
+ </table>
+</group> <!-- ResultRow -->
+</body>
+</report>
+]]></Data>
+</XData>
+</Class>
+</Export>

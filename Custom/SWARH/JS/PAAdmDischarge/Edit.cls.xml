@@ -1,0 +1,373 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.SWARH.JS.PAAdmDischarge.Edit">
+<Description>
+Component JavaScript for: PAAdmDischarge.Edit</Description>
+<Modified>0</Modified>
+<Super>websys.AbstractJavaScript</Super>
+<TimeCreated>63537,10517.79651</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+This Parameter is updated by Perforce</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/SWARH/JS/PAAdmDischarge/Edit.xml#1 $</Default>
+</Parameter>
+
+<Method name="JSContent">
+<Description>
+ </Description>
+<Language>javascript</Language>
+<ClientMethod>1</ClientMethod>
+<Implementation><![CDATA[
+/*********************************************************************
+$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/SWARH/JS/PAAdmDischarge/Edit.xml#1 $
+Version 1
+
+- General custom field validation for paadmdischarge.edit component
+
+REMEMBER to update the versions with initials, date and description for each modification...
+IF		29/06/2011			- Created for AUXX
+FD 		09/07/2012			- TRC 115049
+IF		23/08/2012			- TRC 120569 if care type code is 2, 6, 8, 9 then make care availability mandatory
+FD		21/05/2013			- I5122 - Mandatory fields not functioning correctly on PAADMDischarge.edit 
+IF		09/07/2013			- TRC 153395 if care type code is '2','6','8','9','1','P','R1','R2' then make care availability mandatory
+SWARH	09/10/2013			- TRC160565
+IF		02/01/2014			- TRC133568 Make separation condition mandatory
+OH		15/09/2014			- TRC I21984 Add Care Type 'MC' to Array sets for ACAS and Carer Availability, and remove 2, R1, R2
+DJB		30/04/2015			- TRC 191307 1st July 2015: CARAVLDesc mandatory when care type code in 1,P,6,8,9,MC and CTDSPDesc in Home,Home Not Own
+
+**********************************************************************/
+
+
+websys_removeListener("load","onload",BodyOnloadHandler);
+websys_removeListener("load","onload",BodyOnloadHandler); //removing twice because developer script adds two onload listeners, see TC-45318
+websys_addListener("load","onload",CustomDocumentLoadHandler);
+
+// Load SNAP.js script
+(function() {
+   var loadScript = function(type, src) {
+      var head = document.getElementsByTagName('head')[0];
+      var script = document.createElement('script');
+      script.type = type;
+      script.src = src;
+      head.appendChild(script);
+      return script;
+   };
+
+   loadScript('text/javascript', '../custom/SWARH/scripts/SNAP.js');
+})();
+
+function CustomDocumentLoadHandler() {
+	//Call core script
+	BodyOnloadHandler();
+	
+	var TWKFLobj=document.getElementById('WKFL');
+	if (TWKFLobj) {
+		var TWKFL = TWKFLobj.value;
+		if (TWKFL) { 
+			if (TWKFL=='SWARH.SNAP.OPDischarge') {
+				var obj = document.getElementById("PAADMVisitStatusCode");
+				if (obj) var VisitStatusCode = obj.value;
+				if (VisitStatusCode != "D") OpenSNAPAppt();
+			}
+		}
+	}
+	var objDisDate=document.getElementById("PAADMDischgDate");;
+	if (objDisDate) { 
+		PAADMDischDateOnBlur();
+		websys_addListener("blur","onblur",PAADMDischDateOnBlur,objDisDate);
+	}
+	CustomCARAVLOnBlur();
+	ChecksforACAS();
+
+	var obj=document.getElementById('CTDSPDesc');
+	if (obj) {
+		CTDSPDescHandler();
+		websys_addListener("blur","onblur",CTDSPDescHandler,obj);
+	}
+    objUpdate=document.getElementById('Update');
+    if (objUpdate) objUpdate.onclick=CustomUpdateHandler;
+    
+	var DischargeDateCARAVLArry=["CARETYPDesc","CARAVLDesc"];
+	var i=0;
+	while (DischargeDateCARAVLArry[i]) {
+		var DischargeDateCARAVLobj=document.getElementById(DischargeDateCARAVLArry[i]);
+		if (DischargeDateCARAVLobj) websys_addListener("blur","onblur",CustomCARAVLOnBlur,DischargeDateCARAVLobj);
+		i++
+	}    
+
+   
+}
+
+function Condition(lu,predictive) {
+	var obj1=document.getElementById("CTDSPDesc");
+    if (obj1) {
+	    if (!predictive) {
+		    var natcode=tkMakeServerCall("Region.AUXX.Utility.Utilities","GetCTDSPNationalCode",obj1.value);
+	    } else {
+		    var natcode=lu[3];
+	    }
+	    var obj2=document.getElementById('DISCONDesc');
+	    if (natcode=='D') {
+		    if (obj2) {
+			    labelMandatoryTRC('DISCONDesc');
+		    }
+	    } else {
+		    if (obj2) {
+			    labelNormalTRC('DISCONDesc');
+		    }
+	    }
+    }
+    return true;
+}
+
+function OpenSNAPAppt() {
+	var obj=document.getElementById("BANNERPatientID");
+	if (obj) var PatientID=obj.value;
+	obj=document.getElementById("BANNERPAADMADMNo");
+	if (obj) var EpisodeNo=obj.value;
+	var logonUserId=session['LOGON.USERID'];
+	var logonLocId=session['LOGON.CTLOCID'];
+	var logonGroupId=session['LOGON.GROUPID'];
+	var win=openSWARHSNAP('ClientAppointmentList.aspx?'+'LogonUserId='+logonUserId+'&LogonLocId='+logonLocId+'&PatientID='+PatientID+'&EpisodeNo='+EpisodeNo+'&LogonGroupId='+logonGroupId+'&OPDischarge=true','AppointmentListDischarge');
+	setTimeout(function() {win.focus()},500);
+}
+
+function CustomUpdateHandler() {
+	var msg="";
+	var CheckMandatoryArry = new Array("ACASDesc","CARAVLDesc","DISCONDesc")
+	var i=0;
+	while (CheckMandatoryArry[i]) {
+		if ((document.getElementById(CheckMandatoryArry[i]))&&(isLabeledMandatoryTRC(CheckMandatoryArry[i]))) {
+			if (document.forms['fPAAdmDischarge_Edit']) {
+				msg+=RequiredMsgObj(document.forms['fPAAdmDischarge_Edit'].elements[CheckMandatoryArry[i]],false);
+				}
+  			else {
+	  			msg+=RequiredMsgObj(document.getElementById(CheckMandatoryArry[i]),false);
+	  			}
+		}
+		i++
+	}
+
+
+	//I5122 - if mandatory separation referral has to be filled
+	var sepref=document.getElementById("SepRefEntered");
+	if ((sepref)&&(isLabeledMandatoryTRC('SepRefEntered'))&&(sepref.options.length<1)) {	
+		msg = msg+"\'" + t['SepRefDesc'] + "\' " + t['XMISSING'] + "\n";
+    }
+	
+	if (msg) {
+		alert(msg);
+	} else {
+		UpdateHandler();
+	}
+}
+
+function CustomCARAVLOnBlur() {
+	var objDisDate=document.getElementById("PAADMDischgDate");
+	var CompareDate="";
+	if ((objDisDate)&&(objDisDate.value!="")) CompareDate=objDisDate.value;
+	if (CompareDate=="") CompareDate=DateStringToday();
+    var CompareCheck=DateStringCompare(CompareDate,"01/07/2015");
+    if (CompareCheck=="-1") {
+		//TRC120569
+		if (session['CONTEXT']=='W50088') {
+			//var CareTypeArr = new Array('','2','6','8','9','1','P','R1','R2');
+			//TRC I21984
+			var CareTypeArr = new Array('','6','8','9','1','P','MC');
+			var CareCode=document.getElementById("CareCode");
+			if ((CareCode)&&(checkArray(CareCode.value,CareTypeArr))) {
+				labelMandatoryTRC('CARAVLDesc');
+				websys_setfocus(document.getElementById('CARAVLDesc'));
+			} else {
+				DisableFieldTRC('CARAVLDesc');
+			}
+		}
+		//FD 09/07/2012 - TRC 115049
+		ChecksforCARAV();
+    }
+    else
+    {
+		DischargeDateCARAVLonCTDSP(); //JB 23/04/2015 TRC190993 override CARAVLDesc mandatory logic after 1st July 2015 with new rule
+    }
+}
+
+function CTDSPDescHandler() {
+	Condition("",false);
+	var obj=document.getElementById('CTDSPDesc');
+	if (obj) {
+		if (obj.value.toUpperCase()=="T"||obj.value=="Separation and transfer to other acute hospital/extended care/rehabilitation/geriatric centre") {
+			labelMandatoryTRC('TRDDesc');
+		} else {
+			DisableFieldTRC('TRDDesc');
+		}
+		if ((obj.value.toUpperCase()=="H")||(obj.value=="Separation to private residence/accommodation")) {
+			labelMandatoryTRC('SepRefDesc');
+			labelMandatoryTRC('SepRefEntered');
+		} else {
+			DisableFieldTRC('SepRefDesc');
+			DisableFieldTRC('SepRefEntered');
+			var objSP=document.getElementById('SepRefEntered');
+			if (objSP) ClearAllList(objSP);
+		}
+
+		//FD 09/07/2012 - TRC 115049
+		var objintrea=document.getElementById('INTREADesc');
+		if (obj.value.toUpperCase()=="G" || obj.value=="Posthumous Organ Procurement")
+		{
+			objintrea.value="Not applicable";
+		}
+		//JB 29/05/2015 - TRC 191307
+		var objDisDate=document.getElementById("PAADMDischgDate");
+		var CompareDate="";
+		if ((objDisDate)&&(objDisDate.value!="")) CompareDate=objDisDate.value;
+		if (CompareDate=="") CompareDate=DateStringToday();
+	    var CompareCheck=DateStringCompare(CompareDate,"01/07/2015");
+	    if (CompareCheck>"-1") {		
+			 DischargeDateCARAVLonCTDSP();
+	    }
+	}
+}
+
+CTDSPDesc_lookupsel = (function(value) {
+	var obj=document.getElementById('CTDSPDesc');
+	if (obj) {
+		var cached_CTDSPDesclookupsel=CTDSPDesc_lookupsel;
+		return function (value) {
+			cached_CTDSPDesclookupsel(value);
+	   		CTDSPDescHandler();
+		}
+	}
+}())
+
+CARAVLLookupSelect = (function(str) {
+	var obj=document.getElementById('CARAVLDesc');
+	if (obj) {
+		var cached_CARAVLLookupSelect=CARAVLLookupSelect;
+		return function (str) {
+			cached_CARAVLLookupSelect(str);
+	   		CustomCARAVLOnBlur();
+		}
+	}
+}())
+
+function ChecksforACAS() {
+	var objCT=document.getElementById('CARETYPDesc');
+	var objStrNC=document.getElementById("StringNatCode");
+	var objpatage=document.getElementById("patientage");	
+	var objacas=document.getElementById("ACASDesc");
+	var objDischDate=document.getElementById("PAADMDischgDate");
+	var objEpisDate=document.getElementById("PAADMAdmDate");
+	var objCTCode=document.getElementById("CareCode");
+	
+	// If care type is one of these codes, age is >=50 and admission date is not equal to discharge date then enable fields
+	//var CareType = new Array("","0","1","2","4","6","7","8","9","F","E","K");
+	//FD 09/07/2012 - TRC 115049
+	//var CareType = new Array("","0","1","2","4","6","8","9","R1","R2");
+	//OH 15/09/2014 - TRC I21984
+	var CareType = new Array("","0","1","4","6","8","9","MC");
+
+	if ((objCTCode)&&(checkArray(objCTCode.value,CareType))&&(objpatage)&&(objpatage.value>49)&&(objEpisDate)&&(objDischDate)&&(objDischDate.value!=objEpisDate.value)) {
+      	labelMandatoryTRC('ACASDesc');
+      	websys_setfocus(objacas);
+	} else {
+		DisableFieldTRC('ACASDesc');
+
+	}
+}
+//FD 09/07/2012 - TRC 115049
+function ChecksforCARAV()
+{
+	var objCarav=document.getElementById("CARAVLDesc");
+	var objCTCode=document.getElementById("CareCode");
+	var CareTypeCARAV = new Array("","R1","R2");
+	if ((objCTCode)&&(checkArray(objCTCode.value,CareTypeCARAV)))
+	{
+      	labelMandatoryTRC('CARAVLDesc');
+      	websys_setfocus(document.getElementById('CARAVLDesc'));
+	}
+
+}
+
+function DischargeDateCARAVLonCTDSP()  //JB 23/04/2015 TRC191307 override CARAVLDesc mandatory logic after 1st July 2015 with new rule
+{
+	var objCTALd=document.getElementById('CARAVLDesc');
+	var objDisDateLd=document.getElementById("PAADMDischgDate");
+	var objDDCTCodeLd=document.getElementById("CareCode");
+	var objDDLd=document.getElementById('CTDSPDesc');
+	var CarerAvailCareTypeCodes=new Array("","1","P","6","8","9","MC");
+	var SepRefDD=new Array("","H","Separation to private residence/accommodation");
+    if ((objDDCTCodeLd)&&(objCTALd)&&(checkArray(objDDCTCodeLd.value,CarerAvailCareTypeCodes))&&(checkArray(objDDLd.value,SepRefDD))) 
+	{
+  		labelMandatoryTRC('CARAVLDesc');
+	}
+	else
+	{
+  		DisableFieldTRC('CARAVLDesc');
+	}
+
+}
+function PAADMDischDateOnBlur() {
+	var objDisDate=document.getElementById("PAADMDischgDate");
+	if (((objDisDate)&&(objDisDate.value!=""))&&(DateStringCompare(objDisDate.value,"01/07/2015")>"-1")) {
+		DischargeDateCARAVLonCTDSP();	
+	}
+}
+
+
+function checkArray(val,arr) {
+	// checks if the value is in the array anywhere, returns index
+	var i;
+	for (i=1;i<arr.length;i++) {
+		if (val.toUpperCase()==arr[i].toUpperCase())
+		return i;
+	}
+	return false;
+}
+
+function ClearAllList(obj) {         //This function removes ALL the options from a listbox(obj)
+	if (obj)
+	   for (var i=obj.options.length-1; i>=0; i--)
+	       obj.options[i] = null;
+}
+
+function isLabeledMandatoryTRC(fld) {
+	if (document.getElementById(fld)) {
+		if ((document.getElementById('c' + fld))&&(isLabeledMandatory(fld))) return true;
+		else if (document.getElementById(fld).getAttribute('NoLabelMand')==1) return true;
+		else return false;
+	}
+	return false;
+}
+
+function labelMandatoryTRC(fld) {
+	if (document.getElementById(fld)) {
+		if (document.getElementById('c' + fld)) labelMandatory(fld);
+		else document.getElementById(fld).setAttribute('NoLabelMand','1');
+		EnableFieldTRC(fld);
+	}
+}
+
+function labelNormalTRC(fld) {
+	if (document.getElementById(fld)) {
+		if (document.getElementById('c' + fld)) labelNormal(fld);
+		if (document.getElementById(fld).getAttribute('NoLabelMand')==1) document.getElementById(fld).removeAttribute('NoLabelMand');
+		EnableFieldTRC(fld);
+	}
+}
+
+function EnableFieldTRC(fld) {
+	EnableField(fld);
+	EnableLookup("ld1081i"+fld);
+}
+
+function DisableFieldTRC(fld) {
+	if (document.getElementById('c' + fld)) labelNormal(fld);
+	if (document.getElementById(fld).getAttribute('NoLabelMand')==1) document.getElementById(fld).removeAttribute('NoLabelMand');
+	DisableField(fld);
+	DisableLookup("ld1081i"+fld);
+}
+]]></Implementation>
+</Method>
+</Class>
+</Export>

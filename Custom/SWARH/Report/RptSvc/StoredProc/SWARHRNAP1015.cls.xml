@@ -1,0 +1,331 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.SWARH.Report.RptSvc.StoredProc.SWARHRNAP1015">
+<Description><![CDATA[
+<pre>
+**************************************************************************************************************************************
+* Report Code: SWARHRNAP105
+* Report Description: Workload Report
+* Menu Caption: Workload Report
+* Initial release: 
+* Developer: Jayson Sagnol
+**************************************************************************************************************************************
+</pre>]]></Description>
+<ProcedureBlock>0</ProcedureBlock>
+<Super>Custom.SWARH.Report.RptSvc.StoredProc.Abstract</Super>
+<TimeCreated>60905,54849</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/SWARH/Report/RptSvc/StoredProc/SWARHRNAP1015.xml#1 $</Default>
+</Parameter>
+
+<UDLText name="T">
+<Content><![CDATA[
+/*
+ * Report Name: <SWARHReportName> <br>
+ * Report Code: SWARH.R.<SWARHReportCode> <br>
+ * SWARH Developer: your name <br>
+ */
+]]></Content>
+</UDLText>
+
+<Method name="SWARHRNAP1015Close">
+<Description>
+This is the Close component of the %Library.Query.
+This is standard code and should never have to change.
+This is where all the cleanup is performed, i.e. the purging of the temporary storage global ^CacheTemp.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>QHandle:%Library.Binary</FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Clean up by purging the temporary node in ^CacheTemp global
+ New repid,ind
+ Set repid=$li(QHandle,2)
+
+ //Start Monitor (if configured to capture stats)
+ i mon Do ..MonitorEnd(mon)
+
+ Kill ^CacheTemp("TRAK",repid)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="SWARHRNAP1015Execute">
+<Description>
+This is the Execute section for the %Library.Query. 
+All of the logic will be performed here.
+A new node for the ^CacheTemp global will be created and each subscript of this global will contain
+a row for the report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,Hospital:%Library.String,DateFrom:%Date,CareProvider:%Library.String,Location:%Library.String]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Get reportid i.e. use $INCREMENT to add another node to ^CacheTemp global. 
+ // We use ^CacheTemp global because it will always use memory before disk
+ New repid,ind
+
+  // Use $Increment to get the next node
+ Set repid=$I(^CacheTemp("TRAK"))
+ 
+ /* TEMPLATE MODIFY: Define and initialise appropriate column variables to describe output rowset columns */
+ New PAADMHospitalDR,WorkloadType,PAPMINo,SecondName,Surname,FirstName,CTLOCDesc,CTPCPDesc,ASDate,ASSessStartTime,Duration,TPTravelTime,EventName,Street,Street2,City
+ Set (PAADMHospitalDR)=0
+ Set (PAADMHospitalDR,WorkloadType,PAPMINo,SecondName,Surname,FirstName,CTLOCDesc,CTPCPDesc,ASDate,ASSessStartTime,Duration,TPTravelTime,EventName,Street,Street2,City)=""
+
+
+ s ind=1, END=0
+
+ //Start Monitor (if configured to capture stats)
+ s mon=..MonitorBegin()
+ 
+ s Hospital=$zstrip(Hospital,"*CW")
+ s CareProvider=$zstrip(CareProvider,"*CW")
+ s Location=$zstrip(Location,"*CW")
+ //Convert ODBC dates to cache format
+ s DateFrom=..ConvertDateToCache(DateFrom)
+
+ 
+ &SQL(DECLARE MyReportCursor CURSOR FOR 
+  	
+	SELECT
+			R.APPT_Adm_DR->PAADM_Hospital_DR AS PAADMHospitalDR,
+	        'APPT' As WorkloadType,
+	        R.APPT_Adm_DR->PAADM_PAPMI_DR->PAPMI_No AS PAPMINo,
+	        R.APPT_Adm_DR->PAADM_PAPMI_DR->PAPMI_Name3 As SecondName,
+	        R.APPT_Adm_DR->PAADM_PAPMI_DR->PAPMI_Name As Surname,
+	        R.APPT_Adm_DR->PAADM_PAPMI_DR->PAPMI_Name2 As FirstName,
+	        R.APPT_Adm_DR->PAADM_PAPMI_DR->PAPMI_Paper_DR->PAPER_StName As Street,
+			R.APPT_Adm_DR->PAADM_PAPMI_DR->PAPMI_Paper_DR->PAPER_ForeignAddress As Street2,
+			R.APPT_Adm_DR->PAADM_PAPMI_DR->PAPMI_Paper_DR->PAPER_CityCode_DR->CTCIT_Desc As City,
+	        RE.RES_CTLOC_DR->CTLOC_Desc,
+	        RE.RES_Desc as CTPCP_Desc,
+	        A.AS_Date,
+	        A.AS_SessStartTime,
+	        R.APPT_Duration AS Duration,
+	        R.APPT_TreatmentPlan_DR->TP_TravelTime,
+	        NULL AS EventName
+
+	FROM
+	        SQLUser.RB_Appointment R
+	        LEFT JOIN SQLUser.RB_ApptSchedule A ON R.APPT_AS_ParRef = A.AS_RowID
+	        LEFT JOIN SQLUser.RB_Resource RE ON A.AS_RES_ParRef = RE.RES_RowID
+	        
+	WHERE
+	        A.AS_Date = :DateFrom
+	AND
+	        R.APPT_Adm_DR->PAADM_Hospital_DR = :Hospital
+	AND
+			(RE.RES_CTPCP_DR->CTPCP_RowId = :CareProvider OR (:CareProvider IS NULL))
+	AND
+	        (%INTERNAL R.APPT_Status IN ('A','S','P','N'))
+	AND
+	        R.APPT_RBEvent_DR->EV_Name IS NULL
+	AND
+			(RE.RES_CTLOC_DR->CTLOC_RowID = :Location OR (:Location IS NULL))
+	AND
+			(RE.RES_CTLOC_DR->CTLOC_OutPatientUnit = 'Y' OR RE.RES_CTLOC_DR->CTLOC_CommunityUnit = 'Y' OR :Hospital IN (701,702,709,713))
+
+
+	UNION
+
+	SELECT
+	        NULL AS PAADMHospitalDR,
+	        {fn CONCAT('NA: ', NA.NA_Reason_DR->RNAV_Desc)} AS WorkloadType,
+	        NULL AS PAPMINo,
+	        NULL AS SecondName,
+	        NULL As Surname,
+	        NULL As FirstName,
+	        NULL As Street,
+			NULL As Street2,
+			NULL As City,
+	        RE.RES_CTLOC_DR->CTLOC_Desc,
+	        RE.RES_Desc as CTPCP_Desc,
+	        NA.NA_FrDate,
+	        NA.NA_FrTime,
+	        {fn TIMESTAMPDIFF(SQL_TSI_MINUTE,CONVERT(SQL_varchar, NA.NA_FrTime),CONVERT(SQL_VARCHAR,NA.NA_ToTime))} AS Duration,
+	        R.APPT_TreatmentPlan_DR->TP_TravelTime,
+	        NULL AS EventName
+	FROM
+	        SQLUser.RB_Appointment R
+	        LEFT JOIN SQLUser.RB_ApptSchedule A ON R.APPT_AS_ParRef = A.AS_RowID
+	        LEFT JOIN SQLUser.RB_Resource RE ON A.AS_RES_ParRef = RE.RES_RowID
+	        LEFT OUTER JOIN SQLUser.RB_NotAvail NA ON RE.RES_RowID = NA.NA_RES_DR
+
+	WHERE
+	        :DateFrom BETWEEN NA.NA_FrDate AND NA.NA_ToDate
+	AND
+	        A.AS_Date = :DateFrom
+	AND
+	        R.APPT_Adm_DR->PAADM_Hospital_DR = :Hospital
+	AND
+			(RE.RES_CTLOC_DR->CTLOC_RowId = :Location OR (:Location IS NULL))
+	AND
+			(RE.RES_CTPCP_DR->CTPCP_RowId = :CareProvider OR (:CareProvider IS NULL))
+	AND
+	        (%INTERNAL R.APPT_Status IN ('A','S','P','N'))
+	AND
+	        RE.RES_CTPCP_DR->CTPCP_Desc IS NOT NULL
+	AND
+	        NA.NA_RBEvent_DR->EV_Name IS NULL
+	AND
+			(RE.RES_CTLOC_DR->CTLOC_OutPatientUnit = 'Y' OR RE.RES_CTLOC_DR->CTLOC_CommunityUnit = 'Y' OR :Hospital IN (701,702,709,713))
+
+	UNION
+
+	SELECT
+	        NULL AS PAADMHospitalDR,
+	        {fn CONCAT('EV:',NA.NA_RBEvent_DR->EV_Name)} AS WorkloadType,
+	        NULL AS PAPMINo,
+	        NULL AS SecondName,
+	        NULL As Surname,
+	        NULL As FirstName,
+	        NULL As Street,
+			NULL As Street2,
+			NULL As City,	      
+	        RE.RES_CTLOC_DR->CTLOC_Desc,
+	        RE.RES_Desc as CTPCP_Desc,
+	        NA.NA_FrDate,
+	        NA.NA_FrTime,
+	        {fn TIMESTAMPDIFF(SQL_TSI_MINUTE,CONVERT(SQL_varchar, NA.NA_FrTime),CONVERT(SQL_VARCHAR,NA.NA_ToTime))} AS Duration,
+	        R.APPT_TreatmentPlan_DR->TP_TravelTime,
+	        NA.NA_RBEvent_DR->EV_Name AS EventName
+	FROM
+	        SQLUser.RB_Appointment R
+	        LEFT JOIN SQLUser.RB_ApptSchedule A ON R.APPT_AS_ParRef = A.AS_RowID
+	        LEFT JOIN SQLUser.RB_Resource RE ON A.AS_RES_ParRef = RE.RES_RowID
+	        LEFT OUTER JOIN SQLUser.RB_NotAvail NA ON RE.RES_RowID = NA.NA_RES_DR
+
+	WHERE
+	        :DateFrom BETWEEN NA.NA_FrDate AND NA.NA_ToDate
+	AND
+	        A.AS_Date = :DateFrom
+	AND
+	        R.APPT_Adm_DR->PAADM_Hospital_DR = :Hospital
+	AND
+			(RE.RES_CTPCP_DR->CTPCP_RowId = :CareProvider OR (:CareProvider IS NULL))
+	AND
+	        (%INTERNAL R.APPT_Status IN ('A','S','P','N'))
+	AND
+			(RE.RES_CTLOC_DR->CTLOC_RowId = :Location OR (:Location IS NULL))
+	AND
+	        RE.RES_CTPCP_DR->CTPCP_Desc IS NOT NULL
+	AND
+	        NA.NA_RBEvent_DR->EV_Name IS NOT NULL
+	AND
+			(RE.RES_CTLOC_DR->CTLOC_OutPatientUnit = 'Y' OR RE.RES_CTLOC_DR->CTLOC_CommunityUnit = 'Y' OR :Hospital IN (701,702,709,713))
+                
+      )
+      
+      
+ &SQL(OPEN MyReportCursor)
+ 
+ d FetchRow
+  
+ while END=0 {
+  
+	 d FormatDates
+  	 d FormatTimes
+  	 
+  	 ;Assign unique numerical sequential code for each care provider returned in report.
+  	 ;This is used in SSRS to filter multiple tablixs, ultimately assigning one tablix per CareProvider.
+  	 i CTPCPDesc="" {
+	  	s CTPCPDesc="No Worker"
+  	 }
+  	 s i=0 
+  	 s CPRepID=-1
+  	 f { 
+  	 	s CTPCPDescID=$G(CTPCPArray(i))
+  	 	q:CTPCPDescID=""
+  	 	i CTPCPDescID=CTPCPDesc {
+	  	 	s CPRepID=i
+	  	 	q	
+  	 	}
+  	 	s i=i+1
+  	 }
+  	 i CPRepID=-1 {
+	  	s CTPCPArray(i)=CTPCPDesc
+	  	s CPRepID=i	 
+  	 }
+ 		 	 
+	 s sort = ind		// don't sort - uncomment this line if you've sorted in the query
+	 
+	 set Street=$ZSTRIP(Street,"*C")
+	 set Street2=$ZSTRIP(Street2,"*C")
+ 
+	 s ^CacheTemp("TRAK",repid,sort)=$LB(PAADMHospitalDR,WorkloadType,PAPMINo,SecondName,Surname,FirstName,CTLOCDesc,CTPCPDesc,ASDate,ASSessStartTime,Duration,TPTravelTime,EventName,CPRepID,Street,Street2,City)
+	 s ind=ind+1
+ 
+	 //fetch rows
+	 d FetchRow
+ }
+
+ &SQL(CLOSE MyReportCursor)
+ 
+ // Build QHandle (AtEnd,ReportID,Index)
+ Set QHandle=$lb(0,repid,0)
+
+ Quit $$$OK
+
+FetchRow
+ &sql(FETCH MyReportCursor INTO :PAADMHospitalDR,:WorkloadType,:PAPMINo,:SecondName,:Surname,:FirstName,:Street,:Street2,:City,:CTLOCDesc,:CTPCPDesc,:ASDate,:ASSessStartTime,:Duration,:TPTravelTime,:EventName)
+ if SQLCODE '= 0 set END = 1
+ q
+ 
+FormatDates
+ s ASDate=..ConvertDateToODBC(ASDate)
+ q
+ 
+FormatTimes
+ s ASSessStartTime=..ConvertTimeToODBC(ASSessStartTime)
+ q
+]]></Implementation>
+</Method>
+
+<Method name="SWARHRNAP1015Fetch">
+<Description>
+This is the Fetch component of the %Library.Query. 
+This should never have to change. It is designed to fetch the row for each subscript of the ^CacheTemp
+global and return this row to the Crystal Report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,&Row:%Library.List,&AtEnd:%Library.Integer=0]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // This fetch method should never have to change. 
+
+ // repid - Report ID
+ // ind   - sequence index which represents each row
+
+ New repid,ind
+
+ // Restore QHandle
+ Set AtEnd=$li(QHandle,1)
+ Set repid=$li(QHandle,2)
+ Set ind=$li(QHandle,3)
+
+ Set ind=$o(^CacheTemp("TRAK",repid,ind))
+ If ind="" {	// if there are no more rows, finish fetching
+	 Set AtEnd=1
+	 Set Row=""
+ }
+ Else      {	// fetch row
+ 	Set Row=^CacheTemp("TRAK",repid,ind)
+ }
+
+ // Save QHandle
+ s QHandle=$lb(AtEnd,repid,ind)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Query name="SWARHRNAP1015">
+<Type>%Library.Query</Type>
+<FormalSpec>Hospital:%Library.String,DateFrom:%Date,CareProvider:%Library.String,Location:%Library.String</FormalSpec>
+<SqlProc>1</SqlProc>
+<Parameter name="CONTAINID" value="0"/>
+<Parameter name="ROWSPEC" value="PAADMHospitalDR:%Library.Integer,WorkloadType:%Library.String,PAPMINo:%Library.String,SecondName:%Library.String,Surname:%Library.String,FirstName:%Library.String,CTLOCDesc:%Library.String,CTPCPDesc:%Library.String,ASDate:%Library.Date,ASSessStartTime:%Library.String,Duration:%Library.String,TPTravelTime:%Library.String,EventName:%Library.String,CPRepID:%Library.Integer,Street:%Library.String,Street2:%Library.String,City:%Library.String"/>
+<Parameter name="SELECTMODE" value="ODBC"/>
+</Query>
+</Class>
+</Export>

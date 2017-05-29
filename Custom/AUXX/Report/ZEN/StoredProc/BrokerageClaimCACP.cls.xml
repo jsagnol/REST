@@ -1,0 +1,424 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.AUXX.Report.ZEN.StoredProc.BrokerageClaimCACP">
+<ProcedureBlock>0</ProcedureBlock>
+<Super>Report.Abstract</Super>
+<TimeCreated>61093,56478.893328</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+This Parameter should be updated when synced from Perforce</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/AUXX/Report/ZEN/StoredProc/BrokerageClaimCACP.xml#1 $</Default>
+</Parameter>
+
+<UDLText name="T">
+<Content><![CDATA[
+// Report Name: AUXX Brokerage Claim CACP Report<br>
+
+]]></Content>
+</UDLText>
+
+<UDLText name="T">
+<Content><![CDATA[
+// Report Code: AUXX.BRO0012 <br>
+
+]]></Content>
+</UDLText>
+
+<UDLText name="T">
+<Content><![CDATA[
+// Logtrak Number: 142670 <br>
+
+]]></Content>
+</UDLText>
+
+<Method name="GetDetailsClose">
+<Final>0</Final>
+<ClassMethod>1</ClassMethod>
+<CodeMode>code</CodeMode>
+<FormalSpec>QHandle:%Library.Binary</FormalSpec>
+<Private>0</Private>
+<ReturnType>%Library.Status</ReturnType>
+<SqlProc>0</SqlProc>
+<Implementation><![CDATA[
+ // Clean up by purging the temporary node in ^CacheTemp global
+ New repid
+ Set repid=$li(QHandle,2)
+ 
+ //Start Monitor (if configured to capture stats)
+ i mon Do ..MonitorEnd(mon)
+ 
+ Kill ^CacheTemp("TRAK",repid)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="GetDetailsExecute">
+<ClassMethod>1</ClassMethod>
+<CodeMode>code</CodeMode>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,Year:%String,Month:%String]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+	
+ 
+ // Get reportid i.e. use $INCREMENT to add another node to ^CacheTemp global. 
+ // We use ^CacheTemp global because it will always use memory before disk
+ New repid,ind
+
+ // Use $Increment to get the next node
+ Set repid=$I(^CacheTemp("TRAK"))
+ 
+  //Start Monitor (if configured to capture stats)
+ s mon=..MonitorBegin()
+ 
+ // Build data into ^CacheTemp(ReportID)
+ // e.g. Set ^CacheTemp(ReportID,Index)=$LB(f1,f2,f3)
+ New Number,String,Date,Time,c,n
+ n PAPMIRowId,PAADMRowId,HOSPID,CTLOCDesc,PAPMIDOB,CTSEXCode,PAPMINo,PAPMIName2,PAPMIName,OEORIRowId,ARCIMCode,arcimdesc,OEORISttdat,ENQDate,ENQDuration,DurRound,DurTrunc,DurMins,DSCLDesc,DDESTDesc,PAADMDischgDate,ARCICCode,CarerCode,CoResidentCarer,NonResidentCarer,CommDate,TRUSTDesc,AUXITCode,ACCOMSDesc,Carer,UNAVDateFrom,UNAVDateTo,UNAVDF,UNAVDT,READesc,UNAVReason,MthName,IDName,Dur
+ s (HOSPID,CTLOCDesc,PAPMIDOB,ENQDuration,CTSEXCode,PAPMINo,PAPMIName2,PAPMIName,OEORIRowId,ARCIMCode,arcimdesc,OEORISttdat,ENQDate,DSCLDesc,DDESTDesc,PAADMDischgDate,ARCICCode,CarerCode,CoResidentCarer,NonResidentCarer,CommDate,TRUSTDesc,AUXITCode,ACCOMSDesc,Carer,UNAVDateFrom,UNAVDateTo,UNAVDF,UNAVDT,READesc,UNAVReason,MthName,IDName,Dur)=""
+ s (PAPMIRowId,PAADMRowId,DurRound,DurTrunc,DurMins)=0
+ s ind=1
+
+  //Convert ODBC dates to cache format
+ //s DateFrom=..ConvertDateToCache(DateFrom)
+ //s DateTo=..ConvertDateToCache(DateTo)
+ 
+ &sql(declare GetDetails cursor for
+select
+OEORD_ADM_DR->PAADM_PAPMI_DR,
+OEORD_ADM_DR,
+OEORD_ADM_DR->PAADM_Hospital_DR->HOSP_Desc,
+OEORD_ADM_DR->PAADM_DepCode_DR->CTLOC_Desc,
+ENQ_PAPER_DR->PAPER_DOB,
+ENQ_PAPER_dR->PAPER_SEX_DR->CTSEX_Code,
+ENQ_PAPER_dR->PAPER_PAPMI_DR->PAPMI_No,
+ENQ_PAPER_DR->PAPER_Name2,
+ENQ_PAPER_dR->PAPER_Name,
+ENQ_Date,
+case when (SUM(ENQ_Duration)*60)<86400 then (SUM(ENQ_Duration)*60) else 0 end,
+{fn round(sum(enq_duration)/60,2)},
+{fn truncate(sum(enq_duration)/60,0)},
+({fn round(sum(enq_duration)/60,2)}-{fn truncate(sum(enq_duration)/60,0)})*60,
+OEORD_ADM_DR->PAADM_MainMRADM_DR->MRADM_DischClassif_DR->DSCL_Desc,
+OEORD_ADM_DR->PAADM_MainMRADM_DR->MRADM_DischDestin_DR->DDEST_Desc,
+OEORD_ADM_DR->PAADM_DischgDate,
+ENQ_AuxInsType_DR->AUXIT_Code,
+ENQ_PAPER_dR->PAPER_AccomSetting_DR->ACCOMS_Desc,
+{fn MONTHNAME(ENQ_Date)}
+from SQLUSER.oe_order, SQLUSER.oe_ordITEM, SQLUSER.PA_EnquiryContact
+where 
+Month(ENQ_Date)=:Month and
+Year(ENQ_Date)=:Year and
+enq_oeorditem_dr=OEORI_RowId and
+oeori_oeord_parref=OEORD_RowId and
+enq_requeststatus_Dr->reqst_code='CO' and
+ enq_governdepart_DR->dep_code='CACP'
+group by ENQ_PAPER_dR->PAPER_NAME, ENQ_PAPER_dR->PAPER_Name2, ENQ_PAPER_dR->PAPER_PAPMI_DR->PAPMI_No, OEORD_ADM_DR
+)
+ &sql(open GetDetails)
+
+
+ //fetch first row
+ &sql(fetch GetDetails into :PAPMIRowId,:PAADMRowId,:HOSPID,:CTLOCDesc,:PAPMIDOB,:CTSEXCode,:PAPMINo,:PAPMIName2,:PAPMIName,:ENQDate,:ENQDuration,:DurRound,:DurTrunc,:DurMins,:DSCLDesc,:DDESTDesc,:PAADMDischgDate,:AUXITCode,:ACCOMSDesc,:MthName)
+
+ while 'SQLCODE{
+
+ ;d GetLeave
+ d GetLeaveF
+ d GetLeaveT
+ d GetLeaveReason
+ d FormatDates
+ d FormatTimes
+ d GetCarerCode
+ d GetCoResidentCarer
+ d GetNonResidentCarer
+ d GetCommDate
+ s PAPMIName2=$ZCONVERT(PAPMIName2,"S")
+
+ s Carer=CarerCode_" "_CoResidentCarer_" "_NonResidentCarer
+ 
+ s IDName=PAPMINo_$CHAR(10)_$CHAR(13)_PAPMIName2_" "_PAPMIName
+ 
+ s DurMins=(DurRound-DurTrunc)*60
+ i DurMins<10 s DurMins="0"_DurMins
+ i DurTrunc="" s DurTrunc="0"
+ s Dur=DurTrunc_":"_DurMins
+ s Dur=$p(Dur,".")
+ 
+ // build the row
+ Set ^CacheTemp("TRAK",repid,PAPMIName_PAPMIName2_ind)=$LB(PAPMIRowId,PAADMRowId,HOSPID,CTLOCDesc,PAPMIDOB,CTSEXCode,PAPMINo,PAPMIName2,PAPMIName,ENQDate,ENQDuration,DurRound,DurTrunc,DurMins,DSCLDesc,DDESTDesc,PAADMDischgDate,AUXITCode,ACCOMSDesc,MthName,CarerCode,CoResidentCarer,NonResidentCarer,CommDate,TRUSTDesc,Carer,UNAVDF,UNAVDT,UNAVReason,IDName,Dur)
+ s ind=ind+1
+ //fetch rows
+ &sql(fetch GetDetails into :PAPMIRowId,:PAADMRowId,:HOSPID,:CTLOCDesc,:PAPMIDOB,:CTSEXCode,:PAPMINo,:PAPMIName2,:PAPMIName,:ENQDate,:ENQDuration,:DurRound,:DurTrunc,:DurMins,:DSCLDesc,:DDESTDesc,:PAADMDischgDate,:AUXITCode,:ACCOMSDesc,:MthName)}
+
+ &sql(close GetDetails)
+
+ // Build QHandle (AtEnd,ReportID,Index)
+ Set QHandle=$lb(0,repid,0)
+
+ Quit $$$OK
+
+ 
+GetLeaveF
+	s (UNAVDateFrom,UNAVDF)=""
+	&SQL(DECLARE GetLeaveF CURSOR FOR 
+	SELECT UNAV_DateFrom 
+	FROM SQLUser.PA_AdmUnavailable
+		WHERE UNAV_ParRef = :PAADMRowId
+		and (Month(UNAV_DateFrom)=:Month and
+			Year(UNAV_DateFrom)=:Year 
+			OR
+			Month(UNAV_DateTo)=:Month and
+			Year(UNAV_DateTo)=:Year
+			)
+			and 
+			UNAV_DateTo>UNAV_DateFrom
+ )
+	&SQL(OPEN GetLeaveF)
+	&SQL(FETCH GetLeaveF INTO :UNAVDateFrom)
+	while 'SQLCODE {
+		s UNAVDF=$s(UNAVDF="":"",1:UNAVDF_",")_UNAVDateFrom
+		s (UNAVDateFrom)=""
+		&SQL(FETCH GetLeaveF INTO :UNAVDateFrom)
+	}
+	&SQL(CLOSE GetLeaveF)
+
+
+GetLeaveT
+	s (UNAVDateTo,UNAVDT)=""
+	&SQL(DECLARE GetLeaveT CURSOR FOR 
+	SELECT UNAV_DateTo
+	FROM SQLUser.PA_AdmUnavailable
+		WHERE UNAV_ParRef = :PAADMRowId
+		and (Month(UNAV_DateFrom)=:Month and
+			Year(UNAV_DateFrom)=:Year 
+			OR
+			Month(UNAV_DateTo)=:Month and
+			Year(UNAV_DateTo)=:Year
+			)
+			and 
+			UNAV_DateTo>UNAV_DateFrom
+ )
+	&SQL(OPEN GetLeaveT)
+	&SQL(FETCH GetLeaveT INTO :UNAVDateTo)
+	while 'SQLCODE {
+		s UNAVDT=$s(UNAVDT="":"",1:UNAVDT_",")_UNAVDateTo
+		s (UNAVDateTo)=""
+		&SQL(FETCH GetLeaveT INTO :UNAVDateTo)
+	}
+	&SQL(CLOSE GetLeaveT)
+
+GetLeaveReason
+	s (READesc,UNAVReason)=""
+	&SQL(DECLARE GetLeaveReason CURSOR FOR 
+	SELECT UNAV_Reason_Dr->REA_Desc
+	FROM SQLUser.PA_AdmUnavailable
+		WHERE UNAV_ParRef = :PAADMRowId
+		and (Month(UNAV_DateFrom)=:Month and
+			Year(UNAV_DateFrom)=:Year 
+			OR
+			Month(UNAV_DateTo)=:Month and
+			Year(UNAV_DateTo)=:Year
+			)
+			and 
+			UNAV_DateTo>UNAV_DateFrom
+ )
+	&SQL(OPEN GetLeaveReason)
+	&SQL(FETCH GetLeaveReason INTO :READesc)
+	while 'SQLCODE {
+		s UNAVReason=$s(UNAVReason="":"",1:UNAVReason_$CHAR(10)_$CHAR(13))_READesc
+		s (READesc)=""
+		&SQL(FETCH GetLeaveReason INTO :READesc)
+	}
+	&SQL(CLOSE GetLeaveReason)
+	
+GetCarerCode
+ s CarerCode=##class(Custom.AUXX.Report.ZEN.StoredProc.BrokerageClaimCACP).GetCarerCode(PAPMIRowId)
+ q
+GetCoResidentCarer
+ s CoResidentCarer=##class(Custom.AUXX.Report.ZEN.StoredProc.BrokerageClaimCACP).GetCoResidentCarer(PAPMIRowId)
+ q
+GetNonResidentCarer
+ s NonResidentCarer=##class(Custom.AUXX.Report.ZEN.StoredProc.BrokerageClaimCACP).GetNonResidentCarer(PAPMIRowId)
+ q
+
+GetCommDate
+ s CommDate=##class(Custom.AUXX.Report.ZEN.StoredProc.BrokerageClaimCACP).GetCommDate(PAADMRowId)
+ q
+FormatDates
+ // Convert the dates to ODBC date format
+ If PAPMIDOB Set PAPMIDOB=..ConvertDateToODBC(PAPMIDOB)
+ If OEORISttdat Set OEORISttdat=..ConvertDateToODBC(OEORISttdat)
+  Quit
+
+FormatTimes
+ // Convert the dates to ODBC date format
+ If ENQDuration<86400 set ENQDuration=..ConvertTimeToODBC(ENQDuration)
+  Quit
+]]></Implementation>
+</Method>
+
+<Method name="GetDetailsFetch">
+<Final>0</Final>
+<ClassMethod>1</ClassMethod>
+<CodeMode>code</CodeMode>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,&Row:%Library.List,&AtEnd:%Library.Integer=0]]></FormalSpec>
+<Private>0</Private>
+<ReturnType>%Library.Status</ReturnType>
+<SqlProc>0</SqlProc>
+<Implementation><![CDATA[
+ // This fetch method should never have to change. 
+
+ // repid - Report ID
+ // ind   - sequence index which represents each row
+
+ New repid,ind
+
+ // Restore QHandle
+ Set AtEnd=$li(QHandle,1)
+ Set repid=$li(QHandle,2)
+ Set ind=$li(QHandle,3)
+
+ Set ind=$o(^CacheTemp("TRAK",repid,ind))
+ If ind="" {	// if there are no more rows, finish fetching
+ Set AtEnd=1
+ Set Row=""
+ }
+ Else      {	// fetch row
+ Set Row=^CacheTemp("TRAK",repid,ind)
+ }
+
+ // Save QHandle
+ s QHandle=$lb(AtEnd,repid,ind)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Query name="GetDetails">
+<Type>%Library.Query</Type>
+<FormalSpec>Year:%String,Month:%String</FormalSpec>
+<SqlProc>1</SqlProc>
+<Parameter name="CONTAINID" value="0"/>
+<Parameter name="ROWSPEC" value="PAPMIRowId:%Library.Integer,PAADMRowId:%Library.Integer,HOSPID:%Library.String(MAXLEN=250),CTLOCDesc:%Library.String(MAXLEN=250),PAPMIDOB:%Library.Date,CTSEXCode:%Library.String,PAPMINo:%Library.String(MAXLEN=250),PAPMIName2:%Library.String(MAXLEN=250),PAPMIName:%Library.String(MAXLEN=250),ENQDate:%Library.String,ENQDuration:%String,DurRound:%Float,DurTrunc:%Integer,DurMins:%Integer,DSCLDesc:%Library.String(MAXLEN=250),DDESTDesc:%Library.String(MAXLEN=250),PAADMDischgDate:%Library.String,AUXITCode:%String,ACCOMSDesc:%String,MthName:%String,CarerCode:%String,CoResidentCarer:%String,NonResidentCarer:%String,CommDate:%Library.String,TRUSTDesc:%String,Carer:%String,UNAVDF:%String,UNAVDT:%String,UNAVReason:%String,IDName:%String,Dur:%String"/>
+</Query>
+
+<Method name="GetCarerCode">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>PAPMIRowId:%String</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	New CarerCode
+	Set CarerCode=""
+	
+	&sql(SELECT
+	NOK_ContactType_DR->CONTTP_Code
+	INTO :CarerCode
+ 	FROM sqluser.pa_nok
+ 	WHERE 
+ 	(nok_dateto is null or nok_dateto >= :ENQDate)
+ 	AND nok_papmi_parref = :PAPMIRowId and
+ 	NOK_ContactType_DR->CONTTP_Code='CAR'
+)
+	quit CarerCode
+]]></Implementation>
+</Method>
+
+<Method name="GetCoResidentCarer">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>PAPMIRowId:%String</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	New CoResidentCarer
+	Set CoResidentCarer=""
+	
+	&sql(SELECT
+	NOK_ContactType_DR->CONTTP_Code
+	INTO :CoResidentCarer
+ 	FROM sqluser.pa_nok
+ 	WHERE 
+ 	(nok_dateto is null or nok_dateto >= :ENQDate)
+ 	AND nok_papmi_parref = :PAPMIRowId and
+ 	NOK_ContactType_DR->CONTTP_Code='COC'
+)
+	quit CoResidentCarer
+]]></Implementation>
+</Method>
+
+<Method name="GetNonResidentCarer">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>PAPMIRowId:%String</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	New NonResidentCarer
+	Set NonResidentCarer=""
+	
+	&sql(SELECT
+	NOK_ContactType_DR->CONTTP_Code
+	INTO :NonResidentCarer
+ 	FROM sqluser.pa_nok
+ 	WHERE 
+ 	(nok_dateto is null or nok_dateto >= :ENQDate)
+  	AND nok_papmi_parref = :PAPMIRowId AND
+  	NOK_ContactType_DR->CONTTP_Code='NRC'
+)
+	quit NonResidentCarer
+]]></Implementation>
+</Method>
+
+<Method name="GetCommDate">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>PAADMRowId:%String</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	New CommDate
+	Set CommDate=""
+	
+	&sql(SELECT
+	min(ENQ_Date)
+	INTO :CommDate
+ 	FROM SQLUSER.pa_enquirycontact, sqluser.oe_orditem, sqluser.oe_order
+ 	WHERE OEORD_RowId=OEORI_OEORD_PARREF AND enq_oeorditem_Dr=oeori_Rowid and
+ 	OEORD_ADM_DR = :PAADMRowId
+ )
+	quit CommDate
+]]></Implementation>
+</Method>
+
+<Query name="LookUpMonths">
+<Type>%Library.SQLQuery</Type>
+<FormalSpec>Months:%String</FormalSpec>
+<SqlQuery>SELECT Description,  Code
+FROM websys.StandardTypeItem
+WHERE ParRef='Months' and
+((%ALPHAUP Description %STARTSWITH %ALPHAUP :Months) or (%ALPHAUP Code %STARTSWITH %ALPHAUP :Months))
+ORDER BY Code</SqlQuery>
+<Parameter name="CONTAINID" value="2"/>
+<Parameter name="ROWSPEC" value="Description:%String,Code:%String"/>
+</Query>
+
+<Method name="LookUpBrokerMonths">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>itmjs:%Library.String="",itmjsex:%Library.String="",Months:%Library.String=""</FormalSpec>
+<Implementation><![CDATA[
+ n desc,code
+
+ s (desc,code)=""
+
+ ; Try and find a matching code
+ &sql(SELECT  Description,  Code
+ INTO   :desc,  :code
+ FROM   websys.StandardTypeItem
+ WHERE  ParRef='Months' and 
+ ((%ALPHAUP Description = %ALPHAUP :Months) or (%ALPHAUP Code = %ALPHAUP :Months))
+ order by Code
+ )
+ ;
+ i SQLCODE s desc=Months q 0
+ s retval=itmjs_"('"_$ZCVT(desc,"O","JS")_"');"
+ i itmjsex'="""" s retval=retval_itmjsex_"('"_$ZCVT(desc,"O","JS")_"^"_$ZCVT(code,"O","JS")_"');"
+ &javascript<#(retval)#>
+ q 1
+]]></Implementation>
+</Method>
+</Class>
+</Export>

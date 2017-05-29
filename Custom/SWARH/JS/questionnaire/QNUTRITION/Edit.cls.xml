@@ -1,0 +1,93 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.SWARH.JS.questionnaire.QNUTRITION.Edit">
+<Description>
+Component JavaScript for: questionnaire.QNUTRITION.Edit</Description>
+<Modified>0</Modified>
+<Super>websys.AbstractJavaScript</Super>
+<TimeCreated>63537,10519.271559</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/SWARH/JS/questionnaire/QNUTRITION/Edit.xml#2 $</Default>
+</Parameter>
+
+<Method name="JSContent">
+<Description>
+  </Description>
+<Language>javascript</Language>
+<ClientMethod>1</ClientMethod>
+<Implementation><![CDATA[
+	SWARH.loadGTKYP(function(){
+		var devNull = new GTKYP.init();
+		websys_addListener('change','onchange',BMIUpdate,document.getElementById('QOBSWEIGHT'));
+		websys_addListener('change','onchange',BMIUpdate,document.getElementById('QOBSHEIGHT'));
+		websys_addListener('change','onchange',BMIUpdate,document.getElementById('QCURWEIGHT'));
+		websys_addListener('change','onchange',BMIUpdate,document.getElementById('QCURHEIGHT'));
+		websys_addListener('change','onchange',MSTUpdate,document.getElementById('QMSTWEIGHT'));
+		websys_addListener('change','onchange',MSTUpdate,document.getElementById('QMSTEATING'));
+		BMIUpdate();
+		MSTUpdate();
+		DORDefault();
+		
+		// Trak workaround - Once an observation item based question is created you can never change the description successfully ever again.  
+		//   It looks OK in the code table but always renders using the original description.
+		var actualHeightEl = document.getElementById('cQOBSHEIGHT');
+		if (!!actualHeightEl) actualHeightEl.innerText = 'Actual height (Metres)';
+	});
+	
+	function BMIUpdate() {
+		// If the proper observation values are entered it will use them, otherwise if the reported values have been entered it will use them, otherwise blank.
+		var obsWeightEl	= document.getElementById('QOBSWEIGHT');
+		var obsHeightEl	= document.getElementById('QOBSHEIGHT');
+		var curWeightEl	= document.getElementById('QCURWEIGHT');
+		var curHeightEl	= document.getElementById('QCURHEIGHT');
+		var bmiCalcEl	= document.getElementById('QBMICALC');
+
+		if (!isNaN(obsWeightEl.value) && !isNaN(obsHeightEl.value) && obsWeightEl.value>0 && obsHeightEl.value>0) { // If any values are not numbers & both values are over 0
+			bmiCalcEl.value = (obsWeightEl.value/(obsHeightEl.value*obsHeightEl.value)).toFixed(1) // 
+		} else {
+			if (!isNaN(curWeightEl.value) && !isNaN(curHeightEl.value) && curWeightEl.value>0 && curHeightEl.value>0) {
+				bmiCalcEl.value = (curWeightEl.value/(curHeightEl.value*curHeightEl.value)).toFixed(1) // 
+			} else {
+				bmiCalcEl.value = '';
+			}
+		} 
+	}
+	
+	function MSTUpdate() {
+		var lostWeightEl     = document.getElementById('QMSTWEIGHT');
+		var eatingProperlyEl = document.getElementById('QMSTEATING');
+		var mstCalcEl        = document.getElementById('QMSTCALC');
+		var mstScore         = 0;
+		
+		if (    lostWeightEl.getElementsByTagName('option')[0].selected) mstScore+=0; // N
+		if (    lostWeightEl.getElementsByTagName('option')[1].selected) mstScore+=2; // U
+		if (    lostWeightEl.getElementsByTagName('option')[2].selected) mstScore+=1; // Y
+		if (    lostWeightEl.getElementsByTagName('option')[3].selected) mstScore+=2; // L
+		
+		if (eatingProperlyEl.getElementsByTagName('option')[0].selected) mstScore+=0; // N
+		if (eatingProperlyEl.getElementsByTagName('option')[1].selected) mstScore+=1; // Y
+
+		mstCalcEl.value = mstScore;
+		
+		//Trak bug, Date fields do not get the clsReadOnly class added on load for some reason so set it manually
+		websys_setClass(document.getElementById('QMSTCALC'),'clsReadOnly');
+	}
+	
+	function DORDefault() { // Date Of Reassessment
+		if (typeof(document.getElementById('QMSTREASSESS').value) == 'undefined' || document.getElementById('QMSTREASSESS').value == '') {
+			var dor   = new Date();
+			dor.setDate(new Date().getDate()+7);
+			document.getElementById('QMSTREASSESS').value = ('0'+dor.getDate()).slice(-2)+'/'+('0'+(dor.getMonth()+1)).slice(-2)+'/'+dor.getFullYear();
+			//SWARH.log('Calculated date: '+('0'+dor.getDate()).slice(-2)+'/'+('0'+(dor.getMonth()+1)).slice(-2)+'/'+dor.getFullYear());
+			
+			//Trak bug, Date fields do not get the clsReadOnly class added on load for some reason so set it manually
+			websys_setClass(document.getElementById('QMSTREASSESS'),'clsReadOnly');
+		}
+	}
+]]></Implementation>
+</Method>
+</Class>
+</Export>

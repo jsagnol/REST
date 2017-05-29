@@ -1,0 +1,634 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.AUXX.Report.ZEN.StoredProc.IRISValidation">
+<Description>
+Report Name: PHMPR Extract Validation
+Report Code: AUXX.EXT.IRISV
+TRC Number: 159292</Description>
+<ProcedureBlock>0</ProcedureBlock>
+<Super>Report.Abstract</Super>
+<TimeCreated>63090,53009.944795</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/AUXX/Report/ZEN/StoredProc/IRISValidation.xml#1 $</Default>
+</Parameter>
+
+<Method name="ValidateClose">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>QHandle:%Library.Binary</FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Clean up by purging the temporary node in ^CacheTemp global
+ New repid
+ Set repid=$LIST(QHandle,2)
+ 
+ Kill ^CacheTemp("TRAK",repid)
+ 
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="ValidateExecute">
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,DateFrom:%String,DateTo:%String,Facility:%String,Speciality:%String,Clinician:%String,ConType:%String,ErrorType:%String]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+	// Get reportid i.e. use $INCREMENT to add another node to ^CacheTemp global. 
+ 	// We use ^CacheTemp global because it will always use memory before disk
+ 	New repid,ind
+
+ 	// Use $Increment to get the next node
+ 	Set repid=$I(^CacheTemp("TRAK"))
+ 	
+ 	//Start Monitor (if configured to capture stats)
+	s mon=..MonitorBegin()
+ 	
+ 	s DateFrom=..ConvertDateToCache(DateFrom)
+ 	s DateTo=..ConvertDateToCache(DateTo)
+ 	
+ 	s Facility=$zstrip(Facility,"*CW")
+ 	s Speciality=$zstrip(Speciality,"*CW")
+ 	s Clinician=$zstrip(Clinician,"*CW")
+ 	s ConType=$zstrip(ConType,"*CW")
+ 	s ErrorType=$zstrip(ErrorType,"*CW")
+ 	
+	
+	 
+ 	k ^zfde
+ 	s ind=0
+ 	f date=DateFrom:1:DateTo {
+	 	s con=0
+	 	f {
+		 	s con=$o(^PAENQi("Date",date,con))
+		 	q:con=""		 	
+		 	s contact=##class(User.PAEnquiryContact).%OpenId(con)
+		 	i contact {
+			 	i contact.ENQHospitalDR,contact.ENQHospitalDR.%Id()=Facility {
+				 	s pass=0
+				 	i ((Speciality="")&&(Clinician="")) {
+					 	s pass=1
+				 	}
+				 	i ((Speciality'="")&&(Clinician="")) {
+					 	i contact.ENQLocationDR,(","_Speciality_",")[(","_contact.ENQLocationDR.%Id()_",") s pass=1
+				 	}
+				 	i ((Speciality="")&&(Clinician'="")) {
+					 	i contact.ENQCTCPDR,(","_Clinician_",")[(","_contact.ENQCTCPDR.%Id()_",") s pass=1
+				 	}
+				 	i ((Speciality'="")&&(Clinician'="")) {
+					 	i contact.ENQLocationDR,(","_Speciality_",")[(","_contact.ENQLocationDR.%Id()_","),contact.ENQCTCPDR,(","_Clinician_",")[(","_contact.ENQCTCPDR.%Id()_",") s pass=1
+				 	}
+				 	
+				 	i pass {
+						s typecheck=0
+						i contact.ENQGovernDepartDR.DEPParRef.NFMIGovSubCategDR.SUBCode'="" {
+							i contact.ENQGovernDepartDR.DEPParRef.NFMIGovSubCategDR.SUBCode="IRIS" s typecheck=1
+						}
+						i typecheck {
+							
+						 	s contype=##class(web.PAEnquiryContact).GetContactType(con)
+						 	s check=0
+						 	i ((ConType="") && ((contype="Formal")||(contype="Anonymous")||(contype="Casual"))) s check=1
+						 	i ConType'=""
+						 	{
+						 		i contype=ConType,ConType="Formal" s check=1
+							 	i contype=ConType,ConType="Casual" s check=1
+							 	i contype=ConType,ConType="Anonymous" s check=1
+						 	} 
+						 	
+						 	
+						 	i check=1,contact.ENQPAPERDR s ind=..DisplayType1Errors(contact,ErrorType,ind)
+						
+					 	}
+				 	}
+			 	}
+		 	}
+	 	}
+ 	}
+ 		
+ 	// Build QHandle (AtEnd,ReportID,Index)
+ 	Set QHandle=$lb(0,repid,0)
+ 	Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="ValidateFetch">
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,&Row:%Library.List,&AtEnd:%Library.Integer=0]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // This fetch method should never have to change. 
+
+ New repid,ind
+
+ // Restore QHandle
+ Set AtEnd=$LI(QHandle,1)
+ Set repid=$LI(QHandle,2)
+ Set ind=$LI(QHandle,3)
+
+ Set ind=$order(^CacheTemp("TRAK",repid,ind))
+ If ind="" {	// if there are no more rows, finish fetching
+ 	Set AtEnd=1
+ 	Set Row=""
+ }  Else  {	// fetch row
+ 	Set Row=^CacheTemp("TRAK",repid,ind)
+ }
+
+ // Save QHandle
+ Set QHandle=$lb(AtEnd,repid,ind)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Query name="Validate">
+<Type>%Library.Query</Type>
+<FormalSpec>DateFrom:%String,DateTo:%String,Facility:%String,Speciality:%String,Clinician:%String,ConType:%String,ErrorType:%String</FormalSpec>
+<SqlProc>1</SqlProc>
+<Parameter name="CONTAINID" value="0"/>
+<Parameter name="ROWSPEC" value="PAENQRowId:%String,CareProv:%String,PatientNo:%String,EpisodeNo:%String,SLK:%String,Identifier:%String,ContactName:%String,ErrorWarning:%String,DisplayType:%String,Errors:%String,Warnings:%String"/>
+</Query>
+
+<Method name="DisplayType1Errors">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>contact:%CacheObject,ErrorType:%String,ind:%String</FormalSpec>
+<Implementation><![CDATA[
+	s errorwarning="",slk=""
+ 	s careprov=contact.ENQCTCPDR.CTPCPDesc
+ 	s patno=contact.ENQPAPERDR.PAPERPAPMIDR.PAPMINo
+ 	s patname=contact.ENQPAPERDR.PAPERPAPMIDR.PAPMIName_", "_contact.ENQPAPERDR.PAPERPAPMIDR.PAPMIName2_$s(contact.ENQPAPERDR.PAPERPAPMIDR.PAPMIName3'="":" "_contact.ENQPAPERDR.PAPERPAPMIDR.PAPMIName3,1:"")
+ 	s admno=contact.ENQOEOrdItemDR.OEORIOEORDParRef.OEORDAdmDR.PAADMADMNo
+ 	s patid=contact.ENQPAPERDR.%Id()
+ 	s rt=0
+	f {
+		s rt=$o(^RT(0,"PAT",contact.ENQPAPERDR.%Id(),rt))
+		q:rt=""
+		s record=##class(User.RTMaster).%OpenId(rt)
+		i record {
+			i record.RTMASMRTypeDR.TYPCode="SLK" s slk=record.RTMASMRNo
+			d record.%Close()
+		}
+	}
+	
+	
+	s type="Registered Clients"
+	
+	i ((ErrorType="")||(ErrorType="Errors")) {
+		//Registration Details
+		i slk="" {
+			s errorwarning="E101 Registration Details: Site Identifiers: Statistical Linkage Key does not exist for this client"
+			s ind=$i(ind)
+			s ^CacheTemp("TRAK",repid,patno_" E101")=$LB(contact.%Id(),careprov,patno,admno,slk,"",patname,errorwarning,type,1,0)
+
+		}
+		
+		i 'contact.ENQPAPERDR.PAPERPAPMIDR.PAPMIPensionTypeDR {
+			s errorwarning="E106 Registration Details: 'Pension Type' is a required field but has not been entered."
+			s ind=$i(ind)
+			s ^CacheTemp("TRAK",repid,patno_" E106")=$LB(contact.%Id(),careprov,patno,admno,slk,"",patname,errorwarning,type,1,0)
+		}
+		
+		i 'contact.ENQPAPERDR.PAPERIndigStatDR {
+			s errorwarning="E107 Registration Details: 'Indigenous Status' is a required field but has not been entered."
+			s ind=$i(ind)
+			s ^CacheTemp("TRAK",repid,patno_" E107")=$LB(contact.%Id(),careprov,patno,admno,slk,"",patname,errorwarning,type,1,0)
+		}
+		i 'contact.ENQPAPERDR.PAPERCityCodeDR,'contact.ENQPAPERDR.PAPERZipDR,'contact.ENQPAPERDR.PAPERCTRegionDR {
+			s errorwarning="E108 Registration Details: 'Suburb/Sate/LGA' are required fields but have not been entered."
+			s ind=$i(ind)
+			s ^CacheTemp("TRAK",repid,patno_" E108")=$LB(contact.%Id(),careprov,patno,admno,slk,"",patname,errorwarning,type,1,0)
+		}
+		i 'contact.ENQPAPERDR.PAPERCountryBirthDR {
+			s errorwarning="E109 Registration Details: 'Country of Birth' is a required field but has not been entered."
+			s ind=$i(ind)
+			s ^CacheTemp("TRAK",repid,patno_" E109")=$LB(contact.%Id(),careprov,patno,admno,slk,"",patname,errorwarning,type,1,0)
+		}
+		i 'contact.ENQPAPERDR.PAPERPrefLanguageDR {
+			s errorwarning="E110 Registration Details: 'Preferred Language' is a required field but has not been entered."
+			s ind=$i(ind)
+			s ^CacheTemp("TRAK",repid,patno_" E110")=$LB(contact.%Id(),careprov,patno,admno,slk,"",patname,errorwarning,type,1,0)
+		}
+		
+		i 'contact.ENQPAPERDR.PAPERAccomSettingDR {
+			s errorwarning="E117 Registration Details: ‘Accommodation/Residential Setting’ is a required field but has not been entered."
+			s ind=$i(ind)
+			s ^CacheTemp("TRAK",repid,patno_" E117")=$LB(contact.%Id(),careprov,patno,admno,slk,"",patname,errorwarning,type,1,0)
+		}
+		
+		
+		i 'contact.ENQPAPERDR.PAPEREmploymentStatDR{
+			s errorwarning="E118 Registration Details: ‘Employment Status’ is a required field but has not been entered."
+			s ind=$i(ind)
+			s ^CacheTemp("TRAK",repid,patno_" E118")=$LB(contact.%Id(),careprov,patno,admno,slk,"",patname,errorwarning,type,1,0)
+		}
+
+		i (('contact.ENQPAPERDR.PAPERConcessCardTypeDR) && ((contact.ENQGovernDepartDR.DEPParRef)&&(contact.ENQGovernDepartDR.DEPParRef.NFMICode="IEHVS"))) {
+			s errorwarning="E119 Registration Details: ‘Concession Card Type’ is a required field but has not been entered."
+			s ind=$i(ind)
+			s ^CacheTemp("TRAK",repid,patno_" E119")=$LB(contact.%Id(),careprov,patno,admno,slk,"",patname,errorwarning,type,1,0)
+		}
+		
+		//Episode Details
+		if ('contact.ENQOEOrdItemDR.OEORIOEORDParRef.OEORDAdmDR.PAADMSourceOfAttendDR) {
+			s errorwarning="E203 Episode Details: 'Referral Source' is a required field but has not been entered."
+			s ind=$i(ind)
+			s ^CacheTemp("TRAK",repid,patno_" E203")=$LB(contact.%Id(),careprov,patno,admno,slk,"",patname,errorwarning,type,1,0)
+		}
+		
+		i contact.ENQOEOrdItemDR.OEORIOEORDParRef.OEORDAdmDR.PAADMRefDate="" {
+			s errorwarning="E205 Episode Details: 'Referral Date' is a required field but has not been entered."
+			s ind=$i(ind)
+			s ^CacheTemp("TRAK",repid,patno_" E205")=$LB(contact.%Id(),careprov,patno,admno,slk,"",patname,errorwarning,type,1,0)
+		}
+		
+		i (((contact.ENQGovernDepartDR.DEPParRef)&&(contact.ENQGovernDepartDR.DEPParRef.NFMICode="ISASS"))&&('contact.ENQOEOrdItemDR.OEORIOEORDParRef.OEORDAdmDR.PAADMPAAdm2DR.PAADM2LegalStatusDR)) {
+			s errorwarning="E207 Episode Details: ‘Legal Status’ is a required field but has not been entered."
+			s ind=$i(ind)
+			s ^CacheTemp("TRAK",repid,patno_" E207")=$LB(contact.%Id(),careprov,patno,admno,slk,"",patname,errorwarning,type,1,0)
+		}
+		
+		//Contacts
+		i ((##class(web.PAEnquiryContact).GetContactType(contact.%Id())="Formal")&&('contact.ENQContMethodDR )) {
+			s contactid=contact.%Id()
+			s contactdate=$zd(contact.ENQDate,4,,4)
+			s errorwarning="E601 Contacts: [Contact No "_contactid_" Contact Date "_contactdate_"] Invalid Contact Method is a required field but has not been entered."
+			s ind=$i(ind)
+			s ^CacheTemp("TRAK",repid,patno_" E601")=$LB(contact.%Id(),careprov,patno,admno,slk,"",patname,errorwarning,type,1,0)
+		}
+		
+		i ((##class(web.PAEnquiryContact).GetContactType(contact.%Id())="Formal")&&('contact.ENQContVenueDR )) {
+			s contactid=contact.%Id()
+			s contactdate=$zd(contact.ENQDate,4,,4)
+			s errorwarning="E602 Contacts: [Contact No "_contactid_" Contact Date "_contactdate_"] Invalid Contact Venue is a required field but has not been entered."
+			s ind=$i(ind)
+			s ^CacheTemp("TRAK",repid,patno_" E602")=$LB(contact.%Id(),careprov,patno,admno,slk,"",patname,errorwarning,type,1,0)
+		}
+					
+		i ("Formal,Casual,Anonymous"[(##class(web.PAEnquiryContact).GetContactType(contact.%Id()))&&('contact.ENQCityAreaDR) ) {
+			s contactid=contact.%Id()
+			s contactdate=$zd(contact.ENQDate,4,,4)
+			s errorwarning="E610 Contacts: [Contact No "_contactid_" Contact Date "_contactdate_"] IRIS Section:  ‘Location of Contact’ is a required field but has not been entered."
+			s ind=$i(ind)
+			s ^CacheTemp("TRAK",repid,patno_" E610")=$LB(contact.%Id(),careprov,patno,admno,slk,"",patname,errorwarning,type,1,0)
+		}
+		
+		i ("Formal,Casual,Anonymous"[(##class(web.PAEnquiryContact).GetContactType(contact.%Id()))&&('contact.ENQContInterpreterTypeDR) ) {
+			s contactid=contact.%Id()
+			s contactdate=$zd(contact.ENQDate,4,,4)
+			s errorwarning="E611 Contacts: [Contact No "_contactid_" Contact Date "_contactdate_"] IRIS Section:  ‘Interpreter Type’ is a required field but has not been entered."
+			s ind=$i(ind)
+			s ^CacheTemp("TRAK",repid,patno_" E611")=$LB(contact.%Id(),careprov,patno,admno,slk,"",patname,errorwarning,type,1,0)
+		}
+		
+		i ("Formal,Casual,Anonymous"[(##class(web.PAEnquiryContact).GetContactType(contact.%Id()))&&('contact.ENQContOutcomeDR) ) {
+			s contactid=contact.%Id()
+			s contactdate=$zd(contact.ENQDate,4,,4)
+			s errorwarning="E612 Contacts: [Contact No "_contactid_" Contact Date "_contactdate_"] IRIS Section:  ‘Contact Outcome’ is a required field but has not been entered."
+			s ind=$i(ind)
+			s ^CacheTemp("TRAK",repid,patno_" E612")=$LB(contact.%Id(),careprov,patno,admno,slk,"",patname,errorwarning,type,1,0)
+		}
+		
+		i ((contact.ENQRequestStatusDR.REQSTCode="CO")&&(contact.ENQOEOrdItemDR.OEORIItmMastDR)){		
+		    s nc="",ncirisfound=0
+		   	s nc=$o(^ARCIM(+contact.ENQOEOrdItemDR.OEORIItmMastDR.%Id(),$p(contact.ENQOEOrdItemDR.OEORIItmMastDR.%Id(),"||",2),"NC",nc))  
+		   	while((nc'="")&&(ncirisfound=0))
+		   	{
+			   	s nccode=$p(^ARCIM(+contact.ENQOEOrdItemDR.OEORIItmMastDR.%Id(),$p(contact.ENQOEOrdItemDR.OEORIItmMastDR.%Id(),"||",2),"NC",nc),"^",1)
+			   	i nccode="IRIS" s ncirisfound=1
+		   		s nc=$o(^ARCIM(+contact.ENQOEOrdItemDR.OEORIItmMastDR.%Id(),$p(contact.ENQOEOrdItemDR.OEORIItmMastDR.%Id(),"||",2),"NC",nc))  
+		   	}
+  			if ncirisfound=0
+  			{
+				s contactid=contact.%Id()
+				s contactdate=$zd(contact.ENQDate,4,,4)
+				s errorwarning="E620 Contacts: [Contact No "_contactid_" Contact Date "_contactdate_"] IRIS: Order Item does not have a National Code of IRIS."
+				s ind=$i(ind)
+				s ^CacheTemp("TRAK",repid,patno_" E620")=$LB(contact.%Id(),careprov,patno,admno,slk,"",patname,errorwarning,type,1,0)
+  			}
+		}
+		
+		i ("Formal,Casual"[(##class(web.PAEnquiryContact).GetContactType(contact.%Id()))&&('contact.ENQRequestTypeDR) ) {
+			s contactid=contact.%Id()
+			s contactdate=$zd(contact.ENQDate,4,,4)
+			s errorwarning="E613 Contacts: [Contact No "_contactid_" Contact Date "_contactdate_"] Casual Client/Organisation Section:  ‘Type’ is a required field but has not been entered."
+			s ind=$i(ind)
+			s ^CacheTemp("TRAK",repid,patno_" E613")=$LB(contact.%Id(),careprov,patno,admno,slk,"",patname,errorwarning,type,1,0)
+		}
+		
+		
+		//Discharges - Main Reason For Discharge
+		i ((contact.ENQOEOrdItemDR.OEORIOEORDParRef.OEORDAdmDR.PAADMMainMRADMDR.MRADMDischClassifDR.DSCLCode="009")&&(contact.ENQOEOrdItemDR.OEORIOEORDParRef.OEORDAdmDR.PAADMMainMRADMDR.MRADMDischDestinDR.DDESTCode'="021") ) {
+			s contactid=contact.%Id()
+			s contactdate=$zd(contact.ENQDate,4,,4)
+			s errorwarning="E400 Discharge: Main Reason for Discharge and Accommodation Setting after Discharge Mismatch for this client."
+			s ind=$i(ind)
+			s ^CacheTemp("TRAK",repid,patno_" E400")=$LB(contact.%Id(),careprov,patno,admno,slk,"",patname,errorwarning,type,1,0)
+		}
+		
+		//Discharges - Main Reason For Discharge
+		i ((contact.ENQOEOrdItemDR.OEORIOEORDParRef.OEORDAdmDR.PAADMMainMRADMDR.MRADMDischClassifDR.DSCLCode'="009")&&(contact.ENQOEOrdItemDR.OEORIOEORDParRef.OEORDAdmDR.PAADMMainMRADMDR.MRADMDischDestinDR.DDESTCode="021") ) {
+			s contactid=contact.%Id()
+			s contactdate=$zd(contact.ENQDate,4,,4)
+			s errorwarning="E401 Discharge: Main Reason for Discharge and Accommodation Setting after Discharge Mismatch for this client."
+			s ind=$i(ind)
+			s ^CacheTemp("TRAK",repid,patno_" E401")=$LB(contact.%Id(),careprov,patno,admno,slk,"",patname,errorwarning,type,1,0)
+		}
+		
+		//Discharges - Point of closure - Initiated def treat
+		i ((contact.ENQOEOrdItemDR.OEORIOEORDParRef.OEORDAdmDR.PAADMDischgDate'="")&&($p($g(^PAADM(contact.ENQOEOrdItemDR.OEORIOEORDParRef.OEORDAdmDR.%Id(),"ADM2")),"^",52))="") {
+			s contactid=contact.%Id()
+			s contactdate=$zd(contact.ENQDate,4,,4)
+			s errorwarning="E403 Discharge: ‘Point of Closure’ is a required field but has not been entered."
+			s ind=$i(ind)
+			s ^CacheTemp("TRAK",repid,patno_" E403")=$LB(contact.%Id(),careprov,patno,admno,slk,"",patname,errorwarning,type,1,0)
+		}
+		
+		
+		
+		
+		//IRIS questionnaire
+		s qid=$o(^questionnaire.QAUXXIRISI("IndexPAPatMasID",patid,""),-1)
+		i qid'="" s qobj=##class(questionnaire.QAUXXIRIS).%OpenId(qid)
+		i $g(qobj){
+			
+			//Table Case Family
+			s blankfield=..GetBlankText(qobj,"IRIS15,IRIS16,IRIS20,IRIS313,IRIS314,IRIS315,IRIS317")			
+			i (((qobj.QIRIS303'="FAMSER")&&(contact.ENQGovernDepartDR.DEPParRef.NFMICode="IFAMSERV"))||(blankfield'="")) {				
+				s errorwarning="E3003 E.H.R IRIS Program Questionnaire: Case Family: One or more of these questions have not been completed: "_blankfield
+				s ind=$i(ind)
+				s ^CacheTemp("TRAK",repid,patno_" E3003")=$LB(contact.%Id(),careprov,patno,admno,slk,"",patname,errorwarning,type,1,0)
+			}
+			
+						
+			//Table Case Financial
+			s blankfield=..GetBlankText(qobj,"IRIS15,IRIS16,IRIS28,IRIS29,IRIS33")
+			i (((qobj.QIRIS303'="FINCOUN")&&(contact.ENQGovernDepartDR.DEPParRef.NFMICode="IFINCOUN"))||(blankfield'="")) {				
+				s errorwarning="E3004 E.H.R IRIS Program Questionnaire: CaseFinancial: One or more of these questions have not been completed: "_blankfield
+				s ind=$i(ind)
+				s ^CacheTemp("TRAK",repid,patno_" E3004")=$LB(contact.%Id(),careprov,patno,admno,slk,"",patname,errorwarning,type,1,0)
+			}
+			
+			//CaseFVS
+			s blankfield=..GetBlankText(qobj,"IRIS40,IRIS16,IRIS45,IRIS46,IRIS47,IRIS48,IRIS49,IRIS50,IRIS51")			
+			i (((qobj.QIRIS303'="FAMVIO")&&(contact.ENQGovernDepartDR.DEPParRef.NFMICode="IFAMVIO"))||(blankfield'="")) {				
+				s errorwarning="E3005 E.H.R IRIS Program Questionnaire: CaseFVS: One or more of these questions have not been completed: "_blankfield
+				s ind=$i(ind)
+				s ^CacheTemp("TRAK",repid,patno_" E3005")=$LB(contact.%Id(),careprov,patno,admno,slk,"",patname,errorwarning,type,1,0)
+			}
+			
+			//Gambling
+			s blankfield=..GetBlankText(qobj,"IRIS15,IRIS28,IRIS56,IRIS58,IRIS62,IRIS63,IRIS64,IRIS65,IRIS66,IRIS67,IRIS68,IRIS69,IRIS70,IRIS71,IRIS72")				
+			i (((qobj.QIRIS303'="PROBGAM")&&(contact.ENQGovernDepartDR.DEPParRef.NFMICode="IPROBGAM"))||(blankfield'="")) {				
+				s errorwarning="E3006 E.H.R IRIS Program Questionnaire: CaseGambling: One or more of these questions have not been completed: "_blankfield
+				s ind=$i(ind)
+				s ^CacheTemp("TRAK",repid,patno_" E3006")=$LB(contact.%Id(),careprov,patno,admno,slk,"",patname,errorwarning,type,1,0)
+			}
+			
+			//Case LN
+			s blankfield=..GetBlankText(qobj,"IRIS75,IRIS79,IRIS80,IRIS81,IRIS85,IRIS88,IRIS74,IRIS89,IRIS90,IRIS91,IRIS92,IRIS93,IRIS97,IRIS98,IRIS99,IRIS104,IRIS105,IRIS106")				
+			i (((qobj.QIRIS303'="LNSLN")&&(contact.ENQGovernDepartDR.DEPParRef.NFMICode="ILNSLN"))||(blankfield'="")) {				
+				s errorwarning="E3007 E.H.R IRIS Program Questionnaire: CaseLN: One or more of these questions have not been completed: "_blankfield
+				s ind=$i(ind)
+				s ^CacheTemp("TRAK",repid,patno_" E3007")=$LB(contact.%Id(),careprov,patno,admno,slk,"",patname,errorwarning,type,1,0)
+			}
+			
+			//Case MCH
+			s blankfield=..GetBlankText(qobj,"IRIS109,IRIS110,IRIS111")
+			i (((qobj.QIRIS303'="EHVS")&&(contact.ENQGovernDepartDR.DEPParRef.NFMICode="IEHVS"))||(blankfield'="")) {				
+				s errorwarning="E3008 E.H.R IRIS Program Questionnaire: CaseMCH: One or more of these questions have not been completed: "_blankfield
+				s ind=$i(ind)
+				s ^CacheTemp("TRAK",repid,patno_" E3008")=$LB(contact.%Id(),careprov,patno,admno,slk,"",patname,errorwarning,type,1,0)
+			}
+			
+			//Case PSFO
+			s blankfield=..GetBlankText(qobj,"IRIS75,IRIS118,IRIS81,IRIS79,IRIS80")
+			i (((qobj.QIRIS303'="PFOS")&&(contact.ENQGovernDepartDR.DEPParRef.NFMICode="IPFOS"))||(blankfield'="")) {				
+				s errorwarning="E3009 E.H.R IRIS Program Questionnaire: CasePSFO: One or more of these questions have not been completed: "_blankfield
+				s ind=$i(ind)
+				s ^CacheTemp("TRAK",repid,patno_" E3009")=$LB(contact.%Id(),careprov,patno,admno,slk,"",patname,errorwarning,type,1,0)
+			}
+			
+			//Cases
+			i ((qobj.QIRIS139="")&&(qobj.QIRIS311="")&&(qobj.QIRIS309="")&&(qobj.QIRIS312="")&&(contact.ENQOEOrdItemDR.OEORIOEORDParRef.OEORDAdmDR.PAADMDischgDate'="")) {				
+				s errorwarning="E3010 E.H.R IRIS Program Questionnaire: Case: ‘Case Outcome’ is a required field but has not been entered."
+				s ind=$i(ind)
+				s ^CacheTemp("TRAK",repid,patno_" E3010")=$LB(contact.%Id(),careprov,patno,admno,slk,"",patname,errorwarning,type,1,0)
+			}
+			
+			//Case SASS
+			s blankfield=..GetBlankText(qobj,"IRIS146,IRIS148,IRIS149,IRIS150,IRIS48,IRIS152,IRIS153,IRIS154,IRIS155,IRIS156,IRIS157,IRIS158,IRIS159,IRIS160")
+			i (((qobj.QIRIS303'="SASS")&&(contact.ENQGovernDepartDR.DEPParRef.NFMICode="ISASS"))||(blankfield'="")) {				
+				s errorwarning="E3011 E.H.R IRIS Program Questionnaire: CaseSASS: One or more of these questions have not been completed: "_blankfield
+				s ind=$i(ind)
+				s ^CacheTemp("TRAK",repid,patno_" E3011")=$LB(contact.%Id(),careprov,patno,admno,slk,"",patname,errorwarning,type,1,0)
+			}
+			
+			//Case SCS
+			s blankfield=..GetBlankText(qobj,"IRIS74,IRIS165,IRIS166,IRIS167,IRIS168,IRIS169,IRIS170,IRIS118,IRIS81,IRIS179,IRIS180,IRIS181,IRIS182")
+			i (((qobj.QIRIS303'="SASS")&&(contact.ENQGovernDepartDR.DEPParRef.NFMICode="ISASS"))||(blankfield'="")) {				
+				s errorwarning="E3012 E.H.R IRIS Program Questionnaire: CaseSASS: One or more of these questions have not been completed: "_blankfield
+				s ind=$i(ind)
+				s ^CacheTemp("TRAK",repid,patno_" E3011")=$LB(contact.%Id(),careprov,patno,admno,slk,"",patname,errorwarning,type,1,0)
+			}
+			
+			//Child registered
+			s blank=0
+			if ((qobj.QIRIS183A="CR") && (qobj.QIRIS183URA="")) s blank=1
+			if ((qobj.QIRIS183B="CR") && (qobj.QIRIS183URB="")) s blank=1
+			if ((qobj.QIRIS183C="CR") && (qobj.QIRIS183URC="")) s blank=1
+			if ((qobj.QIRIS183D="CR") && (qobj.QIRIS183URD="")) s blank=1
+			if ((qobj.QIRIS183E="CR") && (qobj.QIRIS183URE="")) s blank=1
+			if ((qobj.QIRIS183F="CR") && (qobj.QIRIS183URF="")) s blank=1			
+			i (((qobj.QIRIS303="EHVS")||(qobj.QIRIS303="EISCS"))&&(blank=1)) {				
+				s errorwarning="E3013 E.H.R IRIS Program Questionnaire: Registered Child: ‘UR Number’ is a required field but has not been entered."				s ind=$i(ind)
+				s ind=$i(ind)
+				s ^CacheTemp("TRAK",repid,patno_" E3013")=$LB(contact.%Id(),careprov,patno,admno,slk,"",patname,errorwarning,type,1,0)
+			}
+			
+			//Child Unregistered
+			s blankchilds=""
+			if (qobj.QIRIS183A="CU") s blankchildA=..GetBlankText(qobj,"IRIS183A,IRIS183URA,IRIS185A,IRIS186A,IRIS187A,IRIS188A,IRIS189A:IRIS191A,IRIS192A") i blankchildA'="" s blankchilds=$select(blankchilds="":"Child1",1:blankchilds_","_"Child1")				
+			if (qobj.QIRIS183B="CU") s blankchildB=..GetBlankText(qobj,"IRIS183B,IRIS183URB,IRIS185B,IRIS186B,IRIS187B,IRIS188B,IRIS189B:IRIS191B,IRIS192B") i blankchildB'="" s blankchilds=$select(blankchilds="":"Child2",1:blankchilds_","_"Child2")	
+			if (qobj.QIRIS183C="CU") s blankchildC=..GetBlankText(qobj,"IRIS183C,IRIS183URC,IRIS185C,IRIS186C,IRIS187C,IRIS188C,IRIS189C:IRIS191C,IRIS192C") i blankchildC'="" s blankchilds=$select(blankchilds="":"Child3",1:blankchilds_","_"Child3")		
+			if (qobj.QIRIS183D="CU") s blankchildD=..GetBlankText(qobj,"IRIS183D,IRIS183URD,IRIS185D,IRIS186D,IRIS187D,IRIS188D,IRIS189D:IRIS191D,IRIS192D") i blankchildD'="" s blankchilds=$select(blankchilds="":"Child4",1:blankchilds_","_"Child4")		
+			if (qobj.QIRIS183E="CU") s blankchildE=..GetBlankText(qobj,"IRIS183E,IRIS183URE,IRIS185E,IRIS186E,IRIS187E,IRIS188E,IRIS189E:IRIS191E,IRIS192E") i blankchildE'="" s blankchilds=$select(blankchilds="":"Child5",1:blankchilds_","_"Child5")		
+			if (qobj.QIRIS183F="CU") s blankchildF=..GetBlankText(qobj,"IRIS183F,IRIS183URF,IRIS185F,IRIS186F,IRIS187F,IRIS188F,IRIS189F:IRIS191F,IRIS192F") i blankchildF'="" s blankchilds=$select(blankchilds="":"Child6",1:blankchilds_","_"Child6")	
+			
+			i (((qobj.QIRIS303="EHVS")||(qobj.QIRIS303="EISCS"))&&(blankchilds'="")) {				
+				s errorwarning="E3014 E.H.R IRIS Program Questionnaire: Un Registered Child: One or more questions have not been completed for unregistered child: "_blankchilds				
+				s ind=$i(ind)
+				s ^CacheTemp("TRAK",repid,patno_" E3014")=$LB(contact.%Id(),careprov,patno,admno,slk,"",patname,errorwarning,type,1,0)
+			}
+			
+			//Client
+			s blankfield=..GetBlankText(qobj,"IRIS204,IRIS165,IRIS205,IRIS206,IRIS207,IRIS208,IRIS209,IRIS210,IRIS211")
+			i (blankfield'="") {				
+				s errorwarning="E3015 E.H.R IRIS Program Questionnaire: Client: One or more of these questions have not been completed: "_blankfield
+				s ind=$i(ind)
+				s ^CacheTemp("TRAK",repid,patno_" E3015")=$LB(contact.%Id(),careprov,patno,admno,slk,"",patname,errorwarning,type,1,0)
+			}
+			
+			//Issue
+			s blankissues=""
+			s blankissueA=..GetBlankText(qobj,"IRIS229A,IRIS230A,IRIS231A,IRIS232A,IRIS233A,IRIS234A") i blankissueA'="" s blankissues=$select(blankissues="":"Issue1",1:blankissues_","_"Issue1")				
+			s blankissueB=..GetBlankText(qobj,"IRIS229B,IRIS230B,IRIS231B,IRIS232B,IRIS233B,IRIS234B") i blankissueB'="" s blankissues=$select(blankissues="":"Issue2",1:blankissues_","_"Issue2")	
+			s blankissueC=..GetBlankText(qobj,"IRIS229C,IRIS230C,IRIS231C,IRIS232C,IRIS233C,IRIS234C") i blankissueC'="" s blankissues=$select(blankissues="":"Issue3",1:blankissues_","_"Issue3")		
+			s blankissueD=..GetBlankText(qobj,"IRIS229D,IRIS230D,IRIS231D,IRIS232D,IRIS233D,IRIS234D") i blankissueD'="" s blankissues=$select(blankissues="":"Issue4",1:blankissues_","_"Issue4")		
+			s blankissueE=..GetBlankText(qobj,"IRIS229E,IRIS230E,IRIS231E,IRIS232E,IRIS233E,IRIS234E") i blankissueE'="" s blankissues=$select(blankissues="":"Issue5",1:blankissues_","_"Issue5")		
+			s blankissueF=..GetBlankText(qobj,"IRIS229F,IRIS230F,IRIS231F,IRIS232F,IRIS233F,IRIS234F") i blankissueF'="" s blankissues=$select(blankissues="":"Issue6",1:blankissues_","_"Issue6")	
+			s blankissueG=..GetBlankText(qobj,"IRIS229G,IRIS230G,IRIS231G,IRIS232G,IRIS233G,IRIS234G") i blankissueG'="" s blankissues=$select(blankissues="":"Issue7",1:blankissues_","_"Issue7")	
+			s blankissueH=..GetBlankText(qobj,"IRIS229H,IRIS230H,IRIS231H,IRIS232H,IRIS233H,IRIS234H") i blankissueH'="" s blankissues=$select(blankissues="":"Issue8",1:blankissues_","_"Issue8")	
+			s blankissueI=..GetBlankText(qobj,"IRIS229I,IRIS230I,IRIS231I,IRIS232I,IRIS233I,IRIS234I") i blankissueI'="" s blankissues=$select(blankissues="":"Issue9",1:blankissues_","_"Issue9")	
+			s blankissueJ=..GetBlankText(qobj,"IRIS229J,IRIS230J,IRIS231J,IRIS232J,IRIS233J,IRIS234J") i blankissueJ'="" s blankissues=$select(blankissues="":"Issue10",1:blankissues_","_"Issue10")	
+			
+			i ((contact.ENQOEOrdItemDR.OEORIOEORDParRef.OEORDAdmDR.PAADMVisitStatus="D")&&(blankissues'="")) {				
+				s errorwarning="E3016 E.H.R IRIS Issue Questionnaire: One or more of these questions have not been completed for the following: "_blankchilds				
+				s ind=$i(ind)
+				s ^CacheTemp("TRAK",repid,patno_" E3016")=$LB(contact.%Id(),careprov,patno,admno,slk,"",patname,errorwarning,type,1,0)
+			}			
+
+		
+		
+			//IRIS CR questionnaire
+			s qidcr=$o(^questionnaire.QAUXXIRISCRI("IndexPAPatMasID",patid,""),-1)
+			i qidcr'="" s qobjcr=##class(questionnaire.QAUXXIRISCR).%OpenId(qidcr)
+			i $g(qobjcr){
+				//Related Person
+				i ((qobjcr.QIRISCR1="R")&&(qobjcr.QIRISCR257="")){
+					s errorwarning="E3017 E.H.R IRIS Related Persons Questionnaire: Related Person Registered:  ‘UR Number’ is a required field but has not been entered."
+					s ind=$i(ind)
+					s ^CacheTemp("TRAK",repid,patno_" E3017")=$LB(contact.%Id(),careprov,patno,admno,slk,"",patname,errorwarning,type,1,0)	
+				}
+				
+				//Related Person
+				s blankfield=..GetBlankText(qobjcr,"IRISCR261,IRISCR262,IRISCR263,IRISCR264,IRISCR266,IRISCR267,IRISCR268")
+				i ((qobjcr.QIRISCR1="RU")&&(blankfield'="")){
+					s errorwarning="E3018 E.H.R IRIS Related Persons Questionnaire: Related Person Un-Registered:  One or more of these questions have not been completed."
+					s ind=$i(ind)
+					s ^CacheTemp("TRAK",repid,patno_" E3017")=$LB(contact.%Id(),careprov,patno,admno,slk,"",patname,errorwarning,type,1,0)	
+				}			
+			}
+			k qobjcr
+		
+			//IRIS C questionnaire
+			s qidc=$o(^questionnaire.QAUXXIRISCI("IndexPAPatMasID",patid,""),-1)
+			i qidc'="" s qobjc=##class(questionnaire.QAUXXIRISC).%OpenId(qidc)
+			i $g(qobjc){			
+				//Service MCH
+				s blankfield=..GetBlankText(qobjc,"IRISC287,IRISC288")
+				i ((qobj.QIRIS303="EHVS")&&(blankfield'="")) {				
+					s errorwarning="E3019 E.H.R IRIS Family Contact Questionnaire: ServiceMCH: One or more of these questions have not been completed: "_blankfield
+					s ind=$i(ind)
+					s ^CacheTemp("TRAK",repid,patno_" E3019")=$LB(contact.%Id(),careprov,patno,admno,slk,"",patname,errorwarning,type,1,0)	
+				}	
+				
+				//Service SASS
+				s blankfield=..GetBlankText(qobjc,"IRISC290,IRISC291")
+				i ((qobj.QIRIS303="SASS")&&(blankfield'="")) {				
+					s errorwarning="E3020 E.H.R IRIS Family Contact Questionnaire: ServiceSASS: One or more of these questions have not been completed: "_blankfield
+					s ind=$i(ind)
+					s ^CacheTemp("TRAK",repid,patno_" E3020")=$LB(contact.%Id(),careprov,patno,admno,slk,"",patname,errorwarning,type,1,0)	
+				}		
+			}
+			k qobjc
+		
+		
+		} //end questiris
+		
+		k qobj
+		
+		
+		
+			
+		
+	}
+	
+ k IRIS,quest
+ q ind
+]]></Implementation>
+</Method>
+
+<Query name="LookUpClinicianByHospLoc">
+<Description>
+Lookup on CT_CareProv returning Care Providers by Hospital, Campus and Speciality</Description>
+<Type>%Library.SQLQuery</Type>
+<FormalSpec>CareProv:%String,Hospital:%String,Loc:%String</FormalSpec>
+<SqlQuery><![CDATA[ SELECT DISTINCT 
+ RES_CTPCP_DR->CTPCP_Desc,
+ RES_CTPCP_DR->CTPCP_RowId,
+ RES_CTPCP_DR->CTPCP_Code
+ FROM SQLUser.RB_Resource
+ WHERE ((%ALPHAUP RES_CTPCP_DR->CTPCP_Desc %STARTSWITH %ALPHAUP :CareProv) OR (%ALPHAUP RES_CTPCP_DR->CTPCP_Desc %STARTSWITH %ALPHAUP :CareProv))
+ AND (({fn CONCAT( ',', {fn CONCAT((%ALPHAUP :Hospital),',')})} [ {fn CONCAT( ',', {fn CONCAT((%ALPHAUP RES_CTLOC_DR->CTLOC_Hospital_DR),',')})}) OR (:Hospital IS NULL))
+ AND (({fn CONCAT( ',', {fn CONCAT((%ALPHAUP :Loc),',')})} [ {fn CONCAT( ',', {fn CONCAT((%ALPHAUP RES_CTLOC_DR),',')})}) OR (:Loc IS NULL))
+ AND ((RES_CTPCP_DR->CTPCP_DateActiveFrom<=CURRENT_Date))
+ AND ((RES_CTPCP_DR->CTPCP_DateActiveTo IS NULL) OR (RES_CTPCP_DR->CTPCP_DateActiveTo>=CURRENT_Date))
+ ORDER BY RES_CTPCP_DR->CTPCP_Desc]]></SqlQuery>
+<Parameter name="CONTAINID" value="2"/>
+<Parameter name="ROWSPEC" value="CTPCPDesc:%String,HIDDEN:%String,CTPCPCode:%String"/>
+</Query>
+
+<Method name="LookUpBrokerClinicianByHospLoc">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>itmjs:%Library.String="",itmjsex:%Library.String="",CareProv:%Library.String="",Hospital:%Library.String="",Loc:%Library.String=""</FormalSpec>
+<Implementation><![CDATA[
+ n id,code,desc,activedate
+ ;
+ s (id,code,desc)=""
+ s activedate=+$h
+ ;
+ ; Try and find a matching code
+ &SQL(SELECT Distinct
+ RES_CTPCP_DR->CTPCP_Desc,
+ RES_CTPCP_DR->CTPCP_RowId,
+ RES_CTPCP_DR->CTPCP_Code
+ INTO :desc, :id, :code
+ FROM SQLUser.RB_Resource
+ WHERE ((%ALPHAUP RES_CTPCP_DR->CTPCP_Desc %STARTSWITH %ALPHAUP :CareProv) OR (%ALPHAUP RES_CTPCP_DR->CTPCP_Desc %STARTSWITH %ALPHAUP :CareProv))
+ AND (({fn CONCAT( ',', {fn CONCAT((%ALPHAUP :Hospital),',')})} [ {fn CONCAT( ',', {fn CONCAT((%ALPHAUP RES_CTLOC_DR->CTLOC_Hospital_DR),',')})}) OR (:Hospital IS NULL))
+ AND (({fn CONCAT( ',', {fn CONCAT((%ALPHAUP :Loc),',')})} [ {fn CONCAT( ',', {fn CONCAT((%ALPHAUP RES_CTLOC_DR),',')})}) OR (:Loc IS NULL))
+ AND ((RES_CTPCP_DR->CTPCP_DateActiveFrom<=CURRENT_Date))
+ AND ((RES_CTPCP_DR->CTPCP_DateActiveTo IS NULL) OR (RES_CTPCP_DR->CTPCP_DateActiveTo>=CURRENT_Date)))
+ ;
+ i SQLCODE s desc=CareProv q 0
+ s retval=itmjs_"('"_$ZCVT(desc,"O","JS")_"');"
+ i itmjsex'="""" s retval=retval_itmjsex_"('"_$ZCVT(desc,"O","JS")_"^"_id_"^"_$ZCVT(code,"O","JS")_"');"
+ &javascript<#(retval)#>
+ q 1
+]]></Implementation>
+</Method>
+
+<Method name="GetQuestLabel">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>concode:%Library.String</FormalSpec>
+<ReturnType>%Library.String</ReturnType>
+<Implementation><![CDATA[
+	s label=""
+	i $g(concode)'=""
+	{
+		s conrowId=##class(web.SSUserDefWindowControls).GetIdFromCodeOrDescription(concode)
+		i conrowId'="" s label=$p($lg(##class(web.SSUserDefWindowControls).GetCodeDescriptionFromId(conrowId),1),":",2)
+	}
+	q label
+]]></Implementation>
+</Method>
+
+<Method name="GetBlankText">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>obj:%CacheObject,fields:%String</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	s text="", ind=1
+	s field=$p(fields,",",ind)	
+	while field'=""
+	{
+		if ($PROPERTY(obj,"Q"_field)="") s text=$select(text="":..GetQuestLabel(field),1:text_", "_..GetQuestLabel(field))
+		
+		s ind=ind+1
+		s field=$p(fields,",",ind)
+	}	
+	q text
+]]></Implementation>
+</Method>
+</Class>
+</Export>

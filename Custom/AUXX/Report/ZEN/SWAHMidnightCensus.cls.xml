@@ -1,0 +1,305 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.AUXX.Report.ZEN.SWAHMidnightCensus">
+<Super>Custom.AUXX.Report.ZEN.Abstract</Super>
+<TimeCreated>61616,10443.626119</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/AUXX/Report/ZEN/SWAHMidnightCensus.xml#1 $</Default>
+</Parameter>
+
+<UDLText name="T">
+<Content><![CDATA[
+// Report Name: SWARH Midnight Census
+
+]]></Content>
+</UDLText>
+
+<UDLText name="T">
+<Content><![CDATA[
+// Report Code: AUXX.ATD0013
+
+]]></Content>
+</UDLText>
+
+<Property name="ReportDate">
+<Type>%String</Type>
+<Parameter name="ZENURL" value="P1"/>
+</Property>
+
+<Property name="Hospital">
+<Type>%String</Type>
+<Parameter name="ZENURL" value="P2"/>
+</Property>
+
+<Property name="Ward">
+<Type>%String</Type>
+<Parameter name="ZENURL" value="P3"/>
+</Property>
+
+<XData name="ReportDefinition">
+<XMLNamespace>http://www.intersystems.com/zen/report/definition</XMLNamespace>
+<Data><![CDATA[
+<report xmlns="http://www.intersystems.com/zen/report/definition"
+ name="MidnightCensus" queryClass="Custom.AUXX.Report.ZEN.StoredProc.SWAHMidnightCensus" queryName="GetPatientList">
+<parameter expression="..ReportDate" />
+<parameter expression="..Hospital" />
+<parameter expression="..Ward" />
+
+<attribute name="username" expression="..Username" />
+<attribute name="timestamp" expression="$ZDT($H,2,2)" />
+<attribute name="Hospital" expression="..Hospital" />
+<attribute name="HospDesc" expression="..GetHospListDesc(..Hospital)" />
+<attribute name="Ward" expression="..Ward" />
+<attribute name="WardDesc" expression="..GetWardListDesc(..Ward)" />
+<attribute name="ReportDate" expression="..ReportDate" />
+<attribute name="DisplayReportDate" expression="..DisplayDate(..ReportDate)" />
+
+<attribute name="pagetitle" expression='$$$Text("@MidnightCensus@Midnight Census")' />
+<attribute name="reporttitle" expression='$$$Text("@MidnightCensus@Midnight Census")' />
+
+<group name="Ward" breakOnField="WARDCode" orderby="WARDCode, Grouping">
+<attribute name="WardCode" field="WARDCode" />
+<attribute name="grouping" field="Grouping" />
+<aggregate type="COUNT" field="PAPMINo" name="CountOnWard" />
+
+<group name="RecordType" breakOnField="RecordType">
+<attribute name="type" field="RecordType" />
+<attribute name="grouping" field="Grouping" />
+<attribute name="WardCode" field="WardCode" />
+<aggregate name="Count" field="PAPMINo" type="COUNT"/>
+
+<group name="Patient" removeEmpty="true">
+<attribute name="WardCode" field="WARDCode" />
+<attribute name="grouping" field="Grouping" />
+<element name="URN" field="PAPMINo" />
+<element name="EpisodeNo" field="PAADMAdmNo" />
+<element name="PatientName" fields="PAPMIName, PAPMIName2, PAPMIName3" 
+	expression='..DisplayName(%val("PAPMIName"),%val("PAPMIName2"),%val("PAPMIName3"))' />
+<element name="Age" field="PAPERAgeYr" />
+<element name="Sex" field="CTSEXCode" />
+<element name="Bed" field="CurrBedCode" />
+<element name="Unit" field="UnitCode" />
+<element name="Payor" field="INSTCode" />
+<element name="TypeCode" field="ArrDepType" />
+
+<element name="UnitCode" field="Specialty" />
+<element name="Male" field="Male" />
+<element name="Female" field="Female" />
+<element name="Unknown" field="Unknown" />
+<element name="Total" field="TotalCurrent" />
+
+<element name="Admission" field="totalAdm" />
+<element name="Discharge" field="totalDIS" />
+<element name="TransIn" field="totalTI" />
+<element name="TransOut" field="totalTO" />
+<element name="LeaveIn" field="totalLI" />
+<element name="LeaveOut" field="totalLO" />
+<element name="Current" field="TotalCurrent" />
+<element name="InAtMid" field="totalInAtMid" />
+<element name="OnLeave" field="totalOL" />
+<element name="Arrival" field="totalIn" />
+<element name="Departure" field="totalOut" />
+<element name="totalPresent" fields="TotalCurrent,totalOL" expression='%val("TotalCurrent") - %val("totalOL")' />
+
+</group>
+</group>
+</group>
+</report>
+]]></Data>
+</XData>
+
+<XData name="ReportDisplay">
+<XMLNamespace>http://www.intersystems.com/zen/report/display</XMLNamespace>
+<Data><![CDATA[
+<report xmlns="http://www.intersystems.com/zen/report/display"
+xmlns:auxx="http://www.intersystems.com/zen/report/display/auxx" 
+xmlns:auxxstyle="http://www.intersystems.com/zen/report/display/auxx/style"
+ name="MidnightCensus">
+<!-- Page Orientation:Portrait -->
+<document width= "#(..ReportHeight)#" height="#(..ReportWidth)#" marginLeft="#(..DocMarginLeft)#" marginRight="#(..DocMarginRight)#" 
+marginTop="#(..DocMarginBottom)#" marginBottom="#(..DocMarginTop)#" footerHeight="#(..DocFooterHeight)#" headerHeight="#(..DocHeaderHeight)#" 
+regionBeforeExtent="#(..DocHeaderHeight)#" regionAfterExtent="#(..DocFooterHeight)#">
+<auxxstyle:auxxgroupheader />
+<auxxstyle:auxxgroupsummary />
+<auxxstyle:auxxhospitalheader />
+<auxxstyle:auxxpageheader />
+<auxxstyle:auxxpagefooter />
+<auxxstyle:auxxreporttitle />
+<auxxstyle:auxxparameterheader />
+<auxxstyle:auxxtablecolumn />
+<auxxstyle:auxxtablecolumnoverflow />
+
+<!--Style sheet for report summary-->
+<class name="table.sumtable" >
+<att name="keep-with-next.within-line" value="auto" />
+<att name="keep-with-previous" value="always" />
+<att name="width" value="100%" />
+<att name="table-layout" value="fixed"/>
+</class>
+<class name="th.sumtable">
+<att name="keep-with-next.within-line" value="auto" />
+<att name="font-family" value="Arial" />
+<att name="font-size" value="10pt"/>
+<att name="font-weight" value="bold"/>
+<att name="padding-before" value="1.5pt" />
+</class>
+<class name="td.sumtable">
+<att name="font-family" value="Arial" />
+<att name="font-size" value="10pt"/>
+<att name="font-weight" value="normal"/>
+<att name="display-align" value="before" />
+<att name="padding-before" value="1.5pt" />
+</class>
+
+</document>
+
+<auxx:PageHeader pagetitle="@pagetitle" />
+<auxx:ReportFooter username='@username' timestamp='@timestamp'  />
+
+<body>
+<auxx:ReportHeader reporttitle="@reporttitle" />
+
+<auxx:ReportParameterHeader label="Hospital:" field="@HospDesc" xcondition="string-length(@Hospital)>0" />
+<auxx:ReportParameterHeader label="Ward:" field="@WardDesc" xcondition="string-length(@Ward)>0" />
+<auxx:ReportParameterHeader label="Report Date:" field="@DisplayReportDate" xcondition="string-length(@ReportDate)>0" />
+
+<line pattern="solid" width="100%" />
+
+<auxx:NoResults xcondition="not(Ward)" />
+<group name="Ward">
+<group name="RecordType" ifxpath='@grouping="1"'>
+<line pattern="empty" />
+<auxx:GroupHeader label="@CurrentPatients@Current Patients" ifxpath='@grouping="1" and @type="Current"'/>
+<table group="Patient" class="auxxtablecolumnoverflow" ifxpath='@grouping="1" and @type="Current"'>
+<item field="URN" caption="@URN@URN" width="15%" suppressEmpty="true"  />
+<item field="EpisodeNo" caption="@EpisodeNo@Episode No" width="15%" suppressEmpty="true" />
+<item field="PatientName" caption="@PatientName@Patient Name" width="25%" suppressEmpty="true" />
+<item field="Age" caption="@Age@Age" width="7%" suppressEmpty="true" />
+<item field="Sex" caption="@Sex@Sex" width="7%" style="text-align:center" suppressEmpty="true" />
+<item field="Bed" caption="@Bed@Bed" width="8%" suppressEmpty="true" />
+<item field="Unit" caption="@Specialty@Specialty" width="12%" suppressEmpty="true" />
+<item field="Payor" caption="@Payor@Payor" width="10%" suppressEmpty="true" />
+</table>
+</group>
+<group name="RecordType">
+<auxx:GroupHeader label="@PatientsCurrentlyOnLeave@Patients Currently On Leave" ifxpath='@grouping="3"'/>
+<table group="Patient" class="auxxtablecolumnoverflow" ifxpath='@grouping="3"'>
+<item field="URN" width="15%" suppressEmpty="true" >
+<caption value="@URN@URN" />
+</item>
+<item field="EpisodeNo" width="15%" suppressEmpty="true" >
+<caption value="@EpisodeNo@Episode No" />
+</item>
+<item field="PatientName" caption="@PatientName@Patient Name" width="25%" suppressEmpty="true"/>
+<item field="Age" caption="@Age@Age" width="7%" suppressEmpty="true"/>
+<item field="Sex" caption="@Sex@Sex" width="7%" suppressEmpty="true" style="text-align:center"/>
+<item field="Bed" caption="@Bed@Bed" width="8%" suppressEmpty="true"/>
+<item field="Unit" caption="@Specialty@Specialty" width="12%" suppressEmpty="true" />
+<item field="Payor" caption="@Payor@Payor" width="10%" suppressEmpty="true"/>
+</table>
+</group>
+<line pattern="empty" />
+<group name="RecordType" >
+<auxx:GroupHeader label="@Arrivals@Arrivals" ifxpath='@grouping="4"'/>
+<table group="Patient" class="auxxtablecolumnoverflow" ifxpath='@grouping="4"'>
+<item field="URN" width="10%" suppressEmpty="true" style="font-size:8pt">
+<caption value="@URN@URN" />
+</item>
+<item field="EpisodeNo" width="15%" suppressEmpty="true" style="font-size:8pt">
+<caption value="@EpisodeNo@Episode No" />
+</item>
+<item field="PatientName" caption="@PatientName@Patient Name" width="25%" suppressEmpty="true"/>
+<item field="Age" caption="@Age@Age" width="7%" suppressEmpty="true"/>
+<item field="Sex" caption="@Sex@Sex" width="7%" suppressEmpty="true" style="text-align:center"/>
+<item field="Bed" caption="@Bed@Bed" width="8%" suppressEmpty="true"/>
+<item field="Unit" caption="@Specialty@Specialty" width="12%" suppressEmpty="true" />
+<item field="Payor" caption="@Payor@Payor" width="10%" suppressEmpty="true"/>
+<item field="TypeCode" caption="@Type@Type" width="5%" suppressEmpty="true"/>
+</table>
+</group>
+<line pattern="empty" />
+<group name="RecordType">
+<auxx:GroupHeader label="@Departures@Departures" ifxpath='@grouping="5"'/>
+<table group="Patient" class="auxxtablecolumnoverflow" ifxpath='@grouping="5"'>
+<item field="URN" width="10%" suppressEmpty="true" style="font-size:8pt">
+<caption value="@URN@URN" />
+</item>
+<item field="EpisodeNo" width="15%" suppressEmpty="true" style="font-size:8pt">
+<caption value="@EpisodeNo@Episode No" />
+</item>
+<item field="PatientName" caption="@PatientName@Patient Name" width="25%" suppressEmpty="true"/>
+<item field="Age" caption="@Age@Age" width="7%" suppressEmpty="true"/>
+<item field="Sex" caption="@Sex@Sex" width="7%" suppressEmpty="true" style="text-align:center"/>
+<item field="Bed" caption="@Bed@Bed" width="8%" suppressEmpty="true"/>
+<item field="Unit" caption="@Specialty@Specialty" width="12%" suppressEmpty="true" />
+<item field="Payor" caption="@Payor@Payor" width="10%" suppressEmpty="true"/>
+<item field="TypeCode" caption="@Type@Type" width="5%" suppressEmpty="true"/>
+</table>
+</group>
+
+<group name="RecordType">
+<auxx:GroupHeader label="@SummaryofCurrentPatients@Summary of Current Patients" ifxpath='@grouping="2"'/>
+<line pattern="empty" />
+<table group="Patient" class="auxxtablecolumnoverflow" ifxpath='@grouping="2"' style='border-style:solid'>
+<item field="UnitCode"  caption="@Specialty@Specialty" width="15%" suppressEmpty="true" style='border-style:solid;text-align:center'/>
+<item field="Female"  caption="@Female@Female" width="15%" suppressEmpty="true" style='border-style:solid;text-align:center'/>
+<item field="Male"  caption="@Male@Male" width="15%" suppressEmpty="true" style='border-style:solid;text-align:center'/>
+<item field="Unknown"  caption="@Other@Other" width="15%" suppressEmpty="true" style='border-style:solid;text-align:center'/>
+<item field="Total"  caption="@Total@Total" width="15%" suppressEmpty="true" style='border-style:solid;text-align:center'/>
+</table>
+</group>
+
+<group name="RecordType">
+<auxx:GroupHeader label="@ReconciliationFor@Reconciliation for Ward " field='@WardCode' ifxpath='@grouping="6"'/>
+<group name="Patient" ifxpath='@grouping="6"'>
+<table class="sumtable" >
+<item value="" width="42%"/>
+<item caption="IN"  width="30%"  style='text-align:left'/>
+<item caption="OUT"  width="28%"  style='text-align:left'/>
+</table>
+<table class="sumtable" orient="col" >
+
+<table class="sumtable" orient="row" width="42%">
+<item field="Current" caption="@CurrentPatientsatMidnights@Current Patients at Midnight"  width="100%"  style='text-align:left'/>
+<item field="OnLeave" caption="@CurrentPatientsOnLeave@Current Patients on leave"  style='text-align:left'/>
+<item value =" " literalSpaces='true'/>
+<item field="InAtMid" caption="@TotalInPatientsatpriornight@Total InPatients Present Last Night"  style='text-align:left'/>
+<item field="Arrival" caption="@PlusTotalIn@Plus Total In"  style='text-align:left'/>
+<item field="Departure" caption="@LessTotalOut@Less Total Out"  style='text-align:left'/>
+<item field="totalPresent" caption="@TotalInpresentsatMidnightt@Total InPatients Present at Midnight"  style='text-align:left'/>
+</table>
+<table  class="sumtable" orient="row" width="30%">
+<item field="Admission" caption="@Admission@Admission"  width="100%"  style='text-align:left'/>
+<item field="TransIn" caption="@TransferIn@Transfer In"  style='text-align:left'/>
+<item field="LeaveIn" caption="@LeaveIn@Leave In"  style='text-align:left'/>
+</table>
+<table  class="sumtable" orient="row" width="28%">
+<item field="Discharge" caption="@Discharges@Discharges"  width="100%"  style='text-align:left'/>
+<item field="TransOut" caption="@TransferOut@Transfer Out"  style='text-align:left'/>
+<item field="LeaveOut" caption="@LeaveOut@Leave Out"  style='text-align:left'/>
+</table>
+
+</table>
+<line pattern="empty" />
+<line pattern="empty" />
+<table class="sumtable" orient="row">
+<item value="DECLARATION: I ............, hearby state that the above Midnight Census is a true and accurate "/>
+<item field='concat("statement on the above date for WARD ",@WardCode)'/> 
+<item value=" " literalSpaces='true'/>
+<line pattern="empty" />
+<item value="Signed: .........................	Date:   ....     /    ....    / ....        Time: ............." literalSpaces='true'/>
+<item value="(This declaration should be signed by person responsible)"/>
+</table>
+</group>
+</group>
+</group>
+</body>
+
+</report>
+]]></Data>
+</XData>
+</Class>
+</Export>

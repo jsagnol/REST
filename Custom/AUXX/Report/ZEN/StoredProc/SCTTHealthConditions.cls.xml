@@ -1,0 +1,229 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.AUXX.Report.ZEN.StoredProc.SCTTHealthConditions">
+<Description>
+Report Name: Confidential Referral Coversheet
+Report Code: AUXX.SCTT0001
+TRC Number: 152012</Description>
+<ProcedureBlock>0</ProcedureBlock>
+<Super>Report.Abstract</Super>
+<TimeCreated>62970,48071.923811</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/AUXX/Report/ZEN/StoredProc/SCTTHealthConditions.xml#1 $</Default>
+</Parameter>
+
+<Method name="HCClose">
+<Description>
+This is the Close component of the %Library.Query.
+This is standard code and should never have to change.
+This is where all the cleanup is performed, i.e. the purging of the temporary storage global ^CacheTemp.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>QHandle:%Library.Binary</FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+	// Clean up by purging the temporary node in ^CacheTemp global
+	New repid
+	Set repid=$LIST(QHandle,2)
+
+	//Start Monitor (if configured to capture stats)
+	i mon Do ..MonitorEnd(mon)
+
+	Kill ^CacheTemp("TRAK",repid)
+
+	Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="HCExecute">
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,EpisodeID:%Library.String,ReferralID:%Library.String,ID:%Library.String]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+	// Get reportid i.e. use $INCREMENT to add another node to ^CacheTemp("TRAK") global. 
+	// We use ^CacheTemp global because CACHETEMP is a memory resident database
+	New repid,ind
+
+	// Use $Increment to get the next node and clean up
+	Set repid=$Increment(^CacheTemp("TRAK"))
+	
+	//Start Monitor (if configured to capture stats)
+	s mon=..MonitorBegin()
+	
+	
+	s (ClientName,DOB,Sex,UR,qid,HealthCode1,HealthDesc1,HealthCode2,HealthDesc2,PainCode,PainDesc,ChronicCode,ChronicDesc,Oral,VisionCode1,VisionDesc1,VisionCode2,VisionDesc2,HearCode,HearDesc,FallsCode1,FallsDesc1,FallsCode2,FallsDesc2,HC1,HC2,HC3,HC4,HC5,HC6,HC7,HC8,HC9,HC10,M1,M2,M3,M4,M5,M6,M7,M8,M9,M10,Comments,ReferralTo)=""
+	i $g(EpisodeID)'="" s EpisodeID=$zstrip(EpisodeID,"*CW")
+	i $g(ReferralID)'="" s ReferralID=$zstrip(ReferralID,"*CW")
+	i $g(ID)'="" s ID=$zstrip(ID,"*CW")
+	
+	s adm=EpisodeID
+	
+	s PageTitle="Profile: Health Conditions"
+	s PageDesc="To assist workers/practitioners to screen for consumer's health needs."_$c(13,10)_$c(13,10)_$c(13,10)
+	s PageSideText="Health Conditions"
+
+	i adm {
+		s pat=$p($g(^PAADM(adm)),"^")
+
+		s patobj=##class(User.PAPatMas).%OpenId(pat)
+		i patobj {
+			s ClientName=patobj.PAPMIName_", "_patobj.PAPMIName2
+			s DOB=patobj.PAPMIDOB
+			i DOB s DOB=$zd(DOB,4,,4)
+			s Sex=patobj.PAPMISexDR.CTSEXDesc
+			s UR=patobj.PAPMINo
+			k patobj
+		}
+
+		i ReferralID'="" {
+			s quescode=0
+			f {
+				s quescode=$o(^PA("DISSUM",ReferralID,"DET",0,"QuestCode1",quescode))
+				q:quescode=""
+				s quesid=0
+				f {
+					s quesid=$o(^PA("DISSUM",ReferralID,"DET",0,"QuestCode1",quescode,quesid))
+					q:quesid=""
+					i quescode="QAUXXSCTTHC" s qid=quesid
+				}
+			}
+		} else {
+			s qid=ID
+		}
+
+		s qobj=##class(questionnaire.QAUXXSCTTHC).%OpenId(qid)
+		i qobj {
+			s HealthCode1=qobj.Q01
+			s HealthDesc1=##class(Custom.AUXX.Report.ZEN.StoredProc.SCTTReport).GetQuesAnswerDesc("AUXXSCTTHC","01",HealthCode1)
+			s HealthCode2=qobj.Q02
+			s HealthDesc2=##class(Custom.AUXX.Report.ZEN.StoredProc.SCTTReport).GetQuesAnswerDesc("AUXXSCTTHC","02",HealthCode2)
+			s PainCode=qobj.Q03
+			s PainDesc=##class(Custom.AUXX.Report.ZEN.StoredProc.SCTTReport).GetQuesAnswerDesc("AUXXSCTTHC","03",PainCode)
+			s ChronicCode=qobj.Q04
+			s ChronicDesc=##class(Custom.AUXX.Report.ZEN.StoredProc.SCTTReport).GetQuesAnswerDesc("AUXXSCTTHC","04",ChronicCode)
+			s Oral=qobj.Q05
+			s VisionCode1=qobj.Q06
+			s VisionDesc1=$s(VisionCode1=1:"Yes",VisionCode1=2:"No",1:"")
+			s VisionCode2=qobj.Q07
+			s VisionDesc2=$s(VisionCode2=1:"Yes",VisionCode2=2:"No",1:"")
+			s HearCode=qobj.Q08
+			s HearDesc=##class(Custom.AUXX.Report.ZEN.StoredProc.SCTTReport).GetQuesAnswerDesc("AUXXSCTTHC","08",HearCode)
+			s FallsCode1=qobj.Q09
+			s FallsDesc1=##class(Custom.AUXX.Report.ZEN.StoredProc.SCTTReport).GetQuesAnswerDesc("AUXXSCTTHC","09",FallsCode1)
+			s FallsCode2=qobj.Q10
+			s FallsDesc2=##class(Custom.AUXX.Report.ZEN.StoredProc.SCTTReport).GetQuesAnswerDesc("AUXXSCTTHC","10",FallsCode2)
+			s HC1=..GetTextArea(qobj,"11")
+			s HC2=..GetTextArea(qobj,"12")
+			s HC3=..GetTextArea(qobj,"13")
+			s HC4=..GetTextArea(qobj,"14")
+			s HC5=..GetTextArea(qobj,"15")
+			s HC6=..GetTextArea(qobj,"16")
+			s HC7=..GetTextArea(qobj,"17")
+			s HC8=..GetTextArea(qobj,"18")
+			s HC9=..GetTextArea(qobj,"19")
+			s HC10=..GetTextArea(qobj,"20")
+
+			s M1=..GetTextArea(qobj,"21")
+			s M2=..GetTextArea(qobj,"22")
+			s M3=..GetTextArea(qobj,"23")
+			s M4=..GetTextArea(qobj,"24")
+			s M5=..GetTextArea(qobj,"25")
+			s M6=..GetTextArea(qobj,"26")
+			s M7=..GetTextArea(qobj,"27")
+			s M8=..GetTextArea(qobj,"28")
+			s M9=..GetTextArea(qobj,"29")
+			s M10=..GetTextArea(qobj,"30")
+			
+			s Comments=..GetTextArea(qobj,"31")
+			s Comments="Comments: "_$c(13,10)_Comments
+			i qobj.Q31.Count()<10 {
+				f x=qobj.Q31.Count():1:10 {
+					s Comments=Comments_$c(13,10)
+				}
+			}
+
+			s ReferralTo=qobj.Q32
+			s ReferralTo="Referral Recommended To: "_$c(13,10)_ReferralTo
+			i $l(ReferralTo,$c(13,10))<=10 {
+				f y=1:1:10 {
+					i y>$l(ReferralTo,$c(13,10)) s ReferralTo=ReferralTo_$c(13,10)
+				}
+			}
+
+			k qobj
+			s ind=$i(ind)
+			s ^CacheTemp("TRAK",repid,ind)=$lb("HC",PageTitle,PageDesc,PageSideText,ClientName,DOB,Sex,UR,qid,HealthCode1,HealthDesc1,HealthCode2,HealthDesc2,PainCode,PainDesc,ChronicCode,ChronicDesc,Oral,VisionCode1,VisionDesc1,VisionCode2,VisionDesc2,HearCode,HearDesc,FallsCode1,FallsDesc1,FallsCode2,FallsDesc2,HC1,HC2,HC3,HC4,HC5,HC6,HC7,HC8,HC9,HC10,M1,M2,M3,M4,M5,M6,M7,M8,M9,M10,Comments,ReferralTo)
+		}
+	}
+
+	// Build QHandle (AtEnd,ReportID,Index)
+	Set QHandle=$LISTBUILD(0,repid,0)
+	Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="HCFetch">
+<Description>
+This is the Fetch component of the %Library.Query. 
+This should never have to change. It is designed to fetch the row for each subscript of the 
+^CacheTemp("TRAK" global and return this row to the Report writer</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,&Row:%Library.List,&AtEnd:%Library.Integer=0]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+	// This fetch method should never have to change. 
+	// repid - Report ID
+	// ind   - sequence index which represents each row
+	New repid,ind
+
+	// Restore QHandle
+	Set AtEnd=$LI(QHandle,1)
+	Set repid=$LI(QHandle,2)
+	Set ind=$LI(QHandle,3)
+
+	Set ind=$order(^CacheTemp("TRAK",repid,ind))
+	If ind="" {	// if there are no more rows, finish fetching
+		Set AtEnd=1
+		Set Row=""
+	} else {	// fetch row
+		Set Row=^CacheTemp("TRAK",repid,ind)
+	}
+
+	// Save QHandle
+	Set QHandle=$lb(AtEnd,repid,ind)
+	Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Query name="HC">
+<Description>
+This is the Stored Procedure Template. For Sample use only.
+It expects one parameter of type integer and will return 4 fields:
+Field1 - Integer
+Field2 - String
+Field3 - Date
+Field4 - Time</Description>
+<Type>%Library.Query</Type>
+<FormalSpec>EpisodeID:%Library.String,ReferralID:%Library.String,ID:%Library.String</FormalSpec>
+<SqlProc>1</SqlProc>
+<Parameter name="CONTAINID" value="0"/>
+<Parameter name="ROWSPEC" value="FormCode:%String,PageTitle:%String,PageDesc:%String,PageSideText:%String,ClientName:%String,DOB:%String,Sex:%String,UR:%String,qid:%String,HealthCode1:%String,HealthDesc1:%String,HealthCode2:%String,HealthDesc2:%String,PainCode:%String,PainDesc:%String,ChronicCode:%String,ChronicDesc:%String,Oral:%String,VisionCode1:%String,VisionDesc1:%String,VisionCode2:%String,VisionDesc2:%String,HearCode:%String,HearDesc:%String,FallsCode1:%String,FallsDesc1:%String,FallsCode2:%String,FallsDesc2:%String,HC1:%String,HC2:%String,HC3:%String,HC4:%String,HC5:%String,HC6:%String,HC7:%String,HC8:%String,HC9:%String,HC10:%String,M1:%String,M2:%String,M3:%String,M4:%String,M5:%String,M6:%String,M7:%String,M8:%String,M9:%String,M10:%String,Comments:%String,ReferralTo:%String"/>
+</Query>
+
+<Method name="GetTextArea">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>obj:%CacheObject,num:%String</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	s text=""
+	f z=1:1:$METHOD($PROPERTY(obj,"Q"_num),"Count") {
+		i text'="" s text=text_$c(13,10)_$METHOD($PROPERTY(obj,"Q"_num),"GetAt",z)
+		i text="" s text=$METHOD($PROPERTY(obj,"Q"_num),"GetAt",z)
+	}
+	q text
+]]></Implementation>
+</Method>
+</Class>
+</Export>

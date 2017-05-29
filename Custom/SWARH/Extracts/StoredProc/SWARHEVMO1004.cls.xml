@@ -1,0 +1,321 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.SWARH.Extracts.StoredProc.SWARHEVMO1004">
+<Description><![CDATA[
+<pre>
+**************************************************************************************************************************************
+* Extract Code: SWARHEVMO1004
+* Extract Description: Copy of Admitted MedFeps VMO Extract modified to return 'END' ward episodes.  
+* Menu Caption:Endo Medfeps VMO Extract
+* Initial release: 21/09/2015 Developer: Michael Welsh
+**************************************************************************************************************************************
+</pre>]]></Description>
+<ProcedureBlock>0</ProcedureBlock>
+<Super>Custom.SWARH.Extracts.StoredProc.Abstract</Super>
+<TimeCreated>60905,54849</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/SWARH/Extracts/StoredProc/SWARHEVMO1004.xml#1 $</Default>
+</Parameter>
+
+<Method name="SWARHMedFepsExecute">
+<Description>
+This is the Execute section for the %Library.Query. 
+All of the logic will be performed here.
+A new node for the ^CacheTemp global will be created and each subscript of this global will contain
+a row for the report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,Hospital:%Integer,DateFrom:%Date,DateTo:%Date]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Get reportid i.e. use $INCREMENT to add another node to ^CacheTemp global. 
+ // We use ^CacheTemp global because it will always use memory before disk
+ New repid,ind
+
+  // Use $Increment to get the next node
+ Set repid=$INCREMENT(^CacheTemp(..#CACHETEMPSUBSCRIPT))
+ 
+ NEW PrevINSParRef,PrevINSChildSub,BuildFlag,URNumber,Surname,GivenName,BirthDate,Sex,AdmDate,AdmTime,DischgDate,DischgTime,CPCode,FinancialCode,CareType,INSTDesc,
+ b02,b03,b04,b05,b06,b07,b08,b09,b10,b11,b12,b13,b14,b15,b16,b17,b18,b19,b20,b21,b22,b23,b24,b25,b26,b27,b28,b29,b30,
+ b31,b32,b33,b34,b35,b36,b37,b38,b39,b40,b41,b42,b43,b44,b45,Address1,Address2,Address3,PostCode,HomePhone,EpType,ID,
+ EpNumber,WardCode,PAPERStName,PatCat,INSParRef,INSChildSub,InsType,InsCode,DSCLCode,VisitStatus
+  
+ SET (PrevINSParRef,PrevINSChildSub,BuildFlag,URNumber,Surname,GivenName,BirthDate,Sex,AdmDate,AdmTime,DischgDate,DischgTime,CPCode,FinancialCode,CareType,INSTDesc,
+ b02,b03,b04,b05,b06,b07,b08,b09,b10,b11,b12,b13,b14,b15,b16,b17,b18,b19,b20,b21,b22,b23,b24,b25,b26,b27,b28,b29,b30,
+ b31,b32,b33,b34,b35,b36,b37,b38,b39,b40,b41,b42,b43,b44,b45,Address1,Address2,Address3,PostCode,HomePhone,EpType,ID,
+ EpNumber,WardCode,PAPERStName,PatCa,INSParRef,INSChildSubt,InsType,InsCode,DSCLCode,VisitStatus)=""
+
+ set ind=1, END=0
+
+ //Start Monitor (if configured to capture stats)
+ ;s mon=..MonitorBegin()
+
+ //Convert ODBC dates to cache format
+ set DateFrom=..ConvertDateToCache(DateFrom)
+ set DateTo=..ConvertDateToCache(DateTo)
+ 
+ &SQL(DECLARE SWARHMedFepsCursor CURSOR FOR 
+		SELECT DISTINCT
+			PM.PAPMI_No AS URNumber,
+			UCASE(PM.PAPMI_Name) AS Surname,
+			UCASE(PM.PAPMI_Name2)AS GivenName,
+			PM.PAPMI_DOB AS BirthDate,
+			PM.PAPMI_Sex_DR->CTSEX_Code AS Sex,
+			PA.PAADM_AdmDate AS AdmDate,
+			PA.PAADM_AdmTime AS AdmTime,
+			PA.PAADM_DischgDate AS DischgDate,
+			PA.PAADM_DischgTime AS DischgTime,
+			PA.PAADM_AdmDocCodeDR->CTPCP_Code AS CPCode,
+			UCASE(C.INS_instype_dr->INST_PayorGroup_DR->PGRP_Code) AS FinancialCode,
+			PA.PAADM_MainMRADM_DR->MRADM_CareType_DR->CARETYP_NationCode AS CareType,
+			UCASE(C.INS_Instype_DR->INST_Desc) AS INSTDesc,
+			UCASE(C.INS_AuxInsType_DR->AUXIT_Desc) AS InsType,
+			UCASE(C.INS_AuxInsType_DR->AUXIT_Code) AS InsCode,
+			/*
+			'' AS b04,'' AS b05,
+			'' AS b06,'' AS b07,'' AS b08,'' AS b09,'' AS b10,
+			'' AS b11,'' AS b12,'' AS b13,'' AS b14,'' AS b15,
+			'' AS b16,'' AS b17,'' AS b18,'' AS b19,'' AS b20,
+			'' AS b21,'' AS b22,'' AS b23,'' AS b24,'' AS b25,
+			'' AS b26,'' AS b27,'' AS b28,'' AS b29,'' AS b30,
+			'' AS b31,'' AS b32,'' AS b33,'' AS b34,'' AS b35,
+			'' AS b36,'' AS b37,'' AS b38,'' AS b39,'' AS b40,
+			'' AS b41,'' AS b42,'' AS b43,'' AS b44,'' AS b45,
+			*/
+			UCASE(PE.PAPER_StName) AS Address1,
+			UCASE(PE.PAPER_ForeignAddress) AS Address2,
+			PE.PAPER_CityCode_DR->CTCIT_Desc AS Address3,
+			PE.PAPER_Zip_DR->CTZIP_Code AS PostCode,
+			PE.PAPER_TelH AS HomePhone,
+			PA.PAADM_Type AS EpType,
+			'V' AS ID,
+			RIGHT(PA.PAADM_ADMNo,LEN(PA.PAADM_ADMNo)-2) AS EpNumber,
+			UCASE(PA.PAADM_CurrentWard_DR->WARD_Code) AS WardCode,
+			C.INS_ParRef,
+			C.INS_ChildSub,
+			PAADM_MainMRADM_DR->MRADM_DischClassif_DR->DSCL_Code,
+			PA.PAADM_VisitStatus AS VisitStatus
+		FROM SQLUser.PA_Adm PA
+			LEFT JOIN SQLUSER.PA_PatMAS PM on PA.PAADM_PAPMI_DR = PM.PAPMI_RowId
+			LEFT JOIN SQLUSER.PA_Person PE on PM.PAPMI_PAPER_DR = PE.PAPER_RowId
+			LEFT JOIN SQLUser.PA_AdmInsurance C ON (PA.PAADM_RowID = C.INS_ParRef AND C.INS_ChildSub=(SELECT MAX(INS_ChildSub) FROM SQLUSER.PA_AdmInsurance WHERE INS_ParRef = PAADM_RowID))
+		WHERE PA.PAADM_AdmDate >= :DateFrom
+		   AND PA.PAADM_AdmDate <= :DateTo
+		   AND PA.PAADM_Hospital_DR = :Hospital
+		   AND PA.PAADM_Type = 'I'
+		   --AND PA.PAADM_VisitStatus NOT IN ('C','N')
+		   AND PA.PAADM_CurrentWard_DR->WARD_Code = 'END'
+		   AND PA.PAADM_CurrentWard_DR->WARD_Code IS NOT NULL
+		   AND PM.PAPMI_No IS NOT NULL
+		   ORDER BY C.INS_ParRef
+)
+ &SQL(OPEN SWARHMedFepsCursor)
+ 
+ //FETCH FIRST ROW
+ do FetchRow
+ 
+ while END=0 {
+   
+	 do FormatDates, FormatTimes
+
+  	 //s FinancialCode = ..GetPrimaryInsPayorGroupForEpisode(EpNumber)
+  	 If FinancialCode = "" {
+  	 	Set FinancialCode = $CASE(INSTDesc,
+			"DEPARTMENT OF VETERANS AFFAIRS":"D",		
+			"DEPARTMENT OF VETERANS' AFFAIRS ED":"D",		
+			"INELIGIBLE NOT COMPENSABLE":"X",
+			"INELIGIBLE NON-AUSTRALIAN RESIDENTS (NOT EXEMPTED FROM FEES)":"X",	
+			"MEDICARE":"M",		
+			"MEDICARE PATIENT/OVERSEAS ELIGIBLE/INELIGIBLE HOSPITAL EXEMPT":"M",	
+			"PATIENT":"M",	
+			"PUBLIC PATIENT":"M",
+			"TRANSPORT ACCIDENT COMMISSION":"T",
+			"TRANSPORT ACCIDENT COMMISSION ED":"T",
+			"WORK COVER":"W",
+			"WORK COVER ED":"W",
+			"SEAMEN":"S",
+			"PRISONER":"J",
+			"ARMED SERVICES":"A",
+			"COMMON LAW, PUBLIC LIABILITY, OTHER COMPENSABLE, SERVICE PERSONNEL":"C",
+			"COMMON LAW RECOVERIES":"C",
+			:""
+  	 	)
+  	 }
+  	 
+  	 If VisitStatus = "C" {Set FinancialCode = "CA", DischgDate = AdmDate}
+  	 If VisitStatus = "N" {Set FinancialCode = "NA", DischgDate = AdmDate} 
+  	 
+  	 do FormatStrings
+  	 
+  	 /* Resets FinancialCode if Inscode is of type Ineligible, 
+  	 		MF - Ineligible: Asylum Seeker, XX - Ineligible, XXP - Ineligible - Psychiatric, XXO - Ineligible - Obstetric
+  	 		and XX B - Ineligible non-Australian residents (not exempted from fees) 
+  	 */
+  	 Set FinancialCode = $CASE(InsCode,
+			"MF":"X",   		
+			"XX":"X",		
+			"XXP":"X",
+			"XXO":"X",	
+			"XX B":"X",		
+			:FinancialCode) 
+			
+	 /* Resets FinancialCode to 'E' if HospRowID is 697 (SWHC) and WardCode is 'ED' and current code is 'M'
+	 		and departure status is not	27,28,15,22,17,20,21,19,25,3,14,26 or 18.
+	 */
+	 If (Hospital = 697){
+		 If (WardCode = "ED"){
+			 If (FinancialCode = "M"){
+				 If (DSCLCode = "1") || (DSCLCode = "10") || (DSCLCode = "11") || (DSCLCode = "12") || (DSCLCode = "5")
+				 	 || (DSCLCode = "7") || (DSCLCode = "8") || (DSCLCode = "23") || (DSCLCode = "24") || (DSCLCode = "30"){
+					 Set FinancialCode = "E" 
+				 }
+			 }
+		 }
+	 }
+  	 
+	 set sort = ind		
+ 	
+ 	 set es = "" ; b04 to b45 are being set to empty string in SQL, 
+
+	 set ^CacheTemp(..#CACHETEMPSUBSCRIPT,repid,sort)=$LISTBUILD(URNumber,Surname,GivenName,BirthDate,Sex,AdmDate,AdmTime,DischgDate,DischgTime,CPCode,FinancialCode,CareType,INSTDesc,
+											InsType,InsCode,es,es,es,es,es,es,es,es,es,es,es,es,es,es,es,es,es,es,es,es,es,es,es,es,es,es,es,es,es,es,es,es,es,es,es,es,
+											es,es,es,es,es,es,Address1,Address2,Address3,PostCode,HomePhone,EpType,ID,
+											EpNumber,WardCode,INSParRef,INSChildSub,DSCLCode)
+	 set ind=ind+1
+ 	 set PrevINSParRef=INSParRef
+ 	 set PrevINSChildSub=INSChildSub
+	 //fetch rows
+	 do FetchRow
+ }
+
+ &SQL(CLOSE SWARHMedFepsCursor)
+ 
+ // Build QHandle (AtEnd,ReportID,Index)
+ Set QHandle=$listbuild(0,repid,0)
+
+ Quit $$$OK
+
+FetchRow
+ &sql(FETCH SWARHMedFepsCursor INTO :URNumber,:Surname,:GivenName,:BirthDate,:Sex,:AdmDate,:AdmTime,:DischgDate,:DischgTime,:CPCode,:FinancialCode,:CareType,:INSTDesc,
+ 										:InsType,:InsCode,
+ 										-- :b04,:b05,:b06,:b07,:b08,:b09,:b10,:b11,:b12,:b13,:b14,:b15,:b16,:b17,:b18,:b19,:b20,:b21,:b22,:b23,:b24,:b25,:b26,:b27,:b28,:b29,:b30,
+ 										-- :b31,:b32,:b33,:b34,:b35,:b36,:b37,:b38,:b39,:b40,:b41,:b42,:b43,:b44,:b45,
+ 										:Address1,:Address2,:Address3,:PostCode,:HomePhone,:EpType,:ID,
+ 										:EpNumber,:WardCode,:INSParRef,:INSChildSub,:DSCLCode,:VisitStatus)
+ if SQLCODE '= 0 set END = 1
+ quit
+ 
+FormatDates
+ set AdmDate=..ConvertHorologToDDMMYYYY(AdmDate)
+ set DischgDate=..ConvertHorologToDDMMYYYY(DischgDate)
+ set BirthDate=..ConvertHorologToDDMMYYYY(BirthDate)
+ quit
+ 
+FormatTimes
+ set AdmTime=..ConvertTimeToODBC(AdmTime)
+ set DischgTime=..ConvertTimeToODBC(DischgTime)
+ quit
+ 
+FormatStrings
+ set Address1 = $ZSTRIP(Address1,"*C") //Removes control characters (0-31,127-159)
+ set Address1 = $ZSTRIP(Address1,"*",$CHAR(34,35,39,44,46)) //Removes 34-Quotes,35-Hash,39-Single quote,44-Comma,46-Period
+ set Address2 = $ZSTRIP(Address2,"*C")
+ set Address2 = $ZSTRIP(Address2,"*",$CHAR(34,35,39,44,46)) 
+ set INSTDesc = $ZSTRIP(INSTDesc,"*C")
+ set INSTDesc = $ZSTRIP(INSTDesc,"*",$CHAR(34,35,39,44,46))
+ quit
+]]></Implementation>
+</Method>
+
+<Method name="SWARHMedFepsFetch">
+<Description>
+This is the Fetch component of the %Library.Query. 
+This should never have to change. It is designed to fetch the row for each subscript of the ^CacheTemp
+global and return this row to the Crystal Report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,&Row:%Library.List,&AtEnd:%Library.Integer=0]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // This fetch method should never have to change. 
+
+ // repid - Report ID
+ // ind   - sequence index which represents each row
+
+ New repid,ind
+
+ // Restore QHandle
+ Set AtEnd=$list(QHandle,1)
+ Set repid=$list(QHandle,2)
+ Set ind=$list(QHandle,3)
+
+ Set ind=$ORDER(^CacheTemp(..#CACHETEMPSUBSCRIPT,repid,ind))
+ If ind="" {	// if there are no more rows, finish fetching
+	 Set AtEnd=1
+	 Set Row=""
+ }
+ Else      {	// fetch row
+ 	Set Row=^CacheTemp(..#CACHETEMPSUBSCRIPT,repid,ind)
+ }
+
+ // Save QHandle
+ set QHandle=$listbuild(AtEnd,repid,ind)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="SWARHMedFepsClose">
+<Description>
+This is the Close component of the %Library.Query.
+This is standard code and should never have to change.
+This is where all the cleanup is performed, i.e. the purging of the temporary storage global ^CacheTemp.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>QHandle:%Library.Binary</FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Clean up by purging the temporary node in ^CacheTemp global
+ New repid,ind
+ Set repid=$list(QHandle,2)
+
+ //Start Monitor (if configured to capture stats)
+ ;i mon Do ..MonitorEnd(mon)
+
+ Kill ^CacheTemp(..#CACHETEMPSUBSCRIPT,repid)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Query name="SWARHMedFeps">
+<Type>%Library.Query</Type>
+<FormalSpec>Hospital:%Integer,DateFrom:%Date,DateTo:%Date</FormalSpec>
+<SqlProc>1</SqlProc>
+<Parameter name="CONTAINID" value="0"/>
+<Parameter name="ROWSPEC" value=" URNumber:%Library.String,Surname:%Library.String,GivenName:%Library.String,BirthDate:%Library.Date,Sex:%Library.String,AdmDate:%Library.Date,AdmTime:%Library.Time,DischgDate:%Library.Date,DischgTime:%Library.Time,CPCode:%Library.String,FinancialCode:%Library.String,CareType:%Library.String,INSTDesc:%Library.String,InsType:%Library.String,InsCode:%Library.String,b04:%Library.String,b05:%Library.String,b06:%Library.String,b07:%Library.String,b08:%Library.String,b09:%Library.String,b10:%Library.String,b11:%Library.String,b12:%Library.String,b13:%Library.String,b14:%Library.String,b15:%Library.String,b16:%Library.String,b17:%Library.String,b18:%Library.String,b19:%Library.String,b20:%Library.String,b21:%Library.String,b22:%Library.String,b23:%Library.String,b24:%Library.String,b25:%Library.String,b26:%Library.String,b27:%Library.String,b28:%Library.String,b29:%Library.String,b30:%Library.String,b31:%Library.String,b32:%Library.String,b33:%Library.String,b34:%Library.String,b35:%Library.String,b36:%Library.String,b37:%Library.String,b38:%Library.String,b39:%Library.String,b40:%Library.String,b41:%Library.String,b42:%Library.String,b43:%Library.String,b44:%Library.String,b45:%Library.String,Address1:%Library.String,Address2:%Library.String,Address3:%Library.String,PostCode:%Library.String,HomePhone:%Library.String,EpType:%Library.String,ID:%Library.String,EpNumber:%Library.String,WardCode:%Library.String,INSParRef:%Library.String,INSChildSub:%Library.String,DSCLCode:%Library.String"/>
+<Parameter name="SELECTMODE" value="ODBC"/>
+</Query>
+
+<Method name="GetPrimaryInsTypeForEpisode">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>PAADMRowId:%Integer</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	
+	Set (Childsub, SelChildsub, MinRank, InsType) = ""
+	// Loop through the episode's insurance records and find the one with the lowest INS_Rank
+	For {
+		Set Childsub = $ORDER(^PAADM(PAADMRowId,"INS",Childsub))
+		Quit:(Childsub="")
+		Set Rank = $NUMBER($PIECE(^PAADM(PAADMRowId,"INS",Childsub),"^",27)) // INS_Rank
+		If (MinRank="") || (Rank<MinRank) {
+			Set MinRank = Rank
+			Set SelChildsub = Childsub
+		}
+	}
+	Set:(SelChildsub'="") InsType = $PIECE(^PAADM(PAADMRowId,"INS",SelChildsub),"^",1) // PA_AdmInsurance Piece 1: INS_InsType_DR
+
+	Quit InsType
+]]></Implementation>
+</Method>
+</Class>
+</Export>

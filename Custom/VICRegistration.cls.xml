@@ -1,0 +1,436 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.VICRegistration">
+<Description>
+Vic Registration Report</Description>
+<ClassType/>
+<ProcedureBlock>0</ProcedureBlock>
+<Super>%Library.RegisteredObject</Super>
+<TimeCreated>60030,34829.465537</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/VICRegistration.xml#3 $</Default>
+</Parameter>
+
+<Method name="VicRegReportClose">
+<Description>
+This is the Close component of the %Library.Query.
+This is standard code and should never have to change.
+This is where all the cleanup is performed, i.e. the purging of the temporary storage global ^CacheTemp.</Description>
+<Final>0</Final>
+<ClassMethod>1</ClassMethod>
+<CodeMode>code</CodeMode>
+<FormalSpec>QHandle:%Library.Binary</FormalSpec>
+<Private>0</Private>
+<ReturnType>%Library.Status</ReturnType>
+<SqlProc>0</SqlProc>
+<Implementation><![CDATA[
+ // Clean up by purging the temporary node in ^CacheTemp global
+ New repid
+ Set repid=$li(QHandle,2)
+ Kill ^CacheTemp(repid)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="VicRegReportExecute">
+<Description>
+This is the Execute section for the %Library.Query. 
+All of the logic will be performed here.
+A new node for the ^CacheTemp global will be created and each subscript of this global will contain
+a row for the report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,EpisodeId:%Integer]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+	
+ // Get reportid i.e. use $INCREMENT to add another node to ^CacheTemp global. 
+ // We use ^CacheTemp global because it will always use memory before disk
+ New repid,ind
+
+ // Use $Increment to get the next node
+ Set repid=$I(^CacheTemp)
+
+ // Build data into ^CacheTemp(ReportID)
+ // e.g. Set ^CacheTemp(ReportID,Index)=$LB(f1,f2,f3)
+ New Number,String,Date,Time,c,n,str
+ n PAADMRowId,PAADMADMNo,PAADMAdmDate,WARDCode,CTRFCDesc,REFDDesc,REFDForename,TRDCode,VSTDesc,PAPMIRowId,PAPMIDOB,PAPMIMedicare,PAPMIMedicareCode,PAPMIName,PAPMIName2,PAPMIName3,PAPMINo,PAPMIDVANumber,PAPMIHealthFundNo,PAPERGovernCardNo,PAPERAgeYr,PAPERStName,PAPERForeignAddress,PAPERTelH,CTMARDesc,CTRLGDesc,CTCOUDesc,CTZIPCode,CTCITDesc,TTLCode,CTSEXCode,INSTDesc,AUXITDesc,INDSTDesc,FAMDDesc,FAMDForename,PREFLDesc,CTOCCDesc,MRADMPresentComplaint,CTDSPDesc,PAADMEstimDischargeDate,TRFAccidentDate,TRFVehInsPolicy,CTPCPDesc,CONTName,CONTAddress1,CONTAddress2,PAADMAdmTime,PAPERTelO,CONTCTZipCode,CONTCTCITDesc,PAPERMobPhone,PAPERRemark,READesc,SUBTDesc,CARETYPDesc,HOSPDesc,PAADMType,IPATDesc,ADSOUDesc
+ n Payor,INSASDesc,INSASBillingAddress,Plan,TransWard
+ s (PAADMRowId,PAPMIRowId)=0
+ s (PAADMADMNo,PAADMAdmDate,WARDCode,CTRFCDesc,REFDDesc,REFDForename,TRDCode,VSTDesc,PAPMIDOB,PAPMIMedicare,PAPMIMedicareCode,PAPMIName,PAPMIName2,PAPMIName3,PAPMINo,PAPMIDVANumber,PAPMIHealthFundNo,PAPERGovernCardNo,PAPERAgeYr,PAPERStName,PAPERForeignAddress,PAPERTelH,CTMARDesc,CTRLGDesc,CTCOUDesc,CTZIPCode,CTCITDesc,TTLCode,CTSEXCode,INSTDesc,AUXITDesc,INDSTDesc,FAMDDesc,FAMDForename,PREFLDesc,CTOCCDesc,MRADMPresentComplaint,CTDSPDesc,PAADMEstimDischargeDate,TRFAccidentDate,TRFVehInsPolicy,CTPCPDesc,CONTName,CONTAddress1,CONTAddress2,PAADMAdmTime,PAPERTelO,CONTCTZipCode,CONTCTCITDesc,PAPERMobPhone,PAPERRemark,READesc,SUBTDesc,CARETYPDesc,HOSPDesc,PAADMType,IPATDesc,ADSOUDesc)=""
+ s (Payor,INSASDesc,INSASBillingAddress,Plan,TransWard)=""
+ s ind=1
+ 
+ &SQL(DECLARE Episode CURSOR FOR 
+ select
+ PAADM_RowId, 
+ PAADM_ADMNo,
+ PAADM_AdmDate,
+ PAADM_CurrentWard_DR->WARD_Code,
+ PAADM_RefClinic_DR->CTRFC_Desc,
+ PAADM_RefDocList_DR->REFD_Desc as REFDDesc,
+ PAADM_RefDocList_DR->REFD_Forename as REFDForename,
+ PAADM_MainMRADM_DR->MRADM_TransDest2_DR->TRD_Desc,
+ PAADM_MainMRADM_DR->MRADM_VisitType_DR->VST_Desc,
+ PAPMI_RowId,
+ PAPMI_DOB,
+ PAPMI_Medicare, 
+ PAPMI_MedicareCode, 
+ PAPMI_Name, 
+ PAPMI_Name2,
+ PAPMI_Name3,
+ PAPMI_No, 
+ PAPMI_DVANumber,
+ PAPMI_HealthFundNo,
+ PAPMI_PAPER_DR->PAPER_GovernCardNo,
+ PAPMI_PAPER_DR->PAPER_AgeYr,
+ PAPMI_PAPER_DR->PAPER_StName,
+ PAPMI_PAPER_DR->PAPER_ForeignAddress,
+ PAPMI_PAPER_DR->PAPER_TelH, 
+ PAPMI_PAPER_DR->PAPER_Marital_DR->CTMAR_Desc, 
+ PAPMI_PAPER_DR->PAPER_Religion_DR->CTRLG_Desc,
+ PAPMI_PAPER_DR->PAPER_Country_birth_DR->CTCOU_Desc,
+ PAPMI_PAPER_DR->PAPER_Zip_DR->CTZIP_Code, 
+ PAPMI_PAPER_DR->PAPER_CityCode_DR->CTCIT_Desc,
+ PAPMI_PAPER_DR->PAPER_Title_DR->TTL_Code,
+ PAPMI_PAPER_DR->PAPER_Sex_DR->CTSEX_Code,
+ PAPMI_PAPER_DR->PAPER_InsType_DR->INST_Desc,
+ PAPMI_PAPER_DR->PAPER_AuxInsType_DR->AUXIT_Desc,
+ PAPMI_PAPER_DR->PAPER_IndigStat_DR->INDST_Desc,
+ PAPMI_PAPER_DR->PAPER_FamilyDoctor_DR->REFD_Desc as FAMDDesc,
+ PAPMI_PAPER_DR->PAPER_FamilyDoctor_DR->REFD_Forename as FAMDForename,
+ PAPMI_PAPER_DR->PAPER_PrefLanguage_DR->PREFL_Desc,
+ PAPMI_PAPER_DR->PAPER_Occupation_DR->CTOCC_Desc,
+ PAADM_MainMRADM_DR->MRADM_PresentComplaint,
+ PAADM_MainMRADM_DR->MRADM_DischType_DR->CTDSP_Desc,
+ PAADM_EstimDischargeDate,
+ PAADM_TrafficAccident_DR->TRF_AccidentDate,
+ PAADM_TrafficAccident_DR->TRF_VehInsPolicy,
+ PAADM_AdmDocCodeDR->CTPCP_Desc,
+ PAADM_TrafficAccident_DR,
+ PAADM_AdmTime,   
+ PAPMI_PAPER_DR->PAPER_TelO,  
+ PAPMI_PAPER_DR->PAPER_MobPhone,
+ PAPMI_PAPER_DR->PAPER_Remark,
+ PAADM_AdmReason_DR->REA_Desc,
+ PAADM_AdmCateg_DR->ADMCAT_Desc,
+ PAADM_MainMRADM_DR->MRADM_CareType_DR->CARETYP_Desc,
+ PAADM_Hospital_DR->HOSP_Desc,
+ PAADM_Type,
+ PAADM_InPatAdmType_DR->IPAT_Desc,
+ PAADM_AdmSrc_DR->ADSOU_Desc,
+ '',
+ '',
+ '',
+ '',
+ '',
+ '',
+ '',
+ '',
+ '',
+ '',
+ '',
+ ''
+ 
+ FROM sqluser.PA_Adm, sqluser.PA_PatMas
+ WHERE PAADM_PAPMI_DR=PAPMI_RowId AND 
+ PAADM_RowId =:EpisodeId
+ )
+ 
+  &sql(open Episode)
+
+
+
+ &sql(fetch Episode INTO :PAADMRowId,:PAADMADMNo,:PAADMAdmDate,:WARDCode,:CTRFCDesc,:REFDDesc,:REFDForename,:TRDCode,:VSTDesc,:PAPMIRowId,:PAPMIDOB,:PAPMIMedicare,:PAPMIMedicareCode,:PAPMIName,:PAPMIName2,:PAPMIName3,:PAPMINo,:PAPMIDVANumber,:PAPMIHealthFundNo,:PAPERGovernCardNo,:PAPERAgeYr,:PAPERStName,:PAPERForeignAddress,:PAPERTelH,:CTMARDesc,:CTRLGDesc,:CTCOUDesc,:CTZIPCode,:CTCITDesc,:TTLCode,:CTSEXCode,:INSTDesc,:AUXITDesc,:INDSTDesc,:FAMDDesc,:FAMDForename,:PREFLDesc,:CTOCCDesc,:MRADMPresentComplaint,:CTDSPDesc,:PAADMEstimDischargeDate,:TRFAccidentDate,:TRFVehInsPolicy,:CTPCPDesc,:PAADMTrafficAccidentDR,:PAADMAdmTime,:PAPERTelO,:PAPERMobPhone,:PAPERRemark,:READesc,:SUBTDesc,:CARETYPDesc,:HOSPDesc,:PAADMType,:IPATDesc,:ADSOUDesc,:CONTTPDesc,:NOKName,:NOKName2,:NOKName3,:NOTCITDesc,:NOKZIPCode,:NOKStName,:NOKForeignAddress,:NOKTelH,:NOKTelO,:CTRLTDesc,:NOKFirstContact)
+
+ while 'SQLCODE{
+
+
+ Do FormatDates
+ Do FormatTimes
+ Do GetEpisodePayor
+ d GetTransWard
+ d GetTRFContact
+
+ s PAPERStName=$zstrip(PAPERStName,"*C")
+ s PAPERStName = $ZSTRIP(PAPERStName,"*",$C(34,35,39,44,46)) 
+ s PAPERForeignAddress=$zstrip(PAPERForeignAddress,"*C")
+
+ // build the row
+ Set ^CacheTemp(repid,ind)=$LB(PAADMRowId,PAADMADMNo,PAADMAdmDate,WARDCode,CTRFCDesc,REFDDesc,REFDForename,TRDCode,VSTDesc,PAPMIRowId,PAPMIDOB,PAPMIMedicare,PAPMIMedicareCode,PAPMIName,PAPMIName2,PAPMIName3,PAPMINo,PAPMIDVANumber,PAPMIHealthFundNo,PAPERGovernCardNo,PAPERAgeYr,PAPERStName,PAPERForeignAddress,PAPERTelH,CTMARDesc,CTRLGDesc,CTCOUDesc,CTZIPCode,CTCITDesc,TTLCode,CTSEXCode,INSTDesc,AUXITDesc,INDSTDesc,FAMDDesc,FAMDForename,PREFLDesc,CTOCCDesc,MRADMPresentComplaint,CTDSPDesc,PAADMEstimDischargeDate,TRFAccidentDate,TRFVehInsPolicy,CTPCPDesc,PAADMTrafficAccidentDR,PAADMAdmTime,PAPERTelO,PAPERMobPhone,PAPERRemark,READesc,SUBTDesc,CARETYPDesc,HOSPDesc,PAADMType,IPATDesc,ADSOUDesc,CONTTPDesc,NOKName,NOKName2,NOKName3,NOTCITDesc,NOKZIPCode,NOKStName,NOKForeignAddress,NOKTelH,NOKTelO,CTRLTDesc,NOKFirstContact,Payor,INSASDesc,INSASBillingAddress,Plan,TransWard,CONTName,CONTAddress1,CONTAddress2,CONTCTZipCode,CONTCTCITDesc)
+
+ &sql(fetch Episode INTO :PAADMRowId,:PAADMADMNo,:PAADMAdmDate,:WARDCode,:CTRFCDesc,:REFDDesc,
+:REFDForename,:TRDCode,:VSTDesc,:PAPMIRowId,:PAPMIDOB,:PAPMIMedicare,
+:PAPMIMedicareCode,:PAPMIName,:PAPMIName2,:PAPMIName3,
+:PAPMINo,:PAPMIDVANumber,:PAPMIHealthFundNo,:PAPERGovernCardNo,
+:PAPERAgeYr,:PAPERStName,:PAPERForeignAddress,:PAPERTelH,
+:CTMARDesc,:CTRLGDesc,:CTCOUDesc,:CTZIPCode,:CTCITDesc,:TTLCode,
+:CTSEXCode,:INSTDesc,:AUXITDesc,:INDSTDesc,:FAMDDesc,
+:FAMDForename,:PREFLDesc,:CTOCCDesc,:MRADMPresentComplaint,:CTDSPDesc,
+:PAADMEstimDischargeDate,:TRFAccidentDate,:TRFVehInsPolicy,:CTPCPDesc,:PAADMTrafficAccidentDR,
+:PAADMAdmTime,:PAPERTelO,:PAPERMobPhone,:PAPERRemark,
+:READesc,:SUBTDesc,:CARETYPDesc,:HOSPDesc,:PAADMType,:IPATDesc,:ADSOUDesc,
+:CONTTPDesc,:NOKName,:NOKName2,:NOKName3,:NOTCITDesc,:NOKZIPCode,:NOKStName,:NOKForeignAddress,:NOKTelH,:NOKTelO,:CTRLTDesc,:NOKFirstContact)
+ }
+
+ &sql(close Episode)
+
+
+ &SQL(DECLARE NOK CURSOR FOR 
+ select
+ PAADM_RowId, 
+ PAADM_ADMNo,
+ PAADM_AdmDate,
+ PAADM_CurrentWard_DR->WARD_Code,
+ PAADM_RefClinic_DR->CTRFC_Desc,
+ PAADM_RefDocList_DR->REFD_Desc as REFDDesc,
+ PAADM_RefDocList_DR->REFD_Forename as REFDForename,
+ PAADM_MainMRADM_DR->MRADM_TransDest2_DR->TRD_Desc,
+ PAADM_MainMRADM_DR->MRADM_VisitType_DR->VST_Desc,
+ PAPMI_RowId,
+ PAPMI_DOB,
+ PAPMI_Medicare, 
+ PAPMI_MedicareCode, 
+ PAPMI_Name, 
+ PAPMI_Name2,
+ PAPMI_Name3,
+ PAPMI_No, 
+ PAPMI_DVANumber,
+ PAPMI_HealthFundNo,
+ PAPMI_PAPER_DR->PAPER_GovernCardNo,
+ PAPMI_PAPER_DR->PAPER_AgeYr,
+ PAPMI_PAPER_DR->PAPER_StName,
+ PAPMI_PAPER_DR->PAPER_ForeignAddress,
+ PAPMI_PAPER_DR->PAPER_TelH, 
+ PAPMI_PAPER_DR->PAPER_Marital_DR->CTMAR_Desc, 
+ PAPMI_PAPER_DR->PAPER_Religion_DR->CTRLG_Desc,
+ PAPMI_PAPER_DR->PAPER_Country_birth_DR->CTCOU_Desc,
+ PAPMI_PAPER_DR->PAPER_Zip_DR->CTZIP_Code, 
+ PAPMI_PAPER_DR->PAPER_CityCode_DR->CTCIT_Desc,
+ PAPMI_PAPER_DR->PAPER_Title_DR->TTL_Code,
+ PAPMI_PAPER_DR->PAPER_Sex_DR->CTSEX_Code,
+ PAPMI_PAPER_DR->PAPER_InsType_DR->INST_Desc,
+ PAPMI_PAPER_DR->PAPER_AuxInsType_DR->AUXIT_Desc,
+ PAPMI_PAPER_DR->PAPER_IndigStat_DR->INDST_Desc,
+ PAPMI_PAPER_DR->PAPER_FamilyDoctor_DR->REFD_Desc as FAMDDesc,
+ PAPMI_PAPER_DR->PAPER_FamilyDoctor_DR->REFD_Forename as FAMDForename,
+ PAPMI_PAPER_DR->PAPER_PrefLanguage_DR->PREFL_Desc,
+ PAPMI_PAPER_DR->PAPER_Occupation_DR->CTOCC_Desc,
+ PAADM_MainMRADM_DR->MRADM_PresentComplaint,
+ PAADM_MainMRADM_DR->MRADM_DischType_DR->CTDSP_Desc,
+ PAADM_EstimDischargeDate,
+ PAADM_TrafficAccident_DR->TRF_AccidentDate,
+ PAADM_TrafficAccident_DR->TRF_VehInsPolicy,
+ PAADM_AdmDocCodeDR->CTPCP_Desc,
+ '', 
+ PAADM_AdmTime,   
+ PAPMI_PAPER_DR->PAPER_TelO,  
+ PAPMI_PAPER_DR->PAPER_MobPhone,
+ PAPMI_PAPER_DR->PAPER_Remark,
+ PAADM_AdmReason_DR->REA_Desc,
+ PAADM_AdmCateg_DR->ADMCAT_Desc,
+ PAADM_MainMRADM_DR->MRADM_CareType_DR->CARETYP_Desc,
+ PAADM_Hospital_DR->HOSP_Desc,
+ PAADM_Type,
+ PAADM_InPatAdmType_DR->IPAT_Desc,
+ PAADM_AdmSrc_DR->ADSOU_Desc,
+ NOK_ContactType_DR->CONTTP_Desc,
+ %SQLUPPER NOK_Name As NOK_Name,
+ NOK_Name2,
+ NOK_Name3,
+ NOK_CityCode_DR->CTCIT_Desc,
+ NOK_Zip_DR->CTZIP_Code,
+ NOK_StNameLine1,
+ NOK_ForeignAddress,
+ NOK_TelH,
+ NOK_TelO,
+ NOK_Relation_DR->CTRLT_Desc,
+ NOK_FirstContact
+ FROM sqluser.PA_Adm, sqluser.PA_PatMas, sqluser.PA_NOK
+ WHERE PAADM_PAPMI_DR=PAPMI_RowId AND PAPMI_ROWID=NOK_PAPMI_ParRef AND
+ PAADM_RowId =:EpisodeId
+ )
+ 
+  &sql(open NOK)
+
+
+
+ &sql(fetch NOK INTO :PAADMRowId,:PAADMADMNo,:PAADMAdmDate,:WARDCode,:CTRFCDesc,:REFDDesc,:REFDForename,:TRDCode,:VSTDesc,:PAPMIRowId,:PAPMIDOB,:PAPMIMedicare,:PAPMIMedicareCode,:PAPMIName,:PAPMIName2,:PAPMIName3,:PAPMINo,:PAPMIDVANumber,:PAPMIHealthFundNo,:PAPERGovernCardNo,:PAPERAgeYr,:PAPERStName,:PAPERForeignAddress,:PAPERTelH,:CTMARDesc,:CTRLGDesc,:CTCOUDesc,:CTZIPCode,:CTCITDesc,:TTLCode,:CTSEXCode,:INSTDesc,:AUXITDesc,:INDSTDesc,:FAMDDesc,:FAMDForename,:PREFLDesc,:CTOCCDesc,:MRADMPresentComplaint,:CTDSPDesc,:PAADMEstimDischargeDate,:TRFAccidentDate,:TRFVehInsPolicy,:CTPCPDesc,:PAADMTrafficAccidentDR,:PAADMAdmTime,:PAPERTelO,:PAPERMobPhone,:PAPERRemark,:READesc,:SUBTDesc,:CARETYPDesc,:HOSPDesc,:PAADMType,:IPATDesc,:ADSOUDesc,:CONTTPDesc,:NOKName,:NOKName2,:NOKName3,:NOTCITDesc,:NOKZIPCode,:NOKStName,:NOKForeignAddress,:NOKTelH,:NOKTelO,:CTRLTDesc,:NOKFirstContact)
+
+ while 'SQLCODE{
+
+
+ Do FormatDates
+ Do FormatTimes
+ ;Do GetEpisodePayor
+ ;d GetTransWard
+
+ s PAPERStName=$zstrip(PAPERStName,"*C")
+ s PAPERStName = $ZSTRIP(PAPERStName,"*",$C(34,35,39,44,46)) 
+ s PAPERForeignAddress=$zstrip(PAPERForeignAddress,"*C")
+
+ // build the row
+ Set ^CacheTemp(repid,ind)=$LB(PAADMRowId,PAADMADMNo,PAADMAdmDate,WARDCode,CTRFCDesc,REFDDesc,REFDForename,TRDCode,VSTDesc,PAPMIRowId,PAPMIDOB,PAPMIMedicare,PAPMIMedicareCode,PAPMIName,PAPMIName2,PAPMIName3,PAPMINo,PAPMIDVANumber,PAPMIHealthFundNo,PAPERGovernCardNo,PAPERAgeYr,PAPERStName,PAPERForeignAddress,PAPERTelH,CTMARDesc,CTRLGDesc,CTCOUDesc,CTZIPCode,CTCITDesc,TTLCode,CTSEXCode,INSTDesc,AUXITDesc,INDSTDesc,FAMDDesc,FAMDForename,PREFLDesc,CTOCCDesc,MRADMPresentComplaint,CTDSPDesc,PAADMEstimDischargeDate,TRFAccidentDate,TRFVehInsPolicy,CTPCPDesc,PAADMTrafficAccidentDR,PAADMAdmTime,PAPERTelO,PAPERMobPhone,PAPERRemark,READesc,SUBTDesc,CARETYPDesc,HOSPDesc,PAADMType,IPATDesc,ADSOUDesc,CONTTPDesc,NOKName,NOKName2,NOKName3,NOTCITDesc,NOKZIPCode,NOKStName,NOKForeignAddress,NOKTelH,NOKTelO,CTRLTDesc,NOKFirstContact,Payor,INSASDesc,INSASBillingAddress,Plan,TransWard,CONTName,CONTAddress1,CONTAddress2,CONTCTZipCode,CONTCTCITDesc)
+ s ind=ind+1
+
+ &sql(fetch NOK INTO :PAADMRowId,:PAADMADMNo,:PAADMAdmDate,:WARDCode,:CTRFCDesc,:REFDDesc,
+:REFDForename,:TRDCode,:VSTDesc,:PAPMIRowId,:PAPMIDOB,:PAPMIMedicare,
+:PAPMIMedicareCode,:PAPMIName,:PAPMIName2,:PAPMIName3,
+:PAPMINo,:PAPMIDVANumber,:PAPMIHealthFundNo,:PAPERGovernCardNo,
+:PAPERAgeYr,:PAPERStName,:PAPERForeignAddress,:PAPERTelH,
+:CTMARDesc,:CTRLGDesc,:CTCOUDesc,:CTZIPCode,:CTCITDesc,:TTLCode,
+:CTSEXCode,:INSTDesc,:AUXITDesc,:INDSTDesc,:FAMDDesc,
+:FAMDForename,:PREFLDesc,:CTOCCDesc,:MRADMPresentComplaint,:CTDSPDesc,
+:PAADMEstimDischargeDate,:TRFAccidentDate,:TRFVehInsPolicy,:CTPCPDesc,:PAADMTrafficAccidentDR,
+:PAADMAdmTime,:PAPERTelO,:PAPERMobPhone,:PAPERRemark,
+:READesc,:SUBTDesc,:CARETYPDesc,:HOSPDesc,:PAADMType,:IPATDesc,:ADSOUDesc,
+:CONTTPDesc,:NOKName,:NOKName2,:NOKName3,:NOTCITDesc,:NOKZIPCode,:NOKStName,:NOKForeignAddress,:NOKTelH,:NOKTelO,:CTRLTDesc,:NOKFirstContact)
+ }
+
+ &sql(close NOK)
+
+ // Build QHandle (AtEnd,ReportID,Index)
+ Set QHandle=$lb(0,repid,0)
+
+ Quit $$$OK
+
+FormatDates
+ // Convert the dates to ODBC date format
+ If PAADMAdmDate Set PAADMAdmDate=$ZD(PAADMAdmDate,3)
+ If PAPMIDOB Set PAPMIDOB=$ZD(PAPMIDOB,3)
+ If PAADMAdmDate Set PAADMEstimDischargeDate=$ZD(PAADMEstimDischargeDate,3)
+ If TRFAccidentDate Set TRFAccidentDate=$ZD(TRFAccidentDate,3)
+ Quit
+
+FormatTimes
+ // Convert the times to ODBC time format
+ If PAADMAdmTime Set PAADMAdmTime=$ZT(PAADMAdmTime,2)
+ Quit
+ 
+  
+GetEpisodePayor
+ Set (Payor,INSASCode,INSASDesc,INSASBillingAddress,Plan,PayorId,desc,bill,insas) = ""
+
+ &sql(SELECT
+ INS_InsType_DR,
+ INS_InsType_DR->INST_Code,
+ INS_InsType_DR->INST_Desc,
+ INS_AuxInsType_DR->auxit_desc
+ INTO :PayorId,:INSASCode,:Payor,:Plan
+ FROM SQLUser.PA_AdmInsurance
+ WHERE	INS_ParRef=:PAADMRowId
+ order by INS_ChildSub desc)
+
+ i $g(PayorId)'="" {
+	 s insas=0
+	 f {
+		 s insas=$o(^ARC("INSAS",0,"InsType",PayorId,##class(%Collation).AlphaUp(INSASCode)_"Z",insas))
+		 q:insas=""
+		 s bill=0
+		 f {
+			 s bill=$o(^ARC("INSAS",insas,"BILL",bill))
+			 q:bill=""
+			 s INSASDesc=$p($g(^ARC("INSAS",insas)),"^",2)
+			 i $g(^ARC("INSAS",insas,"BILL",bill))'="" {
+				 i INSASBillingAddress'="" s INSASBillingAddress=INSASBillingAddress_", "_$g(^ARC("INSAS",insas,"BILL",bill))
+				 i INSASBillingAddress="" s INSASBillingAddress=$g(^ARC("INSAS",insas,"BILL",bill))
+			 }
+		 }
+	 }
+ }
+			 
+ Quit
+ 
+GetTransWard
+ Set (TransWard) = ""
+
+ &sql(SELECT
+TRANS_WARD_DR->WARD_Code
+	INTO :TransWard
+	FROM SQLUser.PA_AdmTransaction
+	WHERE	TRANS_ParRef=:PAADMRowId
+	AND TRANS_TRANSTYPE_DR->TRANSTYP_Code='B'
+	AND not TRANS_STATUS_dR->REQST_Code='J'	 	  	      			
+)
+ Quit
+ 
+ 
+GetTRFContact
+ Set (CONTName,CONTAddress1,CONTAddress2,CONTCTZipCode,CONTCTCITDesc) = ""
+
+ &sql(DECLARE History cursor for 
+ SELECT
+ CONT_Name, 
+ CONT_Address1, 
+ CONT_Address2, 
+ CONT_Zip_DR->CTZIP_Code as CONTCTZipCode,  
+ CONT_City_DR->CTCIT_Desc as CONTCTCITDesc
+ FROM sqluser.PA_TrafficAccidentContact
+ where CONT_parref=:PAADMTrafficAccidentDR
+ )
+ 
+ &SQL(OPEN History)
+ &SQL(FETCH History INTO :CONTName,:CONTAddress1,:CONTAddress2,:CONTCTZipCode,:CONTCTCITDesc)
+
+ &SQL(CLOSE History)
+
+ 
+ Quit
+]]></Implementation>
+</Method>
+
+<Method name="VicRegReportFetch">
+<Description>
+This is the Fetch component of the %Library.Query. 
+This should never have to change. It is designed to fetch the row for each subscript of the ^CacheTemp
+global and return this row to the Crystal Report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,&Row:%Library.List,&AtEnd:%Library.Integer=0]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // This fetch method should never have to change. 
+
+ // repid - Report ID
+ // ind   - sequence index which represents each row
+
+ New repid,ind
+
+ // Restore QHandle
+ Set AtEnd=$li(QHandle,1)
+ Set repid=$li(QHandle,2)
+ Set ind=$li(QHandle,3)
+
+ Set ind=$o(^CacheTemp(repid,ind))
+ If ind="" {	// if there are no more rows, finish fetching
+ Set AtEnd=1
+ Set Row=""
+ }
+ Else      {	// fetch row
+ Set Row=^CacheTemp(repid,ind)
+ }
+
+ // Save QHandle
+ s QHandle=$lb(AtEnd,repid,ind)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Query name="VicRegReport">
+<Description>
+Vic Registration Report
+It expects 2 parameter of type integer and will return 43 fields:
+Field1 - Integer
+Field2 - String(MAXLEN=255)
+Field3 - Date
+Field4 - Time</Description>
+<Type>%Library.Query</Type>
+<FormalSpec>EpisodeId:%Integer</FormalSpec>
+<SqlProc>1</SqlProc>
+<Parameter name="CONTAINID" value="0"/>
+<Parameter name="ROWSPEC" value="PAADMRowId:%Integer,PAADMADMNo:%String(MAXLEN=255),PAADMAdmDate:%Date,WARDCode:%String(MAXLEN=255),CTRFCDesc:%String(MAXLEN=255),REFDDesc:%String(MAXLEN=255),REFDForename:%String(MAXLEN=255),TRDCode:%String(MAXLEN=255),VSTDesc:%String(MAXLEN=255),PAPMIRowId:%Integer,PAPMIDOB:%Date,PAPMIMedicare:%String(MAXLEN=255),PAPMIMedicareCode:%String(MAXLEN=255),PAPMIName:%String(MAXLEN=255),PAPMIName2:%String(MAXLEN=255),PAPMIName3:%String(MAXLEN=255),PAPMINo:%String(MAXLEN=255),PAPMIDVANumber:%String(MAXLEN=255),PAPMIHealthFundNo:%String(MAXLEN=255),PAPERGovernCardNo:%String(MAXLEN=255),PAPERAgeYr:%String(MAXLEN=255),PAPERStName:%String(MAXLEN=255),PAPERForeignAddress:%String(MAXLEN=255),PAPERTelH:%String(MAXLEN=255),CTMARDesc:%String(MAXLEN=255),CTRLGDesc:%String(MAXLEN=255),CTCOUDesc:%String(MAXLEN=255),CTZIPCode:%String(MAXLEN=255),CTCITDesc:%String(MAXLEN=255),TTLCode:%String(MAXLEN=255),CTSEXCode:%String(MAXLEN=255),INSTDesc:%String(MAXLEN=255),AUXITDesc:%String(MAXLEN=255),INDSTDesc:%String(MAXLEN=255),FAMDDesc:%String(MAXLEN=255),FAMDForename:%String(MAXLEN=255),PREFLDesc:%String(MAXLEN=255),CTOCCDesc:%String(MAXLEN=255),MRADMPresentComplaint:%String(MAXLEN=255),CTDSPDesc:%String(MAXLEN=255),PAADMEstimDischargeDate:%Date,TRFAccidentDate:%Date,TRFVehInsPolicy:%String(MAXLEN=255),CTPCPDesc:%String(MAXLEN=255),PAADMTrafficAccidentDR:%String,PAADMAdmTime:%String(MAXLEN=255),PAPERTelO:%String(MAXLEN=255),PAPERMobPhone:%String(MAXLEN=255),PAPERRemark:%String(MAXLEN=255),READesc:%String(MAXLEN=255),SUBTDesc:%String(MAXLEN=255),CARETYPDesc:%String(MAXLEN=255),HOSPDesc:%String(MAXLEN=255),PAADMType:%String,IPATDesc:%String(MAXLEN=255),ADSOUDesc:%String(MAXLEN=255),CONTTPDesc:%String,NOKName:%String,NOKName2:%String,NOKName3:%String,NOTCITDesc:%String,NOKZIPCode:%String,NOKStName:%String,NOKForeignAddress:%String,NOKTelH:%String,NOKTelO:%String,CTRLTDesc:%String,NOKFirstContact:%String,Payor:%String(MAXLEN=255),INSASDesc:%String(MAXLEN=255),INSASBillingAddress:%String(MAXLEN=255),Plan:%String(MAXLEN=255),TransWard:%String,CONTName:%String(MAXLEN=255),CONTAddress1:%String(MAXLEN=255),CONTAddress2:%String(MAXLEN=255),CONTCTZipCode:%String(MAXLEN=255),CONTCTCITDesc:%String(MAXLEN=255)"/>
+<Parameter name="SELECTMODE" value="ODBC"/>
+</Query>
+</Class>
+</Export>

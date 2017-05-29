@@ -1,0 +1,2005 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.Report.ZEN.questionnaire.QMEDRECSSIT">
+<ProcedureBlock>1</ProcedureBlock>
+<Super>Report.ZEN.Abstract</Super>
+<TimeCreated>63432,31871.205862</TimeCreated>
+
+<Property name="CONTEXT">
+<Description>
+CONTEXT</Description>
+<Type>%String</Type>
+<Parameter name="ZENURL" value="P3"/>
+</Property>
+
+<Property name="QuesID">
+<Description>
+Questionnaire ID</Description>
+<Type>%String</Type>
+<Parameter name="ZENURL" value="P1"/>
+</Property>
+
+<Property name="RepClass">
+<Description>
+Report Class</Description>
+<Type>%String</Type>
+<Parameter name="ZENURL" value="P2"/>
+</Property>
+
+<Method name="%OnBeforeReport">
+<ProcedureBlock>0</ProcedureBlock>
+<ReturnType>%Status</ReturnType>
+<Implementation><![CDATA[
+	//updated for zen reports encryption Ar 30/3/11
+	s sc=##super()
+	if $$$ISERR(sc) q sc
+	s obj=##Class(questionnaire.QMEDREC).%OpenId(..QuesID)
+	q $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="DisplayChildTable">
+<FormalSpec>repcls, subrep, mode, repname</FormalSpec>
+<ProcedureBlock>0</ProcedureBlock>
+<ReturnType>%GlobalCharacterStream</ReturnType>
+<Implementation><![CDATA[
+	s (tSC,rpt,stream)=""
+	i '##class(%Dictionary.CompiledClass).%Exists($lb(repcls)) q "" 
+	s exe="s rpt=##class("_repcls_").%New()"
+	x exe
+	i rpt {
+		s rpt.SubReport=subrep
+		s rpt.MainReport="QReportMEDREC"
+		s rpt.StripPI=1
+		s %request.Data("CONTEXT",1)=..CONTEXT
+		d rpt.%ApplyURLParms()
+		s rpt.ReportName=repname
+		s tSC=rpt.GenerateStream(.stream,mode)
+	}
+	i $$$ISERR(tSC) set stream=""
+	quit stream
+]]></Implementation>
+</Method>
+
+<Method name="DisplayChildTableQ190">
+<FormalSpec>mode:%CacheString</FormalSpec>
+<ProcedureBlock>0</ProcedureBlock>
+<ReturnType>%GlobalCharacterStream</ReturnType>
+<Implementation><![CDATA[
+	s cmpid="50115"
+	s Rep="Custom.Report.ZEN.questionnaire.Child.C"_##class(epr.XMLChart).GetGCOMID(cmpid,..CONTEXT)
+	q ..DisplayChildTable(Rep,"Q190",mode,"ChildQ190")
+]]></Implementation>
+</Method>
+
+<Method name="GetChildTable">
+<FormalSpec>rep, repname</FormalSpec>
+<ProcedureBlock>0</ProcedureBlock>
+<ReturnType>%GlobalCharacterStream</ReturnType>
+<Implementation><![CDATA[
+	n tSC, rpt, stream, exe, classDEF, propx, prop
+	s (tSC,rpt,stream)=""
+	i '##class(%Dictionary.CompiledClass).%Exists($lb(rep)) q "" 
+	s exe="s rpt=##class("_rep_").%New()"
+	x exe
+	i rpt {
+		s %request.Data("CONTEXT",1)=..CONTEXT
+		d rpt.%ApplyURLParms()
+		s rpt.ReportName=repname
+		s rpt.UseRawIOForXML=1
+		s tSC=rpt.GenerateStream(.stream,0)
+	}
+	i $$$ISERR(tSC) set stream=""
+	quit stream
+]]></Implementation>
+</Method>
+
+<Method name="GetChildTableQ190">
+<ProcedureBlock>0</ProcedureBlock>
+<ReturnType>%GlobalCharacterStream</ReturnType>
+<Implementation><![CDATA[
+	s %request.Data("Q190PARREF",1)=..QuesID
+	s cmpid="50115"
+	s Rep="Custom.Report.ZEN.questionnaire.Child.C"_##class(epr.XMLChart).GetGCOMID(cmpid,..CONTEXT)
+	q ..GetChildTable(Rep,"ChildQ190")
+]]></Implementation>
+</Method>
+
+<Method name="GetHeightWidthOfAnnotation">
+<FormalSpec>ImgProperty:%CacheString</FormalSpec>
+<ProcedureBlock>0</ProcedureBlock>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	; method takes property NAME of type annotation and returns width/height of background image
+	n (%request, %session, obj, ImgProperty)
+	s OEAnnotID=""
+	try{
+		; annotationID is stored in property WITHOUT the '_HREF' suffix
+		s OEAnnotID=$property(obj,$p(ImgProperty,"_HREF"))
+	} catch(err){}
+	s oOEAnnot=##Class(User.OEAnnotation).%OpenId(OEAnnotID)
+	s (H, W)=150
+	i oOEAnnot {
+		s oPic=""
+		if oOEAnnot.ANNOTMRPicDR,oOEAnnot.ANNOTMRPicDR.PICMRCPictDR s oPic=oOEAnnot.ANNOTMRPicDR.PICMRCPictDR.PICStreamData
+		if 'oPic,oOEAnnot.ANNOTMRPicDR s oPic=oOEAnnot.ANNOTMRPicDR.PICwebsysDocument
+		if 'oPic,oOEAnnot.ANNOTPersonPicturesDR s oPic=oOEAnnot.ANNOTPersonPicturesDR.PICwebsysDocument
+		if oPic,$isobject(oPic),oPic.docData.Size {
+			d ##Class(websys.UI.Annotate.Utils).GetImageDimensions(oPic.docData,.W,.H)
+		}
+	}
+	;re-scale large images to ensure they can fit on A4 size
+	if W > 450 { s W=450 }
+	if H > 600 { s H=600 }
+	q W_"px,"_H_"px"
+]]></Implementation>
+</Method>
+
+<Method name="GetHeightWidthOfBinaryStream">
+<FormalSpec>ImgProperty:%CacheString</FormalSpec>
+<ProcedureBlock>0</ProcedureBlock>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	; method takes a property NAME of type GlobalBinaryStream
+	n (%request, %session, obj, ImgProperty)
+	s oSrcStream=""
+	s (H, W)=150
+	try{
+		s oSrcStream=$property(obj,ImgProperty)
+	} catch(err){}
+	i oSrcStream, oSrcStream.Size  {
+		s W=oSrcStream.GetAttribute("ImgWidth"),H=oSrcStream.GetAttribute("ImgHeight")
+	}
+	;re-scale large images to ensure they can fit on A4 size
+	if W > 450 { s W=450 }
+	if H > 600 { s H=600 }
+	q W_"px,"_H_"px"
+	
+]]></Implementation>
+</Method>
+
+<Method name="GetVal">
+<FormalSpec>ItemIndex:%CacheString</FormalSpec>
+<ProcedureBlock>0</ProcedureBlock>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	n (%request, %session, obj, ItemIndex)
+	s val=""
+	d {
+		; QUESDate
+		i ItemIndex="QUESDate" i obj s val=##Class(websys.Conversions).DateLogicalToHtml(obj.QUESDate) q
+		; QUESTime
+		i ItemIndex="QUESTime" i obj s val=##Class(websys.Conversions).TimeLogicalToHtml(obj.QUESTime) q
+		; QUESUser
+		i ItemIndex="QUESUser" s val="" i obj,obj.QUESUserDR s val=obj.QUESUserDR.SSUSRName q
+		; QUESCreateDate
+		i ItemIndex="QUESCreateDate" i obj s val=##Class(websys.Conversions).DateLogicalToHtml(obj.QUESCreateDate) q
+		; QUESCreateTime
+		i ItemIndex="QUESCreateTime" i obj s val=##Class(websys.Conversions).TimeLogicalToHtml(obj.QUESCreateTime) q
+		; QUESCreateUser
+		i ItemIndex="QUESCreateUser" s val="" i obj,obj.QUESCreateUserDR s val=obj.QUESCreateUserDR.SSUSRName q
+		; UserName
+		i ItemIndex="UserName" s val=$g(%session.Data("LOGON.USERCODE")) q
+		; QUESStatusDR
+		i ItemIndex="QUESStatusDR" s val="" i obj,obj.QUESStatusDR s val=obj.QUESStatusDR.NNSDesc q
+		; QUESReasonForCorrectionDR
+		i ItemIndex="QUESReasonForCorrectionDR"  q
+		; QUESReasForCorrDisplay
+		i ItemIndex="QUESReasForCorrDisplay" s val="" i obj,obj.QUESReasonForCorrectionDR s val=obj.QUESReasonForCorrectionDR.ENTERRDesc q
+		; QBringMed
+		i ItemIndex="QBringMed" s:obj val=obj.QBringMed q
+		; QBringMedLoc
+		i ItemIndex="QBringMedLoc" s val=$s(obj:obj.QBringMedLoc,1:"ERROR!") q
+		; QCommPharmDet
+		i ItemIndex="QCommPharmDet" s val=##Class(websys.Conversions).LongTextLogicalToHtml($s(obj:obj.QCommPharmDet,1:""),$C(13,10)) q
+		; QConMedInfo
+		i ItemIndex="QConMedInfo" s val=##Class(websys.Conversions).BooleanLogicalToHtml($s(obj:obj.QConMedInfo,1:"ERROR!")) q
+		; QConsMedInfoDate
+		i ItemIndex="QConsMedInfoDate" s val=##Class(websys.Conversions).DateLogicalToHtml($s(obj:obj.QConsMedInfoDate,1:"ERROR!")) q
+		; QCountry
+		i ItemIndex="QCountry" s val="" if (obj) { if (obj.%Id()="") {i obj,obj.QUESPAPatMasDR,obj.QUESPAPatMasDR.PAPMICountryOfBirthDR s val=obj.QUESPAPatMasDR.PAPMICountryOfBirthDR.CTCOUDesc} else {s val=obj.QCountry} } q
+		; QDischMedRec
+		i ItemIndex="QDischMedRec" s:obj val=obj.QDischMedRec q
+		; QDischMedRecDate
+		i ItemIndex="QDischMedRecDate" s val=##Class(websys.Conversions).DateLogicalToHtml($s(obj:obj.QDischMedRecDate,1:"ERROR!")) q
+		; QDischMedRecOther
+		i ItemIndex="QDischMedRecOther" s val=$s(obj:obj.QDischMedRecOther,1:"ERROR!") q
+		; QDoseAdmAid
+		i ItemIndex="QDoseAdmAid" s val=##Class(websys.Conversions).BooleanLogicalToHtml($s(obj:obj.QDoseAdmAid,1:"ERROR!")) q
+		; QDoseAdmAidType
+		i ItemIndex="QDoseAdmAidType" s val=$s(obj:obj.QDoseAdmAidType,1:"ERROR!") q
+		; QEduProv
+		i ItemIndex="QEduProv" s val=##Class(websys.Conversions).BooleanLogicalToHtml($s(obj:obj.QEduProv,1:"ERROR!")) q
+		; QEduProvDate
+		i ItemIndex="QEduProvDate" s val=##Class(websys.Conversions).DateLogicalToHtml($s(obj:obj.QEduProvDate,1:"ERROR!")) q
+		; QGPClinicName
+		i ItemIndex="QGPClinicName" s val="" if (obj) { if (obj.%Id()="") {i obj,obj.QUESPAPatMasDR,obj.QUESPAPatMasDR.PAPMIPAPERDR,obj.QUESPAPatMasDR.PAPMIPAPERDR.PAPERFamilyDoctorClinicDR,obj.QUESPAPatMasDR.PAPMIPAPERDR.PAPERFamilyDoctorClinicDR.CLNClinicDR s val=obj.QUESPAPatMasDR.PAPMIPAPERDR.PAPERFamilyDoctorClinicDR.CLNClinicDR.CLNDesc} else {s val=obj.QGPClinicName} } q
+		; QGPGiven
+		i ItemIndex="QGPGiven" s val="" if (obj) { if (obj.%Id()="") {i obj,obj.QUESPAPatMasDR,obj.QUESPAPatMasDR.PAPMIPAPERDR,obj.QUESPAPatMasDR.PAPMIPAPERDR.PAPERFamilyDoctorDR s val=obj.QUESPAPatMasDR.PAPMIPAPERDR.PAPERFamilyDoctorDR.REFDForename} else {s val=obj.QGPGiven} } q
+		; QGPPhone
+		i ItemIndex="QGPPhone" s val="" if (obj) { if (obj.%Id()="") {i obj,obj.QUESPAPatMasDR,obj.QUESPAPatMasDR.PAPMIPAPERDR,obj.QUESPAPatMasDR.PAPMIPAPERDR.PAPERFamilyDoctorDR s val=obj.QUESPAPatMasDR.PAPMIPAPERDR.PAPERFamilyDoctorDR.REFDBusPhone} else {s val=obj.QGPPhone} } q
+		; QGPStreet
+		i ItemIndex="QGPStreet" s val="" if (obj) { if (obj.%Id()="") {i obj,obj.QUESPAPatMasDR,obj.QUESPAPatMasDR.PAPMIPAPERDR,obj.QUESPAPatMasDR.PAPMIPAPERDR.PAPERFamilyDoctorClinicDR s val=obj.QUESPAPatMasDR.PAPMIPAPERDR.PAPERFamilyDoctorClinicDR.CLNAddress1} else {s val=obj.QGPStreet} } q
+		; QGPSuburb
+		i ItemIndex="QGPSuburb" s val="" if (obj) { if (obj.%Id()="") {i obj,obj.QUESPAPatMasDR,obj.QUESPAPatMasDR.PAPMIPAPERDR,obj.QUESPAPatMasDR.PAPMIPAPERDR.PAPERFamilyDoctorDR,obj.QUESPAPatMasDR.PAPMIPAPERDR.PAPERFamilyDoctorDR.REFDCITYDR s val=obj.QUESPAPatMasDR.PAPMIPAPERDR.PAPERFamilyDoctorDR.REFDCITYDR.CTCITDesc} else {s val=obj.QGPSuburb} } q
+		; QGPSurname
+		i ItemIndex="QGPSurname" s val="" if (obj) { if (obj.%Id()="") {i obj,obj.QUESPAPatMasDR,obj.QUESPAPatMasDR.PAPMIPAPERDR,obj.QUESPAPatMasDR.PAPMIPAPERDR.PAPERFamilyDoctorDR s val=obj.QUESPAPatMasDR.PAPMIPAPERDR.PAPERFamilyDoctorDR.REFDDesc} else {s val=obj.QGPSurname} } q
+		; QGenComm
+		i ItemIndex="QGenComm" s val=##Class(websys.Conversions).LongTextLogicalToHtml($s(obj:obj.QGenComm,1:""),$C(13,10)) q
+		; QGenInfoComm
+		i ItemIndex="QGenInfoComm" s val=##Class(websys.Conversions).LongTextLogicalToHtml($s(obj:obj.QGenInfoComm,1:""),$C(13,10)) q
+		; QHMRR1
+		i ItemIndex="QHMRR1" s val=##Class(websys.Conversions).BooleanLogicalToHtml($s(obj:obj.QHMRR1,1:"ERROR!")) q
+		; QHMRR2
+		i ItemIndex="QHMRR2" s val=##Class(websys.Conversions).BooleanLogicalToHtml($s(obj:obj.QHMRR2,1:"ERROR!")) q
+		; QHMRR3
+		i ItemIndex="QHMRR3" s val=##Class(websys.Conversions).BooleanLogicalToHtml($s(obj:obj.QHMRR3,1:"ERROR!")) q
+		; QHMRR4
+		i ItemIndex="QHMRR4" s val=##Class(websys.Conversions).BooleanLogicalToHtml($s(obj:obj.QHMRR4,1:"ERROR!")) q
+		; QHMRR5
+		i ItemIndex="QHMRR5" s val=##Class(websys.Conversions).BooleanLogicalToHtml($s(obj:obj.QHMRR5,1:"ERROR!")) q
+		; QHMRR6
+		i ItemIndex="QHMRR6" s val=##Class(websys.Conversions).BooleanLogicalToHtml($s(obj:obj.QHMRR6,1:"ERROR!")) q
+		; QHMRR7
+		i ItemIndex="QHMRR7" s val=##Class(websys.Conversions).BooleanLogicalToHtml($s(obj:obj.QHMRR7,1:"ERROR!")) q
+		; QHMRR8
+		i ItemIndex="QHMRR8" s val=##Class(websys.Conversions).BooleanLogicalToHtml($s(obj:obj.QHMRR8,1:"ERROR!")) q
+		; QHoMedRevRefComm
+		i ItemIndex="QHoMedRevRefComm" s val=##Class(websys.Conversions).LongTextLogicalToHtml($s(obj:obj.QHoMedRevRefComm,1:""),$C(13,10)) q
+		; QHomMedRevNA
+		i ItemIndex="QHomMedRevNA" s val=##Class(websys.Conversions).BooleanLogicalToHtml($s(obj:obj.QHomMedRevNA,1:"ERROR!")) q
+		; QHomRev
+		i ItemIndex="QHomRev" s:obj val=obj.QHomRev q
+		; QHomRevOth
+		i ItemIndex="QHomRevOth" s val=$s(obj:obj.QHomRevOth,1:"ERROR!") q
+		; QHospital
+		i ItemIndex="QHospital" s val=$lg(##Class(web.CTHospital).GetCodeDescriptionFromId(obj.QHospital),1) q
+		; QInterpreter
+		i ItemIndex="QInterpreter" s val="" if (obj) { if (obj.%Id()="") {i obj,obj.QUESPAPatMasDR,obj.QUESPAPatMasDR.PAPMIPAPERDR s val=obj.QUESPAPatMasDR.PAPMIPAPERDR.PAPERInterpreterRequired} else {s val=obj.QInterpreter} } q
+		; QLI10
+		i ItemIndex="QLI10" s val=$s(obj:obj.QLI10,1:"ERROR!") q
+		; QLI5
+		i ItemIndex="QLI5" s val=$s(obj:obj.QLI5,1:"ERROR!") q
+		; QLIAdminAid
+		i ItemIndex="QLIAdminAid" s:obj val=obj.QLIAdminAid q
+		; QLIDoseAdmin
+		i ItemIndex="QLIDoseAdmin" s:obj val=obj.QLIDoseAdmin q
+		; QLIImpHear
+		i ItemIndex="QLIImpHear" s:obj val=obj.QLIImpHear q
+		; QLIImpVis
+		i ItemIndex="QLIImpVis" s:obj val=obj.QLIImpVis q
+		; QLILivesAl
+		i ItemIndex="QLILivesAl" s:obj val=obj.QLILivesAl q
+		; QLIMedList
+		i ItemIndex="QLIMedList" s:obj val=obj.QLIMedList q
+		; QLIRes
+		i ItemIndex="QLIRes" s:obj val=obj.QLIRes q
+		; QLISwall
+		i ItemIndex="QLISwall" s:obj val=obj.QLISwall q
+		; QLang
+		i ItemIndex="QLang" s val="" if (obj) { if (obj.%Id()="") {i obj,obj.QUESPAPatMasDR,obj.QUESPAPatMasDR.PAPMIPrefLanguageDR s val=obj.QUESPAPatMasDR.PAPMIPrefLanguageDR.PREFLDesc} else {s val=obj.QLang} } q
+		; QMH1
+		i ItemIndex="QMH1" s val=##Class(websys.Conversions).BooleanLogicalToHtml($s(obj:obj.QMH1,1:"ERROR!")) q
+		; QMH10
+		i ItemIndex="QMH10" s val=##Class(websys.Conversions).BooleanLogicalToHtml($s(obj:obj.QMH10,1:"ERROR!")) q
+		; QMH11
+		i ItemIndex="QMH11" s val=##Class(websys.Conversions).BooleanLogicalToHtml($s(obj:obj.QMH11,1:"ERROR!")) q
+		; QMH12
+		i ItemIndex="QMH12" s val=##Class(websys.Conversions).BooleanLogicalToHtml($s(obj:obj.QMH12,1:"ERROR!")) q
+		; QMH13
+		i ItemIndex="QMH13" s val=##Class(websys.Conversions).BooleanLogicalToHtml($s(obj:obj.QMH13,1:"ERROR!")) q
+		; QMH14
+		i ItemIndex="QMH14" s val=##Class(websys.Conversions).BooleanLogicalToHtml($s(obj:obj.QMH14,1:"ERROR!")) q
+		; QMH15
+		i ItemIndex="QMH15" s val=##Class(websys.Conversions).BooleanLogicalToHtml($s(obj:obj.QMH15,1:"ERROR!")) q
+		; QMH2
+		i ItemIndex="QMH2" s val=##Class(websys.Conversions).BooleanLogicalToHtml($s(obj:obj.QMH2,1:"ERROR!")) q
+		; QMH3
+		i ItemIndex="QMH3" s val=##Class(websys.Conversions).BooleanLogicalToHtml($s(obj:obj.QMH3,1:"ERROR!")) q
+		; QMH4
+		i ItemIndex="QMH4" s val=##Class(websys.Conversions).BooleanLogicalToHtml($s(obj:obj.QMH4,1:"ERROR!")) q
+		; QMH5
+		i ItemIndex="QMH5" s val=##Class(websys.Conversions).BooleanLogicalToHtml($s(obj:obj.QMH5,1:"ERROR!")) q
+		; QMH6
+		i ItemIndex="QMH6" s val=##Class(websys.Conversions).BooleanLogicalToHtml($s(obj:obj.QMH6,1:"ERROR!")) q
+		; QMH7
+		i ItemIndex="QMH7" s val=##Class(websys.Conversions).BooleanLogicalToHtml($s(obj:obj.QMH7,1:"ERROR!")) q
+		; QMH8
+		i ItemIndex="QMH8" s val=##Class(websys.Conversions).BooleanLogicalToHtml($s(obj:obj.QMH8,1:"ERROR!")) q
+		; QMH9
+		i ItemIndex="QMH9" s val=##Class(websys.Conversions).BooleanLogicalToHtml($s(obj:obj.QMH9,1:"ERROR!")) q
+		; QMedAdminby
+		i ItemIndex="QMedAdminby" s:obj val=obj.QMedAdminby q
+		; QMedChang
+		i ItemIndex="QMedChang" s val=##Class(websys.Conversions).LongTextLogicalToHtml($s(obj:obj.QMedChang,1:""),$C(13,10)) q
+		; QMedDCChComm
+		i ItemIndex="QMedDCChComm" s val=##Class(websys.Conversions).LongTextLogicalToHtml($s(obj:obj.QMedDCChComm,1:""),$C(13,10)) q
+		; QMedHisComm
+		i ItemIndex="QMedHisComm" s val=##Class(websys.Conversions).LongTextLogicalToHtml($s(obj:obj.QMedHisComm,1:""),$C(13,10)) q
+		; QMedRIComm
+		i ItemIndex="QMedRIComm" s val=##Class(websys.Conversions).LongTextLogicalToHtml($s(obj:obj.QMedRIComm,1:""),$C(13,10)) q
+		; QMedRet
+		i ItemIndex="QMedRet" s val=##Class(websys.Conversions).BooleanLogicalToHtml($s(obj:obj.QMedRet,1:"ERROR!")) q
+		; QMedRetDate
+		i ItemIndex="QMedRetDate" s val=##Class(websys.Conversions).DateLogicalToHtml($s(obj:obj.QMedRetDate,1:"ERROR!")) q
+		; QMedSupp
+		i ItemIndex="QMedSupp" s val=##Class(websys.Conversions).BooleanLogicalToHtml($s(obj:obj.QMedSupp,1:"ERROR!")) q
+		; QMedSuppDate
+		i ItemIndex="QMedSuppDate" s val=##Class(websys.Conversions).DateLogicalToHtml($s(obj:obj.QMedSuppDate,1:"ERROR!")) q
+		; QPA9
+		i ItemIndex="QPA9" s val=$s(obj:obj.QPA9,1:"ERROR!") q
+		; QPAMeasLiq
+		i ItemIndex="QPAMeasLiq" s:obj val=obj.QPAMeasLiq q
+		; QPAOpBot
+		i ItemIndex="QPAOpBot" s:obj val=obj.QPAOpBot q
+		; QPAReadLab
+		i ItemIndex="QPAReadLab" s:obj val=obj.QPAReadLab q
+		; QPARecHomMed
+		i ItemIndex="QPARecHomMed" s:obj val=obj.QPARecHomMed q
+		; QPASuspNA
+		i ItemIndex="QPASuspNA" s:obj val=obj.QPASuspNA q
+		; QPAUnderEng
+		i ItemIndex="QPAUnderEng" s:obj val=obj.QPAUnderEng q
+		; QPatImmun
+		i ItemIndex="QPatImmun" s:obj val=obj.QPatImmun q
+		; QPermDisp
+		i ItemIndex="QPermDisp" s val=##Class(websys.Conversions).BooleanLogicalToHtml($s(obj:obj.QPermDisp,1:"ERROR!")) q
+		; QPermDispDate
+		i ItemIndex="QPermDispDate" s val=##Class(websys.Conversions).DateLogicalToHtml($s(obj:obj.QPermDispDate,1:"ERROR!")) q
+		; QPrefAdmMeth
+		i ItemIndex="QPrefAdmMeth" s val=$s(obj:obj.QPrefAdmMeth,1:"ERROR!") q
+		; QRecChang
+		i ItemIndex="QRecChang" s val=##Class(websys.Conversions).LongTextLogicalToHtml($s(obj:obj.QRecChang,1:""),$C(13,10)) q
+		; QRecDisch
+		i ItemIndex="QRecDisch" s val=##Class(websys.Conversions).BooleanLogicalToHtml($s(obj:obj.QRecDisch,1:"ERROR!")) q
+		; QRecDischDate
+		i ItemIndex="QRecDischDate" s val=##Class(websys.Conversions).DateLogicalToHtml($s(obj:obj.QRecDischDate,1:"ERROR!")) q
+		; QResCareDet
+		i ItemIndex="QResCareDet" s val=##Class(websys.Conversions).LongTextLogicalToHtml($s(obj:obj.QResCareDet,1:""),$C(13,10)) q
+		; QScriptGiven
+		i ItemIndex="QScriptGiven" s val=##Class(websys.Conversions).BooleanLogicalToHtml($s(obj:obj.QScriptGiven,1:"ERROR!")) q
+		; QSourcMedComm
+		i ItemIndex="QSourcMedComm" s val=##Class(websys.Conversions).LongTextLogicalToHtml($s(obj:obj.QSourcMedComm,1:""),$C(13,10)) q
+		; QSourceCN
+		i ItemIndex="QSourceCN" s val=##Class(websys.Conversions).BooleanLogicalToHtml($s(obj:obj.QSourceCN,1:"ERROR!")) q
+		; QSourceCNConfby
+		i ItemIndex="QSourceCNConfby" i obj s val=##class(web.CTCareProv).GetCareProvSSUserName(obj.QSourceCNConfby) q
+		; QSourceCNDate
+		i ItemIndex="QSourceCNDate" s val=##Class(websys.Conversions).DateLogicalToHtml($s(obj:obj.QSourceCNDate,1:"ERROR!")) q
+		; QSourceCP
+		i ItemIndex="QSourceCP" s val=##Class(websys.Conversions).BooleanLogicalToHtml($s(obj:obj.QSourceCP,1:"ERROR!")) q
+		; QSourceCPConfby
+		i ItemIndex="QSourceCPConfby" i obj s val=##class(web.CTCareProv).GetCareProvSSUserName(obj.QSourceCPConfby) q
+		; QSourceCPDate
+		i ItemIndex="QSourceCPDate" s val=##Class(websys.Conversions).DateLogicalToHtml($s(obj:obj.QSourceCPDate,1:"ERROR!")) q
+		; QSourceGP
+		i ItemIndex="QSourceGP" s val=##Class(websys.Conversions).BooleanLogicalToHtml($s(obj:obj.QSourceGP,1:"ERROR!")) q
+		; QSourceGPConfBy
+		i ItemIndex="QSourceGPConfBy" i obj s val=##class(web.CTCareProv).GetCareProvSSUserName(obj.QSourceGPConfBy) q
+		; QSourceGPDate
+		i ItemIndex="QSourceGPDate" s val=##Class(websys.Conversions).DateLogicalToHtml($s(obj:obj.QSourceGPDate,1:"ERROR!")) q
+		; QSourceNH
+		i ItemIndex="QSourceNH" s val=##Class(websys.Conversions).BooleanLogicalToHtml($s(obj:obj.QSourceNH,1:"ERROR!")) q
+		; QSourceNHConfby
+		i ItemIndex="QSourceNHConfby" i obj s val=##class(web.CTCareProv).GetCareProvSSUserName(obj.QSourceNHConfby) q
+		; QSourceNHDate
+		i ItemIndex="QSourceNHDate" s val=##Class(websys.Conversions).DateLogicalToHtml($s(obj:obj.QSourceNHDate,1:"ERROR!")) q
+		; QSourceOwn
+		i ItemIndex="QSourceOwn" s val=##Class(websys.Conversions).BooleanLogicalToHtml($s(obj:obj.QSourceOwn,1:"ERROR!")) q
+		; QSourceOwnConfby
+		i ItemIndex="QSourceOwnConfby" i obj s val=##class(web.CTCareProv).GetCareProvSSUserName(obj.QSourceOwnConfby) q
+		; QSourceOwnDate
+		i ItemIndex="QSourceOwnDate" s val=##Class(websys.Conversions).DateLogicalToHtml($s(obj:obj.QSourceOwnDate,1:"ERROR!")) q
+		; QSourcePAConfby
+		i ItemIndex="QSourcePAConfby" i obj s val=##class(web.CTCareProv).GetCareProvSSUserName(obj.QSourcePAConfby) q
+		; QSourcePADate
+		i ItemIndex="QSourcePADate" s val=##Class(websys.Conversions).DateLogicalToHtml($s(obj:obj.QSourcePADate,1:"ERROR!")) q
+		; QSourcePL
+		i ItemIndex="QSourcePL" s val=##Class(websys.Conversions).BooleanLogicalToHtml($s(obj:obj.QSourcePL,1:"ERROR!")) q
+		; QSourcePLConfby
+		i ItemIndex="QSourcePLConfby" i obj s val=##class(web.CTCareProv).GetCareProvSSUserName(obj.QSourcePLConfby) q
+		; QSourcePLDate
+		i ItemIndex="QSourcePLDate" s val=##Class(websys.Conversions).DateLogicalToHtml($s(obj:obj.QSourcePLDate,1:"ERROR!")) q
+		; QSourcePat
+		i ItemIndex="QSourcePat" s val=##Class(websys.Conversions).BooleanLogicalToHtml($s(obj:obj.QSourcePat,1:"ERROR!")) q
+		; QSourcePatConfby
+		i ItemIndex="QSourcePatConfby" i obj s val=##class(web.CTCareProv).GetCareProvSSUserName(obj.QSourcePatConfby) q
+		; QSourcePatDate
+		i ItemIndex="QSourcePatDate" s val=##Class(websys.Conversions).DateLogicalToHtml($s(obj:obj.QSourcePatDate,1:"ERROR!")) q
+		; QSourcePrev
+		i ItemIndex="QSourcePrev" s val=##Class(websys.Conversions).BooleanLogicalToHtml($s(obj:obj.QSourcePrev,1:"ERROR!")) q
+		i ItemIndex="ID" s val="" if obj s val=obj.%Id() d:val="" ##Class(questionnaire.QMEDREC).LoadDefaultPatientAnswers(.obj,$g(%request.Data("PatientID",1)),50114,$g(%request.Data("EpisodeID",1))) q
+		i ItemIndex="QUESPAAdmDR" s val=$s(obj&&(obj.QUESPAAdmDR):obj.QUESPAAdmDR.%Id(),1:$g(%request.Data("EpisodeID",1))) if (obj&&(obj.%Id()="")) {d obj.QUESPAAdmDRSetObjectId(val)} q
+		i ItemIndex="QUESPAPatMasDR" s val=$s(obj&&(obj.QUESPAPatMasDR):obj.QUESPAPatMasDR.%Id(),1:$g(%request.Data("PatientID",1))) if (obj&&(obj.%Id()="")) {d obj.QUESPAPatMasDRSetObjectId(val)} q
+		i ItemIndex="QUESOEOrdExecDR" s val=$s(obj&&(obj.QUESOEOrdExecDR):obj.QUESOEOrdExecDR.%Id(),1:$g(%request.Data("OEOrdExecID",1))) if (obj&&(obj.%Id()="")) {d obj.QUESOEOrdExecDRSetObjectId(val)} q
+		i ItemIndex="QUESMRClinicalPathWaysDR" s val=$s(obj&&(obj.QUESMRClinicalPathWaysDR):obj.QUESMRClinicalPathWaysDR.%Id(),1:$g(%request.Data("MRClinicalPathWays",1))) if (obj&&(obj.%Id()="")) {d obj.QUESMRClinicalPathWaysDRSetObjectId(val)} q
+		i ItemIndex="QUESConsultDR" s val=$s(obj&&(obj.QUESConsultDR):obj.QUESConsultDR.%Id(),1:$g(%request.Data("QUESConsultDR",1))) if (obj&&(obj.%Id()="")) {d obj.QUESConsultDRSetObjectId(val)} q
+		i ItemIndex="QUESOperRoomDR" s val=$s(obj&&(obj.QUESOperRoomDR):obj.QUESOperRoomDR.%Id(),1:$g(%request.Data("OperRoomID",1))) if (obj&&(obj.%Id()="")) {d obj.QUESOperRoomDRSetObjectId(val)} q
+		i ItemIndex="QUESTextResultDR" s val=$s(obj&&(obj.QUESTextResultDR):obj.QUESTextResultDR.%Id(),1:$g(%request.Data("TextResultID",1))) if (obj&&(obj.%Id()="")) {d obj.QUESTextResultDRSetObjectId(val)} q
+		i ItemIndex="QUESNRCarePlanIssuesDR" s val=$s(obj&&(obj.QUESNRCarePlanIssuesDR):obj.QUESNRCarePlanIssuesDR.%Id(),1:$g(%request.Data("CarePlanIssueID",1))) if (obj&&(obj.%Id()="")) {d obj.QUESNRCarePlanIssuesDRSetObjectId(val)} q
+		i ItemIndex="QUESRBAppointmentDR" s val=$s(obj&&(obj.QUESRBAppointmentDR):obj.QUESRBAppointmentDR.%Id(),1:$g(%request.Data("ApptID",1))) if (obj&&(obj.%Id()="")) {d obj.QUESRBAppointmentDRSetObjectId(val)} q
+		i ItemIndex="GenUpdFlag" i obj s val=##class(web.SSUserDefWindow).TestGenerationUpdate("111") q
+		i ItemIndex="ZENRepName" i obj s val=##class(web.SSUserDefWindow).ZENReportName("111") q
+		i ItemIndex="UseZENReports" i obj s val=##class(web.SSUserDefWindow).UseZENReports("111") q
+		i ItemIndex="QEFlag" s val=$g(%request.Data("QEFlag",1)) q
+		i ItemIndex="ChartID" s val=$g(%request.Data("ChartID",1)) q
+		i ItemIndex="PatientID" s val=$g(%request.Data("PatientID",1)) q
+		i ItemIndex="EpisodeID" s val=$g(%request.Data("EpisodeID",1)) q
+		i ItemIndex="mradm" s val=$g(%request.Data("mradm",1)) q
+		i ItemIndex="RescID" s val=$g(%request.Data("RescID",1)) q
+		i ItemIndex="ServID" s val=$g(%request.Data("ServID",1)) q
+		i ItemIndex="WListID" s val=$g(%request.Data("WListID",1)) q
+		i ItemIndex="refresh" s val=$g(%request.Data("refresh",1)) q
+		i ItemIndex="MRDIARowId" s val=$g(%request.Data("MRDIARowId",1)) q
+		i ItemIndex="OEORIRowId" s val=$g(%request.Data("OEORIRowId",1)) q
+		i ItemIndex="TextResult" s val=$g(%request.Data("TextResult",1)) q
+		i ItemIndex="TextResultID" s val=$g(%request.Data("TextResultID",1)) q
+		i ItemIndex="OEOrdItemID" s val=$g(%request.Data("OEOrdItemID",1)) q
+		i ItemIndex="norefresh" s val=$g(%request.Data("norefresh",1)) q
+		i ItemIndex="PatBasedQues" s val=$g(%request.Data("PatBasedQues",1)) q
+		i ItemIndex="PatientBanner" s val=$g(%request.Data("PatientBanner",1)) q
+		i ItemIndex="ConsultParams" s val=$g(%request.Data("ConsultParams",1)) q
+		i ItemIndex="MHDetentionID" s val=$g(%request.Data("MHDetentionID",1)) q
+		i ItemIndex="MHSuspensionID" s val=$g(%request.Data("MHSuspensionID",1)) q
+		i ItemIndex="TaskID" s val=$g(%request.Data("TaskID",1)) q
+		i ItemIndex="qClassName" s val=$g(%request.Data("qClassName",1)) q
+		i ItemIndex="qClassNameID" s val=$g(%request.Data("qClassNameID",1)) q
+		i ItemIndex="ResidentID" s val=$g(%request.Data("ResidentID",1)) q
+		i ItemIndex="ENTERRDescHidden" s val="" i obj,obj.QUESErrorReasonDR s val=obj.QUESErrorReasonDR.ENTERRDesc q
+		i ItemIndex="GenItemsAfterUpdate" s val="" i obj s val=##Class(web.SSUserDefWindow).webGetNewCtrlDateTime("111",obj.%Id(),obj.QUESCreateDate,obj.QUESCreateTime) q
+		i ItemIndex="QDischMedRec_ID"  q
+		i ItemIndex="QDischMedRecList_ID"  q
+		i ItemIndex="QHomRev_ID"  q
+		i ItemIndex="QHomeRevReas_ID"  q
+		i ItemIndex="QMedAdminby_ID"  q
+		i ItemIndex="QBringMed_ID"  q
+		i ItemIndex="QPatImmun_ID"  q
+		i ItemIndex="QMedRiskIDLI_ID"  q
+		i ItemIndex="QMedRiskIDPA_ID"  q
+		i ItemIndex="QMedHistCheck_ID"  q
+		i ItemIndex="QHospital_ID" i obj s val=obj.QHospital q
+		i ItemIndex="QGP_ID" i obj s val=obj.QGP q
+		i ItemIndex="QGPCLINIC_ID" i obj s val=obj.QGPCLINIC q
+		i ItemIndex="QSourceGPConfBy_ID" i obj s val=obj.QSourceGPConfBy q
+		i ItemIndex="QSourceCPConfby_ID" i obj s val=obj.QSourceCPConfby q
+		i ItemIndex="QSourcePatConfby_ID" i obj s val=obj.QSourcePatConfby q
+		i ItemIndex="QSourceNHConfby_ID" i obj s val=obj.QSourceNHConfby q
+		i ItemIndex="QSourceOwnConfby_ID" i obj s val=obj.QSourceOwnConfby q
+		i ItemIndex="QSourceCNConfby_ID" i obj s val=obj.QSourceCNConfby q
+		i ItemIndex="QSourcePLConfby_ID" i obj s val=obj.QSourcePLConfby q
+		i ItemIndex="QSourcePAConfby_ID" i obj s val=obj.QSourcePAConfby q
+		i ItemIndex="QLILivesAl_ID"  q
+		i ItemIndex="QLIRes_ID"  q
+		i ItemIndex="QLIDoseAdmin_ID"  q
+		i ItemIndex="QLIAdminAid_ID"  q
+		i ItemIndex="QLIMedList_ID"  q
+		i ItemIndex="QLISwall_ID"  q
+		i ItemIndex="QLIImpHear_ID"  q
+		i ItemIndex="QLIImpVis_ID"  q
+		i ItemIndex="QPAReadLab_ID"  q
+		i ItemIndex="QPAUnderEng_ID"  q
+		i ItemIndex="QPAOpBot_ID"  q
+		i ItemIndex="QPAMeasLiq_ID"  q
+		i ItemIndex="QPARecHomMed_ID"  q
+		i ItemIndex="QPASuspNA_ID"  q
+	} while (0)
+	q val
+]]></Implementation>
+</Method>
+
+<Parameter name="DEFAULTMODE">
+<Default>PDF</Default>
+</Parameter>
+
+<Parameter name="GENERATIONBUILD">
+<Default>52</Default>
+</Parameter>
+
+<Parameter name="REPORTMANUALEDIT">
+<Description>
+users can edit ZEN report and set this to 1 to prevent regeneration upon changing questionnaire/layout</Description>
+<Default>0</Default>
+</Parameter>
+
+<Parameter name="XSLTMODE">
+<Default>server</Default>
+</Parameter>
+
+<XData name="ReportDefinition">
+<XMLNamespace>http://www.intersystems.com/zen/report/definition</XMLNamespace>
+<Data><![CDATA[
+<report xmlns='http://www.intersystems.com/zen/report/definition'
+ name='QReportMEDREC'
+ runonce="1" >
+	<parameter expression="..QuesID"/>
+	<attribute name='ReportTitle' expression='&quot;Nat Medication Mgmt Plan&quot;'/>
+	<attribute name='timestamp' expression='$ZDATETIME($H, 2, 2)'/> 
+	<attribute name='username' expression='..Username'/> 
+	<group name='QuestionnaireData'>
+       <attribute name='hasPatientData' expression='$s(obj.QUESPAPatMasDR:1,1:"")' />
+		<attribute name='patname'  expression='obj.QUESPAPatMasDR.PAPMIPAPERDR.PAPERName' />
+		<attribute name='patname2' expression='obj.QUESPAPatMasDR.PAPMIPAPERDR.PAPERName2' />
+		<attribute name='patname3' expression='obj.QUESPAPatMasDR.PAPMIPAPERDR.PAPERName3' />
+		<attribute name='patname4' expression='obj.QUESPAPatMasDR.PAPMIPAPERDR.PAPERName4' />
+		<attribute name='patname5' expression='obj.QUESPAPatMasDR.PAPMIPAPERDR.PAPERName5' />
+		<attribute name='patname6' expression='obj.QUESPAPatMasDR.PAPMIPAPERDR.PAPERName6' />
+		<attribute name='patname7' expression='obj.QUESPAPatMasDR.PAPMIPAPERDR.PAPERName7' />
+		<attribute name='patname8' expression='obj.QUESPAPatMasDR.PAPMIPAPERDR.PAPERName8' />
+		<attribute name='patdob' expression='##class(websys.Conversions).DateLogicalToHtml(obj.QUESPAPatMasDR.PAPMIPAPERDR.PAPERDob)'/>
+		<attribute name='patsex' expression='obj.QUESPAPatMasDR.PAPMIPAPERDR.PAPERSexDR.CTSEXDesc' />
+		<attribute name='patrego' expression='obj.QUESPAPatMasDR.PAPMINo' />
+       <attribute name='hasResidentData' expression='$s(obj.QUESFHResidentDR:1,1:"")' />
+		<attribute name='residentNumber'  expression='obj.QUESFHResidentDR.FHResidentNo' />
+		<attribute name='segment'  expression='obj.QUESFHResidentDR.FHMicroAreaDR.FHCMAAreaDR.FHCASegmentDR.FHCSDesc' />
+		<attribute name='area'  expression='obj.QUESFHResidentDR.FHMicroAreaDR.FHCMAAreaDR.FHCADesc' />
+		<attribute name='microArea'  expression='obj.QUESFHResidentDR.FHMicroAreaDR.FHCMADesc' />
+		<attribute name='primaryResidentName'  expression='obj.QUESFHResidentDR.FHPrimaryResidentDR.PAPERName' />
+		<attribute name='primaryResidentName2'  expression='obj.QUESFHResidentDR.FHPrimaryResidentDR.PAPERName2' />
+		<attribute name='address1'  expression='$s(obj.QUESFHResidentDR.FHAddress1:##class(websys.Conversions).LongTextLogicalToHtml(obj.QUESFHResidentDR.FHAddress1," "),1:"")' />
+		<attribute name='address2'  expression='obj.QUESFHResidentDR.FHAddress2' />
+		<attribute name='suburb'  expression='obj.QUESFHResidentDR.FHCityCodeDR.CTCITDesc' />
+		<attribute name='state'  expression='obj.QUESFHResidentDR.FHProvinceDR.PROVDesc' />
+		<attribute name='postcode'  expression='obj.QUESFHResidentDR.FHZipDR.CTZIPCode' />
+		<!-- layout component items-->
+		<element field='QUESDate' name='QUESDate' expression='..GetVal("QUESDate")'  />
+		<element field='QUESTime' name='QUESTime' expression='..GetVal("QUESTime")'  />
+		<element field='QUESUser' name='QUESUser' expression='..GetVal("QUESUser")'  />
+		<element field='QUESCreateDate' name='QUESCreateDate' expression='..GetVal("QUESCreateDate")'  />
+		<element field='QUESCreateTime' name='QUESCreateTime' expression='..GetVal("QUESCreateTime")'  />
+		<element field='QUESCreateUser' name='QUESCreateUser' expression='..GetVal("QUESCreateUser")'  />
+		<element field='UserName' name='UserName' expression='..GetVal("UserName")'  />
+		<element field='QUESStatusDR' name='QUESStatusDR' expression='..GetVal("QUESStatusDR")'  />
+		<element field='QUESReasonForCorrectionDR' name='QUESReasonForCorrectionDR' expression='..GetVal("QUESReasonForCorrectionDR")'  />
+		<element field='QUESReasForCorrDisplay' name='QUESReasForCorrDisplay' expression='..GetVal("QUESReasForCorrDisplay")'  />
+		<element field='QBringMedY' name='QBringMedY' expression='$s((","_..GetVal("QBringMed")_",")[(",Y,"):$c(254),1:$c(111))' />
+		<element field='QBringMedN' name='QBringMedN' expression='$s((","_..GetVal("QBringMed")_",")[(",N,"):$c(254),1:$c(111))' />
+		<element field='QBringMedLoc' name='QBringMedLoc' expression='..GetVal("QBringMedLoc")'  />
+		<element field='QCommPharmDet' name='QCommPharmDet' expression='..GetVal("QCommPharmDet")'  />
+		<element field='QConMedInfo' name='QConMedInfo' expression='..GetVal("QConMedInfo")'  />
+		<element field='QConsMedInfoDate' name='QConsMedInfoDate' expression='..GetVal("QConsMedInfoDate")'  />
+		<element field='QCountry' name='QCountry' expression='..GetVal("QCountry")'  />
+		<element field='QDischMedRecPA' name='QDischMedRecPA' expression='$s((","_..GetVal("QDischMedRec")_",")[(",PA,"):$c(254),1:$c(111))' />
+		<element field='QDischMedRecGP' name='QDischMedRecGP' expression='$s((","_..GetVal("QDischMedRec")_",")[(",GP,"):$c(254),1:$c(111))' />
+		<element field='QDischMedRecPH' name='QDischMedRecPH' expression='$s((","_..GetVal("QDischMedRec")_",")[(",PH,"):$c(254),1:$c(111))' />
+		<element field='QDischMedRecO' name='QDischMedRecO' expression='$s((","_..GetVal("QDischMedRec")_",")[(",O,"):$c(254),1:$c(111))' />
+		<element field='QDischMedRecDate' name='QDischMedRecDate' expression='..GetVal("QDischMedRecDate")'  />
+		<element field='QDischMedRecOther' name='QDischMedRecOther' expression='..GetVal("QDischMedRecOther")'  />
+		<element field='QDoseAdmAid' name='QDoseAdmAid' expression='..GetVal("QDoseAdmAid")'  />
+		<element field='QDoseAdmAidType' name='QDoseAdmAidType' expression='..GetVal("QDoseAdmAidType")'  />
+		<element field='QEduProv' name='QEduProv' expression='..GetVal("QEduProv")'  />
+		<element field='QEduProvDate' name='QEduProvDate' expression='..GetVal("QEduProvDate")'  />
+		<element field='QGPClinicName' name='QGPClinicName' expression='..GetVal("QGPClinicName")'  />
+		<element field='QGPGiven' name='QGPGiven' expression='..GetVal("QGPGiven")'  />
+		<element field='QGPPhone' name='QGPPhone' expression='..GetVal("QGPPhone")'  />
+		<element field='QGPStreet' name='QGPStreet' expression='..GetVal("QGPStreet")'  />
+		<element field='QGPSuburb' name='QGPSuburb' expression='..GetVal("QGPSuburb")'  />
+		<element field='QGPSurname' name='QGPSurname' expression='..GetVal("QGPSurname")'  />
+		<element field='QGenComm' name='QGenComm' expression='..GetVal("QGenComm")'  />
+		<element field='QGenInfoComm' name='QGenInfoComm' expression='..GetVal("QGenInfoComm")'  />
+		<element field='QHMRR1' name='QHMRR1' expression='..GetVal("QHMRR1")'  />
+		<element field='QHMRR2' name='QHMRR2' expression='..GetVal("QHMRR2")'  />
+		<element field='QHMRR3' name='QHMRR3' expression='..GetVal("QHMRR3")'  />
+		<element field='QHMRR4' name='QHMRR4' expression='..GetVal("QHMRR4")'  />
+		<element field='QHMRR5' name='QHMRR5' expression='..GetVal("QHMRR5")'  />
+		<element field='QHMRR6' name='QHMRR6' expression='..GetVal("QHMRR6")'  />
+		<element field='QHMRR7' name='QHMRR7' expression='..GetVal("QHMRR7")'  />
+		<element field='QHMRR8' name='QHMRR8' expression='..GetVal("QHMRR8")'  />
+		<element field='QHoMedRevRefComm' name='QHoMedRevRefComm' expression='..GetVal("QHoMedRevRefComm")'  />
+		<element field='QHomMedRevNA' name='QHomMedRevNA' expression='..GetVal("QHomMedRevNA")'  />
+		<element field='QHomRevY' name='QHomRevY' expression='$s((","_..GetVal("QHomRev")_",")[(",Y,"):$c(254),1:$c(111))' />
+		<element field='QHomRevN' name='QHomRevN' expression='$s((","_..GetVal("QHomRev")_",")[(",N,"):$c(254),1:$c(111))' />
+		<element field='QHomRevOth' name='QHomRevOth' expression='..GetVal("QHomRevOth")'  />
+		<element field='QHospital' name='QHospital' expression='..GetVal("QHospital")'  />
+		<element field='QInterpreter' name='QInterpreter' expression='..GetVal("QInterpreter")'  />
+		<element field='QLI10' name='QLI10' expression='..GetVal("QLI10")'  />
+		<element field='QLI5' name='QLI5' expression='..GetVal("QLI5")'  />
+		<element field='QLIAdminAidY' name='QLIAdminAidY' expression='$s((","_..GetVal("QLIAdminAid")_",")[(",Y,"):$c(254),1:$c(111))' />
+		<element field='QLIAdminAidN' name='QLIAdminAidN' expression='$s((","_..GetVal("QLIAdminAid")_",")[(",N,"):$c(254),1:$c(111))' />
+		<element field='QLIDoseAdminY' name='QLIDoseAdminY' expression='$s((","_..GetVal("QLIDoseAdmin")_",")[(",Y,"):$c(254),1:$c(111))' />
+		<element field='QLIDoseAdminN' name='QLIDoseAdminN' expression='$s((","_..GetVal("QLIDoseAdmin")_",")[(",N,"):$c(254),1:$c(111))' />
+		<element field='QLIImpHearY' name='QLIImpHearY' expression='$s((","_..GetVal("QLIImpHear")_",")[(",Y,"):$c(254),1:$c(111))' />
+		<element field='QLIImpHearN' name='QLIImpHearN' expression='$s((","_..GetVal("QLIImpHear")_",")[(",N,"):$c(254),1:$c(111))' />
+		<element field='QLIImpVisY' name='QLIImpVisY' expression='$s((","_..GetVal("QLIImpVis")_",")[(",Y,"):$c(254),1:$c(111))' />
+		<element field='QLIImpVisN' name='QLIImpVisN' expression='$s((","_..GetVal("QLIImpVis")_",")[(",N,"):$c(254),1:$c(111))' />
+		<element field='QLILivesAlY' name='QLILivesAlY' expression='$s((","_..GetVal("QLILivesAl")_",")[(",Y,"):$c(254),1:$c(111))' />
+		<element field='QLILivesAlN' name='QLILivesAlN' expression='$s((","_..GetVal("QLILivesAl")_",")[(",N,"):$c(254),1:$c(111))' />
+		<element field='QLIMedListY' name='QLIMedListY' expression='$s((","_..GetVal("QLIMedList")_",")[(",Y,"):$c(254),1:$c(111))' />
+		<element field='QLIMedListN' name='QLIMedListN' expression='$s((","_..GetVal("QLIMedList")_",")[(",N,"):$c(254),1:$c(111))' />
+		<element field='QLIResY' name='QLIResY' expression='$s((","_..GetVal("QLIRes")_",")[(",Y,"):$c(254),1:$c(111))' />
+		<element field='QLIResN' name='QLIResN' expression='$s((","_..GetVal("QLIRes")_",")[(",N,"):$c(254),1:$c(111))' />
+		<element field='QLISwallY' name='QLISwallY' expression='$s((","_..GetVal("QLISwall")_",")[(",Y,"):$c(254),1:$c(111))' />
+		<element field='QLISwallN' name='QLISwallN' expression='$s((","_..GetVal("QLISwall")_",")[(",N,"):$c(254),1:$c(111))' />
+		<element field='QLang' name='QLang' expression='..GetVal("QLang")'  />
+		<element field='QMH1' name='QMH1' expression='..GetVal("QMH1")'  />
+		<element field='QMH10' name='QMH10' expression='..GetVal("QMH10")'  />
+		<element field='QMH11' name='QMH11' expression='..GetVal("QMH11")'  />
+		<element field='QMH12' name='QMH12' expression='..GetVal("QMH12")'  />
+		<element field='QMH13' name='QMH13' expression='..GetVal("QMH13")'  />
+		<element field='QMH14' name='QMH14' expression='..GetVal("QMH14")'  />
+		<element field='QMH15' name='QMH15' expression='..GetVal("QMH15")'  />
+		<element field='QMH2' name='QMH2' expression='..GetVal("QMH2")'  />
+		<element field='QMH3' name='QMH3' expression='..GetVal("QMH3")'  />
+		<element field='QMH4' name='QMH4' expression='..GetVal("QMH4")'  />
+		<element field='QMH5' name='QMH5' expression='..GetVal("QMH5")'  />
+		<element field='QMH6' name='QMH6' expression='..GetVal("QMH6")'  />
+		<element field='QMH7' name='QMH7' expression='..GetVal("QMH7")'  />
+		<element field='QMH8' name='QMH8' expression='..GetVal("QMH8")'  />
+		<element field='QMH9' name='QMH9' expression='..GetVal("QMH9")'  />
+		<element field='QMedAdminbyS' name='QMedAdminbyS' expression='$s((","_..GetVal("QMedAdminby")_",")[(",S,"):$c(254),1:$c(111))' />
+		<element field='QMedAdminbyO' name='QMedAdminbyO' expression='$s((","_..GetVal("QMedAdminby")_",")[(",O,"):$c(254),1:$c(111))' />
+		<element field='QMedChang' name='QMedChang' expression='..GetVal("QMedChang")'  />
+		<element field='QMedDCChComm' name='QMedDCChComm' expression='..GetVal("QMedDCChComm")'  />
+		<element field='QMedHisComm' name='QMedHisComm' expression='..GetVal("QMedHisComm")'  />
+		<element field='QMedRIComm' name='QMedRIComm' expression='..GetVal("QMedRIComm")'  />
+		<element field='QMedRet' name='QMedRet' expression='..GetVal("QMedRet")'  />
+		<element field='QMedRetDate' name='QMedRetDate' expression='..GetVal("QMedRetDate")'  />
+		<element field='QMedSupp' name='QMedSupp' expression='..GetVal("QMedSupp")'  />
+		<element field='QMedSuppDate' name='QMedSuppDate' expression='..GetVal("QMedSuppDate")'  />
+		<element field='QPA9' name='QPA9' expression='..GetVal("QPA9")'  />
+		<element field='QPAMeasLiqY' name='QPAMeasLiqY' expression='$s((","_..GetVal("QPAMeasLiq")_",")[(",Y,"):$c(254),1:$c(111))' />
+		<element field='QPAMeasLiqN' name='QPAMeasLiqN' expression='$s((","_..GetVal("QPAMeasLiq")_",")[(",N,"):$c(254),1:$c(111))' />
+		<element field='QPAOpBotY' name='QPAOpBotY' expression='$s((","_..GetVal("QPAOpBot")_",")[(",Y,"):$c(254),1:$c(111))' />
+		<element field='QPAOpBotN' name='QPAOpBotN' expression='$s((","_..GetVal("QPAOpBot")_",")[(",N,"):$c(254),1:$c(111))' />
+		<element field='QPAReadLabY' name='QPAReadLabY' expression='$s((","_..GetVal("QPAReadLab")_",")[(",Y,"):$c(254),1:$c(111))' />
+		<element field='QPAReadLabN' name='QPAReadLabN' expression='$s((","_..GetVal("QPAReadLab")_",")[(",N,"):$c(254),1:$c(111))' />
+		<element field='QPARecHomMedY' name='QPARecHomMedY' expression='$s((","_..GetVal("QPARecHomMed")_",")[(",Y,"):$c(254),1:$c(111))' />
+		<element field='QPARecHomMedN' name='QPARecHomMedN' expression='$s((","_..GetVal("QPARecHomMed")_",")[(",N,"):$c(254),1:$c(111))' />
+		<element field='QPASuspNAY' name='QPASuspNAY' expression='$s((","_..GetVal("QPASuspNA")_",")[(",Y,"):$c(254),1:$c(111))' />
+		<element field='QPASuspNAN' name='QPASuspNAN' expression='$s((","_..GetVal("QPASuspNA")_",")[(",N,"):$c(254),1:$c(111))' />
+		<element field='QPAUnderEngY' name='QPAUnderEngY' expression='$s((","_..GetVal("QPAUnderEng")_",")[(",Y,"):$c(254),1:$c(111))' />
+		<element field='QPAUnderEngN' name='QPAUnderEngN' expression='$s((","_..GetVal("QPAUnderEng")_",")[(",N,"):$c(254),1:$c(111))' />
+		<element field='QPatImmunY' name='QPatImmunY' expression='$s((","_..GetVal("QPatImmun")_",")[(",Y,"):$c(254),1:$c(111))' />
+		<element field='QPatImmunN' name='QPatImmunN' expression='$s((","_..GetVal("QPatImmun")_",")[(",N,"):$c(254),1:$c(111))' />
+		<element field='QPatImmunU' name='QPatImmunU' expression='$s((","_..GetVal("QPatImmun")_",")[(",U,"):$c(254),1:$c(111))' />
+		<element field='QPermDisp' name='QPermDisp' expression='..GetVal("QPermDisp")'  />
+		<element field='QPermDispDate' name='QPermDispDate' expression='..GetVal("QPermDispDate")'  />
+		<element field='QPrefAdmMeth' name='QPrefAdmMeth' expression='..GetVal("QPrefAdmMeth")'  />
+		<element field='QRecChang' name='QRecChang' expression='..GetVal("QRecChang")'  />
+		<element field='QRecDisch' name='QRecDisch' expression='..GetVal("QRecDisch")'  />
+		<element field='QRecDischDate' name='QRecDischDate' expression='..GetVal("QRecDischDate")'  />
+		<element field='QResCareDet' name='QResCareDet' expression='..GetVal("QResCareDet")'  />
+		<element field='QScriptGiven' name='QScriptGiven' expression='..GetVal("QScriptGiven")'  />
+		<element field='QSourcMedComm' name='QSourcMedComm' expression='..GetVal("QSourcMedComm")'  />
+		<element field='QSourceCN' name='QSourceCN' expression='..GetVal("QSourceCN")'  />
+		<element field='QSourceCNConfby' name='QSourceCNConfby' expression='..GetVal("QSourceCNConfby")'  />
+		<element field='QSourceCNDate' name='QSourceCNDate' expression='..GetVal("QSourceCNDate")'  />
+		<element field='QSourceCP' name='QSourceCP' expression='..GetVal("QSourceCP")'  />
+		<element field='QSourceCPConfby' name='QSourceCPConfby' expression='..GetVal("QSourceCPConfby")'  />
+		<element field='QSourceCPDate' name='QSourceCPDate' expression='..GetVal("QSourceCPDate")'  />
+		<element field='QSourceGP' name='QSourceGP' expression='..GetVal("QSourceGP")'  />
+		<element field='QSourceGPConfBy' name='QSourceGPConfBy' expression='..GetVal("QSourceGPConfBy")'  />
+		<element field='QSourceGPDate' name='QSourceGPDate' expression='..GetVal("QSourceGPDate")'  />
+		<element field='QSourceNH' name='QSourceNH' expression='..GetVal("QSourceNH")'  />
+		<element field='QSourceNHConfby' name='QSourceNHConfby' expression='..GetVal("QSourceNHConfby")'  />
+		<element field='QSourceNHDate' name='QSourceNHDate' expression='..GetVal("QSourceNHDate")'  />
+		<element field='QSourceOwn' name='QSourceOwn' expression='..GetVal("QSourceOwn")'  />
+		<element field='QSourceOwnConfby' name='QSourceOwnConfby' expression='..GetVal("QSourceOwnConfby")'  />
+		<element field='QSourceOwnDate' name='QSourceOwnDate' expression='..GetVal("QSourceOwnDate")'  />
+		<element field='QSourcePAConfby' name='QSourcePAConfby' expression='..GetVal("QSourcePAConfby")'  />
+		<element field='QSourcePADate' name='QSourcePADate' expression='..GetVal("QSourcePADate")'  />
+		<element field='QSourcePL' name='QSourcePL' expression='..GetVal("QSourcePL")'  />
+		<element field='QSourcePLConfby' name='QSourcePLConfby' expression='..GetVal("QSourcePLConfby")'  />
+		<element field='QSourcePLDate' name='QSourcePLDate' expression='..GetVal("QSourcePLDate")'  />
+		<element field='QSourcePat' name='QSourcePat' expression='..GetVal("QSourcePat")'  />
+		<element field='QSourcePatConfby' name='QSourcePatConfby' expression='..GetVal("QSourcePatConfby")'  />
+		<element field='QSourcePatDate' name='QSourcePatDate' expression='..GetVal("QSourcePatDate")'  />
+		<element field='QSourcePrev' name='QSourcePrev' expression='..GetVal("QSourcePrev")'  />
+		<!-- Appendix (image) items-->
+		<!-- HIDDEN component items-->
+		<element field='ID' name='ID' expression='..GetVal("ID")' />
+		<element field='QUESPAAdmDR' name='QUESPAAdmDR' expression='..GetVal("QUESPAAdmDR")' />
+		<element field='QUESPAPatMasDR' name='QUESPAPatMasDR' expression='..GetVal("QUESPAPatMasDR")' />
+		<element field='QUESOEOrdExecDR' name='QUESOEOrdExecDR' expression='..GetVal("QUESOEOrdExecDR")' />
+		<element field='QUESMRClinicalPathWaysDR' name='QUESMRClinicalPathWaysDR' expression='..GetVal("QUESMRClinicalPathWaysDR")' />
+		<element field='QUESConsultDR' name='QUESConsultDR' expression='..GetVal("QUESConsultDR")' />
+		<element field='QUESOperRoomDR' name='QUESOperRoomDR' expression='..GetVal("QUESOperRoomDR")' />
+		<element field='QUESTextResultDR' name='QUESTextResultDR' expression='..GetVal("QUESTextResultDR")' />
+		<element field='QUESNRCarePlanIssuesDR' name='QUESNRCarePlanIssuesDR' expression='..GetVal("QUESNRCarePlanIssuesDR")' />
+		<element field='QUESRBAppointmentDR' name='QUESRBAppointmentDR' expression='..GetVal("QUESRBAppointmentDR")' />
+		<element field='GenUpdFlag' name='GenUpdFlag' expression='..GetVal("GenUpdFlag")' />
+		<element field='ZENRepName' name='ZENRepName' expression='..GetVal("ZENRepName")' />
+		<element field='UseZENReports' name='UseZENReports' expression='..GetVal("UseZENReports")' />
+		<element field='QEFlag' name='QEFlag' expression='..GetVal("QEFlag")' />
+		<element field='ChartID' name='ChartID' expression='..GetVal("ChartID")' />
+		<element field='PatientID' name='PatientID' expression='..GetVal("PatientID")' />
+		<element field='EpisodeID' name='EpisodeID' expression='..GetVal("EpisodeID")' />
+		<element field='mradm' name='mradm' expression='..GetVal("mradm")' />
+		<element field='RescID' name='RescID' expression='..GetVal("RescID")' />
+		<element field='ServID' name='ServID' expression='..GetVal("ServID")' />
+		<element field='WListID' name='WListID' expression='..GetVal("WListID")' />
+		<element field='refresh' name='refresh' expression='..GetVal("refresh")' />
+		<element field='MRDIARowId' name='MRDIARowId' expression='..GetVal("MRDIARowId")' />
+		<element field='OEORIRowId' name='OEORIRowId' expression='..GetVal("OEORIRowId")' />
+		<element field='TextResult' name='TextResult' expression='..GetVal("TextResult")' />
+		<element field='TextResultID' name='TextResultID' expression='..GetVal("TextResultID")' />
+		<element field='OEOrdItemID' name='OEOrdItemID' expression='..GetVal("OEOrdItemID")' />
+		<element field='norefresh' name='norefresh' expression='..GetVal("norefresh")' />
+		<element field='PatBasedQues' name='PatBasedQues' expression='..GetVal("PatBasedQues")' />
+		<element field='PatientBanner' name='PatientBanner' expression='..GetVal("PatientBanner")' />
+		<element field='ConsultParams' name='ConsultParams' expression='..GetVal("ConsultParams")' />
+		<element field='MHDetentionID' name='MHDetentionID' expression='..GetVal("MHDetentionID")' />
+		<element field='MHSuspensionID' name='MHSuspensionID' expression='..GetVal("MHSuspensionID")' />
+		<element field='TaskID' name='TaskID' expression='..GetVal("TaskID")' />
+		<element field='qClassName' name='qClassName' expression='..GetVal("qClassName")' />
+		<element field='qClassNameID' name='qClassNameID' expression='..GetVal("qClassNameID")' />
+		<element field='ResidentID' name='ResidentID' expression='..GetVal("ResidentID")' />
+		<element field='ENTERRDescHidden' name='ENTERRDescHidden' expression='..GetVal("ENTERRDescHidden")' />
+		<element field='GenItemsAfterUpdate' name='GenItemsAfterUpdate' expression='..GetVal("GenItemsAfterUpdate")' />
+		<element field='QDischMedRec_ID' name='QDischMedRec_ID' expression='..GetVal("QDischMedRec_ID")' />
+		<element field='QDischMedRecList_ID' name='QDischMedRecList_ID' expression='..GetVal("QDischMedRecList_ID")' />
+		<element field='QHomRev_ID' name='QHomRev_ID' expression='..GetVal("QHomRev_ID")' />
+		<element field='QHomeRevReas_ID' name='QHomeRevReas_ID' expression='..GetVal("QHomeRevReas_ID")' />
+		<element field='QMedAdminby_ID' name='QMedAdminby_ID' expression='..GetVal("QMedAdminby_ID")' />
+		<element field='QBringMed_ID' name='QBringMed_ID' expression='..GetVal("QBringMed_ID")' />
+		<element field='QPatImmun_ID' name='QPatImmun_ID' expression='..GetVal("QPatImmun_ID")' />
+		<element field='QMedRiskIDLI_ID' name='QMedRiskIDLI_ID' expression='..GetVal("QMedRiskIDLI_ID")' />
+		<element field='QMedRiskIDPA_ID' name='QMedRiskIDPA_ID' expression='..GetVal("QMedRiskIDPA_ID")' />
+		<element field='QMedHistCheck_ID' name='QMedHistCheck_ID' expression='..GetVal("QMedHistCheck_ID")' />
+		<element field='QHospital_ID' name='QHospital_ID' expression='..GetVal("QHospital_ID")' />
+		<element field='QGP_ID' name='QGP_ID' expression='..GetVal("QGP_ID")' />
+		<element field='QGPCLINIC_ID' name='QGPCLINIC_ID' expression='..GetVal("QGPCLINIC_ID")' />
+		<element field='QSourceGPConfBy_ID' name='QSourceGPConfBy_ID' expression='..GetVal("QSourceGPConfBy_ID")' />
+		<element field='QSourceCPConfby_ID' name='QSourceCPConfby_ID' expression='..GetVal("QSourceCPConfby_ID")' />
+		<element field='QSourcePatConfby_ID' name='QSourcePatConfby_ID' expression='..GetVal("QSourcePatConfby_ID")' />
+		<element field='QSourceNHConfby_ID' name='QSourceNHConfby_ID' expression='..GetVal("QSourceNHConfby_ID")' />
+		<element field='QSourceOwnConfby_ID' name='QSourceOwnConfby_ID' expression='..GetVal("QSourceOwnConfby_ID")' />
+		<element field='QSourceCNConfby_ID' name='QSourceCNConfby_ID' expression='..GetVal("QSourceCNConfby_ID")' />
+		<element field='QSourcePLConfby_ID' name='QSourcePLConfby_ID' expression='..GetVal("QSourcePLConfby_ID")' />
+		<element field='QSourcePAConfby_ID' name='QSourcePAConfby_ID' expression='..GetVal("QSourcePAConfby_ID")' />
+		<element field='QLILivesAl_ID' name='QLILivesAl_ID' expression='..GetVal("QLILivesAl_ID")' />
+		<element field='QLIRes_ID' name='QLIRes_ID' expression='..GetVal("QLIRes_ID")' />
+		<element field='QLIDoseAdmin_ID' name='QLIDoseAdmin_ID' expression='..GetVal("QLIDoseAdmin_ID")' />
+		<element field='QLIAdminAid_ID' name='QLIAdminAid_ID' expression='..GetVal("QLIAdminAid_ID")' />
+		<element field='QLIMedList_ID' name='QLIMedList_ID' expression='..GetVal("QLIMedList_ID")' />
+		<element field='QLISwall_ID' name='QLISwall_ID' expression='..GetVal("QLISwall_ID")' />
+		<element field='QLIImpHear_ID' name='QLIImpHear_ID' expression='..GetVal("QLIImpHear_ID")' />
+		<element field='QLIImpVis_ID' name='QLIImpVis_ID' expression='..GetVal("QLIImpVis_ID")' />
+		<element field='QPAReadLab_ID' name='QPAReadLab_ID' expression='..GetVal("QPAReadLab_ID")' />
+		<element field='QPAUnderEng_ID' name='QPAUnderEng_ID' expression='..GetVal("QPAUnderEng_ID")' />
+		<element field='QPAOpBot_ID' name='QPAOpBot_ID' expression='..GetVal("QPAOpBot_ID")' />
+		<element field='QPAMeasLiq_ID' name='QPAMeasLiq_ID' expression='..GetVal("QPAMeasLiq_ID")' />
+		<element field='QPARecHomMed_ID' name='QPARecHomMed_ID' expression='..GetVal("QPARecHomMed_ID")' />
+		<element field='QPASuspNA_ID' name='QPASuspNA_ID' expression='..GetVal("QPASuspNA_ID")' />
+	</group>
+	<!-- child table  -->
+	<call method='GetChildTableQ190' /> 
+</report>
+]]></Data>
+</XData>
+
+<XData name="ReportDisplay">
+<XMLNamespace>http://www.intersystems.com/zen/report/display</XMLNamespace>
+<Data><![CDATA[
+<report xmlns='http://www.intersystems.com/zen/report/display'
+ name='QReportMEDREC'
+ xmlns:trak='http://www.intersystems.com/zen/report/display/trak' 
+ xmlns:trakstyle='http://www.intersystems.com/zen/report/display/trak/style'
+ >
+	<document width= '#(..ReportWidth)#' height='#(..ReportHeight)#' marginLeft='#(..DocMarginLeft)#' marginRight='#(..DocMarginRight)#' 
+		marginTop='#(..DocMarginTop)#' marginBottom='#(..DocMarginBottom)#' footerHeight='#(..DocFooterHeight)#' headerHeight='#(..DocHeaderHeight)#' 
+		regionBeforeExtent='#(..DocHeaderHeight)#' regionAfterExtent='#(..DocFooterHeight)#' >
+		<trakstyle:trakgroupheader/>
+		<trakstyle:trakgroupsummary/>
+		<trakstyle:trakhospitalheader/>
+		<trakstyle:trakpagefooter/>
+		<trakstyle:trakpageheader/>
+		<trakstyle:trakparameterheader/>
+		<trakstyle:traktablecolumn/>
+		<class name="table.trakquesttable" >
+			<att name="font-family" value="Times New Roman,MingLiU" />
+			<att name="width" value="100%" />
+			<att name="table-layout" value="fixed"/>
+			<att name="border-style" value="none"/>
+		</class>
+		<!-- BLOCK styles -->
+		<class name="block.trakquestdisplayonlyitem">
+			<att name="font-weight" value="italic"/>
+		</class>
+		<class name="block.trakquestdisplayitem">
+			<att name="border-style" value="none" />
+		</class>
+		<class name="block.trakquestreadonlyitem">
+			<att name="font-weight" value="italic"/>
+		</class>
+		<!-- item styles  -->
+		<class name="td.trakquestdisplayborder">
+			<att name="border-style" value="solid"/>
+			<att name="border-color" value="black"/>
+			<att name="border-width" value="1pt"/>
+			<att name="padding-left" value="3pt" />
+			<att name="padding-right" value="3pt" />
+			<att name="padding-top" value="2pt" />
+			<att name="padding-bottom" value="2pt" />
+		</class>
+		<class name="td.trakquestitem">
+			<att name="font-family" value="Times New Roman,MingLiU" />
+			<att name="border-style" value="none" />
+		</class>
+		<class name="td.trakquestitemH1" >
+			<att name="font-size" value="16pt"/>
+			<att name="font-weight" value="bold"/>
+		</class>
+		<class name="td.trakquestitemH2" >
+			<att name="font-size" value="14pt"/>
+			<att name="font-weight" value="bold"/>
+		</class>
+		<class name="td.trakquestitemH3" >
+			<att name="font-size" value="12pt"/>
+		</class>
+		<class name="td.trakquestwingdingsitem" >
+			<att name="font-family" value="Wingdings" />
+			<att name="font-size" value="14pt"/>
+		</class>
+		<class name="td.trakquestcaptionitem">
+			<att name="font-size" value="9pt"/>
+			<att name="font-weight" value="bold"/>
+			<att name="display-align" value="before" />
+			<att name="padding-right" value="5pt" />
+		</class>
+		<class name="td.trakquestrow">
+			<att name="font-family" value="Times New Roman,MingLiU" />
+			<att name="padding-after" value="3pt" />
+		</class>
+		<!-- embedded 'child' table styles  -->
+		<class name='td.trakheaderbold'>
+			<att name='border-collapse' value='collapse' />
+			<att name='keep-with-next.within-page' value='auto' />
+			<att name='font-family' value='Arial' />
+			<att name='font-size' value='10pt'/>
+			<att name='font-weight' value='bold'/>
+			<att name='display-align' value='before' />
+			<att name='padding' value='2pt' />
+			<att name='text-align' value='left'/>
+			<att name='border-style' value='solid'/> 
+			<att name='border-width' value='1.3pt'/> 
+			<att name='border-color' value='#7BA1C7'/>
+			<att name='color' value='#FFFFFF'/>
+			<att name='background-color' value='#567498'/>
+		</class>
+	</document>
+	<trak:PatientPageHeader class="" ifxpath='/QReportMEDREC/QuestionnaireData/@hasPatientData=1'
+		description=''
+		patname1='/QReportMEDREC/QuestionnaireData/@patname'  
+		patname2='/QReportMEDREC/QuestionnaireData/@patname2' 
+		patname3='/QReportMEDREC/QuestionnaireData/@patname3' 
+		patname4='/QReportMEDREC/QuestionnaireData/@patname4' 
+		patname5='/QReportMEDREC/QuestionnaireData/@patname5' 
+		patname6='/QReportMEDREC/QuestionnaireData/@patname6' 
+		patname7='/QReportMEDREC/QuestionnaireData/@patname7' 
+		patname8='/QReportMEDREC/QuestionnaireData/@patname8' 
+		patdob='/QReportMEDREC/QuestionnaireData/@patdob' 
+		patsex='/QReportMEDREC/QuestionnaireData/@patsex' 
+		patrego='/QReportMEDREC/QuestionnaireData/@patrego' />
+	<trak:ResidentPageHeader class="" ifxpath='/QReportMEDREC/QuestionnaireData/@hasResidentData=1'
+		residentNumber='/QReportMEDREC/QuestionnaireData/@residentNumber'
+		segment='/QReportMEDREC/QuestionnaireData/@segment'
+		area='/QReportMEDREC/QuestionnaireData/@area'
+		microArea='/QReportMEDREC/QuestionnaireData/@microArea' 
+		primaryResidentName='/QReportMEDREC/QuestionnaireData/@primaryResidentName'
+		primaryResidentName2='/QReportMEDREC/QuestionnaireData/@primaryResidentName2' 
+		address1='/QReportMEDREC/QuestionnaireData/@address1'
+		address2='/QReportMEDREC/QuestionnaireData/@address2'
+		suburb='/QReportMEDREC/QuestionnaireData/@suburb'
+		state='/QReportMEDREC/QuestionnaireData/@state'
+		postcode='/QReportMEDREC/QuestionnaireData/@postcode' />
+	<trak:ReportFooter username='@username' timestamp='@timestamp'/>
+	<body>
+	 <trak:NoResults xcondition='not(QuestionnaireData)' />
+	 <table orient='row'>
+	  <group name='QuestionnaireData'>
+			<!-- cannot display layout - invalid original layout -->
+			<!-- reason: ERROR #6301: SAX XML Parser Error: expected end of tag &apos;group&apos; while processing Anonymous Stream at line 1 offset 36 -->
+			<!--  DEFAULT Layout, saved layout is invalid XHTML  -->
+			<table orient='col' >
+
+			 <item  class="trakquestcaptionitem"  value='Last Update Date' 
+			    ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QUESDate", ",") )) ' />
+			 <table  class="trakquestdisplayonlyitem"     ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QUESDate", ",") ))  ' >
+			  <item  class="trakquestitem"  field='QUESDate' />
+			 </table>
+			 <item  class="trakquestcaptionitem"  value='Last Update Time' 
+			    ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QUESTime", ",") )) ' />
+			 <table  class="trakquestdisplayonlyitem"     ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QUESTime", ",") ))  ' >
+			  <item  class="trakquestitem"  field='QUESTime' />
+			 </table>			</table>
+			<table orient='col' >
+
+			 <item  class="trakquestcaptionitem"  value='Last Update User' 
+			    ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QUESUser", ",") )) ' />
+			 <table  class="trakquestdisplayonlyitem"     ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QUESUser", ",") ))  ' >
+			  <item  class="trakquestitem"  field='QUESUser' />
+			 </table>
+			 <item  class="trakquestcaptionitem"  value='Creation Date' 
+			    ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QUESCreateDate", ",") )) ' />
+			 <table  class="trakquestdisplayonlyitem"     ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QUESCreateDate", ",") ))  ' >
+			  <item  class="trakquestitem"  field='QUESCreateDate' />
+			 </table>			</table>
+			<table orient='col' >
+
+			 <item  class="trakquestcaptionitem"  value='Creation Time' 
+			    ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QUESCreateTime", ",") )) ' />
+			 <table  class="trakquestdisplayonlyitem"     ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QUESCreateTime", ",") ))  ' >
+			  <item  class="trakquestitem"  field='QUESCreateTime' />
+			 </table>
+			 <item  class="trakquestcaptionitem"  value='Creation User' 
+			    ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QUESCreateUser", ",") )) ' />
+			 <table  class="trakquestdisplayonlyitem"     ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QUESCreateUser", ",") ))  ' >
+			  <item  class="trakquestitem"  field='QUESCreateUser' />
+			 </table>			</table>
+			<table orient='col' >
+
+			 <item  class="trakquestcaptionitem"  value='User' 
+			    ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "UserName", ",") )) ' />
+			 <table  class="trakquestdisplayitem"     ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "UserName", ",") ))  ' >
+			  <item  class="trakquestitem"  field='UserName' />
+			 </table>
+			 <item  class="trakquestcaptionitem"  value='Status' 
+			    ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QUESStatusDR", ",") )) ' />
+			 <table  class="trakquestdisplayitem"     ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QUESStatusDR", ",") ))  ' >
+			  <item  class="trakquestitem"  field='QUESStatusDR' />
+			 </table>			</table>
+			<table orient='col' >
+
+			 <item  class="trakquestcaptionitem"  value='Reason For Correction' 
+			    ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QUESReasonForCorrectionDR", ",") )) ' />
+			 <table  class="trakquestdisplayitem"     ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QUESReasonForCorrectionDR", ",") ))  ' >
+			  <item  class="trakquestitem"  field='QUESReasonForCorrectionDR' />
+			 </table>
+			 <item  class="trakquestcaptionitem"  value='Reason For Correction (Display)' 
+			    ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QUESReasForCorrDisplay", ",") )) ' />
+			 <table  class="trakquestdisplayonlyitem"     ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QUESReasForCorrDisplay", ",") ))  ' >
+			  <item  class="trakquestitem"  field='QUESReasForCorrDisplay' />
+			 </table>			</table>
+			<table orient='col' >
+
+			 <item  class="trakquestcaptionitem"  value='Did patient bring own medicines?' 
+			    ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QBringMed", ",") )) ' />
+			 <table  class="trakquestdisplayitem"   orient='row'  ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QBringMed", ",") ))  ' >
+			  
+ <table  width='100%' orient='col' class='trakquesttable'  >  
+<!--  ## Y: Yes ## -->
+<block width='25%' class='trakquestdisplayitem'>
+  <item class="trakquestwingdingsitem" field="QBringMedY" />
+  <item  value='Yes' >
+  </item>
+</block>
+<!--  ## N: No ## -->
+<block width='25%' class='trakquestdisplayitem'>
+  <item class="trakquestwingdingsitem" field="QBringMedN" />
+  <item  value='No' >
+  </item>
+</block>
+</table>
+<table class='trakquestdisplayitem' width='100%' ><item value='&#160;' height='5px'  /></table> 
+			 </table>
+			 <item  class="trakquestcaptionitem"  value='Location of own medicines' 
+			    ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QBringMedLoc", ",") )) ' />
+			 <table  class="trakquestdisplayitem"     ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QBringMedLoc", ",") ))  ' >
+			  <item  class="trakquestitem"  field='QBringMedLoc' />
+			 </table>			</table>
+			<table orient='col' >
+
+			 <item  class="trakquestcaptionitem"  value='Community Pharmacist Details' 
+			    ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QCommPharmDet", ",") )) ' />
+			 <table  class="trakquestdisplayitem"     ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QCommPharmDet", ",") ))  ' >
+			  <item field='QCommPharmDet'  too-long-text='wrap'  breakOnLineFeed='true' literalSpaces='true' />
+			 </table>
+			 <item  class="trakquestcaptionitem"  value='Consumer Medicine Information' 
+			    ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QConMedInfo", ",") )) ' />
+			 <table  class="trakquestdisplayitem"     ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QConMedInfo", ",") ))  ' >
+			  <item  class="trakquestwingdingsitem" expression="$c(254)" ifxpath='QConMedInfo="on"' />
+<item  class="trakquestwingdingsitem" expression="$c(111)" ifxpath='QConMedInfo=""' />
+			 </table>			</table>
+			<table orient='col' >
+
+			 <item  class="trakquestcaptionitem"  value='Consumer Medicine Information Date' 
+			    ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QConsMedInfoDate", ",") )) ' />
+			 <table  class="trakquestdisplayitem"     ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QConsMedInfoDate", ",") ))  ' >
+			  <item  class="trakquestitem"  field='QConsMedInfoDate' />
+			 </table>
+			 <item  class="trakquestcaptionitem"  value='Country of Birth' 
+			    ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QCountry", ",") )) ' />
+			 <table  class="trakquestreadonlyitem"     ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QCountry", ",") ))  ' >
+			  <item  class="trakquestitem"  field='QCountry' />
+			 </table>			</table>
+			<table orient='col' >
+
+			 <item  class="trakquestcaptionitem"  value='Discharge Medication Record given/sent to' 
+			    ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QDischMedRec", ",") )) ' />
+			 <table  class="trakquestdisplayitem"   orient='row'  ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QDischMedRec", ",") ))  ' >
+			  
+ <table  width='100%' orient='col' class='trakquesttable'  >  
+<!--  ## PA: Patient ## -->
+<block width='25%' class='trakquestdisplayitem'>
+  <item class="trakquestwingdingsitem" field="QDischMedRecPA" />
+  <item  value='Patient' >
+  </item>
+</block>
+<!--  ## GP: GP ## -->
+<block width='25%' class='trakquestdisplayitem'>
+  <item class="trakquestwingdingsitem" field="QDischMedRecGP" />
+  <item  value='GP' >
+  </item>
+</block>
+<!--  ## PH: Pharmacy ## -->
+<block width='25%' class='trakquestdisplayitem'>
+  <item class="trakquestwingdingsitem" field="QDischMedRecPH" />
+  <item  value='Pharmacy' >
+  </item>
+</block>
+<!--  ## O: Other ## -->
+<block width='25%' class='trakquestdisplayitem'>
+  <item class="trakquestwingdingsitem" field="QDischMedRecO" />
+  <item  value='Other' >
+  </item>
+</block>
+</table>
+<table class='trakquestdisplayitem' width='100%' ><item value='&#160;' height='5px'  /></table> 
+			 </table>
+			 <item  class="trakquestcaptionitem"  value='Discharge Medication Record Date' 
+			    ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QDischMedRecDate", ",") )) ' />
+			 <table  class="trakquestdisplayitem"     ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QDischMedRecDate", ",") ))  ' >
+			  <item  class="trakquestitem"  field='QDischMedRecDate' />
+			 </table>			</table>
+			<table orient='col' >
+
+			 <item  class="trakquestcaptionitem"  value='Other' 
+			    ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QDischMedRecOther", ",") )) ' />
+			 <table  class="trakquestdisplayitem"     ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QDischMedRecOther", ",") ))  ' >
+			  <item  class="trakquestitem"  field='QDischMedRecOther' />
+			 </table>
+			 <item  class="trakquestcaptionitem"  value='Dose Administration Aid' 
+			    ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QDoseAdmAid", ",") )) ' />
+			 <table  class="trakquestdisplayitem"     ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QDoseAdmAid", ",") ))  ' >
+			  <item  class="trakquestwingdingsitem" expression="$c(254)" ifxpath='QDoseAdmAid="on"' />
+<item  class="trakquestwingdingsitem" expression="$c(111)" ifxpath='QDoseAdmAid=""' />
+			 </table>			</table>
+			<table orient='col' >
+
+			 <item  class="trakquestcaptionitem"  value='Dose Administration Aid Type' 
+			    ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QDoseAdmAidType", ",") )) ' />
+			 <table  class="trakquestdisplayitem"     ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QDoseAdmAidType", ",") ))  ' >
+			  <item  class="trakquestitem"  field='QDoseAdmAidType' />
+			 </table>
+			 <item  class="trakquestcaptionitem"  value='Education Provided' 
+			    ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QEduProv", ",") )) ' />
+			 <table  class="trakquestdisplayitem"     ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QEduProv", ",") ))  ' >
+			  <item  class="trakquestwingdingsitem" expression="$c(254)" ifxpath='QEduProv="on"' />
+<item  class="trakquestwingdingsitem" expression="$c(111)" ifxpath='QEduProv=""' />
+			 </table>			</table>
+			<table orient='col' >
+
+			 <item  class="trakquestcaptionitem"  value='Education Provided Date' 
+			    ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QEduProvDate", ",") )) ' />
+			 <table  class="trakquestdisplayitem"     ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QEduProvDate", ",") ))  ' >
+			  <item  class="trakquestitem"  field='QEduProvDate' />
+			 </table>
+			 <item  class="trakquestcaptionitem"  value='GP Clinic Name' 
+			    ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QGPClinicName", ",") )) ' />
+			 <table  class="trakquestreadonlyitem"     ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QGPClinicName", ",") ))  ' >
+			  <item  class="trakquestitem"  field='QGPClinicName' />
+			 </table>			</table>
+			<table orient='col' >
+
+			 <item  class="trakquestcaptionitem"  value='GP Given Name' 
+			    ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QGPGiven", ",") )) ' />
+			 <table  class="trakquestreadonlyitem"     ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QGPGiven", ",") ))  ' >
+			  <item  class="trakquestitem"  field='QGPGiven' />
+			 </table>
+			 <item  class="trakquestcaptionitem"  value='GP Clinic Phone No.' 
+			    ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QGPPhone", ",") )) ' />
+			 <table  class="trakquestreadonlyitem"     ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QGPPhone", ",") ))  ' >
+			  <item  class="trakquestitem"  field='QGPPhone' />
+			 </table>			</table>
+			<table orient='col' >
+
+			 <item  class="trakquestcaptionitem"  value='General Practitioner Street Address' 
+			    ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QGPStreet", ",") )) ' />
+			 <table  class="trakquestreadonlyitem"     ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QGPStreet", ",") ))  ' >
+			  <item  class="trakquestitem"  field='QGPStreet' />
+			 </table>
+			 <item  class="trakquestcaptionitem"  value='GP Clinic Suburb' 
+			    ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QGPSuburb", ",") )) ' />
+			 <table  class="trakquestreadonlyitem"     ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QGPSuburb", ",") ))  ' >
+			  <item  class="trakquestitem"  field='QGPSuburb' />
+			 </table>			</table>
+			<table orient='col' >
+
+			 <item  class="trakquestcaptionitem"  value='GP Surname' 
+			    ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QGPSurname", ",") )) ' />
+			 <table  class="trakquestreadonlyitem"     ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QGPSurname", ",") ))  ' >
+			  <item  class="trakquestitem"  field='QGPSurname' />
+			 </table>
+			 <item  class="trakquestcaptionitem"  value='General Comments' 
+			    ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QGenComm", ",") )) ' />
+			 <table  class="trakquestdisplayitem"     ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QGenComm", ",") ))  ' >
+			  <item field='QGenComm'  too-long-text='wrap'  breakOnLineFeed='true' literalSpaces='true' />
+			 </table>			</table>
+			<table orient='col' >
+
+			 <item  class="trakquestcaptionitem"  value='General Information Comments' 
+			    ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QGenInfoComm", ",") )) ' />
+			 <table  class="trakquestdisplayitem"     ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QGenInfoComm", ",") ))  ' >
+			  <item field='QGenInfoComm'  too-long-text='wrap'  breakOnLineFeed='true' literalSpaces='true' />
+			 </table>
+			 <item  class="trakquestcaptionitem"  value='Difficulty managing medicines' 
+			    ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QHMRR1", ",") )) ' />
+			 <table  class="trakquestdisplayitem"     ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QHMRR1", ",") ))  ' >
+			  <item  class="trakquestwingdingsitem" expression="$c(254)" ifxpath='QHMRR1="on"' />
+<item  class="trakquestwingdingsitem" expression="$c(111)" ifxpath='QHMRR1=""' />
+			 </table>			</table>
+			<table orient='col' >
+
+			 <item  class="trakquestcaptionitem"  value='Suspected non-compliance' 
+			    ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QHMRR2", ",") )) ' />
+			 <table  class="trakquestdisplayitem"     ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QHMRR2", ",") ))  ' >
+			  <item  class="trakquestwingdingsitem" expression="$c(254)" ifxpath='QHMRR2="on"' />
+<item  class="trakquestwingdingsitem" expression="$c(111)" ifxpath='QHMRR2=""' />
+			 </table>
+			 <item  class="trakquestcaptionitem"  value='Inability to manage drug related therapeutic devices' 
+			    ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QHMRR3", ",") )) ' />
+			 <table  class="trakquestdisplayitem"     ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QHMRR3", ",") ))  ' >
+			  <item  class="trakquestwingdingsitem" expression="$c(254)" ifxpath='QHMRR3="on"' />
+<item  class="trakquestwingdingsitem" expression="$c(111)" ifxpath='QHMRR3=""' />
+			 </table>			</table>
+			<table orient='col' >
+
+			 <item  class="trakquestcaptionitem"  value='Taking more than 5 medicines' 
+			    ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QHMRR4", ",") )) ' />
+			 <table  class="trakquestdisplayitem"     ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QHMRR4", ",") ))  ' >
+			  <item  class="trakquestwingdingsitem" expression="$c(254)" ifxpath='QHMRR4="on"' />
+<item  class="trakquestwingdingsitem" expression="$c(111)" ifxpath='QHMRR4=""' />
+			 </table>
+			 <item  class="trakquestcaptionitem"  value='Taking more than 12 doses per day' 
+			    ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QHMRR5", ",") )) ' />
+			 <table  class="trakquestdisplayitem"     ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QHMRR5", ",") ))  ' >
+			  <item  class="trakquestwingdingsitem" expression="$c(254)" ifxpath='QHMRR5="on"' />
+<item  class="trakquestwingdingsitem" expression="$c(111)" ifxpath='QHMRR5=""' />
+			 </table>			</table>
+			<table orient='col' >
+
+			 <item  class="trakquestcaptionitem"  value='Significant changes to medication regimen during admission' 
+			    ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QHMRR6", ",") )) ' />
+			 <table  class="trakquestdisplayitem"     ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QHMRR6", ",") ))  ' >
+			  <item  class="trakquestwingdingsitem" expression="$c(254)" ifxpath='QHMRR6="on"' />
+<item  class="trakquestwingdingsitem" expression="$c(111)" ifxpath='QHMRR6=""' />
+			 </table>
+			 <item  class="trakquestcaptionitem"  value='Medication requiring therapeutic monitoring' 
+			    ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QHMRR7", ",") )) ' />
+			 <table  class="trakquestdisplayitem"     ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QHMRR7", ",") ))  ' >
+			  <item  class="trakquestwingdingsitem" expression="$c(254)" ifxpath='QHMRR7="on"' />
+<item  class="trakquestwingdingsitem" expression="$c(111)" ifxpath='QHMRR7=""' />
+			 </table>			</table>
+			<table orient='col' >
+
+			 <item  class="trakquestcaptionitem"  value='Other' 
+			    ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QHMRR8", ",") )) ' />
+			 <table  class="trakquestdisplayitem"     ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QHMRR8", ",") ))  ' >
+			  <item  class="trakquestwingdingsitem" expression="$c(254)" ifxpath='QHMRR8="on"' />
+<item  class="trakquestwingdingsitem" expression="$c(111)" ifxpath='QHMRR8=""' />
+			 </table>
+			 <item  class="trakquestcaptionitem"  value='Home Medicines Review Referral Checklist General Comments' 
+			    ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QHoMedRevRefComm", ",") )) ' />
+			 <table  class="trakquestdisplayitem"     ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QHoMedRevRefComm", ",") ))  ' >
+			  <item field='QHoMedRevRefComm'  too-long-text='wrap'  breakOnLineFeed='true' literalSpaces='true' />
+			 </table>			</table>
+			<table orient='col' >
+
+			 <item  class="trakquestcaptionitem"  value='Not Applicable' 
+			    ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QHomMedRevNA", ",") )) ' />
+			 <table  class="trakquestdisplayitem"     ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QHomMedRevNA", ",") ))  ' >
+			  <item  class="trakquestwingdingsitem" expression="$c(254)" ifxpath='QHomMedRevNA="on"' />
+<item  class="trakquestwingdingsitem" expression="$c(111)" ifxpath='QHomMedRevNA=""' />
+			 </table>
+			 <item  class="trakquestcaptionitem"  value='Recommend Home Medicines Review referral (see checklist below)' 
+			    ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QHomRev", ",") )) ' />
+			 <table  class="trakquestdisplayitem"   orient='row'  ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QHomRev", ",") ))  ' >
+			  
+ <table  width='100%' orient='col' class='trakquesttable'  >  
+<!--  ## Y: Yes ## -->
+<block width='25%' class='trakquestdisplayitem'>
+  <item class="trakquestwingdingsitem" field="QHomRevY" />
+  <item  value='Yes' >
+  </item>
+</block>
+<!--  ## N: No ## -->
+<block width='25%' class='trakquestdisplayitem'>
+  <item class="trakquestwingdingsitem" field="QHomRevN" />
+  <item  value='No' >
+  </item>
+</block>
+</table>
+<table class='trakquestdisplayitem' width='100%' ><item value='&#160;' height='5px'  /></table> 
+			 </table>			</table>
+			<table orient='col' >
+
+			 <item  class="trakquestcaptionitem"  value='Other' 
+			    ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QHomRevOth", ",") )) ' />
+			 <table  class="trakquestdisplayitem"     ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QHomRevOth", ",") ))  ' >
+			  <item  class="trakquestitem"  field='QHomRevOth' />
+			 </table>
+			 <item  class="trakquestcaptionitem"  value='Hospital' 
+			    ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QHospital", ",") )) ' />
+			 <table  class="trakquestdisplayitem"     ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QHospital", ",") ))  ' >
+			  <item  class="trakquestitem"  field='QHospital' />
+			 </table>			</table>
+			<table orient='col' >
+
+			 <item  class="trakquestcaptionitem"  value='Interpreter required?' 
+			    ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QInterpreter", ",") )) ' />
+			 <table  class="trakquestreadonlyitem"     ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QInterpreter", ",") ))  ' >
+			  <item  class="trakquestitem"  field='QInterpreter' />
+			 </table>
+			 <item  class="trakquestcaptionitem"  value='Other information' 
+			    ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QLI10", ",") )) ' />
+			 <table  class="trakquestdisplayitem"     ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QLI10", ",") ))  ' >
+			  <item  class="trakquestitem"  field='QLI10' />
+			 </table>			</table>
+			<table orient='col' >
+
+			 <item  class="trakquestcaptionitem"  value='Administration aid details' 
+			    ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QLI5", ",") )) ' />
+			 <table  class="trakquestdisplayitem"     ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QLI5", ",") ))  ' >
+			  <item  class="trakquestitem"  field='QLI5' />
+			 </table>
+			 <item  class="trakquestcaptionitem"  value='Uses administration aid (specify)' 
+			    ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QLIAdminAid", ",") )) ' />
+			 <table  class="trakquestdisplayitem"   orient='row'  ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QLIAdminAid", ",") ))  ' >
+			  
+ <table  width='100%' orient='col' class='trakquesttable'  >  
+<!--  ## Y: Yes ## -->
+<block width='25%' class='trakquestdisplayitem'>
+  <item class="trakquestwingdingsitem" field="QLIAdminAidY" />
+  <item  value='Yes' >
+  </item>
+</block>
+<!--  ## N: No ## -->
+<block width='25%' class='trakquestdisplayitem'>
+  <item class="trakquestwingdingsitem" field="QLIAdminAidN" />
+  <item  value='No' >
+  </item>
+</block>
+</table>
+<table class='trakquestdisplayitem' width='100%' ><item value='&#160;' height='5px'  /></table> 
+			 </table>			</table>
+			<table orient='col' >
+
+			 <item  class="trakquestcaptionitem"  value='Uses dose administration device ie spacers, inhaler devices' 
+			    ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QLIDoseAdmin", ",") )) ' />
+			 <table  class="trakquestdisplayitem"   orient='row'  ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QLIDoseAdmin", ",") ))  ' >
+			  
+ <table  width='100%' orient='col' class='trakquesttable'  >  
+<!--  ## Y: Yes ## -->
+<block width='25%' class='trakquestdisplayitem'>
+  <item class="trakquestwingdingsitem" field="QLIDoseAdminY" />
+  <item  value='Yes' >
+  </item>
+</block>
+<!--  ## N: No ## -->
+<block width='25%' class='trakquestdisplayitem'>
+  <item class="trakquestwingdingsitem" field="QLIDoseAdminN" />
+  <item  value='No' >
+  </item>
+</block>
+</table>
+<table class='trakquestdisplayitem' width='100%' ><item value='&#160;' height='5px'  /></table> 
+			 </table>
+			 <item  class="trakquestcaptionitem"  value='Has impaired hearing' 
+			    ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QLIImpHear", ",") )) ' />
+			 <table  class="trakquestdisplayitem"   orient='row'  ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QLIImpHear", ",") ))  ' >
+			  
+ <table  width='100%' orient='col' class='trakquesttable'  >  
+<!--  ## Y: Yes ## -->
+<block width='25%' class='trakquestdisplayitem'>
+  <item class="trakquestwingdingsitem" field="QLIImpHearY" />
+  <item  value='Yes' >
+  </item>
+</block>
+<!--  ## N: No ## -->
+<block width='25%' class='trakquestdisplayitem'>
+  <item class="trakquestwingdingsitem" field="QLIImpHearN" />
+  <item  value='No' >
+  </item>
+</block>
+</table>
+<table class='trakquestdisplayitem' width='100%' ><item value='&#160;' height='5px'  /></table> 
+			 </table>			</table>
+			<table orient='col' >
+
+			 <item  class="trakquestcaptionitem"  value='Has impaired vision' 
+			    ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QLIImpVis", ",") )) ' />
+			 <table  class="trakquestdisplayitem"   orient='row'  ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QLIImpVis", ",") ))  ' >
+			  
+ <table  width='100%' orient='col' class='trakquesttable'  >  
+<!--  ## Y: Yes ## -->
+<block width='25%' class='trakquestdisplayitem'>
+  <item class="trakquestwingdingsitem" field="QLIImpVisY" />
+  <item  value='Yes' >
+  </item>
+</block>
+<!--  ## N: No ## -->
+<block width='25%' class='trakquestdisplayitem'>
+  <item class="trakquestwingdingsitem" field="QLIImpVisN" />
+  <item  value='No' >
+  </item>
+</block>
+</table>
+<table class='trakquestdisplayitem' width='100%' ><item value='&#160;' height='5px'  /></table> 
+			 </table>
+			 <item  class="trakquestcaptionitem"  value='Lives alone' 
+			    ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QLILivesAl", ",") )) ' />
+			 <table  class="trakquestdisplayitem"   orient='row'  ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QLILivesAl", ",") ))  ' >
+			  
+ <table  width='100%' orient='col' class='trakquesttable'  >  
+<!--  ## Y: Yes ## -->
+<block width='25%' class='trakquestdisplayitem'>
+  <item class="trakquestwingdingsitem" field="QLILivesAlY" />
+  <item  value='Yes' >
+  </item>
+</block>
+<!--  ## N: No ## -->
+<block width='25%' class='trakquestdisplayitem'>
+  <item class="trakquestwingdingsitem" field="QLILivesAlN" />
+  <item  value='No' >
+  </item>
+</block>
+</table>
+<table class='trakquestdisplayitem' width='100%' ><item value='&#160;' height='5px'  /></table> 
+			 </table>			</table>
+			<table orient='col' >
+
+			 <item  class="trakquestcaptionitem"  value='Uses Medication List' 
+			    ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QLIMedList", ",") )) ' />
+			 <table  class="trakquestdisplayitem"   orient='row'  ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QLIMedList", ",") ))  ' >
+			  
+ <table  width='100%' orient='col' class='trakquesttable'  >  
+<!--  ## Y: Yes ## -->
+<block width='25%' class='trakquestdisplayitem'>
+  <item class="trakquestwingdingsitem" field="QLIMedListY" />
+  <item  value='Yes' >
+  </item>
+</block>
+<!--  ## N: No ## -->
+<block width='25%' class='trakquestdisplayitem'>
+  <item class="trakquestwingdingsitem" field="QLIMedListN" />
+  <item  value='No' >
+  </item>
+</block>
+</table>
+<table class='trakquestdisplayitem' width='100%' ><item value='&#160;' height='5px'  /></table> 
+			 </table>
+			 <item  class="trakquestcaptionitem"  value='Lives in residential care facility' 
+			    ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QLIRes", ",") )) ' />
+			 <table  class="trakquestdisplayitem"   orient='row'  ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QLIRes", ",") ))  ' >
+			  
+ <table  width='100%' orient='col' class='trakquesttable'  >  
+<!--  ## Y: Yes ## -->
+<block width='25%' class='trakquestdisplayitem'>
+  <item class="trakquestwingdingsitem" field="QLIResY" />
+  <item  value='Yes' >
+  </item>
+</block>
+<!--  ## N: No ## -->
+<block width='25%' class='trakquestdisplayitem'>
+  <item class="trakquestwingdingsitem" field="QLIResN" />
+  <item  value='No' >
+  </item>
+</block>
+</table>
+<table class='trakquestdisplayitem' width='100%' ><item value='&#160;' height='5px'  /></table> 
+			 </table>			</table>
+			<table orient='col' >
+
+			 <item  class="trakquestcaptionitem"  value='Swallowing issues' 
+			    ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QLISwall", ",") )) ' />
+			 <table  class="trakquestdisplayitem"   orient='row'  ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QLISwall", ",") ))  ' >
+			  
+ <table  width='100%' orient='col' class='trakquesttable'  >  
+<!--  ## Y: Yes ## -->
+<block width='25%' class='trakquestdisplayitem'>
+  <item class="trakquestwingdingsitem" field="QLISwallY" />
+  <item  value='Yes' >
+  </item>
+</block>
+<!--  ## N: No ## -->
+<block width='25%' class='trakquestdisplayitem'>
+  <item class="trakquestwingdingsitem" field="QLISwallN" />
+  <item  value='No' >
+  </item>
+</block>
+</table>
+<table class='trakquestdisplayitem' width='100%' ><item value='&#160;' height='5px'  /></table> 
+			 </table>
+			 <item  class="trakquestcaptionitem"  value='Language spoken' 
+			    ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QLang", ",") )) ' />
+			 <table  class="trakquestreadonlyitem"     ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QLang", ",") ))  ' >
+			  <item  class="trakquestitem"  field='QLang' />
+			 </table>			</table>
+			<table orient='col' >
+
+			 <item  class="trakquestcaptionitem"  value='Prescription medicines' 
+			    ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QMH1", ",") )) ' />
+			 <table  class="trakquestdisplayitem"     ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QMH1", ",") ))  ' >
+			  <item  class="trakquestwingdingsitem" expression="$c(254)" ifxpath='QMH1="on"' />
+<item  class="trakquestwingdingsitem" expression="$c(111)" ifxpath='QMH1=""' />
+			 </table>
+			 <item  class="trakquestcaptionitem"  value='Inserted medicines (eg nose/ear/eye drops, pessaries, suppositories)' 
+			    ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QMH10", ",") )) ' />
+			 <table  class="trakquestdisplayitem"     ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QMH10", ",") ))  ' >
+			  <item  class="trakquestwingdingsitem" expression="$c(254)" ifxpath='QMH10="on"' />
+<item  class="trakquestwingdingsitem" expression="$c(111)" ifxpath='QMH10=""' />
+			 </table>			</table>
+			<table orient='col' >
+
+			 <item  class="trakquestcaptionitem"  value='Injected medicines' 
+			    ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QMH11", ",") )) ' />
+			 <table  class="trakquestdisplayitem"     ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QMH11", ",") ))  ' >
+			  <item  class="trakquestwingdingsitem" expression="$c(254)" ifxpath='QMH11="on"' />
+<item  class="trakquestwingdingsitem" expression="$c(111)" ifxpath='QMH11=""' />
+			 </table>
+			 <item  class="trakquestcaptionitem"  value='Recently completed courses of medicine' 
+			    ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QMH12", ",") )) ' />
+			 <table  class="trakquestdisplayitem"     ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QMH12", ",") ))  ' >
+			  <item  class="trakquestwingdingsitem" expression="$c(254)" ifxpath='QMH12="on"' />
+<item  class="trakquestwingdingsitem" expression="$c(111)" ifxpath='QMH12=""' />
+			 </table>			</table>
+			<table orient='col' >
+
+			 <item  class="trakquestcaptionitem"  value='Other people&apos;s medicines' 
+			    ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QMH13", ",") )) ' />
+			 <table  class="trakquestdisplayitem"     ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QMH13", ",") ))  ' >
+			  <item  class="trakquestwingdingsitem" expression="$c(254)" ifxpath='QMH13="on"' />
+<item  class="trakquestwingdingsitem" expression="$c(111)" ifxpath='QMH13=""' />
+			 </table>
+			 <item  class="trakquestcaptionitem"  value='Social and recreational drugs' 
+			    ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QMH14", ",") )) ' />
+			 <table  class="trakquestdisplayitem"     ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QMH14", ",") ))  ' >
+			  <item  class="trakquestwingdingsitem" expression="$c(254)" ifxpath='QMH14="on"' />
+<item  class="trakquestwingdingsitem" expression="$c(111)" ifxpath='QMH14=""' />
+			 </table>			</table>
+			<table orient='col' >
+
+			 <item  class="trakquestcaptionitem"  value='Intermittent medicines (eg weekly or twice weekly)' 
+			    ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QMH15", ",") )) ' />
+			 <table  class="trakquestdisplayitem"     ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QMH15", ",") ))  ' >
+			  <item  class="trakquestwingdingsitem" expression="$c(254)" ifxpath='QMH15="on"' />
+<item  class="trakquestwingdingsitem" expression="$c(111)" ifxpath='QMH15=""' />
+			 </table>
+			 <item  class="trakquestcaptionitem"  value='Sleeping tablets' 
+			    ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QMH2", ",") )) ' />
+			 <table  class="trakquestdisplayitem"     ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QMH2", ",") ))  ' >
+			  <item  class="trakquestwingdingsitem" expression="$c(254)" ifxpath='QMH2="on"' />
+<item  class="trakquestwingdingsitem" expression="$c(111)" ifxpath='QMH2=""' />
+			 </table>			</table>
+			<table orient='col' >
+
+			 <item  class="trakquestcaptionitem"  value='Inhalers, puffers, sprays, sublingual tablets' 
+			    ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QMH3", ",") )) ' />
+			 <table  class="trakquestdisplayitem"     ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QMH3", ",") ))  ' >
+			  <item  class="trakquestwingdingsitem" expression="$c(254)" ifxpath='QMH3="on"' />
+<item  class="trakquestwingdingsitem" expression="$c(111)" ifxpath='QMH3=""' />
+			 </table>
+			 <item  class="trakquestcaptionitem"  value='Oral contraceptives, hormone replacement therapy' 
+			    ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QMH4", ",") )) ' />
+			 <table  class="trakquestdisplayitem"     ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QMH4", ",") ))  ' >
+			  <item  class="trakquestwingdingsitem" expression="$c(254)" ifxpath='QMH4="on"' />
+<item  class="trakquestwingdingsitem" expression="$c(111)" ifxpath='QMH4=""' />
+			 </table>			</table>
+			<table orient='col' >
+
+			 <item  class="trakquestcaptionitem"  value='Over-the-counter medicines' 
+			    ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QMH5", ",") )) ' />
+			 <table  class="trakquestdisplayitem"     ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QMH5", ",") ))  ' >
+			  <item  class="trakquestwingdingsitem" expression="$c(254)" ifxpath='QMH5="on"' />
+<item  class="trakquestwingdingsitem" expression="$c(111)" ifxpath='QMH5=""' />
+			 </table>
+			 <item  class="trakquestcaptionitem"  value='Analgesics' 
+			    ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QMH6", ",") )) ' />
+			 <table  class="trakquestdisplayitem"     ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QMH6", ",") ))  ' >
+			  <item  class="trakquestwingdingsitem" expression="$c(254)" ifxpath='QMH6="on"' />
+<item  class="trakquestwingdingsitem" expression="$c(111)" ifxpath='QMH6=""' />
+			 </table>			</table>
+			<table orient='col' >
+
+			 <item  class="trakquestcaptionitem"  value='Gastrointestinal drugs (for reflux, heartburn, constipation, diarrhoea)' 
+			    ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QMH7", ",") )) ' />
+			 <table  class="trakquestdisplayitem"     ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QMH7", ",") ))  ' >
+			  <item  class="trakquestwingdingsitem" expression="$c(254)" ifxpath='QMH7="on"' />
+<item  class="trakquestwingdingsitem" expression="$c(111)" ifxpath='QMH7=""' />
+			 </table>
+			 <item  class="trakquestcaptionitem"  value='Complementary medicines (eg vitamins, herbal or natural therapies)' 
+			    ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QMH8", ",") )) ' />
+			 <table  class="trakquestdisplayitem"     ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QMH8", ",") ))  ' >
+			  <item  class="trakquestwingdingsitem" expression="$c(254)" ifxpath='QMH8="on"' />
+<item  class="trakquestwingdingsitem" expression="$c(111)" ifxpath='QMH8=""' />
+			 </table>			</table>
+			<table orient='col' >
+
+			 <item  class="trakquestcaptionitem"  value='Topical medicines (eg creams, ointments, lotions, patches)' 
+			    ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QMH9", ",") )) ' />
+			 <table  class="trakquestdisplayitem"     ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QMH9", ",") ))  ' >
+			  <item  class="trakquestwingdingsitem" expression="$c(254)" ifxpath='QMH9="on"' />
+<item  class="trakquestwingdingsitem" expression="$c(111)" ifxpath='QMH9=""' />
+			 </table>
+			 <item  class="trakquestcaptionitem"  value='Medicines usually administered by' 
+			    ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QMedAdminby", ",") )) ' />
+			 <table  class="trakquestdisplayitem"   orient='row'  ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QMedAdminby", ",") ))  ' >
+			  
+ <table  width='100%' orient='col' class='trakquesttable'  >  
+<!--  ## S: Self ## -->
+<block width='25%' class='trakquestdisplayitem'>
+  <item class="trakquestwingdingsitem" field="QMedAdminbyS" />
+  <item  value='Self' >
+  </item>
+</block>
+<!--  ## O: Other ## -->
+<block width='25%' class='trakquestdisplayitem'>
+  <item class="trakquestwingdingsitem" field="QMedAdminbyO" />
+  <item  value='Other' >
+  </item>
+</block>
+</table>
+<table class='trakquestdisplayitem' width='100%' ><item value='&#160;' height='5px'  /></table> 
+			 </table>			</table>
+			<table orient='col' >
+
+			 <item  class="trakquestcaptionitem"  value='Medication Changes During Admission' 
+			    ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QMedChang", ",") )) ' />
+			 <table  class="trakquestdisplayitem"     ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QMedChang", ",") ))  ' >
+			  <item field='QMedChang'  too-long-text='wrap'  breakOnLineFeed='true' literalSpaces='true' />
+			 </table>
+			 <item  class="trakquestcaptionitem"  value='Medication Discharge Checklist General Comments' 
+			    ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QMedDCChComm", ",") )) ' />
+			 <table  class="trakquestdisplayitem"     ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QMedDCChComm", ",") ))  ' >
+			  <item field='QMedDCChComm'  too-long-text='wrap'  breakOnLineFeed='true' literalSpaces='true' />
+			 </table>			</table>
+			<table orient='col' >
+
+			 <item  class="trakquestcaptionitem"  value='Medication History General Comments' 
+			    ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QMedHisComm", ",") )) ' />
+			 <table  class="trakquestdisplayitem"     ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QMedHisComm", ",") ))  ' >
+			  <item field='QMedHisComm'  too-long-text='wrap'  breakOnLineFeed='true' literalSpaces='true' />
+			 </table>
+			 <item  class="trakquestcaptionitem"  value='Medication Risk Identification General Comments' 
+			    ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QMedRIComm", ",") )) ' />
+			 <table  class="trakquestdisplayitem"     ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QMedRIComm", ",") ))  ' >
+			  <item field='QMedRIComm'  too-long-text='wrap'  breakOnLineFeed='true' literalSpaces='true' />
+			 </table>			</table>
+			<table orient='col' >
+
+			 <item  class="trakquestcaptionitem"  value='Own Medicines Returned' 
+			    ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QMedRet", ",") )) ' />
+			 <table  class="trakquestdisplayitem"     ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QMedRet", ",") ))  ' >
+			  <item  class="trakquestwingdingsitem" expression="$c(254)" ifxpath='QMedRet="on"' />
+<item  class="trakquestwingdingsitem" expression="$c(111)" ifxpath='QMedRet=""' />
+			 </table>
+			 <item  class="trakquestcaptionitem"  value='Own medicines returned date' 
+			    ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QMedRetDate", ",") )) ' />
+			 <table  class="trakquestdisplayitem"     ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QMedRetDate", ",") ))  ' >
+			  <item  class="trakquestitem"  field='QMedRetDate' />
+			 </table>			</table>
+			<table orient='col' >
+
+			 <item  class="trakquestcaptionitem"  value='Medication Supply' 
+			    ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QMedSupp", ",") )) ' />
+			 <table  class="trakquestdisplayitem"     ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QMedSupp", ",") ))  ' >
+			  <item  class="trakquestwingdingsitem" expression="$c(254)" ifxpath='QMedSupp="on"' />
+<item  class="trakquestwingdingsitem" expression="$c(111)" ifxpath='QMedSupp=""' />
+			 </table>
+			 <item  class="trakquestcaptionitem"  value='Medication supply date' 
+			    ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QMedSuppDate", ",") )) ' />
+			 <table  class="trakquestdisplayitem"     ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QMedSuppDate", ",") ))  ' >
+			  <item  class="trakquestitem"  field='QMedSuppDate' />
+			 </table>			</table>
+			<table orient='col' >
+
+			 <item  class="trakquestcaptionitem"  value='Other information' 
+			    ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QPA9", ",") )) ' />
+			 <table  class="trakquestdisplayitem"     ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QPA9", ",") ))  ' >
+			  <item  class="trakquestitem"  field='QPA9' />
+			 </table>
+			 <item  class="trakquestcaptionitem"  value='Can measure liquids' 
+			    ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QPAMeasLiq", ",") )) ' />
+			 <table  class="trakquestdisplayitem"   orient='row'  ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QPAMeasLiq", ",") ))  ' >
+			  
+ <table  width='100%' orient='col' class='trakquesttable'  >  
+<!--  ## Y: Yes ## -->
+<block width='25%' class='trakquestdisplayitem'>
+  <item class="trakquestwingdingsitem" field="QPAMeasLiqY" />
+  <item  value='Yes' >
+  </item>
+</block>
+<!--  ## N: No ## -->
+<block width='25%' class='trakquestdisplayitem'>
+  <item class="trakquestwingdingsitem" field="QPAMeasLiqN" />
+  <item  value='No' >
+  </item>
+</block>
+</table>
+<table class='trakquestdisplayitem' width='100%' ><item value='&#160;' height='5px'  /></table> 
+			 </table>			</table>
+			<table orient='col' >
+
+			 <item  class="trakquestcaptionitem"  value='Can open bottles' 
+			    ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QPAOpBot", ",") )) ' />
+			 <table  class="trakquestdisplayitem"   orient='row'  ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QPAOpBot", ",") ))  ' >
+			  
+ <table  width='100%' orient='col' class='trakquesttable'  >  
+<!--  ## Y: Yes ## -->
+<block width='25%' class='trakquestdisplayitem'>
+  <item class="trakquestwingdingsitem" field="QPAOpBotY" />
+  <item  value='Yes' >
+  </item>
+</block>
+<!--  ## N: No ## -->
+<block width='25%' class='trakquestdisplayitem'>
+  <item class="trakquestwingdingsitem" field="QPAOpBotN" />
+  <item  value='No' >
+  </item>
+</block>
+</table>
+<table class='trakquestdisplayitem' width='100%' ><item value='&#160;' height='5px'  /></table> 
+			 </table>
+			 <item  class="trakquestcaptionitem"  value='Can read/comprehend labels' 
+			    ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QPAReadLab", ",") )) ' />
+			 <table  class="trakquestdisplayitem"   orient='row'  ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QPAReadLab", ",") ))  ' >
+			  
+ <table  width='100%' orient='col' class='trakquesttable'  >  
+<!--  ## Y: Yes ## -->
+<block width='25%' class='trakquestdisplayitem'>
+  <item class="trakquestwingdingsitem" field="QPAReadLabY" />
+  <item  value='Yes' >
+  </item>
+</block>
+<!--  ## N: No ## -->
+<block width='25%' class='trakquestdisplayitem'>
+  <item class="trakquestwingdingsitem" field="QPAReadLabN" />
+  <item  value='No' >
+  </item>
+</block>
+</table>
+<table class='trakquestdisplayitem' width='100%' ><item value='&#160;' height='5px'  /></table> 
+			 </table>			</table>
+			<table orient='col' >
+
+			 <item  class="trakquestcaptionitem"  value='Recent Home Medicine Review' 
+			    ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QPARecHomMed", ",") )) ' />
+			 <table  class="trakquestdisplayitem"   orient='row'  ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QPARecHomMed", ",") ))  ' >
+			  
+ <table  width='100%' orient='col' class='trakquesttable'  >  
+<!--  ## Y: Yes ## -->
+<block width='25%' class='trakquestdisplayitem'>
+  <item class="trakquestwingdingsitem" field="QPARecHomMedY" />
+  <item  value='Yes' >
+  </item>
+</block>
+<!--  ## N: No ## -->
+<block width='25%' class='trakquestdisplayitem'>
+  <item class="trakquestwingdingsitem" field="QPARecHomMedN" />
+  <item  value='No' >
+  </item>
+</block>
+</table>
+<table class='trakquestdisplayitem' width='100%' ><item value='&#160;' height='5px'  /></table> 
+			 </table>
+			 <item  class="trakquestcaptionitem"  value='Suspected non-adherence' 
+			    ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QPASuspNA", ",") )) ' />
+			 <table  class="trakquestdisplayitem"   orient='row'  ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QPASuspNA", ",") ))  ' >
+			  
+ <table  width='100%' orient='col' class='trakquesttable'  >  
+<!--  ## Y: Yes ## -->
+<block width='25%' class='trakquestdisplayitem'>
+  <item class="trakquestwingdingsitem" field="QPASuspNAY" />
+  <item  value='Yes' >
+  </item>
+</block>
+<!--  ## N: No ## -->
+<block width='25%' class='trakquestdisplayitem'>
+  <item class="trakquestwingdingsitem" field="QPASuspNAN" />
+  <item  value='No' >
+  </item>
+</block>
+</table>
+<table class='trakquestdisplayitem' width='100%' ><item value='&#160;' height='5px'  /></table> 
+			 </table>			</table>
+			<table orient='col' >
+
+			 <item  class="trakquestcaptionitem"  value='Can understand English' 
+			    ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QPAUnderEng", ",") )) ' />
+			 <table  class="trakquestdisplayitem"   orient='row'  ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QPAUnderEng", ",") ))  ' >
+			  
+ <table  width='100%' orient='col' class='trakquesttable'  >  
+<!--  ## Y: Yes ## -->
+<block width='25%' class='trakquestdisplayitem'>
+  <item class="trakquestwingdingsitem" field="QPAUnderEngY" />
+  <item  value='Yes' >
+  </item>
+</block>
+<!--  ## N: No ## -->
+<block width='25%' class='trakquestdisplayitem'>
+  <item class="trakquestwingdingsitem" field="QPAUnderEngN" />
+  <item  value='No' >
+  </item>
+</block>
+</table>
+<table class='trakquestdisplayitem' width='100%' ><item value='&#160;' height='5px'  /></table> 
+			 </table>
+			 <item  class="trakquestcaptionitem"  value='Patient&apos;s Immunisation up to date?' 
+			    ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QPatImmun", ",") )) ' />
+			 <table  class="trakquestdisplayitem"   orient='row'  ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QPatImmun", ",") ))  ' >
+			  
+ <table  width='100%' orient='col' class='trakquesttable'  >  
+<!--  ## Y: Yes ## -->
+<block width='25%' class='trakquestdisplayitem'>
+  <item class="trakquestwingdingsitem" field="QPatImmunY" />
+  <item  value='Yes' >
+  </item>
+</block>
+<!--  ## N: No ## -->
+<block width='25%' class='trakquestdisplayitem'>
+  <item class="trakquestwingdingsitem" field="QPatImmunN" />
+  <item  value='No' >
+  </item>
+</block>
+<!--  ## U: Unknown ## -->
+<block width='25%' class='trakquestdisplayitem'>
+  <item class="trakquestwingdingsitem" field="QPatImmunU" />
+  <item  value='Unknown' >
+  </item>
+</block>
+</table>
+<table class='trakquestdisplayitem' width='100%' ><item value='&#160;' height='5px'  /></table> 
+			 </table>			</table>
+			<table orient='col' >
+
+			 <item  class="trakquestcaptionitem"  value='Permission for disposal of medicines' 
+			    ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QPermDisp", ",") )) ' />
+			 <table  class="trakquestdisplayitem"     ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QPermDisp", ",") ))  ' >
+			  <item  class="trakquestwingdingsitem" expression="$c(254)" ifxpath='QPermDisp="on"' />
+<item  class="trakquestwingdingsitem" expression="$c(111)" ifxpath='QPermDisp=""' />
+			 </table>
+			 <item  class="trakquestcaptionitem"  value='Permission for disposal of medicines date' 
+			    ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QPermDispDate", ",") )) ' />
+			 <table  class="trakquestdisplayitem"     ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QPermDispDate", ",") ))  ' >
+			  <item  class="trakquestitem"  field='QPermDispDate' />
+			 </table>			</table>
+			<table orient='col' >
+
+			 <item  class="trakquestcaptionitem"  value='Preferred Administration Method' 
+			    ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QPrefAdmMeth", ",") )) ' />
+			 <table  class="trakquestdisplayitem"     ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QPrefAdmMeth", ",") ))  ' >
+			  <item  class="trakquestitem"  field='QPrefAdmMeth' />
+			 </table>
+			 <item  class="trakquestcaptionitem"  value='Recently Ceased or Recent Changes to Medicines (prior to presentation to hospital' 
+			    ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QRecChang", ",") )) ' />
+			 <table  class="trakquestdisplayitem"     ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QRecChang", ",") ))  ' >
+			  <item field='QRecChang'  too-long-text='wrap'  breakOnLineFeed='true' literalSpaces='true' />
+			 </table>			</table>
+			<table orient='col' >
+
+			 <item  class="trakquestcaptionitem"  value='Reconciled on discharge' 
+			    ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QRecDisch", ",") )) ' />
+			 <table  class="trakquestdisplayitem"     ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QRecDisch", ",") ))  ' >
+			  <item  class="trakquestwingdingsitem" expression="$c(254)" ifxpath='QRecDisch="on"' />
+<item  class="trakquestwingdingsitem" expression="$c(111)" ifxpath='QRecDisch=""' />
+			 </table>
+			 <item  class="trakquestcaptionitem"  value='Reconciled on discharge date' 
+			    ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QRecDischDate", ",") )) ' />
+			 <table  class="trakquestdisplayitem"     ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QRecDischDate", ",") ))  ' >
+			  <item  class="trakquestitem"  field='QRecDischDate' />
+			 </table>			</table>
+			<table orient='col' >
+
+			 <item  class="trakquestcaptionitem"  value='Residential Care Facility Details' 
+			    ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QResCareDet", ",") )) ' />
+			 <table  class="trakquestdisplayitem"     ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QResCareDet", ",") ))  ' >
+			  <item field='QResCareDet'  too-long-text='wrap'  breakOnLineFeed='true' literalSpaces='true' />
+			 </table>
+			 <item  class="trakquestcaptionitem"  value='Script given to patient (if applicable)' 
+			    ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QScriptGiven", ",") )) ' />
+			 <table  class="trakquestdisplayitem"     ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QScriptGiven", ",") ))  ' >
+			  <item  class="trakquestwingdingsitem" expression="$c(254)" ifxpath='QScriptGiven="on"' />
+<item  class="trakquestwingdingsitem" expression="$c(111)" ifxpath='QScriptGiven=""' />
+			 </table>			</table>
+			<table orient='col' >
+
+			 <item  class="trakquestcaptionitem"  value='Sources of Medicine General Comments' 
+			    ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QSourcMedComm", ",") )) ' />
+			 <table  class="trakquestdisplayitem"     ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QSourcMedComm", ",") ))  ' >
+			  <item field='QSourcMedComm'  too-long-text='wrap'  breakOnLineFeed='true' literalSpaces='true' />
+			 </table>
+			 <item  class="trakquestcaptionitem"  value='Community Nurse' 
+			    ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QSourceCN", ",") )) ' />
+			 <table  class="trakquestdisplayitem"     ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QSourceCN", ",") ))  ' >
+			  <item  class="trakquestwingdingsitem" expression="$c(254)" ifxpath='QSourceCN="on"' />
+<item  class="trakquestwingdingsitem" expression="$c(111)" ifxpath='QSourceCN=""' />
+			 </table>			</table>
+			<table orient='col' >
+
+			 <item  class="trakquestcaptionitem"  value='Community Nurse Confirmed by' 
+			    ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QSourceCNConfby", ",") )) ' />
+			 <table  class="trakquestdisplayitem"     ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QSourceCNConfby", ",") ))  ' >
+			  <item  class="trakquestitem"  field='QSourceCNConfby' />
+			 </table>
+			 <item  class="trakquestcaptionitem"  value='CN Confirmed by Date' 
+			    ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QSourceCNDate", ",") )) ' />
+			 <table  class="trakquestdisplayitem"     ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QSourceCNDate", ",") ))  ' >
+			  <item  class="trakquestitem"  field='QSourceCNDate' />
+			 </table>			</table>
+			<table orient='col' >
+
+			 <item  class="trakquestcaptionitem"  value='Community Pharmacist' 
+			    ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QSourceCP", ",") )) ' />
+			 <table  class="trakquestdisplayitem"     ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QSourceCP", ",") ))  ' >
+			  <item  class="trakquestwingdingsitem" expression="$c(254)" ifxpath='QSourceCP="on"' />
+<item  class="trakquestwingdingsitem" expression="$c(111)" ifxpath='QSourceCP=""' />
+			 </table>
+			 <item  class="trakquestcaptionitem"  value='Community Pharmacy Confirmed by' 
+			    ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QSourceCPConfby", ",") )) ' />
+			 <table  class="trakquestdisplayitem"     ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QSourceCPConfby", ",") ))  ' >
+			  <item  class="trakquestitem"  field='QSourceCPConfby' />
+			 </table>			</table>
+			<table orient='col' >
+
+			 <item  class="trakquestcaptionitem"  value='Community Pharmacy Confirmed Date' 
+			    ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QSourceCPDate", ",") )) ' />
+			 <table  class="trakquestdisplayitem"     ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QSourceCPDate", ",") ))  ' >
+			  <item  class="trakquestitem"  field='QSourceCPDate' />
+			 </table>
+			 <item  class="trakquestcaptionitem"  value='General Practitioner' 
+			    ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QSourceGP", ",") )) ' />
+			 <table  class="trakquestdisplayitem"     ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QSourceGP", ",") ))  ' >
+			  <item  class="trakquestwingdingsitem" expression="$c(254)" ifxpath='QSourceGP="on"' />
+<item  class="trakquestwingdingsitem" expression="$c(111)" ifxpath='QSourceGP=""' />
+			 </table>			</table>
+			<table orient='col' >
+
+			 <item  class="trakquestcaptionitem"  value='General Practitioner Confirmed by' 
+			    ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QSourceGPConfBy", ",") )) ' />
+			 <table  class="trakquestdisplayitem"     ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QSourceGPConfBy", ",") ))  ' >
+			  <item  class="trakquestitem"  field='QSourceGPConfBy' />
+			 </table>
+			 <item  class="trakquestcaptionitem"  value='GP Confirmed Date' 
+			    ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QSourceGPDate", ",") )) ' />
+			 <table  class="trakquestdisplayitem"     ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QSourceGPDate", ",") ))  ' >
+			  <item  class="trakquestitem"  field='QSourceGPDate' />
+			 </table>			</table>
+			<table orient='col' >
+
+			 <item  class="trakquestcaptionitem"  value='Nursing Home' 
+			    ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QSourceNH", ",") )) ' />
+			 <table  class="trakquestdisplayitem"     ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QSourceNH", ",") ))  ' >
+			  <item  class="trakquestwingdingsitem" expression="$c(254)" ifxpath='QSourceNH="on"' />
+<item  class="trakquestwingdingsitem" expression="$c(111)" ifxpath='QSourceNH=""' />
+			 </table>
+			 <item  class="trakquestcaptionitem"  value='Source NH Confirmed by' 
+			    ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QSourceNHConfby", ",") )) ' />
+			 <table  class="trakquestdisplayitem"     ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QSourceNHConfby", ",") ))  ' >
+			  <item  class="trakquestitem"  field='QSourceNHConfby' />
+			 </table>			</table>
+			<table orient='col' >
+
+			 <item  class="trakquestcaptionitem"  value='NH Confirmed Date' 
+			    ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QSourceNHDate", ",") )) ' />
+			 <table  class="trakquestdisplayitem"     ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QSourceNHDate", ",") ))  ' >
+			  <item  class="trakquestitem"  field='QSourceNHDate' />
+			 </table>
+			 <item  class="trakquestcaptionitem"  value='Own Medicines' 
+			    ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QSourceOwn", ",") )) ' />
+			 <table  class="trakquestdisplayitem"     ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QSourceOwn", ",") ))  ' >
+			  <item  class="trakquestwingdingsitem" expression="$c(254)" ifxpath='QSourceOwn="on"' />
+<item  class="trakquestwingdingsitem" expression="$c(111)" ifxpath='QSourceOwn=""' />
+			 </table>			</table>
+			<table orient='col' >
+
+			 <item  class="trakquestcaptionitem"  value='Own Medicines Confirmed by' 
+			    ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QSourceOwnConfby", ",") )) ' />
+			 <table  class="trakquestdisplayitem"     ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QSourceOwnConfby", ",") ))  ' >
+			  <item  class="trakquestitem"  field='QSourceOwnConfby' />
+			 </table>
+			 <item  class="trakquestcaptionitem"  value='Own Confirmed by Date' 
+			    ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QSourceOwnDate", ",") )) ' />
+			 <table  class="trakquestdisplayitem"     ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QSourceOwnDate", ",") ))  ' >
+			  <item  class="trakquestitem"  field='QSourceOwnDate' />
+			 </table>			</table>
+			<table orient='col' >
+
+			 <item  class="trakquestcaptionitem"  value='Previous Admission Confirmed by' 
+			    ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QSourcePAConfby", ",") )) ' />
+			 <table  class="trakquestdisplayitem"     ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QSourcePAConfby", ",") ))  ' >
+			  <item  class="trakquestitem"  field='QSourcePAConfby' />
+			 </table>
+			 <item  class="trakquestcaptionitem"  value='PA Confirmed by Date' 
+			    ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QSourcePADate", ",") )) ' />
+			 <table  class="trakquestdisplayitem"     ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QSourcePADate", ",") ))  ' >
+			  <item  class="trakquestitem"  field='QSourcePADate' />
+			 </table>			</table>
+			<table orient='col' >
+
+			 <item  class="trakquestcaptionitem"  value='Patient List' 
+			    ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QSourcePL", ",") )) ' />
+			 <table  class="trakquestdisplayitem"     ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QSourcePL", ",") ))  ' >
+			  <item  class="trakquestwingdingsitem" expression="$c(254)" ifxpath='QSourcePL="on"' />
+<item  class="trakquestwingdingsitem" expression="$c(111)" ifxpath='QSourcePL=""' />
+			 </table>
+			 <item  class="trakquestcaptionitem"  value='Patient List Confirmed by' 
+			    ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QSourcePLConfby", ",") )) ' />
+			 <table  class="trakquestdisplayitem"     ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QSourcePLConfby", ",") ))  ' >
+			  <item  class="trakquestitem"  field='QSourcePLConfby' />
+			 </table>			</table>
+			<table orient='col' >
+
+			 <item  class="trakquestcaptionitem"  value='PL Confirmed by Date' 
+			    ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QSourcePLDate", ",") )) ' />
+			 <table  class="trakquestdisplayitem"     ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QSourcePLDate", ",") ))  ' >
+			  <item  class="trakquestitem"  field='QSourcePLDate' />
+			 </table>
+			 <item  class="trakquestcaptionitem"  value='Patient / Carer' 
+			    ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QSourcePat", ",") )) ' />
+			 <table  class="trakquestdisplayitem"     ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QSourcePat", ",") ))  ' >
+			  <item  class="trakquestwingdingsitem" expression="$c(254)" ifxpath='QSourcePat="on"' />
+<item  class="trakquestwingdingsitem" expression="$c(111)" ifxpath='QSourcePat=""' />
+			 </table>			</table>
+			<table orient='col' >
+
+			 <item  class="trakquestcaptionitem"  value='Source Patient / Carer Confirmed by' 
+			    ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QSourcePatConfby", ",") )) ' />
+			 <table  class="trakquestdisplayitem"     ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QSourcePatConfby", ",") ))  ' >
+			  <item  class="trakquestitem"  field='QSourcePatConfby' />
+			 </table>
+			 <item  class="trakquestcaptionitem"  value='Patient/Carer Confirmed Date' 
+			    ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QSourcePatDate", ",") )) ' />
+			 <table  class="trakquestdisplayitem"     ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QSourcePatDate", ",") ))  ' >
+			  <item  class="trakquestitem"  field='QSourcePatDate' />
+			 </table>			</table>
+			<table orient='col' >
+
+			 <item  class="trakquestcaptionitem"  value='Previous Admission' 
+			    ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QSourcePrev", ",") )) ' />
+			 <table  class="trakquestdisplayitem"     ifxpath='not(contains(GenItemsAfterUpdate, concat(",", "QSourcePrev", ",") ))  ' >
+			  <item  class="trakquestwingdingsitem" expression="$c(254)" ifxpath='QSourcePrev="on"' />
+<item  class="trakquestwingdingsitem" expression="$c(111)" ifxpath='QSourcePrev=""' />
+			 </table>			</table>
+	  </group>
+	<!-- child table  -->
+	<call method='DisplayChildTableQ190' subreportname='ChildQ190' subreport='Q190' /> 
+	 </table>
+	</body>
+</report>
+]]></Data>
+</XData>
+
+<XData name="XslFoXslt">
+<XMLNamespace>http://www.intersystems.com/zen/report/display</XMLNamespace>
+<Data><![CDATA[
+<zenxslt>
+ <xsl:template name='stylealtcolor' >
+	<xsl:param name='num'/>
+	<xsl:if test='$num mod 2 = 0'>
+		<xsl:attribute name='background-color'>#DDDDDD</xsl:attribute>
+	</xsl:if>
+ </xsl:template>
+ <xsl:template name="ScaleImages" >
+	<xsl:param name="src"/>
+	<xsl:param name="heightval"/>
+	<xsl:param name="widthval"/>
+	<fo:block>
+		<fo:external-graphic>
+			<xsl:attribute name="src">
+				<xsl:value-of select="$src"/>
+			</xsl:attribute>
+			<xsl:attribute name='position'>absolute</xsl:attribute>
+			<xsl:attribute name='content-height'>
+				<xsl:value-of select="$heightval"/>
+			</xsl:attribute>
+			<xsl:attribute name='content-width'>
+				<xsl:value-of select="$widthval" />
+			</xsl:attribute>
+		</fo:external-graphic>
+	</fo:block>
+ </xsl:template>
+</zenxslt>
+]]></Data>
+</XData>
+</Class>
+</Export>

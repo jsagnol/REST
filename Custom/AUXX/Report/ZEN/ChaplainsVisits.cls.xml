@@ -1,0 +1,152 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.AUXX.Report.ZEN.ChaplainsVisits">
+<Super>Report.ZEN.Abstract</Super>
+<TimeCreated>61543,54550.041409</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/AUXX/Report/ZEN/ChaplainsVisits.xml#1 $</Default>
+</Parameter>
+
+<UDLText name="T">
+<Content><![CDATA[
+// Report Name: Trak Chaplains Visits <br>
+
+]]></Content>
+</UDLText>
+
+<UDLText name="T">
+<Content><![CDATA[
+// Report Code: Trak.ATD0004 <br>
+
+]]></Content>
+</UDLText>
+
+<UDLText name="T">
+<Content><![CDATA[
+// LogTrak Number: 72134 <br>
+
+]]></Content>
+</UDLText>
+
+<Property name="Hospital">
+<Type>%String</Type>
+<Parameter name="ZENURL" value="P1"/>
+</Property>
+
+<Property name="Ward">
+<Type>%String</Type>
+<Parameter name="ZENURL" value="P2"/>
+</Property>
+
+<Property name="Religion">
+<Type>%String</Type>
+<Parameter name="ZENURL" value="P3"/>
+</Property>
+
+<XData name="ReportDefinition">
+<XMLNamespace>http://www.intersystems.com/zen/report/definition</XMLNamespace>
+<Data><![CDATA[
+<report xmlns='http://www.intersystems.com/zen/report/definition'
+   queryClass='Custom.AUXX.Report.ZEN.StoredProc.ChaplainsVisits' queryName='GetVisits' name='ChaplainsVisits'>
+  <parameter expression='..Hospital'/>
+  <parameter expression='..Ward'/>
+  <parameter expression='..Religion'/>
+  <attribute name='ReportTitle' expression='$$$Text("@ChaplainVisits@Chaplain Visits")'/>
+  <attribute name='timestamp' expression='$ZDATETIME($H, 2, 2)'/>
+  <attribute name='username' expression='..Username'/>
+  <attribute name='Hospital' expression="..GetHospListDesc(..Hospital)"/>
+  <attribute name="Ward" expression="..GetWardListDesc(..Ward)"/>
+  <attribute name="Religion" expression="..GetReligionListDesc(..Religion)"/>
+  
+  <group name="Hospital" breakOnField="HOSPDesc"  >
+  <attribute name="description" field="HOSPDesc" />     
+   <aggregate name='HospTotal' type='CUSTOM' field='PAADMRowId' class='%ZEN.Report.Aggregate.CountDistinct'/>
+   <group name="Ward" breakOnField="WARDDesc">
+  <attribute name="description" field="WARDDesc" />
+      <aggregate name='WardTotal' type='CUSTOM' field='PAADMRowId' class='%ZEN.Report.Aggregate.CountDistinct'/>
+           <group name='Detail'>
+            <attribute fields='PAPERName,PAPERName2,PAPERName3' name='PatientName' expression='..DisplayName(%val("PAPERName"),%val("PAPERName2"),%val("PAPERName3"))'/>
+            <attribute field='TTLCode' name='TTLCode'/>
+            <attribute field='PAPERAgeYr' name='PAPERAgeYr'/>
+            <attribute field='CTSEXCode' name='CTSEXCode'/>
+            <attribute field='ROOMCode' name='ROOMCode'/>
+            <attribute field='BEDCode' name='BEDCode'/>
+            <attribute field='CTRLGDesc' name='CTRLGDesc'/>
+            <attribute field='PAADMAdmDate' name='PAADMAdmDate' expression='..DisplayDate(%val)'/>
+            <attribute field='PAADMEstimDischargeDate' name='PAADMEstimDischargeDate' expression='..DisplayDate(%val)'/> 
+            <attribute field='PAADMHospChaplainVisitReq' name='PAADMHospChaplainVisitReq'/>
+            </group>
+           </group>
+          </group>
+        </report>
+]]></Data>
+</XData>
+
+<XData name="ReportDisplay">
+<XMLNamespace>http://www.intersystems.com/zen/report/display</XMLNamespace>
+<Data><![CDATA[
+<report xmlns='http://www.intersystems.com/zen/report/display'
+xmlns:auxxstyle='http://www.intersystems.com/zen/report/display/auxx/style'
+xmlns:auxx='http://www.intersystems.com/zen/report/display/auxx'
+  name='ChaplainsVisits'>
+  <document width= "#(..ReportWidth)#" height="#(..ReportHeight)#" marginLeft="#(..DocMarginLeft)#" marginRight="#(..DocMarginRight)#" 
+marginTop="#(..DocMarginTop)#" marginBottom="#(..DocMarginBottom)#" footerHeight="#(..DocFooterHeight)#" headerHeight="#(..DocHeaderHeight)#" 
+regionBeforeExtent="#(..DocHeaderHeight)#" regionAfterExtent="#(..DocFooterHeight)#">
+<auxxstyle:auxxgroupheader/>
+<auxxstyle:auxxgroupsummary/>
+<auxxstyle:auxxhospitalheader/>
+<auxxstyle:auxxpagefooter/>
+<auxxstyle:auxxpageheader/>
+<auxxstyle:auxxparameterheader/>
+<auxxstyle:auxxreporttitle/>
+<auxxstyle:auxxtablecolumn/>
+</document>
+<auxx:PageHeader pagetitle='@ReportTitle'  />
+<auxx:ReportFooter username='@username' timestamp='@timestamp'  />
+
+<body>
+
+<!-- REPORT HEADER -->
+<auxx:ReportHeader reporttitle='@ReportTitle' />
+<auxx:ReportParameterHeader label='@Hospital:@Hospital:' field='@Hospital'  xcondition="string-length(@Hospital)>0"/>
+<auxx:ReportParameterHeader label='@Ward:@Ward:' field='@Ward'  xcondition="string-length(@Ward)>0"/>
+<auxx:ReportParameterHeader label='@Religion:@Religion:' field='@Religion'  xcondition="string-length(@Religion)>0"/>
+<line pattern="solid" width="100%" />
+<line pattern="empty" width="100%" ></line> 
+<auxx:NoResults xcondition="not(Hospital)" />
+
+<group name='Hospital' pagebreak="true">
+
+<auxx:GroupHospitalHeader label="@Hospital:@Hospital:" field="@description"/>
+<line pattern="empty" lineHeight="1mm" />
+<group name='Ward'>
+<auxx:GroupHeader label="@Ward:@Ward:" field="@description"/>
+<line pattern="empty" lineHeight="2mm" />
+      <table class='auxxtablecolumn' group='Detail' >
+        <item field='@PatientName' width="20%" caption="@PatientName@Patient Name" />
+        <item field='@TTLCode' width="7%" caption='@Title@Title'/>
+        <item field='@PAPERAgeYr' width="5%" caption='@Age@Age'/>
+        <item field='@CTSEXCode' width="6%" caption='@Sex@Sex'/>
+        <item field='@ROOMCode' width="9%" caption='@Room@Room'/>
+        <item field='@BEDCode' width='6%' caption='@Bed@Bed'/>
+        <item field='@CTRLGDesc' width="19%" caption='@Religion@Religion' />
+        <item field='@PAADMAdmDate' width="9%" caption='@AdmissionDate@Admission Date'/> 
+        <item field='@PAADMEstimDischargeDate' width="11%" caption='@ExpectedDischargeDate@Expected Discharge Date'/>
+        <item field='@PAADMHospChaplainVisitReq' width="8%" caption='@VisitConsent@Visit Consent' style="text-align:center"/>
+     </table>
+    <line pattern="empty" width="100%"></line> 
+	<auxx:GroupSummary label="@Totalnumberofpatientsfor@Total number of patients for" group="@description" summaryvalue="WardTotal" />
+	<line pattern="empty" lineHeight="4mm" />
+   </group>
+   <line pattern="empty" width="100%"></line> 
+   <auxx:GroupSummary label="@Totalnumberofpatientsfor@Total number of patients for" group="@description" summaryvalue="HospTotal" />
+   </group>
+</body>
+</report>
+]]></Data>
+</XData>
+</Class>
+</Export>

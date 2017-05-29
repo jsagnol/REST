@@ -1,0 +1,249 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.SWARHMTED017">
+<Description>
+SWARH Path Report</Description>
+<ClassType/>
+<ProcedureBlock>0</ProcedureBlock>
+<Super>%Library.RegisteredObject</Super>
+<TimeCreated>61221,1746.691702</TimeCreated>
+
+<Method name="SWARHPathReportClose">
+<Description>
+This is the Close component of the %Library.Query.
+This is standard code and should never have to change.
+This is where all the cleanup is performed, i.e. the purging of the temporary storage global ^CacheTemp.</Description>
+<Final>0</Final>
+<ClassMethod>1</ClassMethod>
+<CodeMode>code</CodeMode>
+<FormalSpec>QHandle:%Library.Binary</FormalSpec>
+<Private>0</Private>
+<ReturnType>%Library.Status</ReturnType>
+<SqlProc>0</SqlProc>
+<Implementation><![CDATA[
+ // Clean up by purging the temporary node in ^CacheTemp global
+ New repid
+ Set repid=$li(QHandle,2)
+ Kill ^CacheTemp(repid)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="SWARHPathReportExecute">
+<Description>
+This is the Execute section for the %Library.Query. 
+All of the logic will be performed here.
+A new node for the ^CacheTemp global will be created and each subscript of this global will contain
+a row for the report.</Description>
+<Final>0</Final>
+<ClassMethod>1</ClassMethod>
+<CodeMode>code</CodeMode>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,EpisodeId:%Integer,LabEpisodeNo:%String]]></FormalSpec>
+<Private>0</Private>
+<ReturnType>%Library.Status</ReturnType>
+<SqlProc>0</SqlProc>
+<Implementation><![CDATA[
+	
+ k ^bernard
+ // Get reportid i.e. use $INCREMENT to add another node to ^CacheTemp global. 
+ // We use ^CacheTemp global because it will always use memory before disk
+ New repid,ind
+
+ // Use $Increment to get the next node
+ Set repid=$I(^CacheTemp)
+
+ // Build data into ^CacheTemp(ReportID)
+ // e.g. Set ^CacheTemp(ReportID,Index)=$LB(f1,f2,f3)
+ New Number,String,Date,Time,c,n,str
+ n PAADMADMNo,PAADMVisitStatus,WARDCode,HOSPDesc,PAPMIMedicare,PAPMIMedicareCode,PAPMIDVANumber,HOSPPhone,PAPMIRowId,PAPMIDOB,INSTCode,MRADMPresentComplaint,PAPMIName,PAPMIName2,PAPMIName3,PAPMINo,PAADMType,PAPERStName,PAPERForeignAddress,TriageNurse,CTZIPCode,CTCITDesc,TTLCode,CTSEXCode,TRANSCTPCPDesc,REFDDesc,REFDForename,FAMDTTLCode,REFDAddress,FAMDCITY,FAMDZIP,TreatingDoctor,TreatingDocTitle,OEORDADMDR,OEORILabEpisodeNo,ARCIMCode,ARCIMDesc,OEORIDepProcNotes,SSUSRRegistrationNumber,SSUSRTTLCode,CTPCPDesc,SPECCode,OEORISttDat,OEORISttTim,OSTATCode,OEORIRemarks,CTLOCDesc,OEORIRowId
+ s (PAPMIRowId,OEORDADMDR)=0
+ s (PAADMADMNo,PAADMVisitStatus,WARDCode,HOSPDesc,PAPMIMedicare,PAPMIMedicareCode,PAPMIDVANumber,HOSPPhone,PAPMIDOB,INSTCode,MRADMPresentComplaint,PAPMIName,PAPMIName2,PAPMIName3,PAPMINo,PAADMType,PAPERStName,PAPERForeignAddress,TriageNurse,CTZIPCode,CTCITDesc,TTLCode,CTSEXCode,REFDDesc,REFDForename,FAMDTTLCode,REFDAddress,FAMDCITY,FAMDZIP,TreatingDoctor,TreatingDocTitle,OEORILabEpisodeNo,ARCIMCode,ARCIMDesc,OEORIDepProcNotes,SSUSRRegistrationNumber,CTPCPDesc,SPECCode,OEORISttDat,OEORISttTim,OSTATCode,OEORIRemarks,CTLOCDesc,OEORIRowId)=""
+ s ^zbernard("1")=1
+ s ind=1
+ s ^zbernard("2")=2
+
+ &sql(select 
+ PAADM_ADMNo,
+ PAADM_VisitStatus,
+ PAADM_CurrentWard_DR->WARD_Code,
+ PAADM_CurrentWard_DR->WARD_LocationDR->CTLOC_Hospital_DR->HOSP_Desc,
+ PAPMI_Medicare,
+ PAPMI_MedicareCode,
+ PAPMI_DVANumber,
+ PAADM_CurrentWard_DR->WARD_LocationDR->CTLOC_Hospital_DR->HOSP_Phone,
+ PAPMI_RowId,
+ PAPMI_DOB,
+ INS_InsType_DR->INST_Desc, 
+ PAADM_MainMRADM_DR->MRADM_PresentComplaint, 
+ PAPMI_Name, 
+ PAPMI_Name2,
+ PAPMI_Name3,
+ PAPMI_No, 
+ PAADM_Type,
+ PAPMI_PAPER_DR->PAPER_StName,
+ PAPMI_PAPER_DR->PAPER_ForeignAddress,
+ PAADM_TriageNurse_DR->CTPCP_Desc as TriageNurse,
+ PAPMI_PAPER_DR->PAPER_Zip_DR->CTZIP_Code, 
+ PAPMI_PAPER_DR->PAPER_CityCode_DR->CTCIT_Desc,
+ PAPMI_PAPER_DR->PAPER_Title_DR->TTL_Code,
+ PAPMI_PAPER_DR->PAPER_Sex_DR->CTSEX_Code,
+ PAPMI_PAPER_DR->PAPER_FamilyDoctor_DR->REFD_Desc,
+ PAPMI_PAPER_DR->PAPER_FamilyDoctor_DR->REFD_Forename,
+ PAPMI_PAPER_DR->PAPER_FamilyDoctor_DR->REFD_Title_DR->TTL_Code as FAMDTTLCode,
+ PAPMI_PAPER_DR->PAPER_FamilyDoctor_DR->REFD_Address,
+ PAPMI_PAPER_DR->PAPER_FamilyDoctor_DR->REFD_City_DR->CTCIT_Desc as FAMDCITY,
+ PAPMI_PAPER_DR->PAPER_FamilyDoctor_DR->REFD_ctZIP_DR->CTZIP_Code AS FAMDZIP,
+ TRANS_CTCP_DR->CTPCP_Desc as TreatingDoctor,
+ TRANS_CTCP_DR->CTPCP_Title_DR->TTL_Code as TreatingDocTitle
+ INTO :PAADMADMNo,:PAADMVisitStatus,:WARDCode,:HOSPDesc,:PAPMIMedicare,
+:PAPMIMedicareCode,:PAPMIDVANumber,:HOSPPhone,:PAPMIRowId,:PAPMIDOB,:INSTCode,
+:MRADMPresentComplaint,:PAPMIName,:PAPMIName2,:PAPMIName3,
+:PAPMINo,:PAADMType,:PAPERStName,:PAPERForeignAddress,:TriageNurse,
+:CTZIPCode,:CTCITDesc,:TTLCode,:CTSEXCode,:REFDDesc,:REFDForename,:TTLCode,
+:REFDAddress,:FAMDCITY,:FAMDZIP,:TreatingDoctor,:TreatingDocTitle
+ FROM sqluser.PA_Adm, sqluser.PA_PatMas,sqluser.PA_AdmInsurance,
+ sqluser.PA_AdmTransaction
+ WHERE PAADM_PAPMI_DR=PAPMI_RowId AND PAADM_RowId=*INS_ParRef and 
+ PAADM_RowId =:EpisodeId and 
+ PAADM_RowId=TRANS_ParRef and TRANS_TransType_DR=3 and
+ TRANS_CTCP_DR is not null
+ order by TRANS_ChildSub desc 
+ )
+ s ^zbernard("3")=3
+ Do FormatDates
+ Do FormatTimes
+
+ s PAPERStName=$zstrip(PAPERStName,"*C")
+ s PAPERForeignAddress=$zstrip(PAPERForeignAddress,"*C")
+
+
+ //new select to declare cursor
+ &sql(declare SWARHPathReport cursor for 
+ select distinct
+ OEORD_ADM_DR,
+ OEORI_LabEpisodeNo, 
+ OEORI_ItmMast_DR->ARCIM_Code, 
+ OEORI_ItmMast_DR->ARCIM_Desc,
+ OEORI_DepProcNotes,
+ SSUSR_RegistrationNumber,
+ SSUSR_Title_DR->TTL_Code as SSUSRTTLCode,
+ OEORI_Doctor_DR->CTPCP_Desc,
+ SPEC_Code, 
+ OEORI_SttDat, 
+ OEORI_SttTim, 
+ OEORI_ItemStat_DR->OSTAT_Code, 
+ OEORI_Remarks,
+ OEORI_RecDep_DR->CTLOC_Desc,
+ OEORI_RowId 
+ FROM	sqluser.OE_Order, sqluser.OE_OrdItem,SQLUser.OE_OrdSpecimen, 
+ sqlUser.ARC_ItmRecLoc, sqlUser.SS_User
+ where OEORI_RowId=SPEC_Parref and OEORD_RowId=OEORI_OEORD_ParRef
+ and OEORI_LabEpisodeNo=:LabEpisodeNo and OEORD_ADM_DR=:EpisodeId
+ and OEORI_Doctor_DR=*SSUSR_CTPCP_DR)
+ &sql(open  SWARHPathReport)
+
+ // build the row
+ Set str=$LB(PAADMADMNo,PAADMVisitStatus,WARDCode,HOSPDesc,PAPMIMedicare,PAPMIMedicareCode,PAPMIDVANumber,HOSPPhone,PAPMIRowId,PAPMIDOB,INSTCode,MRADMPresentComplaint,PAPMIName,PAPMIName2,PAPMIName3,PAPMINo,PAADMType,PAPERStName,PAPERForeignAddress,TriageNurse,CTZIPCode,CTCITDesc,TTLCode,CTSEXCode,REFDDesc,REFDForename,FAMDTTLCode,REFDAddress,FAMDCITY,FAMDZIP,TreatingDoctor,TreatingDocTitle)
+
+ //fetch first order record
+ &sql(fetch SWARHPathReport into :OEORDADMDR,:OEORILabEpisodeNo,:ARCIMCode,:ARCIMDesc,:OEORIDepProcNotes,:SSUSRRegistrationNumber,:SSUSRTTLCode,:CTPCPDesc,:SPECCode,:OEORISttDat,:OEORISttTim,:OSTATCode,:OEORIRemarks,:CTLOCDesc,:OEORIRowId)
+
+ while 'SQLCODE{
+	 
+ s OEORIDepProcNotes=$zstrip(OEORIDepProcNotes,"*C")
+ s OEORIRemarks=$zstrip(OEORIRemarks,"*C")
+
+ Do FormatDates
+ Do FormatTimes
+
+ set strNEWOP=$LB(OEORDADMDR,OEORILabEpisodeNo,ARCIMCode,ARCIMDesc,OEORIDepProcNotes,SSUSRRegistrationNumber,SSUSRTTLCode,CTPCPDesc,SPECCode,OEORISttDat,OEORISttTim,OSTATCode,OEORIRemarks,CTLOCDesc,OEORIRowId)
+
+ Set ^CacheTemp(repid,ind)=str_strNEWOP
+ s ind=ind+1
+ s ^zbernard("4")=4
+ //fetch next order records
+ &sql(fetch SWARHPathReport into :OEORDADMDR,:OEORILabEpisodeNo,:ARCIMCode,:ARCIMDesc,:OEORIDepProcNotes,:SSUSRRegistrationNumber,:SSUSRTTLCode,:CTPCPDesc,:SPECCode,:OEORISttDat,:OEORISttTim,:OSTATCode,:OEORIRemarks,:CTLOCDesc,:OEORIRowId)
+}
+
+ Do FormatDates
+ Do FormatTimes
+
+ &sql(close SWARHPathReport)
+
+ // Build QHandle (AtEnd,ReportID,Index)
+ Set QHandle=$lb(0,repid,0)
+ s ^zbernard("5")=5
+
+ Quit $$$OK
+
+FormatDates
+ // Convert the dates to ODBC date format
+ If PAPMIDOB Set PAPMIDOB=$ZD(PAPMIDOB,3)
+ If OEORISttDat Set OEORISttDat=$ZD(OEORISttDat,3)
+ Quit
+
+FormatTimes
+ // Convert the times to ODBC time format
+ If OEORISttTim Set OEORISttTim=$ZT(OEORISttTim,2)
+ Quit
+]]></Implementation>
+</Method>
+
+<Method name="SWARHPathReportFetch">
+<Description>
+This is the Fetch component of the %Library.Query. 
+This should never have to change. It is designed to fetch the row for each subscript of the ^CacheTemp
+global and return this row to the Crystal Report.</Description>
+<Final>0</Final>
+<ClassMethod>1</ClassMethod>
+<CodeMode>code</CodeMode>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,&Row:%Library.List,&AtEnd:%Library.Integer=0]]></FormalSpec>
+<Private>0</Private>
+<ReturnType>%Library.Status</ReturnType>
+<SqlProc>0</SqlProc>
+<Implementation><![CDATA[
+ // This fetch method should never have to change. 
+
+ // repid - Report ID
+ // ind   - sequence index which represents each row
+
+ New repid,ind
+
+ // Restore QHandle
+ Set AtEnd=$li(QHandle,1)
+ Set repid=$li(QHandle,2)
+ Set ind=$li(QHandle,3)
+
+ Set ind=$o(^CacheTemp(repid,ind))
+ If ind="" {	// if there are no more rows, finish fetching
+ Set AtEnd=1
+ Set Row=""
+ }
+ Else      {	// fetch row
+ Set Row=^CacheTemp(repid,ind)
+ }
+
+ // Save QHandle
+ s QHandle=$lb(AtEnd,repid,ind)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Query name="SWARHPathReport">
+<Description>
+Vic Triage Report
+It expects 1 parameter of type integer and will return 40 odd fields:
+Field1 - Integer
+Field2 - String(MAXLEN=255)
+Field3 - Date
+Field4 - Time</Description>
+<Type>%Library.Query</Type>
+<FormalSpec>EpisodeId:%Integer,LabEpisodeNo:%String</FormalSpec>
+<SqlProc>1</SqlProc>
+<SqlView>0</SqlView>
+<Parameter name="CONTAINID" value="0"/>
+<Parameter name="ROWSPEC" value="PAADMADMNo:%String(MAXLEN=255),PAADMVisitStatus:%String(MAXLEN=255),WARDCode:%String(MAXLEN=255),HOSPDesc:%String(MAXLEN=255),PAPMIMedicare:%String(MAXLEN=255),PAPMIMedicareCode:%String(MAXLEN=255),PAPMIDVANumber:%String(MAXLEN=255),HOSPPhone:%String(MAXLEN=255),PAPMIRowId:%Integer,PAPMIDOB:%Date,INSTCode:%String(MAXLEN=255),MRADMPresentComplaint:%String(MAXLEN=255),PAPMIName:%String(MAXLEN=255),PAPMIName2:%String(MAXLEN=255),PAPMIName3:%String(MAXLEN=255),PAPMINo:%String(MAXLEN=255),PAADMType:%String(MAXLEN=255),PAPERStName:%String(MAXLEN=255),PAPERForeignAddress:%String(MAXLEN=255),TriageNurse:%String(MAXLEN=255),CTZIPCode:%String(MAXLEN=255),CTCITDesc:%String(MAXLEN=255),TTLCode:%String(MAXLEN=255),CTSEXCode:%String(MAXLEN=255),REFDDesc:%String(MAXLEN=255),REFDForename:%String(MAXLEN=255),FAMDTTLCode:%String(MAXLEN=255),REFDAddress:%String(MAXLEN=255),FAMDCITY:%String(MAXLEN=255),FAMDZIP:%String(MAXLEN=255),TreatingDoctor:%String(MAXLEN=255),TreatingDocTitle:%String(MAXLEN=255),OEORDADMDR:%Integer,OEORILabEpisodeNo:%String(MAXLEN=255),ARCIMCode:%String(MAXLEN=255),ARCIMDesc:%String(MAXLEN=255),OEORIDepProcNotes:%String(MAXLEN=255),SSUSRRegistrationNumber:%String(MAXLEN=255),SSUSRTTLCode:%String(MAXLEN=255),CTPCPDesc:%String(MAXLEN=255),SPECCode:%String(MAXLEN=255),OEORISttDat:%Date,OEORISttTim:%String(MAXLEN=255),OSTATCode:%String(MAXLEN=255),OEORIRemarks:%String(MAXLEN=255),CTLOCDesc:%String(MAXLEN=255),OEORIRowId:%String(MAXLEN=255)"/>
+<Parameter name="SELECTMODE" value="ODBC"/>
+</Query>
+</Class>
+</Export>

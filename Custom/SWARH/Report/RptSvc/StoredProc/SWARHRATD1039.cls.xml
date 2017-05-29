@@ -1,0 +1,201 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.SWARH.Report.RptSvc.StoredProc.SWARHRATD1039">
+<Description><![CDATA[
+<pre>
+**************************************************************************************************************************************
+* Report Code: SWARHRATD1039
+* Report Description: Expected Admissions for selected date range.
+* Menu Caption: Expected Admissions for Period
+* Initial release: N/A	Developer: Zac Newman
+* Modified: 05/10/2015 Developer: Michael Welsh
+*	Change time format from HH:mm:ss to HH:mm to remove seconds.
+* 	Change time output from %Library.Time to %Library.String to fix issues with Reporting Services.
+*	(Outputting Time field as %Library.Time causes issues with Reporting Services when the time is either empty or midnight.}
+*	Reformat field in RS as Time field HH:mm.
+**************************************************************************************************************************************
+</pre>]]></Description>
+<ProcedureBlock>0</ProcedureBlock>
+<Super>Custom.SWARH.Report.RptSvc.StoredProc.Abstract</Super>
+<TimeCreated>60905,54849</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/SWARH/Report/RptSvc/StoredProc/SWARHRATD1039.xml#1 $</Default>
+</Parameter>
+
+<Method name="SWARHRATD1039Execute">
+<Description>
+This is the Execute section for the %Library.Query. 
+All of the logic will be performed here.
+A new node for the ^CacheTemp global will be created and each subscript of this global will contain
+a row for the report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,Hospital:%Library.Integer,DateFrom:%Date,DateTo:%Date]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Get reportid i.e. use $INCREMENT to add another node to ^CacheTemp global. 
+ // We use ^CacheTemp global because it will always use memory before disk
+ New repid,ind
+
+  // Use $Increment to get the next node
+ Set repid=$I(^CacheTemp(..#CACHETEMPSUBSCRIPT))
+ 
+ New PAPMINo,PAPMIName,PAPMIName2,PAPMIName3,PAPMIDOB,CTSEXCode,PAPERAgeYr,PAADMAdmDate
+ New PAADMAdmTime,ProvDiag,ProcDetails,MRADMPRESENTCOMPLAINT,Clinician,WARDCODE,ALERTCode,ALERTDesc,ALMClosedFlag,PAADMEstimDischargeDate
+
+ Set (PAPMINo,PAPMIName,PAPMIName2,PAPMIName3,PAPMIDOB,CTSEXCode,PAPERAgeYr,PAADMAdmDate)=""
+ Set (PAADMAdmTime,ProvDiag,ProcDetails,MRADMPRESENTCOMPLAINT,Clinician,WARDCODE,ALERTCode,ALERTDesc,ALMClosedFlag,PAADMEstimDischargeDate)=""
+
+
+ s ind=1, END=0
+
+ //Start Monitor (if configured to capture stats)
+ s mon=..MonitorBegin()
+ 
+ //Convert ODBC dates to cache format
+ s DateFrom=..ConvertDateToCache(DateFrom)
+ s DateTo=..ConvertDateToCache(DateTo)
+ 
+ &SQL(DECLARE SWARHRATD1039 CURSOR FOR 
+			SELECT
+            PAADM_PAPMI_DR->PAPMI_No,
+            PAADM_PAPMI_DR->PAPMI_Name,
+            PAADM_PAPMI_DR->PAPMI_Name2,
+            PAADM_PAPMI_DR->PAPMI_Name3,
+            PAADM_PAPMI_DR->PAPMI_DOB,
+            PAADM_PAPMI_DR->PAPMI_Sex_DR->CTSEX_Code,
+            PAADM_PAPMI_DR->PAPMI_Paper_DR->PAPER_AgeYr,
+			PAADM_AdmDate,
+			PAADM_AdmTime,
+			PAADM_WaitList_DR->WL_ProvisionalDiagnosis as ProvDiag,
+			{fn RIGHT(PAADM_WaitList_DR->WL_ProcedureFreeText,LEN(PAADM_WaitList_DR->WL_ProcedureFreeText)-2)} as ProcDetails,
+			PAADM_MainMRADM_DR->MRADM_PRESENTCOMPLAINT,
+            PAADM_AdmDocCodeDR->CTPCP_Desc as Clinician,
+			TRANS_WARD_DR->WARD_CODE,
+			ALM_Alert_DR->ALERT_Code,
+			ALM_Alert_DR->ALERT_Desc,
+			ALM_ClosedFlag,
+			PAADM_EstimDischargeDate
+			FROM SQLUser.PA_ADM
+			LEFT JOIN SQLUser.PA_AdmTransaction on (TRANS_ParRef=PAADM_RowID)
+			LEFT JOIN SQLUser.PA_AlertMsg on (PAADM_PAPMI_DR=ALM_PAPMI_ParRef) AND ALM_ClosedFlag='N'
+			WHERE PAADM_VisitStatus = 'P'
+        	AND (:Hospital IN ('701') OR TRANS_TransType_DR=1)
+       	 	AND PAADM_Type='I'
+        	AND PAADM_AdmDate Between :DateFrom AND :DateTo
+        	AND PAADM_Hospital_DR = :Hospital
+			ORDER BY TRANS_Ward_DR->WARD_Code, PAADM_AdmDate, PAADM_AdmTime
+)
+ &SQL(OPEN SWARHRATD1039)
+ 
+ //FETCH FIRST ROW
+ d FetchRow
+  
+ while END=0 {
+  
+	 d FormatDates
+  	 d FormatTimes
+  	 
+	 s sort = ind
+	 
+	 s ^CacheTemp(..#CACHETEMPSUBSCRIPT,repid,sort)=$LB(PAPMINo,PAPMIName,PAPMIName2,PAPMIName3,PAPMIDOB,CTSEXCode,PAPERAgeYr,PAADMAdmDate,PAADMAdmTime,
+	 	ProvDiag,ProcDetails,MRADMPRESENTCOMPLAINT,Clinician,WARDCODE,ALERTCode,ALERTDesc,ALMClosedFlag,PAADMEstimDischargeDate)
+	 s ind=ind+1
+ 
+	 //fetch rows
+	 d FetchRow
+ }
+
+ &SQL(CLOSE SWARHRATD1039)
+ 
+ // Build QHandle (AtEnd,ReportID,Index)
+ Set QHandle=$lb(0,repid,0)
+
+ Quit $$$OK
+
+FetchRow
+ &sql(FETCH SWARHRATD1039 INTO :PAPMINo,:PAPMIName,:PAPMIName2,:PAPMIName3,:PAPMIDOB,:CTSEXCode,:PAPERAgeYr,:PAADMAdmDate,:PAADMAdmTime,
+ 		:ProvDiag,:ProcDetails,:MRADMPRESENTCOMPLAINT,:Clinician,:WARDCODE,:ALERTCode,:ALERTDesc,:ALMClosedFlag,:PAADMEstimDischargeDate)
+ if SQLCODE '= 0 set END = 1
+ q
+ 
+FormatDates
+ s PAADMAdmDate=..ConvertDateToODBC(PAADMAdmDate)
+ s PAPMIDOB=..ConvertDateToODBC(PAPMIDOB)
+ s PAADMEstimDischargeDate=..ConvertDateToODBC(PAADMEstimDischargeDate)
+ q
+ 
+FormatTimes
+ s PAADMAdmTime=..ConvertTimeToHHMM(PAADMAdmTime)
+ q
+]]></Implementation>
+</Method>
+
+<Method name="SWARHRATD1039Fetch">
+<Description>
+This is the Fetch component of the %Library.Query. 
+This should never have to change. It is designed to fetch the row for each subscript of the ^CacheTemp
+global and return this row to the Crystal Report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,&Row:%Library.List,&AtEnd:%Library.Integer=0]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // This fetch method should never have to change. 
+ // repid - Report ID
+ // ind   - sequence index which represents each row
+
+ New repid,ind
+
+ // Restore QHandle
+ Set AtEnd=$li(QHandle,1)
+ Set repid=$li(QHandle,2)
+ Set ind=$li(QHandle,3)
+
+ Set ind=$o(^CacheTemp(..#CACHETEMPSUBSCRIPT,repid,ind))
+ If ind="" {	// if there are no more rows, finish fetching
+	 Set AtEnd=1
+	 Set Row=""
+ }
+ Else      {	// fetch row
+ 	Set Row=^CacheTemp(..#CACHETEMPSUBSCRIPT,repid,ind)
+ }
+
+ // Save QHandle
+ s QHandle=$lb(AtEnd,repid,ind)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="SWARHRATD1039Close">
+<Description>
+This is the Close component of the %Library.Query.
+This is standard code and should never have to change.
+This is where all the cleanup is performed, i.e. the purging of the temporary storage global ^CacheTemp.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>QHandle:%Library.Binary</FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Clean up by purging the temporary node in ^CacheTemp global
+ New repid,ind
+ Set repid=$li(QHandle,2)
+
+ //Start Monitor (if configured to capture stats)
+ i mon Do ..MonitorEnd(mon)
+
+ Kill ^CacheTemp(..#CACHETEMPSUBSCRIPT,repid)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Query name="SWARHRATD1039">
+<Type>%Library.Query</Type>
+<FormalSpec>Hospital:%Library.Integer,DateFrom:%Date,DateTo:%Date</FormalSpec>
+<SqlProc>1</SqlProc>
+<Parameter name="CONTAINID" value="0"/>
+<Parameter name="ROWSPEC" value="PAPMINo:%Library.Integer,PAPMIName:%Library.String,PAPMIName2:%Library.String,PAPMIName3:%Library.String,PAPMIDOB:%Library.Date,CTSEXCode:%Library.String,PAPERAgeYr:%Library.Integer,PAADMAdmDate:%Library.Date,PAADMAdmTime:%Library.String,ProvDiag:%Library.String,ProcDetails:%Library.String,MRADMPRESENTCOMPLAINT:%Library.String,Clinician:%Library.String,WARDCODE:%Library.String,ALERTCode:%Library.String,ALERTDesc:%Library.String,ALMClosedFlag:%Library.String,PAADMEstimDischargeDate:%Library.Date"/>
+<Parameter name="SELECTMODE" value="ODBC"/>
+</Query>
+</Class>
+</Export>

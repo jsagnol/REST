@@ -1,0 +1,869 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.SWARH.JS.questionnaire.QVCONPART2.Edit">
+<Description>
+Component JavaScript for: questionnaire.QVCONPART2.Edit</Description>
+<Modified>0</Modified>
+<Super>websys.AbstractJavaScript</Super>
+<TimeCreated>63537,10519.666052</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+This Parameter is updated by Perforce</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/SWARH/JS/questionnaire/QVCONPART2/Edit.xml#1 $</Default>
+</Parameter>
+
+<Method name="JSContent">
+<Description>
+ </Description>
+<Language>javascript</Language>
+<ClientMethod>1</ClientMethod>
+<Implementation><![CDATA[
+var securityGroup = session['LOGON.GROUPDESC'];
+//var lookupicon = document.getElementById("ld50021iQHOSPITAL");
+var hospfield = document.getElementById("QHOSPITAL");
+if (securityGroup != 'TRAKHEALTH' && securityGroup != 'VCON') {
+	//lookupicon.style.display='none';
+	//hospfield.disabled = true;
+}
+else {
+	var QPart1ID = document.getElementById("QPart1ID");
+	if (QPart1ID.value=="") {
+		hospfield.value="";
+	}
+}
+
+// make sure that Part 1 ID field contains digits only
+function QPart1ID_changehandler(e) {
+	var eSrc=document.getElementById('QPart1ID');
+	if (eSrc.value!='') {
+		if (!isNumeric(eSrc.value)) {
+			eSrc.className='clsInvalid';		
+			websys_setfocus('QPart1ID');
+			alert('digits only');
+			return  websys_cancel();
+		}
+	}
+	if (eSrc.readOnly) {eSrc.className='clsReadOnly'} else {eSrc.className=''}
+		window.setTimeout("ForceChange('QPart1ID');",1);
+}
+
+var obj=document.getElementById('QPart1ID');
+if (obj) obj.onchange=QPart1ID_changehandler;
+
+function isNumeric(strString) {
+   var strValidChars = "0123456789";
+   var strChar;
+   var blnResult = true;
+   var size;
+
+   if (strString.length == 0) return false;
+
+   for (i = 0; i < strString.length && blnResult == true; i++) {
+      strChar = strString.charAt(i);
+      if (strValidChars.indexOf(strChar) == -1) {
+         blnResult = false;
+      }
+   }
+
+   return blnResult;
+}
+
+// rewrite QITEM_TOGGLE function to include hidden fields for the Surgery Target 
+
+/*function QITEM_TOGGLE(itemname,enable) {
+	var el=document.getElementById(itemname);
+	if (el) {
+		if (enable) {
+			if ((itemname==='QNumSysTher') || (itemname==='QNumSurg')) {el.onchange();}
+			el.style.display="";
+			el=document.getElementById("c"+itemname);if (el) el.style.display="";
+			el=document.getElementById("ld50021i"+itemname);if (el) el.style.display="";
+		} else {
+			// un-select listboxes
+			if (el.tagName=="SELECT") {
+				UnSelListBox(el);
+			} else if ((el.tagName=="INPUT" ) && (el.type=="checkbox")) {
+				el.checked = false;
+			} else {
+				//el.value="";
+				var el_ID=document.getElementById(itemname+'_ID');
+				// include hidden fields for the Surgery Target
+				if (el_ID) {
+					//el_ID.value="";
+				}
+			}			
+			el.className="";el.style.display="none";
+			el=document.getElementById("c"+itemname);if (el) el.style.display="none";
+			el=document.getElementById("ld50021i"+itemname);if (el) el.style.display="none";
+			try {eval(itemname+"_reset();");} catch(err){}
+		}
+	}
+	// 57441 see if the label exists alone
+	var lbl=document.getElementById("c"+itemname);
+	if (lbl) {
+		if (enable) {
+			lbl.style.display="";
+		} else {
+			lbl.style.display="none";
+		}
+	}
+	// 67687 - DAH - see if it's a link
+	var img=document.getElementById(itemname+"_HREF");
+	if (img) {
+		if (enable) {
+			img.style.display="";
+		}
+		else {
+			img.style.display="none";
+		}
+	}
+}*/
+
+// PH validate dates against DOB
+var obj = document.getElementById("BANNERDOB");
+var DOB=obj.value;
+
+function compareDate(str1,str2) {
+    var dd1  = str1.substring(0,2); 
+    var mm1 = str1.substring(3,5); 
+    var yyyy1  = str1.substring(6,10); 
+    var dd2  = str2.substring(0,2); 
+    var mm2 = str2.substring(3,5); 
+    var yyyy2  = str2.substring(6,10); 
+    var date1 = new Date(yyyy1 + "/" + mm1 + "/" + dd1);
+    var date2 = new Date(yyyy2 + "/" + mm2 + "/" + dd2);
+    if (date1<date2) {return false;}
+    else {return true;}
+}
+
+function QDate_changehandler(e) {
+	e = e ? e : window.event;
+	eSrc = e.target ? e.target : e.srcElement;
+	if (!IsValidDate(eSrc)) {
+		eSrc.className='clsInvalid';
+		websys_setfocus(eSrc.id);
+		return  websys_cancel();
+	} else {
+		if (eSrc.value!='') {
+			if (!compareDate(eSrc.value,DOB)) {
+				eSrc.className='clsInvalid';
+				websys_setfocus(eSrc.id);
+				alert('Date cannot be prior to DOB');
+				return  websys_cancel();
+			}
+		}
+		if (eSrc.readOnly) {eSrc.className='clsReadOnly'} else {eSrc.className=''}
+		window.setTimeout("ForceChange(eSrc.id);",1);
+	}
+}
+
+for (var i=0;i<10;i++) {
+   var obj=document.getElementById('QDateSurgery'+(i ? i : ''));
+   if (obj) obj.onchange=QDate_changehandler;
+}
+
+for (var i=0;i<10;i++) {
+   var obj=document.getElementById('QSystTherStartDate'+(i ? i : ''));
+   if (obj) obj.onchange=QDate_changehandler;
+}
+
+for (var i=0;i<10;i++) {
+   var obj=document.getElementById('QSystTherComplDate'+(i ? i : ''));
+   if (obj) obj.onchange=QDate_changehandler;
+}
+// end PH validate dates against DOB
+
+// PH validate Surgical Procedure Codes
+
+function isValidSurgProc(strString) {
+   var blnResult = true;
+   if (strString.length!=8) {
+	blnResult=false;
+   }
+   else {
+	var strArray = strString.split(".");
+	if (strArray.length>1) {
+		if ((!isNumeric(strArray[0])) || (!isNumeric(strArray[1]))) {
+			blnResult=false;
+		}
+		else {
+			if ((strArray[0].length!=5) || (strArray[1].length!=2)) {
+				blnResult=false;
+			}
+		}
+	}
+	else { blnResult=false;}
+   }
+   return blnResult;
+}
+
+function isNumeric(strString) {
+   var strValidChars = "0123456789";
+   var strChar;
+   var blnResult = true;
+
+   if (strString.length == 0) return false;
+
+   for (i = 0; i < strString.length && blnResult == true; i++) {
+      strChar = strString.charAt(i);
+      if (strValidChars.indexOf(strChar) == -1) {
+         blnResult = false;
+      }
+   }
+   return blnResult;
+}
+
+function QSurgProcedure_changehandler(e) {
+	e = e ? e : window.event;
+	eSrc = e.target ? e.target : e.srcElement;
+	var eSrc=document.getElementById(eSrc.id);
+	if (eSrc.value!='') {
+		if (!isValidSurgProc(eSrc.value)) {
+			eSrc.className='clsInvalid';		
+			websys_setfocus(eSrc.id);
+			alert('Surgical Procedure Code Format is NNNNN.NN where N is a digit');
+			return  websys_cancel();
+		}
+	}
+	if (eSrc.readOnly) {eSrc.className='clsReadOnly'} else {eSrc.className=''}
+		// see why we need to comment this out? Javascript error msg saying eSrc is not defined??
+		//window.setTimeout("ForceChange(eSrc.id);",1);
+}
+
+for (var i=0;i<10;i++) {
+	var obj=document.getElementById('QSurgProcedure'+ (i ? i : ''));
+	if (obj) obj.onchange=QSurgProcedure_changehandler;
+}
+
+// end PH validate Surgical Procedure Codes
+
+for (var i=0;i<10;i++) {
+	if (document.getElementById("QSystTherAgentList"+ (i ? i : ''))) {document.getElementById("QSystTherAgentList"+ (i ? i : '')).tkItemPopulate=1;}
+}
+
+//Hide String fields for loading list boxes
+for (var i=0;i<10;i++) {
+	HideObj('QSystTherAgentString'+ (i ? i : ''));
+}
+
+function ShowObj(objId) {
+	var obj = document.getElementById(objId);
+        if (obj) {
+		obj.style.display='';
+	}
+}
+
+function HideObj(objId) {
+	var obj = document.getElementById(objId);
+	if (obj) {
+		obj.style.display='none';
+	}
+}
+
+function setButton(obj,i,num) {
+	obj.setAttribute('type','button');
+    	obj.setAttribute('name','del' + i);
+	obj.setAttribute('id','del' + i);
+    	obj.setAttribute('value','Delete' + i);
+    	obj.setAttribute('title','Delete' + i);
+    	obj.className = 'clsButton';
+	var objListStr = document.getElementById('QSystTherAgentList' + i);
+    	objListStr.parentElement.insertBefore(obj,objListStr.nextSibling);
+    	objListStr.parentElement.insertBefore(document.createTextNode(" "),objListStr.nextSibling);
+    	obj.deleteList = objListStr;
+    	obj.onclick=DeleteClickHandler;
+	if (i>num-1) {
+		obj.style.display='none';
+	}
+	else {
+		obj.style.display='';
+	}
+}
+
+function TogButton(itemlist,enable) {
+	var arrEl = itemlist.split("^");
+	for (var Elix = 0;Elix<arrEl.length;Elix++) {
+			if (enable) {
+				//alert("TogButton enable" + arrEl[Elix]);
+				ShowObj(arrEl[Elix]);
+			}
+			else {
+				//alert("TogButton disable" + arrEl[Elix]);
+				HideObj(arrEl[Elix]);
+			}
+	}
+}
+
+/*function Clear(itemlist) {
+	var arrEl = itemlist.split("^");
+		for (var Elix = 0;Elix<arrEl.length;Elix++) {
+			//alert(arrEl[Elix]);
+			obj=document.getElementById(arrEl[Elix]);
+			if (obj.value!='') {obj.value='';}
+		alert(arrEl[Elix] + ":: " + obj.value);
+	}
+}*/
+
+function QNumSysTher_lookuptoggle(value) {
+ value=unescape(value).toUpperCase();
+ switch (value) {
+  case unescape('1').toUpperCase():
+   Tog('QSystTherAgentList^QSystTherAgentlk^QSystTherComplDate^QSystTherStartDate',1);    Tog('QSystTherAgentList1^QSystTherAgentList2^QSystTherAgentList3^QSystTherAgentList4^QSystTherAgentList5^QSystTherAgentList6^QSystTherAgentList7^QSystTherAgentList8^QSystTherAgentList9^QSystTherAgentString1^QSystTherAgentString2^QSystTherAgentString3^QSystTherAgentString4^QSystTherAgentString5^QSystTherAgentString6^QSystTherAgentString7^QSystTherAgentString8^QSystTherAgentString9^QSystTherAgentlk1^QSystTherAgentlk2^QSystTherAgentlk3^QSystTherAgentlk4^QSystTherAgentlk5^QSystTherAgentlk6^QSystTherAgentlk7^QSystTherAgentlk8^QSystTherAgentlk9^QSystTherComplDate1^QSystTherComplDate2^QSystTherComplDate3^QSystTherComplDate4^QSystTherComplDate5^QSystTherComplDate6^QSystTherComplDate7^QSystTherComplDate8^QSystTherComplDate9^QSystTherStartDate1^QSystTherStartDate2^QSystTherStartDate3^QSystTherStartDate4^QSystTherStartDate5^QSystTherStartDate6^QSystTherStartDate7^QSystTherStartDate8^QSystTherStartDate9',0);    //Clear('QSystTherAgentString1^QSystTherAgentString2^QSystTherAgentString3^QSystTherAgentString4^QSystTherAgentString5^QSystTherAgentString6^QSystTherAgentString7^QSystTherAgentString8^QSystTherAgentString9');
+   TogButton('save1',1); TogButton('del1^del2^del3^de4^del5^del6^del7^del8^del9',0);
+   break;
+  case unescape('2').toUpperCase():
+   Tog('QSystTherAgentList^QSystTherAgentList1^QSystTherAgentlk^QSystTherAgentlk1^QSystTherComplDate^QSystTherComplDate1^QSystTherStartDate^QSystTherStartDate1',1);    Tog('QSystTherAgentList2^QSystTherAgentList3^QSystTherAgentList4^QSystTherAgentList5^QSystTherAgentList6^QSystTherAgentList7^QSystTherAgentList8^QSystTherAgentList9^QSystTherAgentString2^QSystTherAgentString3^QSystTherAgentString4^QSystTherAgentString5^QSystTherAgentString6^QSystTherAgentString7^QSystTherAgentString8^QSystTherAgentString9^QSystTherAgentlk2^QSystTherAgentlk3^QSystTherAgentlk4^QSystTherAgentlk5^QSystTherAgentlk6^QSystTherAgentlk7^QSystTherAgentlk8^QSystTherAgentlk9^QSystTherComplDate2^QSystTherComplDate3^QSystTherComplDate4^QSystTherComplDate5^QSystTherComplDate6^QSystTherComplDate7^QSystTherComplDate8^QSystTherComplDate9^QSystTherStartDate2^QSystTherStartDate3^QSystTherStartDate4^QSystTherStartDate5^QSystTherStartDate6^QSystTherStartDate7^QSystTherStartDate8^QSystTherStartDate9',0);    //Clear('QSystTherAgentString2^QSystTherAgentString3^QSystTherAgentString4^QSystTherAgentString5^QSystTherAgentString6^QSystTherAgentString7^QSystTherAgentString8^QSystTherAgentString9');
+   TogButton('save1^del1',1); TogButton('del2^del3^de4^del5^del6^del7^del8^del9',0);
+break;
+  case unescape('3').toUpperCase():
+   Tog('QSystTherAgentList^QSystTherAgentList1^QSystTherAgentList2^QSystTherAgentlk^QSystTherAgentlk1^QSystTherAgentlk2^QSystTherComplDate^QSystTherComplDate1^QSystTherComplDate2^QSystTherStartDate^QSystTherStartDate1^QSystTherStartDate2',1);    Tog('QSystTherAgentList3^QSystTherAgentList4^QSystTherAgentList5^QSystTherAgentList6^QSystTherAgentList7^QSystTherAgentList8^QSystTherAgentList9^QSystTherAgentString3^QSystTherAgentString4^QSystTherAgentString5^QSystTherAgentString6^QSystTherAgentString7^QSystTherAgentString8^QSystTherAgentString9^QSystTherAgentlk3^QSystTherAgentlk4^QSystTherAgentlk5^QSystTherAgentlk6^QSystTherAgentlk7^QSystTherAgentlk8^QSystTherAgentlk9^QSystTherComplDate3^QSystTherComplDate4^QSystTherComplDate5^QSystTherComplDate6^QSystTherComplDate7^QSystTherComplDate8^QSystTherComplDate9^QSystTherStartDate3^QSystTherStartDate4^QSystTherStartDate5^QSystTherStartDate6^QSystTherStartDate7^QSystTherStartDate8^QSystTherStartDate9',0);   
+//Clear('QSystTherAgentString3^QSystTherAgentString4^QSystTherAgentString5^QSystTherAgentString6^QSystTherAgentString7^QSystTherAgentString8^QSystTherAgentString9');
+   TogButton('save1^del1^del2',1); TogButton('del3^de4^del5^del6^del7^del8^del9',0);
+break;
+  case unescape('4').toUpperCase():
+   Tog('QSystTherAgentList^QSystTherAgentList1^QSystTherAgentList2^QSystTherAgentList3^QSystTherAgentlk^QSystTherAgentlk1^QSystTherAgentlk2^QSystTherAgentlk3^QSystTherComplDate^QSystTherComplDate1^QSystTherComplDate2^QSystTherComplDate3^QSystTherStartDate^QSystTherStartDate1^QSystTherStartDate2^QSystTherStartDate3',1);    Tog('QSystTherAgentList4^QSystTherAgentList5^QSystTherAgentList6^QSystTherAgentList7^QSystTherAgentList8^QSystTherAgentList9^QSystTherAgentString4^QSystTherAgentString5^QSystTherAgentString6^QSystTherAgentString7^QSystTherAgentString8^QSystTherAgentString9^QSystTherAgentlk4^QSystTherAgentlk5^QSystTherAgentlk6^QSystTherAgentlk7^QSystTherAgentlk8^QSystTherAgentlk9^QSystTherComplDate4^QSystTherComplDate5^QSystTherComplDate6^QSystTherComplDate7^QSystTherComplDate8^QSystTherComplDate9^QSystTherStartDate4^QSystTherStartDate5^QSystTherStartDate6^QSystTherStartDate7^QSystTherStartDate8^QSystTherStartDate9',0);    //Clear('QSystTherAgentString4^QSystTherAgentString5^QSystTherAgentString6^QSystTherAgentString7^QSystTherAgentString8^QSystTherAgentString9');
+   TogButton('save1^del1^del2^del3',1); TogButton('del4^del5^del6^del7^del8^del9',0);
+break;
+  case unescape('5').toUpperCase():
+   Tog('QSystTherAgentList^QSystTherAgentList1^QSystTherAgentList2^QSystTherAgentList3^QSystTherAgentList4^QSystTherAgentlk^QSystTherAgentlk1^QSystTherAgentlk2^QSystTherAgentlk3^QSystTherAgentlk4^QSystTherComplDate^QSystTherComplDate1^QSystTherComplDate2^QSystTherComplDate3^QSystTherComplDate4^QSystTherStartDate^QSystTherStartDate1^QSystTherStartDate2^QSystTherStartDate3^QSystTherStartDate4',1);    Tog('QSystTherAgentList5^QSystTherAgentList6^QSystTherAgentList7^QSystTherAgentList8^QSystTherAgentList9^QSystTherAgentString5^QSystTherAgentString6^QSystTherAgentString7^QSystTherAgentString8^QSystTherAgentString9^QSystTherAgentlk5^QSystTherAgentlk6^QSystTherAgentlk7^QSystTherAgentlk8^QSystTherAgentlk9^QSystTherComplDate5^QSystTherComplDate6^QSystTherComplDate7^QSystTherComplDate8^QSystTherComplDate9^QSystTherStartDate5^QSystTherStartDate6^QSystTherStartDate7^QSystTherStartDate8^QSystTherStartDate9',0);    //Clear('QSystTherAgentString5^QSystTherAgentString6^QSystTherAgentString7^QSystTherAgentString8^QSystTherAgentString9');
+   TogButton('save1^del1^del2^del3^del4',1); TogButton('del5^del6^del7^del8^del9',0);
+break;
+  case unescape('6').toUpperCase():
+   Tog('QSystTherAgentList^QSystTherAgentList1^QSystTherAgentList2^QSystTherAgentList3^QSystTherAgentList4^QSystTherAgentList5^QSystTherAgentlk^QSystTherAgentlk1^QSystTherAgentlk2^QSystTherAgentlk3^QSystTherAgentlk4^QSystTherAgentlk5^QSystTherComplDate^QSystTherComplDate1^QSystTherComplDate2^QSystTherComplDate3^QSystTherComplDate4^QSystTherComplDate5^QSystTherStartDate^QSystTherStartDate1^QSystTherStartDate2^QSystTherStartDate3^QSystTherStartDate4^QSystTherStartDate5',1);    Tog('QSystTherAgentList6^QSystTherAgentList7^QSystTherAgentList8^QSystTherAgentList9^QSystTherAgentString6^QSystTherAgentString7^QSystTherAgentString8^QSystTherAgentString9^QSystTherAgentlk6^QSystTherAgentlk7^QSystTherAgentlk8^QSystTherAgentlk9^QSystTherComplDate6^QSystTherComplDate7^QSystTherComplDate8^QSystTherComplDate9^QSystTherStartDate6^QSystTherStartDate7^QSystTherStartDate8^QSystTherStartDate9',0);    //Clear('QSystTherAgentString6^QSystTherAgentString7^QSystTherAgentString8^QSystTherAgentString9');
+   TogButton('save1^del1^del2^del3^del4^del5',1); TogButton('del6^del7^del8^del9',0);
+break;
+  case unescape('7').toUpperCase():
+   Tog('QSystTherAgentList^QSystTherAgentList1^QSystTherAgentList2^QSystTherAgentList3^QSystTherAgentList4^QSystTherAgentList5^QSystTherAgentList6^QSystTherAgentlk^QSystTherAgentlk1^QSystTherAgentlk2^QSystTherAgentlk3^QSystTherAgentlk4^QSystTherAgentlk5^QSystTherAgentlk6^QSystTherComplDate^QSystTherComplDate1^QSystTherComplDate2^QSystTherComplDate3^QSystTherComplDate4^QSystTherComplDate5^QSystTherComplDate6^QSystTherStartDate^QSystTherStartDate1^QSystTherStartDate2^QSystTherStartDate3^QSystTherStartDate4^QSystTherStartDate5^QSystTherStartDate6',1);    Tog('QSystTherAgentList7^QSystTherAgentList8^QSystTherAgentList9^QSystTherAgentString7^QSystTherAgentString8^QSystTherAgentString9^QSystTherAgentlk7^QSystTherAgentlk8^QSystTherAgentlk9^QSystTherComplDate7^QSystTherComplDate8^QSystTherComplDate9^QSystTherStartDate7^QSystTherStartDate8^QSystTherStartDate9',0);    //Clear('QSystTherAgentString7^QSystTherAgentString8^QSystTherAgentString9');
+   TogButton('save1^del1^del2^del3^del4^del5^del6',1); TogButton('del7^del8^del9',0);
+break;
+  case unescape('8').toUpperCase():
+   Tog('QSystTherAgentList^QSystTherAgentList1^QSystTherAgentList2^QSystTherAgentList3^QSystTherAgentList4^QSystTherAgentList5^QSystTherAgentList6^QSystTherAgentList7^QSystTherAgentlk^QSystTherAgentlk1^QSystTherAgentlk2^QSystTherAgentlk3^QSystTherAgentlk4^QSystTherAgentlk5^QSystTherAgentlk6^QSystTherAgentlk7^QSystTherComplDate^QSystTherComplDate1^QSystTherComplDate2^QSystTherComplDate3^QSystTherComplDate4^QSystTherComplDate5^QSystTherComplDate6^QSystTherComplDate7^QSystTherStartDate^QSystTherStartDate1^QSystTherStartDate2^QSystTherStartDate3^QSystTherStartDate4^QSystTherStartDate5^QSystTherStartDate6^QSystTherStartDate7',1);    Tog('QSystTherAgentList8^QSystTherAgentList9^QSystTherAgentString8^QSystTherAgentString9^QSystTherAgentlk8^QSystTherAgentlk9^QSystTherComplDate8^QSystTherComplDate9^QSystTherStartDate8^QSystTherStartDate9',0);    //Clear('QSystTherAgentString8^QSystTherAgentString9');
+   TogButton('save1^del1^del2^del3^del4^del5^del6^del7',1); TogButton('del8^del9',0);
+break;
+  case unescape('9').toUpperCase():
+   Tog('QSystTherAgentList^QSystTherAgentList1^QSystTherAgentList2^QSystTherAgentList3^QSystTherAgentList4^QSystTherAgentList5^QSystTherAgentList6^QSystTherAgentList7^QSystTherAgentList8^QSystTherAgentlk^QSystTherAgentlk1^QSystTherAgentlk2^QSystTherAgentlk3^QSystTherAgentlk4^QSystTherAgentlk5^QSystTherAgentlk6^QSystTherAgentlk7^QSystTherAgentlk8^QSystTherComplDate^QSystTherComplDate1^QSystTherComplDate2^QSystTherComplDate3^QSystTherComplDate4^QSystTherComplDate5^QSystTherComplDate6^QSystTherComplDate7^QSystTherComplDate8^QSystTherStartDate^QSystTherStartDate1^QSystTherStartDate2^QSystTherStartDate3^QSystTherStartDate4^QSystTherStartDate5^QSystTherStartDate6^QSystTherStartDate7^QSystTherStartDate8',1);    Tog('QSystTherAgentList9^QSystTherAgentString9^QSystTherAgentlk9^QSystTherComplDate9^QSystTherStartDate9',0);    //Clear('QSystTherAgentString9');
+   TogButton('save1^del1^del2^del3^del4^del5^del6^del7^del8',1); TogButton('del9',0);
+break;
+  case unescape('10').toUpperCase():
+   Tog('QSystTherAgentList^QSystTherAgentList1^QSystTherAgentList2^QSystTherAgentList3^QSystTherAgentList4^QSystTherAgentList5^QSystTherAgentList6^QSystTherAgentList7^QSystTherAgentList8^QSystTherAgentList9^QSystTherAgentlk^QSystTherAgentlk1^QSystTherAgentlk2^QSystTherAgentlk3^QSystTherAgentlk4^QSystTherAgentlk5^QSystTherAgentlk6^QSystTherAgentlk7^QSystTherAgentlk8^QSystTherAgentlk9^QSystTherComplDate^QSystTherComplDate1^QSystTherComplDate2^QSystTherComplDate3^QSystTherComplDate4^QSystTherComplDate5^QSystTherComplDate6^QSystTherComplDate7^QSystTherComplDate8^QSystTherComplDate9^QSystTherStartDate^QSystTherStartDate1^QSystTherStartDate2^QSystTherStartDate3^QSystTherStartDate4^QSystTherStartDate5^QSystTherStartDate6^QSystTherStartDate7^QSystTherStartDate8^QSystTherStartDate9',1);    
+TogButton('save1^del1^del2^del3^del4^del5^del6^del7^del8^del9',1);
+break;
+  default:
+   return Def('QNumSysTher');
+ }
+}
+function QNumSysTher_reset() {
+ Tog('QSystTherAgentList^QSystTherAgentList1^QSystTherAgentList2^QSystTherAgentList3^QSystTherAgentList4^QSystTherAgentList5^QSystTherAgentList6^QSystTherAgentList7^QSystTherAgentList8^QSystTherAgentList9^QSystTherAgentString^QSystTherAgentString1^QSystTherAgentString2^QSystTherAgentString3^QSystTherAgentString4^QSystTherAgentString5^QSystTherAgentString6^QSystTherAgentString7^QSystTherAgentString8^QSystTherAgentString9^QSystTherAgentlk^QSystTherAgentlk1^QSystTherAgentlk2^QSystTherAgentlk3^QSystTherAgentlk4^QSystTherAgentlk5^QSystTherAgentlk6^QSystTherAgentlk7^QSystTherAgentlk8^QSystTherAgentlk9^QSystTherComplDate^QSystTherComplDate1^QSystTherComplDate2^QSystTherComplDate3^QSystTherComplDate4^QSystTherComplDate5^QSystTherComplDate6^QSystTherComplDate7^QSystTherComplDate8^QSystTherComplDate9^QSystTherStartDate^QSystTherStartDate1^QSystTherStartDate2^QSystTherStartDate3^QSystTherStartDate4^QSystTherStartDate5^QSystTherStartDate6^QSystTherStartDate7^QSystTherStartDate8^QSystTherStartDate9',0);
+ if (obj.readOnly) {obj.className="clsReadOnly"} else {obj.className=""}
+ TogButton('save1^del1^del2^del3^de4^del5^del6^del7^del8^del9',0);
+}
+
+function InitCustom() {
+
+    var obj=document.getElementById('update1');
+	if (obj) obj.onclick=UpdateAll;
+	if (tsc['update1']) websys_sckeys[tsc['update1']]=UpdateAll;
+
+    var obj=document.getElementById('save1');
+	if (obj) obj.onclick=DeleteClickHandler;
+
+    var QNumSysTher=document.getElementById('QNumSysTher');
+    var NumSysTher= (QNumSysTher.value!='' ? QNumSysTher.value : 0);
+
+    // hide delete button for ST1 if QNumSysTher is blank
+
+    var save1=document.getElementById('save1');
+    if (NumSysTher==0) {
+	save1.style.display='none';
+    }
+    
+    // create and position delete buttons for ST2 to ST10 listboxes
+
+    var del1=document.createElement('input'); // 2016-10-05 (RG) - All changed from '<input type="text" />' to 'input'
+    setButton(del1,1,NumSysTher);
+    var del2=document.createElement('input');
+    setButton(del2,2,NumSysTher);
+    var del3=document.createElement('input');
+    setButton(del3,3,NumSysTher);
+    var del4=document.createElement('input');
+    setButton(del4,4,NumSysTher);
+    var del5=document.createElement('input');
+    setButton(del5,5,NumSysTher);
+    var del6=document.createElement('input');
+    setButton(del6,6,NumSysTher);
+    var del7=document.createElement('input');
+    setButton(del7,7,NumSysTher);
+    var del8=document.createElement('input');
+    setButton(del8,8,NumSysTher);
+    var del9=document.createElement('input');
+    setButton(del9,9,NumSysTher);
+
+//Hide String fields for loading list boxes
+for (var i=0;i<10;i++) {
+	HideObj('QSystTherAgentString'+ (i ? i : ''));
+}
+
+//Disable Textbox for Target Site Labels
+for (var i=0;i<10;i++) {
+	document.getElementById("QCanTrTargetLabel" + (i ? i : '')).readOnly = true;
+}
+    
+}
+
+//srees SWARH May 09 Site of Metastasis List
+
+function RemoveFromList(obj) {
+	var frm=document.fquestionnaire_QVCONPART2_Edit;
+	//TDIRTY=document.getElementById("TDIRTY")
+	frm.TDIRTY.value=2
+	for (var i=(obj.length-1); i>=0; i--) {
+		if (obj.options[i].selected)
+			obj.options[i]=null;
+	}
+}
+
+/*function UpdateMetaSiteList() {
+	var arrItems = new Array();
+	var lst = document.getElementById("QSystTherAgentList");
+	if (lst) {
+		for (var j=0; j<lst.options.length; j++) {			
+			arrItems[j] = lst.options[j].value;
+		}
+		var el = document.getElementById("QSystTherAgentString");
+		if (el) el.value = arrItems.join(String.fromCharCode(1));
+	}
+}*/
+
+function UpdateMetaSiteList(StringId,ListId) {
+	var arrItems = new Array();
+	var lst = document.getElementById(ListId);
+	if (lst) {
+		for (var j=0; j<lst.options.length; j++) {			
+			arrItems[j] = lst.options[j].value;
+		}
+		var el = document.getElementById(StringId);
+		if (el) el.value = arrItems.join(String.fromCharCode(1));
+	}
+}
+
+function DeleteClickHandler(e) {
+	e = e || window.event;
+	var btn = e.target || e.srcElement;
+	var obj = (btn && btn.deleteList) ? btn.deleteList : document.getElementById("QSystTherAgentList");
+	//Delete items from EMCDesc listbox when a "Delete" button is clicked.
+	//var obj=document.getElementById("QSystTherAgentList")
+	if (obj)
+		RemoveFromList(obj);
+	return false;
+}
+
+function AddItemToList(list,code,desc) {
+	//Add an item to a listbox
+	var frm=document.fquestionnaire_QVCONPART2_Edit;
+	//TDIRTY=document.getElementById("TDIRTY")
+	frm.TDIRTY.value=2
+	//alert("and now..."+frm.TDIRTY.value);
+	code=String.fromCharCode(2)+code
+	list.options[list.options.length] = new Option(desc,code);
+}
+
+/*function QSystTherAgentlk_AddToList(txt) {
+//Add an item to QSystTherAgentList when an item is selected from
+	//the Lookup, then clears the Item text field.
+	var adata=txt.split("^");
+	//alert("adata="+adata);
+	var obj=document.getElementById("QSystTherAgentList");
+
+	if (obj) {
+		//Need to check if Condition already exists in the List and alert the user
+		for (var i=0; i<obj.options.length; i++) {
+			if (obj.options[i].value == String.fromCharCode(2)+adata[1]) {
+				alert("Code has already been selected");
+				var obj=document.getElementById("QSystTherAgentlk")
+				if (obj) obj.value="";
+				return;
+			}
+			if  ((adata[1] != "") && (obj.options[i].text == adata[0])) {
+			alert("Code has already been selected");
+				var obj=document.getElementById("QSystTherAgentlk")
+				if (obj) obj.value="";
+				return;
+			}
+			//alert(obj.options[i].value+"****"+adata[1])
+		}
+	}
+	AddItemToList(obj,adata[1],adata[0]);
+
+	var obj=document.getElementById("QSystTherAgentlk");
+	if (obj) obj.value="";
+	//alert("adata="+adata);
+}*/
+
+function QSystTherAgentlk_AddToList(elementId,listId) {
+//Add an item to QSystTherAgentList when an item is selected from
+	//the Lookup, then clears the Item text field.
+
+
+	var obj=document.getElementById(elementId);
+    	if (obj.value!='') {
+      	var txt=encodestr(obj.value,obj.value);
+	}
+
+	var adata=txt.split("^");
+	//alert("adata="+adata);
+	var obj=document.getElementById(listId);
+
+	if (obj) {
+		//Need to check if Condition already exists in the List and alert the user
+		for (var i=0; i<obj.options.length; i++) {
+			if (obj.options[i].value == String.fromCharCode(2)+adata[1]) {
+				alert("Code has already been selected");
+				var obj=document.getElementById(elemtId)
+				if (obj) obj.value="";
+				return;
+			}
+			if  ((adata[1] != "") && (obj.options[i].text == adata[0])) {
+			alert("Code has already been selected");
+				var obj=document.getElementById(elementId)
+				if (obj) obj.value="";
+				return;
+			}
+			//alert(obj.options[i].value+"****"+adata[1])
+		}
+	}
+	AddItemToList(obj,adata[1],adata[0]);
+
+	var obj=document.getElementById(elementId);
+	if (obj) obj.value="";
+	//alert("adata="+adata);
+}
+
+// reload listbox with values from hidden field.
+// this is due to page being refreshed upon error message (such as invalid pin)
+/*function QSystTherAgentlkReload() {
+	var el = document.getElementById("QSystTherAgentString");
+	var lst = document.getElementById("QSystTherAgentList");
+	if ((lst)&&(el.value!="")) {
+		var arrITEM=el.value.split(String.fromCharCode(1));
+		for (var i=0; i<arrITEM.length; i++) {
+			var arrITEMVAL=arrITEM[i].split(String.fromCharCode(2));
+			//don't add ones that have a child rowid as they would already be populated
+			//if ((arrITEMVAL[0]=="")&&(arrITEMVAL[2]!="")) {
+			//	AddItemToList(lst,arrITEMVAL[1],arrITEMVAL[2]);
+			//}
+			if ((arrITEMVAL[0]=="")&&(arrITEMVAL[1]!="")) {
+				AddItemToList(lst,arrITEMVAL[1],arrITEMVAL[1]);
+			}
+		}
+	}
+}*/
+
+function QSystTherAgentlkReload(StringId,ListId) {
+	var el = document.getElementById(StringId);
+	var lst = document.getElementById(ListId);
+	if ((lst)&&(el.value!="")) {
+		var arrITEM=el.value.split(String.fromCharCode(1));
+		for (var i=0; i<arrITEM.length; i++) {
+			var arrITEMVAL=arrITEM[i].split(String.fromCharCode(2));
+			//don't add ones that have a child rowid as they would already be populated
+			//if ((arrITEMVAL[0]=="")&&(arrITEMVAL[2]!="")) {
+			//	AddItemToList(lst,arrITEMVAL[1],arrITEMVAL[2]);
+			//}
+			if ((arrITEMVAL[0]=="")&&(arrITEMVAL[1]!="")) {
+				AddItemToList(lst,arrITEMVAL[1],arrITEMVAL[1]);
+			}
+		}
+	}
+}
+
+function encodestr(code,desc) {
+  return desc+'^'+code;
+}
+
+  /*var QSystTherAgentlk_lookupselOLD = QSystTherAgentlk_lookupsel;
+  QSystTherAgentlk_lookupsel = function(v) {
+    if (QSystTherAgentlk_lookupselOLD) QSystTherAgentlk_lookupselOLD(v);
+    var obj=document.getElementById("QSystTherAgentlk")
+    if (obj.value!='') {
+      QSystTherAgentlk_AddToList(encodestr(obj.value,obj.value));
+    }
+  }*/
+
+   var QSystTherAgentlk_lookupselOLD = QSystTherAgentlk_lookupsel;
+   QSystTherAgentlk_lookupsel = function(v) {
+   	if (QSystTherAgentlk_lookupselOLD) QSystTherAgentlk_lookupselOLD(v);
+   	QSystTherAgentlk_AddToList("QSystTherAgentlk","QSystTherAgentList");
+   }
+
+   var QSystTherAgentlk1_lookupselOLD = QSystTherAgentlk1_lookupsel;
+   QSystTherAgentlk1_lookupsel = function(v) {
+   	if (QSystTherAgentlk1_lookupselOLD) QSystTherAgentlk1_lookupselOLD(v);
+   	QSystTherAgentlk_AddToList("QSystTherAgentlk1","QSystTherAgentList1");
+   }
+
+   var QSystTherAgentlk2_lookupselOLD = QSystTherAgentlk2_lookupsel;
+   QSystTherAgentlk2_lookupsel = function(v) {
+   	if (QSystTherAgentlk2_lookupselOLD) QSystTherAgentlk2_lookupselOLD(v);
+   	QSystTherAgentlk_AddToList("QSystTherAgentlk2","QSystTherAgentList2");
+   }
+
+   var QSystTherAgentlk3_lookupselOLD = QSystTherAgentlk3_lookupsel;
+   QSystTherAgentlk3_lookupsel = function(v) {
+   	if (QSystTherAgentlk3_lookupselOLD) QSystTherAgentlk3_lookupselOLD(v);
+   	QSystTherAgentlk_AddToList("QSystTherAgentlk3","QSystTherAgentList3");
+   }
+  
+   var QSystTherAgentlk4_lookupselOLD = QSystTherAgentlk4_lookupsel;
+   QSystTherAgentlk4_lookupsel = function(v) {
+   	if (QSystTherAgentlk4_lookupselOLD) QSystTherAgentlk4_lookupselOLD(v);
+   	QSystTherAgentlk_AddToList("QSystTherAgentlk4","QSystTherAgentList4");
+   }
+
+   var QSystTherAgentlk5_lookupselOLD = QSystTherAgentlk5_lookupsel;
+   QSystTherAgentlk5_lookupsel = function(v) {
+   	if (QSystTherAgentlk5_lookupselOLD) QSystTherAgentlk5_lookupselOLD(v);
+   	QSystTherAgentlk_AddToList("QSystTherAgentlk5","QSystTherAgentList5");
+   }
+
+   var QSystTherAgentlk6_lookupselOLD = QSystTherAgentlk6_lookupsel;
+   QSystTherAgentlk6_lookupsel = function(v) {
+   	if (QSystTherAgentlk6_lookupselOLD) QSystTherAgentlk6_lookupselOLD(v);
+   	QSystTherAgentlk_AddToList("QSystTherAgentlk6","QSystTherAgentList6");
+   }
+
+   var QSystTherAgentlk7_lookupselOLD = QSystTherAgentlk7_lookupsel;
+   QSystTherAgentlk7_lookupsel = function(v) {
+   	if (QSystTherAgentlk7_lookupselOLD) QSystTherAgentlk7_lookupselOLD(v);
+   	QSystTherAgentlk_AddToList("QSystTherAgentlk7","QSystTherAgentList7");
+   }
+
+   var QSystTherAgentlk8_lookupselOLD = QSystTherAgentlk8_lookupsel;
+   QSystTherAgentlk8_lookupsel = function(v) {
+   	if (QSystTherAgentlk8_lookupselOLD) QSystTherAgentlk8_lookupselOLD(v);
+   	QSystTherAgentlk_AddToList("QSystTherAgentlk8","QSystTherAgentList8");
+   }
+
+   var QSystTherAgentlk9_lookupselOLD = QSystTherAgentlk9_lookupsel;
+   QSystTherAgentlk9_lookupsel = function(v) {
+   	if (QSystTherAgentlk9_lookupselOLD) QSystTherAgentlk9_lookupselOLD(v);
+   	QSystTherAgentlk_AddToList("QSystTherAgentlk9","QSystTherAgentList9");
+   }
+
+
+function QCanTrType_lookupsel(value) {
+	try {
+		var obj=document.getElementById('QCanTrType');
+		if (obj) {
+  			obj.value=unescape(value);
+			if (obj.readOnly) {obj.className='clsReadOnly'} else {obj.className=''}
+			try {QCanTrType_lookuptoggle(value);} catch(err) {};
+			if (doneInit) {
+				websys_nextfocusElement(obj);
+				var CanTrType = obj.value;
+				var QOutOfTreat = document.getElementById('QOutOfTreat');
+				if (CanTrType=='0: No treatment') {	
+					QOutOfTreat.value = '9.0: Not assessed or unable to be assessed';
+					QOutOfTreat.className='';
+					websys_nextfocusElement(QOutOfTreat);
+				}
+				else {
+					if (QOutOfTreat.value == '9.0: Not assessed or unable to be assessed') {
+						QOutOfTreat.value='';
+					}
+					QOutOfTreat.className='';
+				}
+			}
+		}
+	} catch(e) {};
+}
+
+function QOutOfTreat_lookupsel(value) {
+	try {
+		var obj=document.getElementById('QOutOfTreat');
+		if (obj) {
+  			obj.value=unescape(value);
+			if (obj.readOnly) {obj.className='clsReadOnly'} else {obj.className=''}
+			try {QOutOfTreat_lookuptoggle(value);} catch(err) {};
+			if (doneInit) {
+				var OutOfTreat = obj.value;
+				var QCanTrType=document.getElementById('QCanTrType');
+				if ((QCanTrType.value=='0: No treatment') && (OutOfTreat!='9.0: Not assessed or unable to be assessed')) {
+					obj.className='clsInvalid';
+					alert('Outcome of Treatment must be 9.0 if cancer treatment type is 0: No treatment');
+					websys_setfocus('QOutOfTreat');
+					return websys_cancel();
+				}
+				websys_nextfocusElement(obj);
+			}
+		}
+	} catch(e) {};
+}
+
+
+QOutOfTreat_changehandlerX_IS = QOutOfTreat_changehandlerX;
+
+QOutOfTreat_changehandlerX = function() {
+	if (QOutOfTreat_changehandlerX_IS.apply(this,arguments) === false) {
+		return false;
+	} else {
+		var obj=document.getElementById('QOutOfTreat');
+		if (obj.value!='') {
+			var obj1=document.getElementById('QCanTrType');
+			if (obj1) {
+				if ((obj1.value=="0: No treatment") && (obj.value!="9.0: Not assessed or unable to be assessed")) {
+					obj.className='clsInvalid';
+					websys_setfocus('QOutOfTreat');
+					return websys_cancel();
+				}
+			}
+		}
+	}
+}
+
+/*function QCanTrType_lookuptoggle(value) {
+ value = unescape(value).toUpperCase();
+ //var surgvalues='QNumSurg^QIntOfTreatSurg';
+ //var systhervalues='QNumSysTher^QIntOfTreatSyst';
+ var systhervalues='';
+
+
+ for (var i=0;i<10;i++) {
+	systhervalues=systhervalues + 'QSystTherAgentString' + (i ? i : '');
+ }
+ 
+ switch (value) {
+  case unescape('0: No treatment').toUpperCase():
+   Tog('QIntOfTreatSurg^QIntOfTreatSyst^QNumSurg^QNumSysTher',0);
+   //Clear(systhervalues);
+   break;
+  case unescape('1: Surgical treatment').toUpperCase():
+   Tog('QIntOfTreatSurg^QNumSurg',1);    Tog('QIntOfTreatSyst^QNumSysTher',0);
+   //Clear(systhervalues);
+   break;
+  case unescape('3: Systemic agent therapy').toUpperCase():
+   Tog('QIntOfTreatSyst^QNumSysTher',1);    Tog('QIntOfTreatSurg^QNumSurg',0);   
+   break;
+  case unescape('5: Surgical and systemic agent treatment').toUpperCase():
+   Tog('QIntOfTreatSurg^QIntOfTreatSyst^QNumSurg^QNumSysTher',1);
+   //Clear(systhervalues);  
+   break;
+  case unescape('9: Unknown').toUpperCase():
+   Tog('QIntOfTreatSurg^QIntOfTreatSyst^QNumSurg^QNumSysTher',0);
+   //Clear(systhervalues);
+   break;
+  default:
+   return Def('QCanTrType');
+ }
+}*/
+
+
+function QCanTrType_reset() {
+ Tog('QIntOfTreatSurg^QIntOfTreatSyst^QNumSurg^QNumSysTher',0);
+ if (obj.readOnly) {obj.className="clsReadOnly"} else {obj.className=""}
+}
+
+
+//call this outside onload call so it can be called straight away, and not wait till everything has loaded.
+
+for (var i=0;i<10;i++) {
+	QSystTherAgentlkReload("QSystTherAgentString" + (i ? i: ''),"QSystTherAgentList" + (i ? i: ''));
+}
+
+function QUESStatusDR_lookupsel(value) {
+	try {
+		var obj=document.getElementById('QUESStatusDR');
+		if (obj) {
+  			obj.value=unescape(value);
+			if (obj.readOnly) {obj.className='clsReadOnly'} else {obj.className=''}
+			try {QUESStatusDR_lookuptoggle(value);} catch(err) {};
+			if (doneInit) {
+				var status=obj.value;
+				if (status=="Authorised") {
+					obj.className='clsInvalid';
+					websys_setfocus('QUESStatusDR');
+					return websys_cancel();
+				}
+				else {
+					websys_nextfocusElement(obj);
+				}
+			}
+		}
+	} catch(e) {};
+}
+
+QUESStatusDR_changehandlerX_IS = QUESStatusDR_changehandlerX;
+
+QUESStatusDR_changehandlerX = function() {
+	if (QUESStatusDR_changehandlerX_IS.apply(this,arguments) === false) {
+		return false;
+	} else {
+		var obj=document.getElementById('QUESStatusDR');
+		if (obj.value=="Authorised") {
+			obj.className='clsInvalid';
+			websys_setfocus('QUESStatusDR');
+			alert('Status must not be changed to "Authorised" for the VCON forms');
+			return websys_cancel();
+		}
+	}
+}
+
+function UpdateAll() {
+	//if (!CheckInvalidFields())  { return false; }
+	//if (!CheckRequiredFields()) { return false; }
+	//UpdateMetaSiteList();
+	
+	for (var i=0;i<10;i++) {
+		UpdateMetaSiteList("QSystTherAgentString" + (i ? i: ''),"QSystTherAgentList" + (i ? i: ''));
+	}
+
+	//clear systemic therapy agent string for previously entered ST treatments (example: 3 ST initially - now only 2 - the agentstring field is not 
+	//blanked so we have to do the below)
+	var QNumSysTher=document.getElementById("QNumSysTher");
+	if (QNumSysTher.value=='') {NumSysTher=0;}
+	else {NumSysTher=parseInt(QNumSysTher.value);}
+	for (var i=0;i<10;i++) {
+		var obj=document.getElementById("QSystTherAgentString" + (i ? i: ''))
+		
+		if (QNumSysTher.value!='') {
+			if (i>=NumSysTher) {
+				if (obj.value!="") {obj.value="";}
+			}
+		}
+	}
+	return update1_click();
+}
+
+websys_addListener("load","onload",InitCustom);
+//document.body.onload=InitCustom;
+
+//tknoll-miller (SWARH) 2009-09-16 Load authorise script
+var authcfg = {
+   'buttons': [
+      'update1'
+   ],
+   'fields': {
+      'username': 'UserName',
+      'password': 'PIN'
+   }
+};
+//tknoll-miller (SWARH) 2009-09-16 Load authorise script
+// Scope variables
+(function() {
+   var loadScript = function(type, src) {
+      var head = document.getElementsByTagName('head')[0];
+      var script = document.createElement('script');
+      script.type = type;
+      script.src = src;
+      head.appendChild(script);
+      websys_addListener('load', 'onload', function(){document.isLoaded=true});
+      return script;
+   };
+
+   loadScript('text/javascript', '../custom/SWARH/scripts/authorise4.js');
+})();
+//end tknoll-miller (SWARH) 2009-09-16 Load authorise script
+]]></Implementation>
+</Method>
+</Class>
+</Export>

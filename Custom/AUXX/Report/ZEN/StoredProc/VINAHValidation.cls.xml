@@ -1,0 +1,969 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.AUXX.Report.ZEN.StoredProc.VINAHValidation">
+<Description>
+Report Name: VINAH Validation
+Report Code: AUXX.EXT.VINAHV 
+TRC Number: 164027
+
+IF		24/04/2015		- TRC175691: Updated validations
+CB		01/07/2015		- TRC175691: Added an initial check to see if an episode is Non-VINAH. For Non-VINAH episodes, report E640 only
+						- TRC175691: Updated E208, the error is applicable only for accountclass="TAC" or accountclass="WC" 
+						- TRC175691: Updated E733 and E734. An error is reported only when both QSACS36 and QSACS35 are null 
+UT		17/05/2016		- TRC204561: Updated E650 and E651 for Document Date is not in Episode Date Range (Admission Date - Discharge Date)</Description>
+<ProcedureBlock>0</ProcedureBlock>
+<Super>Report.Abstract</Super>
+<TimeCreated>63169,37119.459215</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/AUXX/Report/ZEN/StoredProc/VINAHValidation.xml#1 $</Default>
+</Parameter>
+
+<Method name="ValidateClose">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>QHandle:%Library.Binary</FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Clean up by purging the temporary node in ^CacheTemp global
+ New repid
+ Set repid=$LIST(QHandle,2)
+ 
+ Kill ^CacheTemp("TRAK",repid)
+ 
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="ValidateExecute">
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,DateFrom:%String,DateTo:%String,Facility:%String,Speciality:%String,Clinician:%String,ConType:%String,ErrorType:%String]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+	// Get reportid i.e. use $INCREMENT to add another node to ^CacheTemp global. 
+ 	// We use ^CacheTemp global because it will always use memory before disk
+ 	New repid,ind
+
+ 	// Use $Increment to get the next node
+ 	Set repid=$I(^CacheTemp("TRAK"))
+ 	
+ 	//Start Monitor (if configured to capture stats)
+	s mon=..MonitorBegin()
+ 	
+ 	s DateFrom=..ConvertDateToCache(DateFrom)
+ 	s DateTo=..ConvertDateToCache(DateTo)
+ 	
+ 	s Facility=$zstrip(Facility,"*CW")
+ 	s Speciality=$zstrip(Speciality,"*CW")
+ 	s Clinician=$zstrip(Clinician,"*CW")
+ 	s ConType=$zstrip(ConType,"*CW")
+ 	s ErrorType=$zstrip(ErrorType,"*CW")
+ 	
+ 	
+ 	// Setup a Matrix of the programs and required fields
+ 	d ..SetupMatrix()
+ 	k ^zoak("Validate")
+ 	s ^zoak("Validate","Test")=1
+  	s ind=0
+ 	f date=DateFrom:1:DateTo {
+	 	s con=0
+	 	f {
+		 	s con=$o(^PAENQi("Date",date,con)) q:con=""
+		 			 	
+		 	s contact=##class(User.PAEnquiryContact).%OpenId(con)
+		 	i contact {
+			 	i contact.ENQHospitalDR,contact.ENQHospitalDR.%Id()=Facility {
+				 	i Speciality,'contact.ENQLocationDR Continue
+				 	i Clinician,'contact.ENQCTCPDR Continue
+				 	i Speciality,(","_Speciality_",")'[(","_contact.ENQLocationDR.%Id()_",") Continue
+				 	i Clinician,(","_Clinician_",")'[(","_contact.ENQCTCPDR.%Id()_",") Continue
+				 	
+				 	i contact.ENQRequestStatusDR.REQSTCode'="CO" Continue 
+				 	s typecheck=0
+				 	i contact.ENQGovernDepartDR.DEPParRef.NFMIGovSubCategDR.SUBCode'="" {
+						i contact.ENQGovernDepartDR.DEPParRef.NFMIGovSubCategDR.SUBCode="VINAH" s typecheck=1
+					} else {
+						i contact.ENQInsTypeDR.INSTCode4="VINAH" s typecheck=1
+					}
+					i 'typecheck Continue
+					
+					s contype=##class(web.PAEnquiryContact).GetContactType(con)
+					i contype'="Formal" Continue
+					i 'contact.ENQPAPERDR Continue
+					
+					s ind=..ValidateRecord(contact,ErrorType,ind,repid)
+			 	}
+			 	k contact
+		 	}
+	 	}
+ 	}
+ 	
+ 	// Build QHandle (AtEnd,ReportID,Index)
+ 	Set QHandle=$lb(0,repid,0)
+ 	Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="ValidateFetch">
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,&Row:%Library.List,&AtEnd:%Library.Integer=0]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // This fetch method should never have to change. 
+
+ New repid,ind
+
+ // Restore QHandle
+ Set AtEnd=$LI(QHandle,1)
+ Set repid=$LI(QHandle,2)
+ Set ind=$LI(QHandle,3)
+
+ Set ind=$order(^CacheTemp("TRAK",repid,ind))
+ If ind="" {	// if there are no more rows, finish fetching
+ 	Set AtEnd=1
+ 	Set Row=""
+ }  Else  {	// fetch row
+ 	Set Row=^CacheTemp("TRAK",repid,ind)
+ }
+
+ // Save QHandle
+ Set QHandle=$lb(AtEnd,repid,ind)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Query name="Validate">
+<Type>%Library.Query</Type>
+<FormalSpec>DateFrom:%String,DateTo:%String,Facility:%String,Speciality:%String,Clinician:%String,ConType:%String,ErrorType:%String</FormalSpec>
+<SqlProc>1</SqlProc>
+<Parameter name="CONTAINID" value="0"/>
+<Parameter name="ROWSPEC" value="PAENQRowId:%String,CareProv:%String,PatientNo:%String,EpisodeNo:%String,SLK:%String,Identifier:%String,ContactName:%String,ErrorWarning:%String,DisplayType:%String,Errors:%String,Warnings:%String"/>
+</Query>
+
+<Method name="DisplayType1Errors">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>contact:%CacheObject,ErrorType:%String,ind:%String</FormalSpec>
+<Implementation><![CDATA[
+	s errorwarning="",slk=""
+ 	s careprov=contact.ENQCTCPDR.CTPCPDesc
+ 	s patno=contact.ENQPAPERDR.PAPERPAPMIDR.PAPMINo
+ 	s patname=contact.ENQPAPERDR.PAPERPAPMIDR.PAPMIName_", "_contact.ENQPAPERDR.PAPERPAPMIDR.PAPMIName2_$s(contact.ENQPAPERDR.PAPERPAPMIDR.PAPMIName3'="":" "_contact.ENQPAPERDR.PAPERPAPMIDR.PAPMIName3,1:"")
+ 	s admno=contact.ENQOEOrdItemDR.OEORIOEORDParRef.OEORDAdmDR.PAADMADMNo
+ 	s patid=contact.ENQPAPERDR.%Id()
+ 	S admid=contact.ENQOEOrdItemDR.OEORIOEORDParRef.OEORDAdmDR
+ 	
+ 	s rt=0
+	f {
+		s rt=$o(^RT(0,"PAT",contact.ENQPAPERDR.%Id(),rt))
+		q:rt=""
+		s record=##class(User.RTMaster).%OpenId(rt)
+		i record {
+			i record.RTMASMRTypeDR.TYPCode="SLK" s slk=record.RTMASMRNo
+			k record
+		}
+	}
+	
+	s type="Registered Clients"
+	
+	i ((ErrorType="")||(ErrorType="Errors")) {		
+		
+		//Registration Details
+		d ..CheckRequired(slk,"E101","Patient/Client Identifier",program)															;"E101 Registration Details: Site Identifiers: Statistical Linkage Key does not exist for this client"
+		d ..CheckRequired(contact.ENQPAPERDR.PAPERPAPMIDR.PAPMIPensionTypeDR,"E106","Patient/Client Identifier",program)			;"E106 Registration Details: 'Pension Type' is a required field but has not been entered."
+		d ..CheckRequired(contact.ENQPAPERDR.PAPERIndigStatDR,"E107","Contact Indigenous Status",program)							;"E107 Registration Details: 'Indigenous Status' is a required field but has not been entered."
+		d ..CheckRequired(contact.ENQPAPERDR.PAPERCountryBirthDR,"E109","Patient/Client Birth Country",program)						;"E109 Registration Details: 'Country of Birth' is a required field but has not been entered."
+		;d ..CheckRequired(contact.ENQPAPERDR.PAPERPrefLanguageDR,"E110","Contact Preferred Language",program)						;"E110 Registration Details: 'Preferred Language' is a required field but has not been entered."
+		;d ..CheckRequired(contact.ENQPAPERDR.PAPERInterpreterRequired,"E111","Contact Interpreter Required",program)				;"E111 Registration Details: 'Translator' is a required field but has not been entered."
+		d ..CheckRequired(contact.ENQPAPERDR.PAPERLivingArrangementDR,"E113","Patient/Client Living Arrangement",program)			;"E113 Registration Details: 'Living Arrangements' is a required field but has not been entered."
+		
+		i 'contact.ENQPAPERDR.PAPERCarerAvailabilityDR {
+			d ..CheckRequired(contact.ENQPAPERDR.PAPERCarerAvailabilityDR,"E114","Patient/Client Carer Availability",program)			;"E114 Registration Details: 'Carer Availability' is a required field but has not been entered."
+		} else {
+			s CARAVLCode=##class(Region.AUXX.Utility.Utilities).GetMappedCode("PAC_TransportUsed","TRU_Code","VINAH",contact.ENQPAPERDR.PAPERCarerAvailabilityDR.CARAVLCode)
+			i CARAVLCode=1 {
+				s carerok=1
+				i 'contact.ENQPAPERDR.PAPERPAPMIDR.ChildPANok.Count() {
+					d ..CheckRequired(contact.ENQPAPERDR.PAPERPAPMIDR.ChildPANok.Count(),"E150","Patient/Client Living Arrangement",program)
+					s errorwarning="E150 Contact Details (NOK): Contact Type Carer and contact details must exist for this client"
+					s ind=$i(ind)
+					s ^CacheTemp("TRAK",repid,patno_" E150")=$LB(contact.%Id(),careprov,patno,admno,slk,"",patname,errorwarning,type,1,0)
+				} else {
+					f x=1:1:contact.ENQPAPERDR.PAPERPAPMIDR.ChildPANok.Count() {
+						i 'contact.ENQPAPERDR.PAPERPAPMIDR.ChildPANok.GetAt(x).NOKReciprocalRelationDR,'contact.ENQPAPERDR.PAPERPAPMIDR.ChildPANok.GetAt(x).NOKReciprocalContactTypeDR {
+							s errorwarning="E151 Contact Details (NOK): Registered patient = Reciprocal Contact Type /Reciprocal Relation Link must exist for this client"
+							s ind=$i(ind)
+							s ^CacheTemp("TRAK",repid,patno_" E151")=$LB(contact.%Id(),careprov,patno,admno,slk,"",patname,errorwarning,type,1,0)
+						} else {
+							s carerok=2
+						}
+					}
+				}
+			}
+		}
+		d ..CheckRequired(contact.ENQPAPERDR.PAPERAccomSettingDR,"E117","Patient/Client Usual Accommodation Type",program)			;"E117 Registration Details: ‘Accommodation/Residential Setting’ is a required field but has not been entered."
+		d ..CheckRequired(contact.ENQPAPERDR.PAPERAccomSettingDR,"E117","Patient/Client Usual Accommodation Type",program)			;"E117 Registration Details: ‘Accommodation/Residential Setting’ is a required field but has not been entered."
+
+
+
+		s ind=$i(ind)
+		s ^CacheTemp("TRAK",repid,patno_" E101")=$LB(contact.%Id(),careprov,patno,admno,slk,"",patname,errorwarning,type,1,0)
+		
+		
+		i 'contact.ENQPAPERDR.PAPERCityCodeDR,'contact.ENQPAPERDR.PAPERZipDR,'contact.ENQPAPERDR.PAPERCTRegionDR {
+			s errorwarning="E108 Registration Details: 'Suburb/Sate/LGA' are required fields but have not been entered."
+			s ind=$i(ind)
+			s ^CacheTemp("TRAK",repid,patno_" E108")=$LB(contact.%Id(),careprov,patno,admno,slk,"",patname,errorwarning,type,1,0)
+		}
+		i 'contact.ENQPAPERDR.PAPERDependChildrenDR {
+			s errorwarning="E112 Registration Details: 'Dependent Children' is a required field but has not been entered."
+			s ind=$i(ind)
+			s ^CacheTemp("TRAK",repid,patno_" E112")=$LB(contact.%Id(),careprov,patno,admno,slk,"",patname,errorwarning,type,1,0)
+		}
+		
+		
+		s carerok=0
+		i 'contact.ENQPAPERDR.PAPERCarerAvailabilityDR {
+			s errorwarning="E114 Registration Details: 'Carer Availability' is a required field but has not been entered."
+			s ind=$i(ind)
+			s ^CacheTemp("TRAK",repid,patno_" E114")=$LB(contact.%Id(),careprov,patno,admno,slk,"",patname,errorwarning,type,1,0)
+		} else {
+			s CARAVLCode=##class(Region.AUXX.Reports.Extract.VINAHExtract).GetMappedCode("PAC_TransportUsed","TRU_Code","VINAH",contact.ENQPAPERDR.PAPERCarerAvailabilityDR.CARAVLCode)
+			i CARAVLCode=1 {
+				s carerok=1
+				i 'contact.ENQPAPERDR.PAPERPAPMIDR.ChildPANok.Count() {
+					s errorwarning="E150 Contact Details (NOK): Contact Type Carer and contact details must exist for this client"
+					s ind=$i(ind)
+					s ^CacheTemp("TRAK",repid,patno_" E150")=$LB(contact.%Id(),careprov,patno,admno,slk,"",patname,errorwarning,type,1,0)
+				} else {
+					f x=1:1:contact.ENQPAPERDR.PAPERPAPMIDR.ChildPANok.Count() {
+						i 'contact.ENQPAPERDR.PAPERPAPMIDR.ChildPANok.GetAt(x).NOKReciprocalRelationDR,'contact.ENQPAPERDR.PAPERPAPMIDR.ChildPANok.GetAt(x).NOKReciprocalContactTypeDR {
+							s errorwarning="E151 Contact Details (NOK): Registered patient = Reciprocal Contact Type /Reciprocal Relation Link must exist for this client"
+							s ind=$i(ind)
+							s ^CacheTemp("TRAK",repid,patno_" E151")=$LB(contact.%Id(),careprov,patno,admno,slk,"",patname,errorwarning,type,1,0)
+						} else {
+							s carerok=2
+						}
+					}
+				}
+			}
+		}
+		
+		
+		
+		i ((contact.ENQOEOrdItemDR.OEORIOEORDParRef.OEORDAdmDR.PAADMMainMRADMDR.MRADMDischClassifDR.DSCLCode="009")&&
+		(contact.ENQOEOrdItemDR.OEORIOEORDParRef.OEORDAdmDR.PAADMMainMRADMDR.MRADMDischDestinDR.DDESTCode="021") &&(contact.ENQPAPERDR.PAPERDeceasedDate="")) {
+			s errorwarning="E121 Registration Details: ‘Deceased Detail’s’ fields have not been completed for this client."
+			s ind=$i(ind)
+			s ^CacheTemp("TRAK",repid,patno_" E121")=$LB(contact.%Id(),careprov,patno,admno,slk,"",patname,errorwarning,type,1,0)
+		}
+		
+		
+		//Episode Details
+		i contact.ENQOEOrdItemDR.OEORIOEORDParRef.OEORDAdmDR.PAADMDateReceived="" {
+			s errorwarning="E200 Episode Details: 'Date Referral Received' is a required field but has not been entered."
+			s ind=$i(ind)
+			s ^CacheTemp("TRAK",repid,patno_" E200")=$LB(contact.%Id(),careprov,patno,admno,slk,"",patname,errorwarning,type,1,0)
+		}
+		
+		if ('contact.ENQOEOrdItemDR.OEORIOEORDParRef.OEORDAdmDR.PAADMSourceOfAttendDR) {
+			s errorwarning="E203 Episode Details: 'Referral Source' is a required field but has not been entered."
+			s ind=$i(ind)
+			s ^CacheTemp("TRAK",repid,patno_" E203")=$LB(contact.%Id(),careprov,patno,admno,slk,"",patname,errorwarning,type,1,0)
+		}
+		
+		i '(contact.ENQOEOrdItemDR.OEORIOEORDParRef.OEORDAdmDR.PAADMRefDate||objADM.PAADMDateReceived) {
+			s errorwarning="E205 Episode Details: 'Referral Date' is a required field but has not been entered."
+			s ind=$i(ind)
+			s ^CacheTemp("TRAK",repid,patno_" E205")=$LB(contact.%Id(),careprov,patno,admno,slk,"",patname,errorwarning,type,1,0)
+		}
+		/*
+		i contact.ENQOEOrdItemDR.OEORIOEORDParRef.OEORDAdmDR.PAADMReferralPriorityDR.REFPRICode="" {
+			s errorwarning="E202 Episode Details: Referral Priority field must be completed for this client"
+			s ind=$i(ind)
+			s ^CacheTemp("TRAK",repid,patno_" E202")=$LB(contact.%Id(),careprov,patno,admno,slk,"",patname,errorwarning,type,1,0)
+		}*/
+		
+		s payorplan=##class(web.PAAdmInsurance).GetPayorPlanDetailsForEpisode(contact.ENQOEOrdItemDR.OEORIOEORDParRef.OEORDAdmDR.%Id())
+		s payorid=$p(payorplan,"^",1)
+		s planid=$p(payorplan,"^",2)
+		s payor="",plan=""
+		i payorid'="" s payor=$li(##class(web.ARCInsuranceType).GetCodeDescriptionFromId(payorid),3)
+		i planid'="" s plan=$li(##class(web.ARCAuxilInsurType).GetCodeDescriptionFromId(planid),3)
+
+		//TRC175691
+		i (((contact.ENQInsTypeDR.INSTAccountClass.ACCLCode="TAC")||(contact.ENQInsTypeDR.INSTAccountClass.ACCLCode="WC"))&&
+		(contact.ENQOEOrdItemDR.OEORIOEORDParRef.OEORDAdmDR.PAADMLabourAccidentDR.TRFVehInsPolicy="" )) {
+			s errorwarning="E208 Episode Details: ’TAC or W/Comp Claim Number’ is a required field but has not been entered."
+			s ind=$i(ind)
+			s ^CacheTemp("TRAK",repid,patno_" E208")=$LB(contact.%Id(),careprov,patno,admno,slk,"",patname,errorwarning,type,1,0)
+		}
+		
+		
+		
+		
+		//Contacts
+		i 'contact.ENQContDelivModeDR{
+			s errorwarning="E630 Contacts: [Contact No "_contact.%Id()_" Contact Date "_$zdate(contact.ENQDate,4)_"] VINAH Section:  ‘Contact Delivery Mode’ is a required field but has not been entered."
+			s ind=$i(ind)
+			s ^CacheTemp("TRAK",repid,patno_" E630")=$LB(contact.%Id(),careprov,patno,admno,slk,"",patname,errorwarning,type,1,0)
+		}
+		/*
+		i 'contact.ENQContDelivSettingDR{
+			s errorwarning="E631 Contacts: [Contact No "_contact.%Id()_" Contact Date "_$zdate(contact.ENQDate,4)_"VINAH Section:  ‘Contact Delivery Setting’ is a required field but has not been entered."
+			s ind=$i(ind)
+			s ^CacheTemp("TRAK",repid,patno_" E631")=$LB(contact.%Id(),careprov,patno,admno,slk,"",patname,errorwarning,type,1,0)
+		}
+		
+		
+		i 'contact.ENQContClientPresStatDR {
+			s errorwarning="E632 Contacts: [Contact No "_contact.%Id()_" Contact Date "_$zdate(contact.ENQDate,4)_"VINAH Section:  ‘Contact Client Present Status’ is a required field but has not been entered."
+			s ind=$i(ind)
+			s ^CacheTemp("TRAK",repid,patno_" E632")=$LB(contact.%Id(),careprov,patno,admno,slk,"",patname,errorwarning,type,1,0)
+		}
+		*/
+		i ((contact.ENQPAPERDR.PAPERPrefLanguageDR.PREFLCode="1201")&&(contact.ENQInterpreterRequired="Y")) {
+			s errorwarning="E633 Contacts: [Contact No "_contact.%Id()_" Contact Date "_$zdate(contact.ENQDate,4)_"VINAH Section:  ‘Interpreter Required’ mismatch [– Preferred Language = English]."
+			s ind=$i(ind)
+			s ^CacheTemp("TRAK",repid,patno_" E633")=$LB(contact.%Id(),careprov,patno,admno,slk,"",patname,errorwarning,type,1,0)
+		}
+		
+		i '(contact.ENQCareProviderGroups=""||contact.ENQCTCPDR.CTPCPCPGroupDR) {
+			s errorwarning="E634 Contacts: [Contact No "_contact.%Id()_" Contact Date "_$zdate(contact.ENQDate,4)_"VINAH Section:  ‘Professional Group’ is a required field but has not been entered."
+			s ind=$i(ind)
+			s ^CacheTemp("TRAK",repid,patno_" E634")=$LB(contact.%Id(),careprov,patno,admno,slk,"",patname,errorwarning,type,1,0)
+		}
+		
+		i ((contact.ENQGovernDepartDR.DEPParRef.NFMIGovSubCategDR.SUBCode="VINAH")&&(contact.ENQOEOrdItemDR.OEORIOEORDParRef.OEORDAdmDR.PAADMPAAdm2DR.PAADM2NFMICategDepartDR.DEPParRef.NFMIGovSubCategDR.SUBCode'="VINAH")) {
+			s errorwarning="E640 Contacts: [Contact No "_contact.%Id()_" Contact Date "_$zdate(contact.ENQDate,4)_"VINAH Section:  This VINAH contact is against a NON VINAH Episode."
+			s ind=$i(ind)
+			s ^CacheTemp("TRAK",repid,patno_" E640")=$LB(contact.%Id(),careprov,patno,admno,slk,"",patname,errorwarning,type,1,0)
+		}
+		
+		//Questionnaires AUXXVPC
+		s qid=$o(^questionnaire.QAUXXVPCI("IndexPAAdmID",admid,""),-1)
+		i qid'="" s qobj=##class(questionnaire.QAUXXVPC).%OpenId(qid)
+		i $g(qobj){			
+			i ((qobj.QVPC1="")||(qobj.QVPC2="")||(qobj.QVPC3="")||(qobj.QVPC4="")||(qobj.QVPC5="")||(qobj.QVPC6="")||(qobj.QVPC8="")||(qobj.QVPC9="")||(qobj.QVPC10="")||(qobj.QVPC11="")||(qobj.QVPC12="")||(qobj.QVPC13="")||(qobj.QVPC14=""))
+			{
+				s errorwarning="E390 E.H.R Records: Questionnaires Tab – VINAH:  ‘Palliative Care Questionnaire’ one or more of these questions have not been completed for this client."
+				s ind=$i(ind)
+				s ^CacheTemp("TRAK",repid,patno_" E390")=$LB(contact.%Id(),careprov,patno,admno,slk,"",patname,errorwarning,type,1,0)
+			}
+			
+			i ((contact.ENQOEOrdItemDR.OEORIOEORDParRef.OEORDAdmDR.PAADMMainMRADMDR.MRADMDischClassifDR.DSCLCode="009")&&
+		(contact.ENQOEOrdItemDR.OEORIOEORDParRef.OEORDAdmDR.PAADMMainMRADMDR.MRADMDischDestinDR.DDESTCode="021") &&(qobj.QVPC15="")) 		
+			{
+				s errorwarning="E391 E.H.R Records: Questionnaires Tab – VINAH:  ‘Palliative Care Questionnaire’ - Patient/Client Death Place has not been completed for this client."
+				s ind=$i(ind)
+				s ^CacheTemp("TRAK",repid,patno_" E391")=$LB(contact.%Id(),careprov,patno,admno,slk,"",patname,errorwarning,type,1,0)
+			}
+		}
+		k qobj
+		
+		//Questionnaires AUXXVINAH
+		s qid=$o(^questionnaire.QAUXXVINAHI("IndexPAAdmID",admid,""),-1)
+		i qid'="" s qobj=##class(questionnaire.QAUXXVINAH).%OpenId(qid)
+		i $g(qobj){	
+			i ((qobj.QSACS10="")||(qobj.QSACS26="")||(qobj.QSACS27="")||(qobj.QSACS28="")||(qobj.QSACS29="")||(qobj.QSACS32="")||(qobj.QSACS35="")||(qobj.QSACS36="")||(qobj.QSACS37="")||(qobj.QSACS38=""))
+			{
+				s errorwarning="E392 E.H.R Records: Questionnaires Tab – VINAH:  ‘Program Data Questionnaire’ one or more of these questions have not been completed for this client."
+				s ind=$i(ind)
+				s ^CacheTemp("TRAK",repid,patno_" E392")=$LB(contact.%Id(),careprov,patno,admno,slk,"",patname,errorwarning,type,1,0)
+			}		
+		}
+		k qobj	
+		
+		//Questionnaires AUXXBARS
+		s qid=$o(^questionnaire.QAUXXBARSI("IndexPAAdmID",admid,""),-1)
+		i qid'="" s qobj=##class(questionnaire.QAUXXBARS).%OpenId(qid)
+		i $g(qobj){	
+			i ((qobj.QAUB5a="")||(qobj.QAUB5b="")||(qobj.QAUB22=""))
+			{
+				s errorwarning="E393 E.H.R Records: Questionnaires Tab – BARTHEL Score:  ‘Barthel Score Questionnaire’ one or more of these questions have not been completed for this client."
+				s ind=$i(ind)
+				s ^CacheTemp("TRAK",repid,patno_" E393")=$LB(contact.%Id(),careprov,patno,admno,slk,"",patname,errorwarning,type,1,0)
+			}		
+		}
+		k qobj	
+		
+		//Questionnaires AUXXFIM
+		s qid=$o(^questionnaire.QAUXXFIMI("IndexPAAdmID",admid,""),-1)
+		i qid'="" s qobj=##class(questionnaire.QAUXXFIM).%OpenId(qid)
+		i $g(qobj){	
+			i ((qobj.QVFIM1="")||(qobj.QVFIM3="")||(qobj.QVFIM4="")||(qobj.QVFIM5="")||(qobj.QVFIM6="")||(qobj.QVFIM7="")||(qobj.QVFIM9="")||(qobj.QVFIM10="")||(qobj.QVFIM11="")||(qobj.QVFIM12="")||(qobj.QVFIM13="")||(qobj.QVFIM14="")||(qobj.QVFIM15="")||(qobj.QVFIM16=""))
+			{
+				s errorwarning="E394 E.H.R Records: Questionnaires Tab – FIM Assessment:  ‘FIM Assessment Questionnaire’ one or more of these questions have not been completed for this client."
+				s ind=$i(ind)
+				s ^CacheTemp("TRAK",repid,patno_" E394")=$LB(contact.%Id(),careprov,patno,admno,slk,"",patname,errorwarning,type,1,0)
+			}		
+		}
+		k qobj
+		
+		//DischargeDetail
+		i contact.ENQOEOrdItemDR.OEORIOEORDParRef.OEORDAdmDR.PAADMMainMRADMDR.MRADMDischClassifDR.DSCLCode="009",contact.ENQOEOrdItemDR.OEORIOEORDParRef.OEORDAdmDR.PAADMMainMRADMDR.MRADMDischDestinDR.DDESTCode'="021" {
+			s errorwarning="E400 Discharge: 'Main Reason for Discharge' and 'Accommodation Setting after Discharge' Mismatch for this client."
+			s ind=$i(ind)
+			s ^CacheTemp("TRAK",repid,patno_" E400")=$LB(contact.%Id(),careprov,patno,admno,slk,"",patname,errorwarning,type,1,0)
+		}
+		i contact.ENQOEOrdItemDR.OEORIOEORDParRef.OEORDAdmDR.PAADMMainMRADMDR.MRADMDischClassifDR.DSCLCode'="009",contact.ENQOEOrdItemDR.OEORIOEORDParRef.OEORDAdmDR.PAADMMainMRADMDR.MRADMDischDestinDR.DDESTCode="021" {
+			s errorwarning="E401 Discharge: 'Main Reason for Discharge' and 'Accommodation Setting after Discharge' Mismatch for this client."
+			s ind=$i(ind)
+			s ^CacheTemp("TRAK",repid,patno_" E401")=$LB(contact.%Id(),careprov,patno,admno,slk,"",patname,errorwarning,type,1,0)
+		}
+			
+		
+	}
+
+
+
+	
+ k qdc,quest
+ q ind
+]]></Implementation>
+</Method>
+
+<Method name="DisplayType2Errors">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>contact:%CacheObject,contype:%String,ErrorType:%String,ind:%String</FormalSpec>
+<Implementation><![CDATA[
+	s errorwarning=""
+	i ((contype="Anonymous")||(contype="Casual")) {
+	 	s identifier=contact.ENQContactNumber
+	 	s name=contact.ENQContactName
+		s sort="Y"
+		s type="Anonymous/Casual Clients"
+	} else {
+		s identifier=contact.ENQContactNumber
+		s name=contact.ENQNonGovOrgDR.NGODesc
+		s sort="Z"
+		s type=contact.ENQNonGovOrgDR.NGODesc_" Clients"
+	}
+	i ((ErrorType="")||(ErrorType="Errors")) {
+		i contype="Casual",contact.ENQItemCatDR.ARCICCode="" {
+			s errorwarning="E501 Anonymous Contacts: Casual Client/Organisation –  Data field “Service” must be completed for this Casual Client"
+			s ind=$i(ind)
+			s ^CacheTemp("TRAK",repid,sort_identifier_" E501")=$LB(contact.%Id(),"",identifier,"","",identifier,name,errorwarning,type,1,0)
+		}
+		i contact.ENQRequestTypeDR.REQTYPCode="O",contact.ENQItemCatDR.ARCICCode="" {
+			s errorwarning="E502 Anonymous Contacts: Casual Client/Organisation – Data field “Organisation” must be completed for this Casual Client"
+			s ind=$i(ind)
+			s ^CacheTemp("TRAK",repid,sort_identifier_" E502")=$LB(contact.%Id(),"",identifier,"","",identifier,name,errorwarning,type,1,0)
+		}
+	}
+	q ind
+]]></Implementation>
+</Method>
+
+<Method name="CheckRequired">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>value:%String="",errcode:%String="",field:%String="",program:%String="",contact:User.PAEnquiryContact</FormalSpec>
+<Implementation><![CDATA[
+	s errorwarning=""
+	
+	i field["Patient" {
+		i $g(^||zTMP("VINAH",errcode,field,program)),value="" {
+			s type="Registration Details"
+			s errorwarning="'"_field_"' is a required field but has not been entered."
+		}
+	} elseif field["Episode"{
+		i $g(^||zTMP("VINAH",errcode,field,program)),value="" {
+			s type="Episode Details"
+			s errorwarning="'"_field_"' is a required field but has not been entered."
+		}
+	} elseif field["Referral" {
+		i $g(^||zTMP("VINAH",errcode,field,program)),value="" {
+			s type="Referral Details"
+			i errcode="E715" {
+				i objADM.PAADMRefStatDR.RSTCode="D" s errorwarning="'"_field_"' [Referral Reason] is a required field but has not been entered."
+			} else {
+				s errorwarning="'"_field_"' is a required field but has not been entered."
+			}
+		}
+	} elseif field["Contact" {
+		
+		i $g(^||zTMP("VINAH",errcode,field,program)),value="" {
+			s type="Contact Details"
+			s errorwarning="'"_field_"' is a required field but has not been entered."
+			i ",E630,E631,E632,E633,E634,M10,"[(","_errcode_",") s errorwarning=errorwarning_$c(13,10)_"Contact No: "_contact.%Id()_" Contact Date: "_$zdate(contact.ENQDate,4)
+			;i ",E630,E631,E632,E633,E634,"[(","_errcode_",") s errorwarning=errorwarning_$c(13,10)_"Contact No: "_contact.%Id()_" Contact Date: "_$zdate(contact.ENQDate,4)
+			
+		}
+	}
+	i errorwarning'="" s ^||zTMP("VINAH","MSG",errcode)=errorwarning
+	
+	q
+]]></Implementation>
+</Method>
+
+<Method name="ValidateRecord">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>contact:User.PAEnquiryContact,ErrorType:%String="",ind:%String="",repid:%String=""</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	k ^||zTMP("VINAH","MSG")
+	s errorwarning="",slk=""
+ 	s careprov=contact.ENQCTCPDR.CTPCPDesc
+ 	s patno=contact.ENQPAPERDR.PAPERPAPMIDR.PAPMINo
+ 	s patname=contact.ENQPAPERDR.PAPERPAPMIDR.PAPMIName_", "_contact.ENQPAPERDR.PAPERPAPMIDR.PAPMIName2_$s(contact.ENQPAPERDR.PAPERPAPMIDR.PAPMIName3'="":" "_contact.ENQPAPERDR.PAPERPAPMIDR.PAPMIName3,1:"")
+ 	s admno=contact.ENQOEOrdItemDR.OEORIOEORDParRef.OEORDAdmDR.PAADMADMNo
+ 	s admid=contact.ENQOEOrdItemDR.OEORIOEORDParRef.OEORDAdmDR.%Id()
+ 	s patid=contact.ENQPAPERDR.%Id()
+ 	s identifier=contact.ENQContactNumber
+ 	s objPAT=##class(User.PAPatMas).%OpenId(patid)
+ 	s objPER=##class(User.PAPerson).%OpenId(patid)
+ 	s objADM=##class(User.PAAdm).%OpenId(admid)
+ 	
+ 	//TRC175691: If episode is non-vinah, only E640 should be triggered 
+ 	s nonvinah=0
+ 	i contact.ENQOEOrdItemDR.OEORIOEORDParRef.OEORDAdmDR.PAADMPAAdm2DR.PAADM2NFMICategDepartDR.DEPParRef.NFMIGovSubCategDR,contact.ENQOEOrdItemDR.OEORIOEORDParRef.OEORDAdmDR.PAADMPAAdm2DR.PAADM2NFMICategDepartDR.DEPParRef.NFMIGovSubCategDR.SUBCode'="VINAH" {
+ 		s nonvinah = 1
+ 	}
+ 	
+ 	s payor=""
+ 	f pay=1:1:objADM.ChildPAAdmInsurance.Count() {
+	 	i objADM.ChildPAAdmInsurance.GetAt(pay).INSInsTypeDR {
+		 	s payor=objADM.ChildPAAdmInsurance.GetAt(pay).INSInsTypeDR.INSTCode
+	 	}
+ 	}
+ 	s died=0
+ 	i objADM.PAADMMainMRADMDR.MRADMDischClassifDR,objADM.PAADMMainMRADMDR.MRADMDischDestinDR {
+	 	i objADM.PAADMMainMRADMDR.MRADMDischClassifDR.DSCLCode="009",objADM.PAADMMainMRADMDR.MRADMDischDestinDR.DDESTCode="021" s died=1
+ 	}
+ 	s medicare=""
+ 	i objPAT.PAPMIMedicareSuffixDR s medicare=objPAT.PAPMIMedicareSuffixDR.MEDSUFCode
+ 	
+ 	s rt=0
+	f {
+		s rt=$o(^RT(0,"PAT",contact.ENQPAPERDR.%Id(),rt))
+		q:rt=""
+		s record=##class(User.RTMaster).%OpenId(rt)
+		i record {
+			i record.RTMASMRTypeDR.TYPCode="SLK" s slk=record.RTMASMRNo
+			k record
+		}
+	}
+	
+	s vpc=$o(^questionnaire.QAUXXVPCI("IndexPAAdmID",admid,""),-1)
+	s vinah=$o(^questionnaire.QAUXXVINAHI("IndexPAAdmID",admid,""),-1)
+	
+	s oldbars=0
+	s bars=$o(^questionnaire.QAUXXBARSI("IndexPAAdmID",admid,""),-1)
+	i bars="" {
+		s bars=$o(^questionnaire.QAUBI("IndexPAAdmID",admid,""),-1)	; Check old questionnaire
+		i bars s oldbars=1
+	}
+	s oldfim=0
+	s fim=$o(^questionnaire.QAUXXFIMI("IndexPAAdmID",admid,""),-1)
+	i fim="" {
+		s fim=$o(^questionnaire.QAUFIMI("IndexPAAdmID",admid,""),-1)	; Check old questionnaire
+		i fim s oldfim=1
+	}
+	s scttr=$o(^questionnaire.QAUXXSCTTRI("IndexPAAdmID",admid,""),-1)
+	
+	s program=##class(Region.AUXX.Utility.Utilities).GetMappedCode("CT_NFMI_Category","NFMI_Code","VINAH",contact.ENQGovernDepartDR.DEPParRef.NFMICode)
+	s programcode=contact.ENQGovernDepartDR.DEPCode
+	
+	i ((contact.ENQGovernDepartDR.DEPParRef.NFMIGovSubCategDR.SUBCode="VINAH")&&(contact.ENQOEOrdItemDR.OEORIOEORDParRef.OEORDAdmDR.PAADMPAAdm2DR.PAADM2NFMICategDepartDR.DEPParRef.NFMIGovSubCategDR.SUBCode'="VINAH")) {
+		s ^||zTMP("VINAH","MSG","E640")="This VINAH contact is against a NON VINAH Episode."_$c(13,10)_"Contact No: "_contact.%Id()_" Contact Date: "_$zdate(contact.ENQDate,4)
+	}
+	
+	
+	//check contact date is in episode date and discharge date
+	s conDateFlg=0
+	
+	i objADM.PAADMAdmDate>contact.ENQDate {
+		s conDateFlg=1
+		;d ..CheckRequired("","E650","Contact Date Before",program,contact)
+		s ^||zTMP("VINAH","MSG","E650")="Contact Date Before Episode Start Date."_$c(13,10)_"Contact No: "_contact.%Id()_" Contact Date: "_$zdate(contact.ENQDate,4)
+	}
+	i (+objADM.PAADMDischgDate'=0),(objADM.PAADMDischgDate<contact.ENQDate) {
+		s conDateFlg=2
+		;d ..CheckRequired("","E651","Contact Date After",program,contact)
+		s ^||zTMP("VINAH","MSG","E651")="Contact Date After Discharge Date."_$c(13,10)_"Contact No: "_contact.%Id()_" Contact Date: "_$zdate(contact.ENQDate,4)
+	} 
+	i (((contact.ENQInsTypeDR.INSTCode="TAC")||(contact.ENQInsTypeDR.INSTCode="WC"))&&
+		(contact.ENQOEOrdItemDR.OEORIOEORDParRef.OEORDAdmDR.PAADMLabourAccidentDR.TRFVehInsPolicy="" )) {
+		s errorwarning="E208 Episode Details: ’TAC or W/Comp Claim Number’ is a required field but has not been entered."
+		s ^||zTMP("VINAH","MSG","E208")="Episode Details: ’TAC or W/Comp Claim Number’ is a required field but has not been entered."_$c(13,10)_"Contact No: "_contact.%Id()
+		
+	}
+	
+	i nonvinah=0 {
+		i 'vpc {
+			d ..CheckRequired("","E701","Contact Care Model",program)
+			d ..CheckRequired("","E702","Contact Care Phase",program)
+			d ..CheckRequired("","E703","Contact Preferred Care Setting",program)
+			d ..CheckRequired("","E704","Contact Preferred Death Place",program)
+			d ..CheckRequired("","E705","Episode End Reason",program)
+			d ..CheckRequired("","E707","Episode Malignancy Flag",program)
+		} else {
+			s objVPC=##class(questionnaire.QAUXXVPC).%OpenId(vpc)
+			i objVPC {
+				d ..CheckRequired(objVPC.QVPC3,"E701","Contact Care Model",program)
+				d ..CheckRequired(objVPC.QVPC4,"E702","Contact Care Phase",program)
+				d ..CheckRequired(objVPC.QVPC5,"E703","Contact Preferred Care Setting",program)
+				d ..CheckRequired(objVPC.QVPC6,"E704","Contact Preferred Death Place",program)
+				d ..CheckRequired(objVPC.QVPC7,"E705","Episode End Reason",program)
+				d ..CheckRequired(objVPC.QVPC9,"E707","Episode Malignancy Flag",program)
+				k objVPC
+			}
+		}
+
+		d ..CheckRequired(slk,"M1","Contact Account Class",program)
+		;d ..CheckRequired(slk,"M12","Contact Session Type",program)
+		d ..CheckRequired(slk,"M17","Episode First Appointment Booked Date",program)
+		d ..CheckRequired(slk,"M18","Episode Patient/Client Notified of First Appointment Date",program)
+		d ..CheckRequired(slk,"M22","Patient/Client Carer Residency Status",program)
+		d ..CheckRequired(slk,"E151","Patient/Client Main Carer's Relationship to the Patient",program)
+		
+		;i (",C-U,N-E,")'[(","_medicare_",") d ..CheckRequired(contact.ENQPAPERDR.PAPERPAPMIDR.PAPMIMedicare,"M2","Contact Client Medicare Number",program)
+		;d ..CheckRequired(contact.ENQContClientPresStatDR,"E632","Contact Client Present Status",program,contact)
+		d ..CheckRequired(contact.ENQLocationDR,"M3","Contact Clinic Identifier",program)
+		d ..CheckRequired(contact.ENQDate_contact.ENQTime,"M4","Contact Date/Time",program)
+		d ..CheckRequired(contact.ENQContDelivModeDR,"E630","Contact Delivery Mode",program,contact)
+		;d ..CheckRequired(contact.ENQContDelivSettingDR,"E631","Contact Delivery Setting",program,contact)
+		;d ..CheckRequired(contact.ENQPAPERDR.PAPERPAPMIDR.PAPMIName,"M5","Contact Family Name",program)
+		;d ..CheckRequired(contact.ENQPAPERDR.PAPERPAPMIDR.PAPMIName2,"M6","Contact Given Name(s)",program)
+		;i 'contact.ENQRBEventDR {
+		;	d ..CheckRequired("","M7","Contact Group Session Identifier",program)
+		;} else {
+		;	d ..CheckRequired(contact.ENQRBEventDR.ChildRBEventTimes.Count(),"M7","Contact Group Session Identifier",program)
+		;}
+		
+		s Brokerage=contact.ENQOEOrdItemDR.OEORIBrokerageVendorDR
+		d ..CheckRequired(contact.ENQPAPERDR.PAPERIndigStatDR,"E107","Contact Indigenous Status",program)
+		i ('contact.ENQOEOrdItemDR.OEORIIsBrokerage)&&(Brokerage="") d ..CheckRequired(contact.ENQInpatientFlag,"M8","Contact Inpatient Flag",program)
+		;d ..CheckRequired(contact.ENQPAPERDR.PAPERInterpreterRequired,"E633","Contact Interpreter Required",program,contact)
+		d ..CheckRequired(contact.ENQOEOrdItemDR,"M9","Contact Medicare Benefits Schedule Item Number",program)
+		;d ..CheckRequired(contact.ENQPAPERDR.PAPERPrefLanguageDR,"E110","Contact Preferred Language",program)
+		i ('contact.ENQOEOrdItemDR.OEORIIsBrokerage)&&(Brokerage="") d ..CheckRequired(contact.ENQCareProviderGroups_contact.ENQCTCPDR.CTPCPCPGroupDR,"E634","Contact Professional Group",program,contact)
+		i ('contact.ENQOEOrdItemDR.OEORIIsBrokerage)&&(Brokerage="") d ..CheckRequired(contact.ENQCTCPDR,"M10","Contact Provider",program,contact)
+		d ..CheckRequired(contact.ENQOEOrdItemDR.OEORIItmMastDR.ARCIMServiceGroupDR,"M11","Contact Purpose",program)
+		
+		
+		d ..CheckRequired(contact.ENQCTCPDR.CTPCPSpecstPalliativeCP,"M13","Contact Specialist Palliative Care Provider",program)
+		/*
+		i objADM.PAADMTrafficAccidentDR {
+			d ..CheckRequired(objADM.PAADMTrafficAccidentDR.TRFVehInsPolicy,"E208","Contact TAC Claim Number",program)
+			d ..CheckRequired(objADM.PAADMTrafficAccidentDR.TRFVehInsPolicy,"E208","Contact VWA File Number",program)
+		}
+		*/
+		i 'vinah {
+			i objADM.PAADMDischgDate {
+				;i ErrorType'="Errors" d ..CheckRequired("","M14","Episode Advance Care Plan Documented Date",program)
+				d ..CheckRequired("","E737","Episode Care Plan Documented Date",program)
+				;d ..CheckRequired("","E735","Episode Proposed Treatment Plan Completion",program)
+				i programcode="V1101" {
+					d ..CheckRequired("","E734","Episode TCP Bed-Based Care Transition Date",program)
+					d ..CheckRequired("","E733","Episode TCP Home-Based Care Transition Date",program)
+				}
+				;d ..CheckRequired("","E706","Episode Health Conditions",program)
+
+				;i program="HARP" d ..CheckRequired("","E736","Episode Other Factors Affecting Health",program)
+				;d ..CheckRequired("","E738","Episode Hospital Discharge Date",program);This is Hospital discharge date prior to VINAH episode and is not mandatory excluded from Report
+			}
+			i died {
+				d ..CheckRequired("","E730","Patient/Client Death Date",program)
+				;d ..CheckRequired("","E731","Patient/Client Death Date Accuracy",program)
+				d ..CheckRequired("","E732","Patient/Client Death Place",program)
+			}
+			;d ..CheckRequired("","M25","Referral In Receipt Acknowledgment Date",program)
+		} else {
+			s objVIN=##class(questionnaire.QAUXXVINAH).%OpenId(vinah)
+			i objVIN {
+				i objADM.PAADMDischgDate {
+					;i ErrorType'="Errors" d ..CheckRequired(objVIN.QSACS27,"M14","Episode Advance Care Plan Documented Date",program)
+					d ..CheckRequired(objVIN.QSACS10,"E737","Episode Care Plan Documented Date",program)
+					
+					;d ..CheckRequired(objVIN.QSACS32,"E735","Episode Proposed Treatment Plan Completion",program)
+
+					i 'objVIN.QSACS29 d ..CheckRequired("","E706","Episode  Health Condition",program)
+					;i program="HARP" d ..CheckRequired(objVIN.QSACS37,"E736","Episode Other Factors Affecting Health",program)
+					;d ..CheckRequired(objVIN.QSACS38,"E738","Episode Hospital Discharge Date",program)
+				}
+				i programcode="V1101" {
+					//TRC175691
+					;d ..CheckRequired(objVIN.QSACS36,"E734","Episode TCP Bed-Based Care Transition Date",program)
+					;d ..CheckRequired(objVIN.QSACS35,"E733","Episode TCP Home-Based Care Transition Date",program)
+					d ..CheckRequired(objVIN.QSACS36_objVIN.QSACS35,"E733,E734","Episode TCP Bed-Based Care Transition Date or Episode TCP Home-Based Care Transition Date ",program)
+				}
+				i died {
+					d ..CheckRequired(objVIN.QSACS22,"E730","Patient/Client Death Date",program)
+					;d ..CheckRequired(objVIN.QSACS23,"E731","Patient/Client Death Date Accuracy",program)
+					d ..CheckRequired(objVIN.QSACS24,"E732","Patient/Client Death Place",program)
+				}
+				;d ..CheckRequired(objVIN.QSACS11,"M25","Referral In Receipt Acknowledgment Date",program)
+				k objVIN
+			}
+		}
+		i objADM.PAADMDischgDate{ 
+			i 'bars {
+				d ..CheckRequired("","E740","Episode Assessment - Barthel Index - Date/Time",program)
+				;d ..CheckRequired("","E741","Episode Assessment Score - Barthel Index",program)
+			} else {
+				i 'oldbars {
+					s objBARS=##class(questionnaire.QAUXXBARS).%OpenId(bars)
+					i objBARS {
+						d ..CheckRequired(objBARS.QAUB5a_objBARS.QAUB5b,"E740","Episode Assessment - Barthel Index - Date/Time",program)
+						;d ..CheckRequired(objBARS.QAUB22,"E741","Episode Assessment Score - Barthel Index",program)
+						k objBARS
+					}
+				} else {
+					s objBARS=##class(questionnaire.QAUB).%OpenId(bars)
+					i objBARS {
+						d ..CheckRequired(objBARS.QAUB5a_objBARS.QAUB5b,"E740","Episode Assessment - Barthel Index - Date/Time",program)
+						;d ..CheckRequired(objBARS.QAUB22,"E741","Episode Assessment Score - Barthel Index",program)
+						k objBARS
+					}
+				}
+			}
+			i ErrorType'="Errors"{
+				i 'fim {
+					d ..CheckRequired("","E750","Episode Assessment - FIM Score - Date/Time",program)
+					;d ..CheckRequired("","E751","Episode Assessment Score - FIM Score",program)
+				} else {
+					i 'oldfim {
+						s objFIM=##class(questionnaire.QAUXXFIM).%OpenId(fim)
+						i objFIM {
+							d ..CheckRequired(objFIM.QVFIM1_objFIM.QVFIM2,"E750","Episode Assessment - FIM Score - Date/Time",program)
+							;d ..CheckRequired(objFIM.QVFIM21,"E751","Episode Assessment Score - FIM Score",program)
+						k objFIM
+					}
+					} else {
+						s objFIM=##class(questionnaire.QAUFIM).%OpenId(fim)
+						i objFIM {
+							d ..CheckRequired(objFIM.QVFIM1_objFIM.QVFIM2,"E750","Episode Assessment - FIM Score - Date/Time",program)
+							;d ..CheckRequired(objFIM.QVFIM21,"E751","Episode Assessment Score - FIM Score",program)
+						k objFIM
+						}
+					}
+				}	
+			}
+		}
+		d ..CheckRequired(objADM.PAADMDepCodeDR,"M15","Episode Campus Code",program)
+		i objADM.PAADMVisitStatus="D" d ..CheckRequired(objADM.PAADMDischgDate,"M16","Episode End Date",program)
+
+		d ..CheckRequired(objADM.PAADMPAAdm2DR.PAADM2NFMICategDepartDR,"M19","Episode Program/Stream",program)
+		d ..CheckRequired(objADM.PAADMAdmDate,"M20","Episode Start Date",program)
+		d ..CheckRequired(contact.ENQPAPERDR.PAPERCountryBirthDR,"E109","Patient/Client Birth Country",program)
+		d ..CheckRequired(contact.ENQPAPERDR.PAPERDob,"M21","Patient/Client Birth Date",program)
+		;d ..CheckRequired(contact.ENQPAPERDR.PAPEREstDOB,"E718","Patient/Client Birth Date Accuracy",program)
+		d ..CheckRequired(contact.ENQPAPERDR.PAPERCarerAvailabilityDR,"E114","Patient/Client Carer Availability",program)
+		i payor="DVA" d ..CheckRequired(contact.ENQPAPERDR.PAPERPAPMIDR.PAPMIDVAnumber,"E119","Patient/Client DVA File Number",program)
+		d ..CheckRequired(slk,"E120","Patient/Client Identifier",program)
+		d ..CheckRequired(contact.ENQPAPERDR.PAPERLivingArrangementDR,"E113","Patient/Client Living Arrangement",program)
+		d ..CheckRequired(contact.ENQPAPERDR.PAPERSexDR,"M23","Patient/Client Sex",program)
+		d ..CheckRequired(contact.ENQPAPERDR.PAPERAccomSettingDR,"E117","Patient/Client Usual Accommodation Type",program)
+		d ..CheckRequired(contact.ENQPAPERDR.PAPERCityCodeDR,"E108","Patient/Client Usual Residence Locality Name",program)
+		d ..CheckRequired(contact.ENQPAPERDR.PAPERZipDR,"E108","Patient/Client Usual Residence Postcode",program)
+		d ..CheckRequired(objADM.PAADMRefDate_objADM.PAADMDateReceived,"E205","Referral In Clinical Referral Date",program)
+		;d ..CheckRequired(objADM.PAADMReferralPriorityDR,"E202","Referral In Clinical Urgency Category",program)
+		d ..CheckRequired(objADM.PAADMPAAdm2DR.PAADM2ReferralReasonDR,"E715","Referral In Outcome",program)
+		d ..CheckRequired(objADM.PAADMPAAdm2DR.PAADM2NFMICategDepartDR,"M24","Referral In Program/Stream",program)
+		d ..CheckRequired(objADM.PAADMDateReceived,"E716","Referral In Received Date",program)
+		d ..CheckRequired(objADM.PAADMSourceOfAttendDR,"E717","Referral In Service Type",program)
+
+		// Send out referral if one exists
+		s dis=$o(^PAADM(admid,"DISSUM",""),-1),ReferralOutDate=""
+		i dis {
+			s id=$p($g(^PAADM(admid,"DISSUM",dis)),"^",10)
+			i id {
+				s DSobj=##class(User.PADischargeSummary).%OpenId(id)
+				i DSobj {
+					i DSobj.DISDischargeSummaryTypeDR.DSTCode="AUSCR",DSobj.DISStatus="A" {
+						s ReferralOutDate=DSobj.DISUpdateDate_DSobj.DISUpdateTime
+					}
+					k DSobj
+				}
+			}
+		}
+		;d ..CheckRequired(ReferralOutDate,"E718","Referral Out Date",program)
+		i objADM.PAADMDischgDate d ..CheckRequired(objADM.PAADMMainMRADMDR.MRADMDischDestinDR,"E719","Referral Out Place",program)
+		
+		;i 'scttr {
+		;	d ..CheckRequired("","E720","Referral Out Service Type",program)
+		;} else {
+			;s objSCTTR=##class(questionnaire.QAUXXSCTTR).%OpenId(scttr)
+			;i objSCTTR {
+				;d ..CheckRequired(objSCTTR.Q33,"E720","Referral Out Service Type",program)
+				;k objSCTTR
+			;}
+		;}
+	}
+	
+	s errcode=0
+	f {
+		s errcode=$o(^||zTMP("VINAH","MSG",errcode)) q:errcode=""
+		s ^CacheTemp("TRAK",repid,patno_" "_errcode)=$LB(contact.%Id(),careprov,patno,admno,slk,"",patname,errcode_": "_$g(^||zTMP("VINAH","MSG",errcode)),"Registered Clients",1,0)
+	}
+
+ 	k objADM
+	
+	q ind
+]]></Implementation>
+</Method>
+
+<Method name="SetupMatrix">
+<Description>
+This sets up the required fields based on program</Description>
+<ClassMethod>1</ClassMethod>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	s pl="FCP,HARP,HBPCCT,Medi-Hotel,Specialist Clinics,PAC,Palliative Care,RIR,SACS,TCP,VRSS,VHS"
+	
+	f jj=1:1:$l(pl,",") {
+		s pro=$p(pl,",",jj)
+		s ^||zTMP("VINAH","M1","Contact Account Class",pro)=									$s(pro="FCP":1,pro="HARP":1,pro="HBPCCT":0,pro="Medi-Hotel":0,pro="Specialist Clinics":1,pro="PAC":1,pro="Palliative Care":1,pro="RIR":1,pro="SACS":1,pro="TCP":1,pro="VRSS":1,pro="VHS":1,1:0)
+		s ^||zTMP("VINAH","E701","Contact Care Model",pro)=										$s(pro="FCP":0,pro="HARP":0,pro="HBPCCT":0,pro="Medi-Hotel":0,pro="Specialist Clinics":0,pro="PAC":0,pro="Palliative Care":1,pro="RIR":0,pro="SACS":0,pro="TCP":0,pro="VRSS":0,pro="VHS":0,1:0)
+		s ^||zTMP("VINAH","E702","Contact Care Phase",pro)=										$s(pro="FCP":0,pro="HARP":0,pro="HBPCCT":0,pro="Medi-Hotel":0,pro="Specialist Clinics":0,pro="PAC":0,pro="Palliative Care":1,pro="RIR":0,pro="SACS":0,pro="TCP":0,pro="VRSS":0,pro="VHS":0,1:0)
+		s ^||zTMP("VINAH","M2","Contact Client Medicare Number",pro)=							$s(pro="FCP":1,pro="HARP":1,pro="HBPCCT":1,pro="Medi-Hotel":1,pro="Specialist Clinics":1,pro="PAC":1,pro="Palliative Care":1,pro="RIR":1,pro="SACS":1,pro="TCP":0,pro="VRSS":1,pro="VHS":1,1:0)
+		s ^||zTMP("VINAH","E632","Contact Client Present Status",pro)=							$s(pro="FCP":1,pro="HARP":1,pro="HBPCCT":0,pro="Medi-Hotel":0,pro="Specialist Clinics":1,pro="PAC":1,pro="Palliative Care":1,pro="RIR":1,pro="SACS":1,pro="TCP":0,pro="VRSS":1,pro="VHS":1,1:0)
+		s ^||zTMP("VINAH","M3","Contact Clinic Identifier",pro)=								$s(pro="FCP":0,pro="HARP":0,pro="HBPCCT":1,pro="Medi-Hotel":0,pro="Specialist Clinics":1,pro="PAC":0,pro="Palliative Care":0,pro="RIR":0,pro="SACS":0,pro="TCP":0,pro="VRSS":0,pro="VHS":0,1:0)
+		s ^||zTMP("VINAH","M4","Contact Date/Time",pro)=										$s(pro="FCP":1,pro="HARP":1,pro="HBPCCT":1,pro="Medi-Hotel":0,pro="Specialist Clinics":1,pro="PAC":1,pro="Palliative Care":1,pro="RIR":1,pro="SACS":1,pro="TCP":1,pro="VRSS":1,pro="VHS":1,1:0)
+		s ^||zTMP("VINAH","E630","Contact Delivery Mode",pro)=									$s(pro="FCP":1,pro="HARP":1,pro="HBPCCT":1,pro="Medi-Hotel":0,pro="Specialist Clinics":1,pro="PAC":1,pro="Palliative Care":1,pro="RIR":1,pro="SACS":1,pro="TCP":1,pro="VRSS":1,pro="VHS":1,1:0)
+		s ^||zTMP("VINAH","E631","Contact Delivery Setting",pro)=								$s(pro="FCP":1,pro="HARP":1,pro="HBPCCT":1,pro="Medi-Hotel":0,pro="Specialist Clinics":1,pro="PAC":1,pro="Palliative Care":1,pro="RIR":1,pro="SACS":1,pro="TCP":0,pro="VRSS":1,pro="VHS":1,1:0)
+		s ^||zTMP("VINAH","M5","Contact Family Name",pro)=										$s(pro="FCP":1,pro="HARP":1,pro="HBPCCT":0,pro="Medi-Hotel":0,pro="Specialist Clinics":1,pro="PAC":1,pro="Palliative Care":1,pro="RIR":1,pro="SACS":1,pro="TCP":0,pro="VRSS":1,pro="VHS":1,1:0)
+		s ^||zTMP("VINAH","M6","Contact Given Name(s)",pro)=									$s(pro="FCP":1,pro="HARP":1,pro="HBPCCT":0,pro="Medi-Hotel":0,pro="Specialist Clinics":1,pro="PAC":1,pro="Palliative Care":1,pro="RIR":1,pro="SACS":1,pro="TCP":0,pro="VRSS":1,pro="VHS":1,1:0)
+		s ^||zTMP("VINAH","M7","Contact Group Session Identifier",pro)=							$s(pro="FCP":0,pro="HARP":0,pro="HBPCCT":0,pro="Medi-Hotel":0,pro="Specialist Clinics":1,pro="PAC":0,pro="Palliative Care":0,pro="RIR":0,pro="SACS":0,pro="TCP":0,pro="VRSS":0,pro="VHS":0,1:0)
+		s ^||zTMP("VINAH","E107","Contact Indigenous Status",pro)=								$s(pro="FCP":1,pro="HARP":1,pro="HBPCCT":1,pro="Medi-Hotel":0,pro="Specialist Clinics":1,pro="PAC":1,pro="Palliative Care":1,pro="RIR":1,pro="SACS":1,pro="TCP":1,pro="VRSS":1,pro="VHS":1,1:0)
+		s ^||zTMP("VINAH","M8","Contact Inpatient Flag",pro)=									$s(pro="FCP":1,pro="HARP":1,pro="HBPCCT":0,pro="Medi-Hotel":0,pro="Specialist Clinics":1,pro="PAC":1,pro="Palliative Care":1,pro="RIR":1,pro="SACS":1,pro="TCP":1,pro="VRSS":1,pro="VHS":1,1:0)
+		s ^||zTMP("VINAH","E633","Contact Interpreter Required",pro)=							$s(pro="FCP":1,pro="HARP":1,pro="HBPCCT":1,pro="Medi-Hotel":0,pro="Specialist Clinics":1,pro="PAC":1,pro="Palliative Care":0,pro="RIR":1,pro="SACS":1,pro="TCP":0,pro="VRSS":1,pro="VHS":1,1:0)
+		s ^||zTMP("VINAH","M9","Contact Medicare Benefits Schedule Item Number",pro)=			$s(pro="FCP":0,pro="HARP":0,pro="HBPCCT":0,pro="Medi-Hotel":0,pro="Specialist Clinics":1,pro="PAC":0,pro="Palliative Care":0,pro="RIR":0,pro="SACS":0,pro="TCP":0,pro="VRSS":0,pro="VHS":0,1:0)
+		s ^||zTMP("VINAH","E703","Contact Preferred Care Setting",pro)=							$s(pro="FCP":0,pro="HARP":0,pro="HBPCCT":0,pro="Medi-Hotel":0,pro="Specialist Clinics":0,pro="PAC":0,pro="Palliative Care":1,pro="RIR":0,pro="SACS":0,pro="TCP":0,pro="VRSS":0,pro="VHS":0,1:0)
+		s ^||zTMP("VINAH","E704","Contact Preferred Death Place",pro)=							$s(pro="FCP":0,pro="HARP":0,pro="HBPCCT":0,pro="Medi-Hotel":0,pro="Specialist Clinics":0,pro="PAC":0,pro="Palliative Care":1,pro="RIR":0,pro="SACS":0,pro="TCP":0,pro="VRSS":0,pro="VHS":0,1:0)
+		s ^||zTMP("VINAH","E110","Contact Preferred Language",pro)=								$s(pro="FCP":1,pro="HARP":1,pro="HBPCCT":1,pro="Medi-Hotel":0,pro="Specialist Clinics":1,pro="PAC":1,pro="Palliative Care":1,pro="RIR":1,pro="SACS":1,pro="TCP":0,pro="VRSS":1,pro="VHS":1,1:0)
+		s ^||zTMP("VINAH","E634","Contact Professional Group",pro)=								$s(pro="FCP":1,pro="HARP":1,pro="HBPCCT":1,pro="Medi-Hotel":0,pro="Specialist Clinics":1,pro="PAC":1,pro="Palliative Care":1,pro="RIR":1,pro="SACS":1,pro="TCP":1,pro="VRSS":1,pro="VHS":1,1:0)
+		s ^||zTMP("VINAH","M10","Contact Provider",pro)=										$s(pro="FCP":1,pro="HARP":1,pro="HBPCCT":0,pro="Medi-Hotel":0,pro="Specialist Clinics":1,pro="PAC":1,pro="Palliative Care":1,pro="RIR":1,pro="SACS":1,pro="TCP":1,pro="VRSS":1,pro="VHS":1,1:0)
+		s ^||zTMP("VINAH","M11","Contact Purpose",pro)=											$s(pro="FCP":1,pro="HARP":1,pro="HBPCCT":1,pro="Medi-Hotel":0,pro="Specialist Clinics":1,pro="PAC":1,pro="Palliative Care":1,pro="RIR":1,pro="SACS":1,pro="TCP":1,pro="VRSS":1,pro="VHS":1,1:0)
+		s ^||zTMP("VINAH","M12","Contact Session Type",pro)=									$s(pro="FCP":1,pro="HARP":1,pro="HBPCCT":0,pro="Medi-Hotel":0,pro="Specialist Clinics":1,pro="PAC":1,pro="Palliative Care":1,pro="RIR":1,pro="SACS":1,pro="TCP":0,pro="VRSS":1,pro="VHS":1,1:0)
+		s ^||zTMP("VINAH","M13","Contact Specialist Palliative Care Provider",pro)=				$s(pro="FCP":0,pro="HARP":0,pro="HBPCCT":0,pro="Medi-Hotel":0,pro="Specialist Clinics":0,pro="PAC":0,pro="Palliative Care":1,pro="RIR":0,pro="SACS":0,pro="TCP":0,pro="VRSS":0,pro="VHS":0,1:0)
+		s ^||zTMP("VINAH","E208","Contact TAC Claim Number",pro)=								$s(pro="FCP":1,pro="HARP":1,pro="HBPCCT":0,pro="Medi-Hotel":0,pro="Specialist Clinics":1,pro="PAC":1,pro="Palliative Care":1,pro="RIR":1,pro="SACS":1,pro="TCP":0,pro="VRSS":1,pro="VHS":1,1:0)
+		s ^||zTMP("VINAH","E208","Contact VWA File Number",pro)=								$s(pro="FCP":0,pro="HARP":1,pro="HBPCCT":0,pro="Medi-Hotel":0,pro="Specialist Clinics":1,pro="PAC":1,pro="Palliative Care":1,pro="RIR":1,pro="SACS":1,pro="TCP":0,pro="VRSS":1,pro="VHS":1,1:0)
+		s ^||zTMP("VINAH","M14","Episode Advance Care Plan Documented Date",pro)=				$s(pro="FCP":1,pro="HARP":1,pro="HBPCCT":0,pro="Medi-Hotel":0,pro="Specialist Clinics":0,pro="PAC":1,pro="Palliative Care":1,pro="RIR":1,pro="SACS":1,pro="TCP":0,pro="VRSS":1,pro="VHS":1,1:0)
+		s ^||zTMP("VINAH","E740","Episode Assessment - Barthel Index - Date/Time",pro)=			$s(pro="FCP":0,pro="HARP":0,pro="HBPCCT":0,pro="Medi-Hotel":0,pro="Specialist Clinics":0,pro="PAC":0,pro="Palliative Care":0,pro="RIR":0,pro="SACS":0,pro="TCP":1,pro="VRSS":0,pro="VHS":0,1:0)
+		s ^||zTMP("VINAH","E750","Episode Assessment - FIM Score - Date/Time",pro)=				$s(pro="FCP":0,pro="HARP":0,pro="HBPCCT":0,pro="Medi-Hotel":0,pro="Specialist Clinics":0,pro="PAC":0,pro="Palliative Care":0,pro="RIR":0,pro="SACS":0,pro="TCP":1,pro="VRSS":0,pro="VHS":0,1:0)
+		s ^||zTMP("VINAH","E741","Episode Assessment Score - Barthel Index",pro)=				$s(pro="FCP":0,pro="HARP":0,pro="HBPCCT":0,pro="Medi-Hotel":0,pro="Specialist Clinics":0,pro="PAC":0,pro="Palliative Care":0,pro="RIR":0,pro="SACS":0,pro="TCP":0,pro="VRSS":0,pro="VHS":0,1:0)
+		s ^||zTMP("VINAH","E751","Episode Assessment Score - FIM Score",pro)=					$s(pro="FCP":0,pro="HARP":0,pro="HBPCCT":0,pro="Medi-Hotel":0,pro="Specialist Clinics":0,pro="PAC":0,pro="Palliative Care":0,pro="RIR":0,pro="SACS":0,pro="TCP":1,pro="VRSS":0,pro="VHS":0,1:0)
+		s ^||zTMP("VINAH","M15","Episode Campus Code",pro)=										$s(pro="FCP":1,pro="HARP":1,pro="HBPCCT":1,pro="Medi-Hotel":1,pro="Specialist Clinics":1,pro="PAC":1,pro="Palliative Care":1,pro="RIR":1,pro="SACS":1,pro="TCP":1,pro="VRSS":1,pro="VHS":1,1:0)
+		s ^||zTMP("VINAH","E737","Episode Care Plan Documented Date",pro)=						$s(pro="FCP":1,pro="HARP":1,pro="HBPCCT":0,pro="Medi-Hotel":0,pro="Specialist Clinics":0,pro="PAC":1,pro="Palliative Care":0,pro="RIR":1,pro="SACS":1,pro="TCP":1,pro="VRSS":1,pro="VHS":1,1:0)
+		s ^||zTMP("VINAH","M16","Episode End Date",pro)=										$s(pro="FCP":1,pro="HARP":1,pro="HBPCCT":1,pro="Medi-Hotel":1,pro="Specialist Clinics":1,pro="PAC":1,pro="Palliative Care":1,pro="RIR":1,pro="SACS":1,pro="TCP":1,pro="VRSS":1,pro="VHS":1,1:0)
+		s ^||zTMP("VINAH","E705","Episode End Reason",pro)=										$s(pro="FCP":0,pro="HARP":0,pro="HBPCCT":1,pro="Medi-Hotel":0,pro="Specialist Clinics":0,pro="PAC":0,pro="Palliative Care":1,pro="RIR":0,pro="SACS":0,pro="TCP":0,pro="VRSS":0,pro="VHS":0,1:0)
+		s ^||zTMP("VINAH","M17","Episode First Appointment Booked Date",pro)=					$s(pro="FCP":0,pro="HARP":0,pro="HBPCCT":0,pro="Medi-Hotel":0,pro="Specialist Clinics":1,pro="PAC":0,pro="Palliative Care":0,pro="RIR":0,pro="SACS":0,pro="TCP":0,pro="VRSS":0,pro="VHS":0,1:0)
+		s ^||zTMP("VINAH","E706","Episode Health Conditions",pro)=								$s(pro="FCP":1,pro="HARP":1,pro="HBPCCT":0,pro="Medi-Hotel":0,pro="Specialist Clinics":0,pro="PAC":1,pro="Palliative Care":0,pro="RIR":1,pro="SACS":1,pro="TCP":0,pro="VRSS":1,pro="VHS":1,1:0)
+		s ^||zTMP("VINAH","E738","Episode Hospital Discharge Date",pro)=						$s(pro="FCP":0,pro="HARP":0,pro="HBPCCT":0,pro="Medi-Hotel":0,pro="Specialist Clinics":0,pro="PAC":1,pro="Palliative Care":0,pro="RIR":1,pro="SACS":1,pro="TCP":1,pro="VRSS":0,pro="VHS":0,1:0)
+		s ^||zTMP("VINAH","E707","Episode Malignancy Flag",pro)=								$s(pro="FCP":0,pro="HARP":0,pro="HBPCCT":1,pro="Medi-Hotel":0,pro="Specialist Clinics":0,pro="PAC":0,pro="Palliative Care":1,pro="RIR":0,pro="SACS":0,pro="TCP":0,pro="VRSS":0,pro="VHS":0,1:0)
+		s ^||zTMP("VINAH","E736","Episode Other Factors Affecting Health",pro)=					$s(pro="FCP":1,pro="HARP":1,pro="HBPCCT":0,pro="Medi-Hotel":0,pro="Specialist Clinics":0,pro="PAC":1,pro="Palliative Care":0,pro="RIR":1,pro="SACS":1,pro="TCP":0,pro="VRSS":1,pro="VHS":1,1:0)
+		s ^||zTMP("VINAH","M18","Episode Patient/Client Notified of First Appointment Date",pro)=$s(pro="FCP":0,pro="HARP":0,pro="HBPCCT":0,pro="Medi-Hotel":0,pro="Specialist Clinics":1,pro="PAC":0,pro="Palliative Care":0,pro="RIR":0,pro="SACS":0,pro="TCP":0,pro="VRSS":0,pro="VHS":0,1:0)
+		s ^||zTMP("VINAH","M19","Episode Program/Stream",pro)=									$s(pro="FCP":1,pro="HARP":1,pro="HBPCCT":1,pro="Medi-Hotel":1,pro="Specialist Clinics":1,pro="PAC":1,pro="Palliative Care":1,pro="RIR":1,pro="SACS":1,pro="TCP":1,pro="VRSS":1,pro="VHS":1,1:0)
+		s ^||zTMP("VINAH","E735","Episode Proposed Treatment Plan Completion",pro)=				$s(pro="FCP":1,pro="HARP":1,pro="HBPCCT":0,pro="Medi-Hotel":0,pro="Specialist Clinics":0,pro="PAC":1,pro="Palliative Care":0,pro="RIR":1,pro="SACS":1,pro="TCP":0,pro="VRSS":1,pro="VHS":1,1:0)
+		s ^||zTMP("VINAH","M20","Episode Start Date",pro)=										$s(pro="FCP":1,pro="HARP":1,pro="HBPCCT":1,pro="Medi-Hotel":1,pro="Specialist Clinics":1,pro="PAC":1,pro="Palliative Care":1,pro="RIR":1,pro="SACS":1,pro="TCP":1,pro="VRSS":1,pro="VHS":1,1:0)
+		s ^||zTMP("VINAH","E734","Episode TCP Bed-Based Care Transition Date",pro)=				$s(pro="FCP":0,pro="HARP":0,pro="HBPCCT":0,pro="Medi-Hotel":0,pro="Specialist Clinics":0,pro="PAC":0,pro="Palliative Care":0,pro="RIR":0,pro="SACS":0,pro="TCP":1,pro="VRSS":0,pro="VHS":0,1:0)
+		s ^||zTMP("VINAH","E733","Episode TCP Home-Based Care Transition Date",pro)=			$s(pro="FCP":0,pro="HARP":0,pro="HBPCCT":0,pro="Medi-Hotel":0,pro="Specialist Clinics":0,pro="PAC":0,pro="Palliative Care":0,pro="RIR":0,pro="SACS":0,pro="TCP":1,pro="VRSS":0,pro="VHS":0,1:0)
+		s ^||zTMP("VINAH","E109","Patient/Client Birth Country",pro)=							$s(pro="FCP":1,pro="HARP":1,pro="HBPCCT":1,pro="Medi-Hotel":0,pro="Specialist Clinics":1,pro="PAC":1,pro="Palliative Care":1,pro="RIR":1,pro="SACS":1,pro="TCP":1,pro="VRSS":1,pro="VHS":1,1:0)
+		s ^||zTMP("VINAH","M21","Patient/Client Birth Date",pro)=								$s(pro="FCP":1,pro="HARP":1,pro="HBPCCT":1,pro="Medi-Hotel":1,pro="Specialist Clinics":1,pro="PAC":1,pro="Palliative Care":1,pro="RIR":1,pro="SACS":1,pro="TCP":1,pro="VRSS":1,pro="VHS":1,1:0)
+		s ^||zTMP("VINAH","E718","Patient/Client Birth Date Accuracy",pro)=						$s(pro="FCP":1,pro="HARP":1,pro="HBPCCT":0,pro="Medi-Hotel":1,pro="Specialist Clinics":1,pro="PAC":1,pro="Palliative Care":1,pro="RIR":1,pro="SACS":1,pro="TCP":1,pro="VRSS":1,pro="VHS":1,1:0)
+		s ^||zTMP("VINAH","E114","Patient/Client Carer Availability",pro)=						$s(pro="FCP":1,pro="HARP":1,pro="HBPCCT":0,pro="Medi-Hotel":0,pro="Specialist Clinics":0,pro="PAC":1,pro="Palliative Care":1,pro="RIR":1,pro="SACS":1,pro="TCP":1,pro="VRSS":1,pro="VHS":1,1:0)
+		s ^||zTMP("VINAH","M22","Patient/Client Carer Residency Status",pro)=					$s(pro="FCP":1,pro="HARP":1,pro="HBPCCT":0,pro="Medi-Hotel":0,pro="Specialist Clinics":0,pro="PAC":1,pro="Palliative Care":1,pro="RIR":1,pro="SACS":1,pro="TCP":1,pro="VRSS":1,pro="VHS":1,1:0)
+		s ^||zTMP("VINAH","E730","Patient/Client Death Date",pro)=								$s(pro="FCP":1,pro="HARP":1,pro="HBPCCT":0,pro="Medi-Hotel":0,pro="Specialist Clinics":0,pro="PAC":1,pro="Palliative Care":1,pro="RIR":1,pro="SACS":1,pro="TCP":1,pro="VRSS":1,pro="VHS":1,1:0)
+		s ^||zTMP("VINAH","E731","Patient/Client Death Date Accuracy",pro)=						$s(pro="FCP":1,pro="HARP":1,pro="HBPCCT":0,pro="Medi-Hotel":0,pro="Specialist Clinics":0,pro="PAC":1,pro="Palliative Care":1,pro="RIR":1,pro="SACS":1,pro="TCP":1,pro="VRSS":1,pro="VHS":1,1:0)
+		s ^||zTMP("VINAH","E732","Patient/Client Death Place",pro)=								$s(pro="FCP":0,pro="HARP":0,pro="HBPCCT":0,pro="Medi-Hotel":0,pro="Specialist Clinics":0,pro="PAC":0,pro="Palliative Care":1,pro="RIR":0,pro="SACS":0,pro="TCP":0,pro="VRSS":0,pro="VHS":0,1:0)
+		s ^||zTMP("VINAH","E119","Patient/Client DVA File Number",pro)=							$s(pro="FCP":1,pro="HARP":1,pro="HBPCCT":0,pro="Medi-Hotel":0,pro="Specialist Clinics":1,pro="PAC":1,pro="Palliative Care":1,pro="RIR":1,pro="SACS":1,pro="TCP":1,pro="VRSS":1,pro="VHS":1,1:0)
+		s ^||zTMP("VINAH","E120","Patient/Client Identifier",pro)=								$s(pro="FCP":1,pro="HARP":1,pro="HBPCCT":1,pro="Medi-Hotel":1,pro="Specialist Clinics":1,pro="PAC":1,pro="Palliative Care":1,pro="RIR":1,pro="SACS":1,pro="TCP":1,pro="VRSS":1,pro="VHS":1,1:0)
+		s ^||zTMP("VINAH","E113","Patient/Client Living Arrangement",pro)=						$s(pro="FCP":1,pro="HARP":1,pro="HBPCCT":0,pro="Medi-Hotel":0,pro="Specialist Clinics":0,pro="PAC":1,pro="Palliative Care":1,pro="RIR":0,pro="SACS":1,pro="TCP":1,pro="VRSS":1,pro="VHS":1,1:0)
+		s ^||zTMP("VINAH","E151","Patient/Client Main Carer's Relationship to the Patient",pro)=$s(pro="FCP":1,pro="HARP":1,pro="HBPCCT":0,pro="Medi-Hotel":0,pro="Specialist Clinics":0,pro="PAC":1,pro="Palliative Care":1,pro="RIR":1,pro="SACS":1,pro="TCP":1,pro="VRSS":1,pro="VHS":1,1:0)
+		s ^||zTMP("VINAH","M23","Patient/Client Sex",pro)=										$s(pro="FCP":1,pro="HARP":1,pro="HBPCCT":1,pro="Medi-Hotel":1,pro="Specialist Clinics":1,pro="PAC":1,pro="Palliative Care":1,pro="RIR":1,pro="SACS":1,pro="TCP":1,pro="VRSS":1,pro="VHS":1,1:0)
+		s ^||zTMP("VINAH","E117","Patient/Client Usual Accommodation Type",pro)=				$s(pro="FCP":1,pro="HARP":1,pro="HBPCCT":0,pro="Medi-Hotel":0,pro="Specialist Clinics":0,pro="PAC":1,pro="Palliative Care":0,pro="RIR":1,pro="SACS":1,pro="TCP":1,pro="VRSS":1,pro="VHS":1,1:0)
+		s ^||zTMP("VINAH","E108","Patient/Client Usual Residence Locality Name",pro)=			$s(pro="FCP":1,pro="HARP":1,pro="HBPCCT":1,pro="Medi-Hotel":1,pro="Specialist Clinics":1,pro="PAC":1,pro="Palliative Care":1,pro="RIR":1,pro="SACS":1,pro="TCP":1,pro="VRSS":1,pro="VHS":1,1:0)
+		s ^||zTMP("VINAH","E108","Patient/Client Usual Residence Postcode",pro)=				$s(pro="FCP":1,pro="HARP":1,pro="HBPCCT":1,pro="Medi-Hotel":1,pro="Specialist Clinics":1,pro="PAC":1,pro="Palliative Care":1,pro="RIR":1,pro="SACS":1,pro="TCP":1,pro="VRSS":1,pro="VHS":1,1:0)
+		s ^||zTMP("VINAH","E205","Referral In Clinical Referral Date",pro)=						$s(pro="FCP":0,pro="HARP":0,pro="HBPCCT":0,pro="Medi-Hotel":0,pro="Specialist Clinics":1,pro="PAC":0,pro="Palliative Care":0,pro="RIR":0,pro="SACS":0,pro="TCP":0,pro="VRSS":0,pro="VHS":0,1:0)
+		s ^||zTMP("VINAH","E202","Referral In Clinical Urgency Category",pro)=					$s(pro="FCP":0,pro="HARP":0,pro="HBPCCT":0,pro="Medi-Hotel":0,pro="Specialist Clinics":1,pro="PAC":0,pro="Palliative Care":0,pro="RIR":0,pro="SACS":0,pro="TCP":0,pro="VRSS":0,pro="VHS":0,1:0)
+		s ^||zTMP("VINAH","E715","Referral In Outcome",pro)=									$s(pro="FCP":1,pro="HARP":1,pro="HBPCCT":0,pro="Medi-Hotel":0,pro="Specialist Clinics":1,pro="PAC":1,pro="Palliative Care":1,pro="RIR":1,pro="SACS":1,pro="TCP":1,pro="VRSS":1,pro="VHS":1,1:0)
+		s ^||zTMP("VINAH","M24","Referral In Program/Stream",pro)=								$s(pro="FCP":1,pro="HARP":1,pro="HBPCCT":1,pro="Medi-Hotel":1,pro="Specialist Clinics":1,pro="PAC":1,pro="Palliative Care":1,pro="RIR":1,pro="SACS":1,pro="TCP":1,pro="VRSS":1,pro="VHS":1,1:0)
+		s ^||zTMP("VINAH","M25","Referral In Receipt Acknowledgment Date",pro)=					$s(pro="FCP":1,pro="HARP":1,pro="HBPCCT":0,pro="Medi-Hotel":0,pro="Specialist Clinics":1,pro="PAC":1,pro="Palliative Care":0,pro="RIR":1,pro="SACS":1,pro="TCP":1,pro="VRSS":1,pro="VHS":1,1:0)
+		s ^||zTMP("VINAH","E716","Referral In Received Date",pro)=								$s(pro="FCP":1,pro="HARP":1,pro="HBPCCT":1,pro="Medi-Hotel":0,pro="Specialist Clinics":1,pro="PAC":1,pro="Palliative Care":1,pro="RIR":1,pro="SACS":1,pro="TCP":1,pro="VRSS":1,pro="VHS":1,1:0)
+		s ^||zTMP("VINAH","E717","Referral In Service Type",pro)=								$s(pro="FCP":1,pro="HARP":1,pro="HBPCCT":1,pro="Medi-Hotel":0,pro="Specialist Clinics":1,pro="PAC":1,pro="Palliative Care":1,pro="RIR":1,pro="SACS":1,pro="TCP":1,pro="VRSS":1,pro="VHS":1,1:0)
+		s ^||zTMP("VINAH","E718","Referral Out Date",pro)=										$s(pro="FCP":1,pro="HARP":1,pro="HBPCCT":0,pro="Medi-Hotel":0,pro="Specialist Clinics":1,pro="PAC":1,pro="Palliative Care":0,pro="RIR":1,pro="SACS":1,pro="TCP":1,pro="VRSS":1,pro="VHS":1,1:0)
+		s ^||zTMP("VINAH","E719","Referral Out Place",pro)=										$s(pro="FCP":0,pro="HARP":0,pro="HBPCCT":0,pro="Medi-Hotel":0,pro="Specialist Clinics":0,pro="PAC":0,pro="Palliative Care":0,pro="RIR":0,pro="SACS":0,pro="TCP":1,pro="VRSS":0,pro="VHS":0,1:0)
+		s ^||zTMP("VINAH","E720","Referral Out Service Type",pro)=								$s(pro="FCP":1,pro="HARP":1,pro="HBPCCT":0,pro="Medi-Hotel":0,pro="Specialist Clinics":1,pro="PAC":1,pro="Palliative Care":0,pro="RIR":1,pro="SACS":1,pro="TCP":1,pro="VRSS":1,pro="VHS":1,1:0)
+		s ^||zTMP("VINAH","E650","Contact Date Before",pro)=									$s(pro="FCP":1,pro="HARP":1,pro="HBPCCT":1,pro="Medi-Hotel":1,pro="Specialist Clinics":1,pro="PAC":1,pro="Palliative Care":1,pro="RIR":1,pro="SACS":1,pro="TCP":1,pro="VRSS":1,pro="VHS":1,1:0)
+		s ^||zTMP("VINAH","E651","Contact Date After",pro)=										$s(pro="FCP":1,pro="HARP":1,pro="HBPCCT":1,pro="Medi-Hotel":1,pro="Specialist Clinics":1,pro="PAC":1,pro="Palliative Care":1,pro="RIR":1,pro="SACS":1,pro="TCP":1,pro="VRSS":1,pro="VHS":1,1:0)
+		 
+	}
+	;m ^zoak("Program")=^||zTMP("VINAH")
+]]></Implementation>
+</Method>
+
+<Method name="GetMappedCode">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>TableName:%Library.String,FieldName:%Library.String,ReportType:%Library.String,ActualValue:%Library.String,checkdate:%Library.String,Segment:%Library.String</FormalSpec>
+<ReturnType>%Library.String</ReturnType>
+<Implementation><![CDATA[
+	s (MappedValue,reptype)=""
+	s ActualValue=$p($g(ActualValue),"^",1)
+	i $g(checkdate)="" s checkdate=+$h
+	i checkdate>=$zdh("2012-07-01",3),TableName="CT_NFMI_CategDepart",Segment="PV1" s ReportType="VINAHPS"
+	
+	i $g(ReportType)'="" s reptype=$o(^PAC("REPTYPE",0,"Code",$$ALPHAUP^SSUTIL4(ReportType),""))
+	i $g(reptype)'="" d
+	. s id=0 f  s id=$o(^PAC("NATC",0,"Table",$$ALPHAUP^SSUTIL4(TableName),$$ALPHAUP^SSUTIL4(FieldName),reptype,id)) q:id=""  d
+	. . i checkdate>=$p($g(^PAC("NATC",id)),"^"),((checkdate<=$p($g(^PAC("NATC",id)),"^",2))||($p($g(^PAC("NATC",id)),"^",2)="")) d
+	. . . i $g(ActualValue)'="" d
+	. . . . i $g(ActualValue)=$p($g(^PAC("NATC",id)),"^",8) s MappedValue=$p($g(^PAC("NATC",id)),"^",9)
+
+	i $g(MappedValue)="" s MappedValue=ActualValue
+	q MappedValue
+]]></Implementation>
+</Method>
+
+<Query name="LookUpClinicianByHospLoc">
+<Description>
+Lookup on CT_CareProv returning Care Providers by Hospital, Campus and Speciality</Description>
+<Type>%Library.SQLQuery</Type>
+<FormalSpec>CareProv:%String,Hospital:%String,Loc:%String</FormalSpec>
+<SqlQuery><![CDATA[ SELECT DISTINCT 
+ RES_CTPCP_DR->CTPCP_Desc,
+ RES_CTPCP_DR->CTPCP_RowId,
+ RES_CTPCP_DR->CTPCP_Code
+ FROM SQLUser.RB_Resource
+ WHERE ((%ALPHAUP RES_CTPCP_DR->CTPCP_Desc %STARTSWITH %ALPHAUP :CareProv) OR (%ALPHAUP RES_CTPCP_DR->CTPCP_Desc %STARTSWITH %ALPHAUP :CareProv))
+ AND (({fn CONCAT( ',', {fn CONCAT((%ALPHAUP :Hospital),',')})} [ {fn CONCAT( ',', {fn CONCAT((%ALPHAUP RES_CTLOC_DR->CTLOC_Hospital_DR),',')})}) OR (:Hospital IS NULL))
+ AND (({fn CONCAT( ',', {fn CONCAT((%ALPHAUP :Loc),',')})} [ {fn CONCAT( ',', {fn CONCAT((%ALPHAUP RES_CTLOC_DR),',')})}) OR (:Loc IS NULL))
+ AND ((RES_CTPCP_DR->CTPCP_DateActiveFrom<=CURRENT_Date))
+ AND ((RES_CTPCP_DR->CTPCP_DateActiveTo IS NULL) OR (RES_CTPCP_DR->CTPCP_DateActiveTo>=CURRENT_Date))
+ ORDER BY RES_CTPCP_DR->CTPCP_Desc]]></SqlQuery>
+<Parameter name="CONTAINID" value="2"/>
+<Parameter name="ROWSPEC" value="CTPCPDesc:%String,HIDDEN:%String,CTPCPCode:%String"/>
+</Query>
+
+<Method name="LookUpBrokerClinicianByHospLoc">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>itmjs:%Library.String="",itmjsex:%Library.String="",CareProv:%Library.String="",Hospital:%Library.String="",Loc:%Library.String=""</FormalSpec>
+<Implementation><![CDATA[
+ n id,code,desc,activedate
+ ;
+ s (id,code,desc)=""
+ s activedate=+$h
+ ;
+ ; Try and find a matching code
+ &SQL(SELECT Distinct
+ RES_CTPCP_DR->CTPCP_Desc,
+ RES_CTPCP_DR->CTPCP_RowId,
+ RES_CTPCP_DR->CTPCP_Code
+ INTO :desc, :id, :code
+ FROM SQLUser.RB_Resource
+ WHERE ((%ALPHAUP RES_CTPCP_DR->CTPCP_Desc %STARTSWITH %ALPHAUP :CareProv) OR (%ALPHAUP RES_CTPCP_DR->CTPCP_Desc %STARTSWITH %ALPHAUP :CareProv))
+ AND (({fn CONCAT( ',', {fn CONCAT((%ALPHAUP :Hospital),',')})} [ {fn CONCAT( ',', {fn CONCAT((%ALPHAUP RES_CTLOC_DR->CTLOC_Hospital_DR),',')})}) OR (:Hospital IS NULL))
+ AND (({fn CONCAT( ',', {fn CONCAT((%ALPHAUP :Loc),',')})} [ {fn CONCAT( ',', {fn CONCAT((%ALPHAUP RES_CTLOC_DR),',')})}) OR (:Loc IS NULL))
+ AND ((RES_CTPCP_DR->CTPCP_DateActiveFrom<=CURRENT_Date))
+ AND ((RES_CTPCP_DR->CTPCP_DateActiveTo IS NULL) OR (RES_CTPCP_DR->CTPCP_DateActiveTo>=CURRENT_Date)))
+ ;
+ i SQLCODE s desc=CareProv q 0
+ s retval=itmjs_"('"_$ZCVT(desc,"O","JS")_"');"
+ i itmjsex'="""" s retval=retval_itmjsex_"('"_$ZCVT(desc,"O","JS")_"^"_id_"^"_$ZCVT(code,"O","JS")_"');"
+ &javascript<#(retval)#>
+ q 1
+]]></Implementation>
+</Method>
+</Class>
+</Export>

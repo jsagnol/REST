@@ -1,0 +1,340 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.SWARH.Report.RptSvc.StoredProc.SWARHREMG1004">
+<Description><![CDATA[
+<pre>
+***************************************************************************************************************************************
+* Report Code:SWARHREMG1004
+* Report Description:Urgent Care Centre Data Report.
+* 	Collects ED data for report period for Hospitals that are not required to submit AIMS data.
+* Menu Caption:Urgent Care Centre Data
+* Initial Release:	Developer:Michael Welsh
+* Modified:(Include date, developer and description)
+***************************************************************************************************************************************
+</pre>]]></Description>
+<ProcedureBlock>0</ProcedureBlock>
+<Super>Custom.SWARH.Report.RptSvc.StoredProc.Abstract</Super>
+<TimeCreated>60905,54849</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/SWARH/Report/RptSvc/StoredProc/SWARHREMG1004.xml#1 $</Default>
+</Parameter>
+
+<Method name="SWARHREMG1004Execute">
+<Description>
+This is the Execute section for the %Library.Query. 
+All of the logic will be performed here.
+A new node for the ^CacheTemp global will be created and each subscript of this global will contain
+a row for the report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,Hospital:%Integer,DateFrom:%Date,DateTo:%Date]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Get reportid i.e. use $INCREMENT to add another node to ^CacheTemp global. 
+ // We use ^CacheTemp global because it will always use memory before disk
+ New repid,ind
+
+ // Use $Increment to get the next node
+ Set repid=$INCREMENT(^CacheTemp(..#CACHETEMPSUBSCRIPT))
+ 
+ New PAADMRowId,URNo,EpisodeNo,Surname,GivenName,OtherGivenName,AdmDate,AdmTime,DischgDate,DischgTime,Address,Address2,City,PostCode
+ New DepartureStatus,DepartureStatusCode,DepartureStatusDesc,Triage,TriageCode,TriageDesc,InsuranceCode,InsuranceDesc,IndigStatus,
+ 	TriageNurse,CareProv,CareProvType,EventDesc,Both,CareProvList,PublicPat,IndigStatusCode,IndigenousDesc,
+ 	VisitTypeDR,VisitTypeCode,VisitTypeDesc,VisitTypeGrp,DepartureGrp
+
+ Set (URNo,EpisodeNo,Surname,GivenName,OtherGivenName,AdmDate,AdmTime,DischgDate,DischgTime,Address,Address2,City,PostCode)=""
+ Set (DepartureStatus,DepartureStatusCode,DepartureStatusDesc,Triage,TriageCode,TriageDesc,InsuranceCode,InsuranceDesc,IndigStatus,
+ 	TriageNurse,CareProv,CareProvType,EventDesc,CareProvList,IndigStatusCode,IndigenousDesc,
+ 	VisitTypeDR,VisitTypeCode,VisitTypeDesc,VisitTypeGrp,DepartureGrp)=""
+ Set (PAADMRowId,Both,PublicPat)=0
+ 
+ Set ind=1, END=0
+
+ //Start Monitor (if configured to capture stats)
+ Set mon=..MonitorBegin()
+
+ //Convert ODBC dates to cache format
+ Set DateFrom=..ConvertDateToCache(DateFrom)
+ Set DateTo=..ConvertDateToCache(DateTo)
+ 	
+ 
+ &SQL(DECLARE SWARHREMG1004 CURSOR FOR
+ 	SELECT
+ 		adm.PAADM_RowId AS PAADMRowId
+        ,adm.PAADM_PAPMI_DR->PAPMI_No AS URNo
+        ,adm.PAADM_AdmNo AS EpisodeNo
+        ,adm.PAADM_PAPMI_DR->PAPMI_Name AS Surname
+        ,adm.PAADM_PAPMI_DR->PAPMI_Name2 AS GivenName
+        ,adm.PAADM_PAPMI_DR->PAPMI_Name3 AS OtherGivenName
+        ,adm.PAADM_AdmDate AS AdmDate
+        ,adm.PAADM_AdmTime AS AdmTime
+        ,adm.PAADM_DischgDate AS DischgDate
+        ,adm.PAADM_DischgTime AS DischgTime
+        ,$LISTTOSTRING(adm.PAADM_PAPMI_DR->PAPMI_PAPER_DR->PAPER_StName) AS Address
+        ,adm.PAADM_PAPMI_DR->PAPMI_PAPER_DR->PAPER_ForeignAddress AS Address2
+        ,adm.PAADM_PAPMI_DR->PAPMI_PAPER_DR->PAPER_CityCode_DR->CTCIT_Desc AS City
+        ,adm.PAADM_PAPMI_DR->PAPMI_PAPER_DR->PAPER_Zip_DR->CTZIP_Code AS PostCode
+        ,CASE adm.PAADM_MainMRADM_DR->MRADM_DischClassif_DR->DSCL_Code
+    		WHEN '1' THEN 'Non-Admitted' -- Discharge to Home
+            WHEN '3' THEN 'Admitted' -- Admission to Short Stay Observation Unit
+            WHEN '5' THEN 'Non-Admitted' -- Left at Own Risk (after treatment started)
+            WHEN '7' THEN 'Died in Urgent Care Centre' -- Died within ED
+            WHEN '8' THEN 'Dead on Arrival' -- Dead on Arrival
+            WHEN '10' THEN 'Non-Admitted' -- Left after Clinical Advice (regarding treatment options)
+            WHEN '11' THEN 'Did Not Wait' -- Left at Own Risk (without treatment)
+            WHEN '12' THEN 'Non-Admitted' -- Correctional/Custodial Facility
+            WHEN '17' THEN 'Transfer Presentation' -- Mental Health bed at another Hospital Campus
+            WHEN '18' THEN 'Admitted' -- Admitted to ward not elsewhere described
+            WHEN '19' THEN 'Transfer Presentation' -- Another hospital campus (excludes for Mental Health and ICU or CCU transfer)
+            WHEN '20' THEN 'Transfer Presentation' -- Another hospital Campus - Intensive Care Unit
+            WHEN '21' THEN 'Transfer Presentation' -- Another hospital Campus - Coronary Care Unit
+            WHEN '23' THEN 'Non-Admitted' -- Mental health residential facility or psycho geriatric nursing home
+            WHEN '24' THEN 'Non-Admitted' -- Residential care facility (includes Nursing Home | Hostel | Residential care respite bed)
+            WHEN '25' THEN 'Non-Admitted' -- Mental Health Observation/Assessment Unit
+            WHEN '27' THEN 'Admitted' -- Cardiac catheter laboratory
+            WHEN '28' THEN 'Admitted' -- Other operating theatre/procedure room
+            ELSE 'N/A'
+            END AS DepartureStatus
+        ,adm.PAADM_MainMRADM_DR->MRADM_DischClassif_DR->DSCL_Code AS DepartureStatusCode
+        ,adm.PAADM_MainMRADM_DR->MRADM_DischClassif_DR->DSCL_Desc AS DepartureStatusDesc
+        ,CASE adm.PAADM_Priority_DR->CTACU_Code
+        	WHEN '1' THEN 'Triage 1'
+            WHEN '2' THEN 'Triage 2'
+            WHEN '3' THEN 'Triage 3'
+            WHEN '4' THEN 'Triage 4'
+            WHEN '5' THEN 'Triage 5'
+            WHEN '6' THEN 'Any Triage'
+            ELSE 'N/A'
+            END AS Triage
+        ,adm.PAADM_Priority_DR->CTACU_Code AS TriageCode
+        ,adm.PAADM_Priority_DR->CTACU_Desc AS TriageDesc
+        ,CASE instype.INST_Code
+        	WHEN '6' THEN '1'
+        	ELSE '0'
+        	END AS PublicPat
+        ,instype.INST_Code AS InsuranceCode
+        ,instype.INST_Desc AS InsuranceDesc
+        ,CASE adm.PAADM_PAPMI_DR->PAPMI_IndigStat_DR->INDST_Code
+        	WHEN '2' THEN 'Non-Indigenous Patients'	--'Not Indigenous'
+        	WHEN '5' THEN 'Indigenous Patients'		--'Indigenous : Aboriginal but not Torres Strait Islander origin'
+        	WHEN '6' THEN 'Indigenous Patients'		--'Indigenous : Torres Strait Islander but not Aboriginal origin'
+        	WHEN '7' THEN 'Indigenous Patients'		--'Indigenous : Aboriginal and Torres Strait Islander origin'
+        	WHEN '8' THEN 'Non-Indigenous Patients'	--'Question unable to be asked'
+        	WHEN '9' THEN 'Non-Indigenous Patients'	--'Patient refused to answer'
+        	ELSE 'N/A'
+        	END AS IndigenousDesc
+        ,adm.PAADM_PAPMI_DR->PAPMI_IndigStat_DR->INDST_Code AS IndigStatusCode
+        ,adm.PAADM_PAPMI_DR->PAPMI_IndigStat_DR->INDST_Desc AS IndigStatus
+        ,adm.PAADM_TriageNurse_DR->CTPCP_Desc AS TriageNurse
+        ,adm.PAADM_MainMRADM_DR->MRADM_VisitType_DR AS VisitTypeDR
+		,adm.PAADM_MainMRADM_DR->MRADM_VisitType_DR->VST_Code AS VisitTypeCode
+       	,adm.PAADM_MainMRADM_DR->MRADM_VisitType_DR->VST_Desc AS VisitTypeDesc
+       	,CASE adm.PAADM_MainMRADM_DR->MRADM_VisitType_DR->VST_Code
+    		WHEN '1' THEN 'Unplanned' -- Emergency Presentation
+            WHEN '2' THEN 'Planned' -- Return Visit - (planned)
+            WHEN '3' THEN 'UnPlanned' -- Unplanned attendance for continuing condition
+            WHEN '8' THEN 'Planned' -- Pre-arranged admission - clerical, nursing, clinical
+            WHEN '9' THEN 'Planned' -- Patient in transit
+            WHEN '12' THEN 'Unplanned' -- Dead on arrival
+            ELSE 'N/A'
+            END AS VisitTypeGrp
+        ,CASE adm.PAADM_MainMRADM_DR->MRADM_DischClassif_DR->DSCL_Code
+    		WHEN '1' THEN 'Non-Admitted' -- Discharge to Home
+            WHEN '3' THEN 'Admitted' -- Admission to Short Stay Observation Unit
+            WHEN '5' THEN 'Non-Admitted' -- Left at Own Risk (after treatment started)
+            WHEN '7' THEN 'Other' -- Died within ED
+            WHEN '8' THEN 'Other' -- Dead on Arrival
+            WHEN '10' THEN 'Non-Admitted' -- Left after Clinical Advice (regarding treatment options)
+            WHEN '11' THEN 'Other' -- Left at Own Risk (without treatment)
+            WHEN '12' THEN 'Non-Admitted' -- Correctional/Custodial Facility
+            WHEN '17' THEN 'Other' -- Mental Health bed at another Hospital Campus
+            WHEN '18' THEN 'Admitted' -- Admitted to ward not elsewhere described
+            WHEN '19' THEN 'Other' -- Another hospital campus (excludes for Mental Health and ICU or CCU transfer)
+            WHEN '20' THEN 'Other' -- Another hospital Campus - Intensive Care Unit
+            WHEN '21' THEN 'Other' -- Another hospital Campus - Coronary Care Unit
+            WHEN '23' THEN 'Non-Admitted' -- Mental health residential facility or psycho geriatric nursing home
+            WHEN '24' THEN 'Non-Admitted' -- Residential care facility (includes Nursing Home | Hostel | Residential care respite bed)
+            WHEN '25' THEN 'Non-Admitted' -- Mental Health Observation/Assessment Unit
+            WHEN '27' THEN 'Admitted' -- Cardiac catheter laboratory
+            WHEN '28' THEN 'Admitted' -- Other operating theatre/procedure room
+            ELSE 'N/A'
+            END AS DepartureGrp
+	FROM
+		SQLUser.PA_Adm adm
+    		LEFT JOIN SQLUser.PA_AdmInsurance admins ON (adm.PAADM_RowID = admins.INS_ParRef and admins.INS_Childsub = 1)
+        	LEFT JOIN SQLUser.ARC_InsuranceType instype ON (admins.INS_InsType_DR = instype.INST_RowId)
+    WHERE
+		adm.PAADM_Hospital_DR = :Hospital
+	AND
+    	adm.PAADM_AdmDate BETWEEN :DateFrom AND :DateTo
+	AND
+    	adm.PAADM_Type = 'E' -- Emergency
+	AND
+    	adm.PAADM_VisitStatus = 'D'     -- Discharged
+	ORDER BY
+    	adm.PAADM_PAPMI_DR->PAPMI_No,adm.PAADM_AdmNo
+)
+	 	
+ &SQL(OPEN SWARHREMG1004)
+ 
+ //FETCH FIRST ROW
+ Do FetchRow
+  
+ While END=0 {
+  
+	 Do FormatDates
+  	 Do FormatTimes
+  	 Do FormatStrings
+  	 
+  	 s CareProvList =..GetCareProvList(PAADMRowId)
+  	   	 
+  	 If (CareProvList '= ""){Set Both=1} Else{Set Both=0} //Sets flag for Column grouping  	 
+  	 
+	 Set sort = ind	
+ 
+	 Set ^CacheTemp(..#CACHETEMPSUBSCRIPT,repid,sort)=$LISTBUILD(PAADMRowId,URNo,EpisodeNo,Surname,GivenName,OtherGivenName,AdmDate,
+	 	AdmTime,DischgDate,DischgTime,Address,Address2,City,PostCode,DepartureStatus,DepartureStatusCode,DepartureStatusDesc,
+	 	Triage,TriageCode,TriageDesc,PublicPat,InsuranceCode,InsuranceDesc,IndigenousDesc,IndigStatusCode,IndigStatus,TriageNurse
+	 	,VisitTypeDR,VisitTypeCode,VisitTypeDesc,VisitTypeGrp,DepartureGrp,CareProv,CareProvType,EventDesc,Both,
+	 	CareProvList)
+	 Set ind=ind+1
+ 	 
+	 //fetch rows
+	 Do FetchRow
+ }
+
+ &SQL(CLOSE SWARHREMG1004)
+ 
+ // Build QHandle (AtEnd,ReportID,Index)
+ Set QHandle=$listbuild(0,repid,0)
+
+ Quit $$$OK
+
+FetchRow
+ &sql(FETCH SWARHREMG1004 INTO :PAADMRowId,:URNo,:EpisodeNo,:Surname,:GivenName,:OtherGivenName,:AdmDate,:AdmTime,:DischgDate,
+ 	:DischgTime,:Address,:Address2,:City,:PostCode,:DepartureStatus,:DepartureStatusCode,:DepartureStatusDesc,
+ 	:Triage,:TriageCode,:TriageDesc,:PublicPat,:InsuranceCode,:InsuranceDesc,:IndigenousDesc,:IndigStatusCode,:IndigStatus,:TriageNurse,
+ 	:VisitTypeDR,:VisitTypeCode,:VisitTypeDesc,:VisitTypeGrp,:DepartureGrp)
+ If SQLCODE '= 0 Set END = 1
+ Quit
+ 
+FormatDates
+ Set AdmDate=..ConvertDateToODBC(AdmDate)
+ Set DischgDate=..ConvertDateToODBC(DischgDate)
+ Quit
+ 
+FormatTimes //Be sure to set fields in Query output as '%String' then format Reporting Services field as Time.
+ Set AdmTime=..ConvertTimeToHHMM(AdmTime) 
+ Set DischgTime=..ConvertTimeToHHMM(DischgTime)
+ Quit
+ 
+FormatStrings
+ Set Address=$ZSTRIP(Address,"*C") //Removes control characters (0-31,127-159)
+ Set Address=$ZSTRIP(Address,"*",$CHAR(34,35,39,44,46)) //Removes 34-Quotes,35-Hash,39-Single quote,44-Comma,46-Period
+ Set Address=$ZCONVERT(Address,"U") //Converts to Uppercase
+ Set Address2=$ZSTRIP(Address2,"*C")
+ Set Address2=$ZSTRIP(Address2,"*",$CHAR(34,35,39,44,46))
+ Set Address2=$ZCONVERT(Address2,"U")
+ If (DepartureGrp = "Other") {Set EventDesc=DepartureStatus_" - "_"any triage"} Else {Set EventDesc=DepartureStatus_" - "_VisitTypeGrp_" - "_Triage}
+ Quit
+]]></Implementation>
+</Method>
+
+<Method name="SWARHREMG1004Fetch">
+<Description>
+This is the Fetch component of the %Library.Query. 
+This should never have to change. It is designed to fetch the row for each subscript of the ^CacheTemp
+global and return this row to the Crystal Report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,&Row:%Library.List,&AtEnd:%Library.Integer=0]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // This fetch method should never have to change. 
+ // repid - Report ID
+ // ind   - sequence index which represents each row
+
+ New repid,ind
+
+ // Restore QHandle
+ Set AtEnd=$LIST(QHandle,1)
+ Set repid=$LIST(QHandle,2)
+ Set ind=$LIST(QHandle,3)
+
+ Set ind=$ORDER(^CacheTemp(..#CACHETEMPSUBSCRIPT,repid,ind))
+ If ind="" {	// if there are no more rows, finish fetching
+	 Set AtEnd=1
+	 Set Row=""
+ }
+ Else      {	// fetch row
+ 	Set Row=^CacheTemp(..#CACHETEMPSUBSCRIPT,repid,ind)
+ }
+
+ // Save QHandle
+ Set QHandle=$LISTBUILD(AtEnd,repid,ind)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="SWARHREMG1004Close">
+<Description>
+This is the Close component of the %Library.Query.
+This is standard code and should never have to change.
+This is where all the cleanup is performed, i.e. the purging of the temporary storage global ^CacheTemp.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>QHandle:%Library.Binary</FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Clean up by purging the temporary node in ^CacheTemp global
+ New repid,ind
+ Set repid=$LIST(QHandle,2)
+
+ Kill ^CacheTemp(..#CACHETEMPSUBSCRIPT,repid)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Query name="SWARHREMG1004">
+<Type>%Library.Query</Type>
+<FormalSpec>Hospital:%Integer,DateFrom:%Date,DateTo:%Date</FormalSpec>
+<SqlProc>1</SqlProc>
+<Parameter name="CONTAINID" value="0"/>
+<Parameter name="ROWSPEC" value="PAADMRowId:%Integer,URNo:%String,EpisodeNo:%String,Surname:%String,GivenName:%String,OtherGivenName:%String,AdmDate:%Date,AdmTime:%String,DischgDate:%Date,DischgTime:%String,Address:%String,Address2:%String,City:%String,PostCode:%String,DepartureStatus:%String,DepartureStatusCode:%String,DepartureStatusDesc:%String,Triage:%String,TriageCode:%String,TriageDesc:%String,PublicPat:%Integer,InsuranceCode:%String,InsuranceDesc:%String,IndigenousDesc:%String,IndigStatusCode:%String,IndigStatus:%String,TriageNurse:%String,VisitTypeDR:%Integer,VisitTypeCode:%Integer,VisitTypeDesc:%String,VisitTypeGrp:%String,DepartureGrp:%String,CareProv:%String,CareProvType:%String,EventDesc:%String,Both:%Integer,CareProvList:%String"/>
+<Parameter name="SELECTMODE" value="ODBC"/>
+</Query>
+
+<Method name="GetCareProvList">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>PAADMRowID</FormalSpec>
+<ReturnType>%Integer</ReturnType>
+<Implementation><![CDATA[
+ s (CTPCPDescList,CTPCPDesc)=""
+ 
+ &sql(DECLARE CTPCPDescLIST CURSOR FOR 
+ 	SELECT
+        TRANS_CTCP_DR->CTPCP_Desc
+	FROM
+        SQLUser.PA_AdmTransaction
+	WHERE
+        TRANS_CTCP_DR IS NOT NULL
+	AND
+        TRANS_Status_DR <> 2 -- Rejected
+	AND
+        TRANS_CTCP_DR->CTPCP_CarPrvTp_DR->CTCPT_InternalType = 'DOCTOR'
+	AND
+        TRANS_ParRef = :PAADMRowID
+ )
+ &SQL(OPEN CTPCPDescLIST)
+ &sql(FETCH CTPCPDescLIST INTO :CTPCPDesc)
+ WHILE 'SQLCODE {
+	s CTPCPDescList = CTPCPDescList_" "_CTPCPDesc_$CHAR(13)_$CHAR(10) //Adds line feed/s
+	
+	&sql(FETCH CTPCPDescLIST INTO :CTPCPDesc)
+ }
+ &SQL(CLOSE CTPCPDescLIST)
+ Quit $e(CTPCPDescList,0,*-2)
+]]></Implementation>
+</Method>
+</Class>
+</Export>

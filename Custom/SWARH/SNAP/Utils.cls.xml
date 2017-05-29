@@ -1,0 +1,264 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.SWARH.SNAP.Utils">
+<ClassType/>
+<ProcedureBlock>0</ProcedureBlock>
+<Super>%RegisteredObject</Super>
+<TimeCreated>63173,28078.665462</TimeCreated>
+
+<Parameter name="SrcVer">
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/SWARH/SNAP/Utils.xml#1 $</Default>
+</Parameter>
+
+<Method name="IsSNAPUser">
+<ClassMethod>1</ClassMethod>
+<ReturnType>%Boolean</ReturnType>
+<Implementation><![CDATA[
+	s SNAPUser = $g(%session.Data("LOGON.GROUPDESC"))["SNAP"
+	q SNAPUser
+]]></Implementation>
+</Method>
+
+<Method name="GetSNAPServer">
+<ClassMethod>1</ClassMethod>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+#;	s envName = $REPLACE($NAMESPACE, "-TRAK", "")
+#;	s server=
+#;		$S(
+#;			(envName="LIVE"):"SNAP",
+#;			(envName="TEST"):"SNAP-TEST14",
+#;			(envName="TRI"):"SNAP-TRI",
+#;			(envName="BASE")||(envName="WIP")||(envName="PRODSUP"):"SNAP-WIP",
+#;			1:""
+#;		)
+#;	Quit server
+	set server = "",file=""
+	&SQL(SELECT FILE_RowId INTO :file FROM SQLUser.CF_SystemFileDefinition WHERE FILE_Desc='SNAP')
+	if file {
+		set CFobj=##class(User.CFSystemFileDefinition).%OpenId(file)
+		if CFobj {
+			set baseuri=CFobj.FILEVirtualDirectory
+			set server=$piece(baseuri, "/", 3)
+			kill CFobj
+		}
+	}
+	quit server
+]]></Implementation>
+</Method>
+
+<Method name="GetAppointmentColourByTime">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>rs:%ResultSet</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	new apptDate, apptTime, apptId, patientId, resId, slotChld, currentDate, currentTime, timeDiff, timeRed, timeOrange, cssClass
+	set cssClass = ""
+	set timeRed = 1800 //30 mins = 30 * 60
+	set timeOrange = 900 //15 mins = 15 * 60
+	set apptId = $g(rs.Data("APPTRowId"))
+
+	set resId = +apptId
+	set slotChld = $p(apptId,"||",2)
+	set apptDate = $p($g(^RBAS(resId, slotChld), ""), "^", 1)  //RB_ApptSchedule.AS_Date
+	set apptTime = $p($g(^RBAS(resId, slotChld), ""), "^", 4)  //RB_ApptSchedule.AS_SessStartTime
+
+	set patientId = $g(rs.Data("PatientID"))
+	
+	if (apptTime '= "") {
+		if (apptTime > 0) {
+			set currentDate = +$h
+			set currentTime = $piece($horolog,",",2)
+			if (apptDate <= currentDate) {
+				set timeDiff = (currentTime - apptTime)
+				if (timeDiff >= timeRed) {
+					set cssClass = cssClass_" appointmentRed"
+					set apptRed = 1
+				} elseif (timeDiff >= timeOrange) {
+					set cssClass = cssClass_" appointmentOrange"
+				}
+			}
+		}
+	}
+	if (..PatientHasApptInProgress(patientId)) set cssClass = cssClass_" appointmentInProgress"
+
+	quit ..WhiteboardNoWrap(rs)_" "_cssClass_" "_timeDiff
+]]></Implementation>
+</Method>
+
+<Method name="WhiteboardNoWrap">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>rs:%ResultSet</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[	q "appointment"
+]]></Implementation>
+</Method>
+
+<Method name="ApptWhiteboardMonitorApptsFilterBySpecDepCode">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>rs:%ResultSet</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	new resId, slotChld, apptChld, locId, apptId, show, depId, depCode, depCodePfx, groupDesc
+	set apptId = $g(rs.Data("APPTRowId"))
+	set show = 0
+	set depCodePfx = "SNAPMON"
+	set resId = +apptId
+	
+	set locId =  $p($g(^RB("RES",resId)), "^", 1)	
+	set groupDesc =  $p($g(^SSU("SSGRP",%session.Data("LOGON.GROUPID"))), "^", 1)
+		
+	if (locId) {
+		set depId = $p($g(^CTLOC(locId)), "^", 19)
+		if (depId) {
+			set depCode = $p($g(^RBC("DEP", depId)), "^", 1)
+			set:$e(depCode,0,$l(depCodePfx))=depCodePfx show = 1 // Will only show on monitor appointments if the Department Group contains SNAPMON
+		}
+		set:((show = 1) && (groupDesc '= "AUSW SNAP Community Intake Worker")) show = (locId = %session.Data("LOGON.CTLOCID"))
+	}
+	q show
+]]></Implementation>
+</Method>
+
+<Method name="ApptWhiteboardArrivedMonitorApptsFilter">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>rs:%ResultSet</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	new apptId, show
+	set apptId = $g(rs.Data("APPTRowId"))
+	set show = 0
+	
+	if ..ApptWhiteboardMonitorApptsFilterBySpecDepCode(rs){
+		if ..ApptIsInProgress(apptId) {
+			set show =0
+		} else {
+			// Only need to do this if we're actually showing the appt
+			set show = ##class(Custom.AUSW.SNAP.Utils).SNAPApptFilterPopulateOPDRoom(rs, apptId, "APPTOPDRoom")
+		}
+		set:show show = ..ApptWhiteboardPopulateEventService(rs)
+	}
+	
+	quit show
+]]></Implementation>
+</Method>
+
+<Method name="ApptWhiteboardDepartedMonitorAppts">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>rs:%ResultSet</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	new apptId, show
+	set apptId = $g(rs.Data("APPTRowId"))
+	set show = 0
+	
+	if ..ApptWhiteboardMonitorApptsFilterBySpecDepCode(rs){
+		set show = ##class(Custom.AUSW.SNAP.Utils).SNAPApptFilterPopulateOPDRoom(rs, apptId, "APPTOPDRoom")
+		set:show show = ..ApptWhiteboardPopulateEventService(rs)
+	}
+	
+	quit show
+]]></Implementation>
+</Method>
+
+<Method name="ApptWhiteboardPopulateEventService">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>rs:%ResultSet</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	new apptId, resId, slotChld, apptChld, eventId
+	set apptId = $g(rs.Data("APPTRowId"))
+
+	set resId = +apptId
+	set slotChld = $p(apptId, "||", 2)
+	set apptChld = $p(apptId, "||", 3)
+	
+	set eventId = $p($g(^RBAS(resId,slotChld,"APPT",apptChld)), "^", 53)
+	i (eventId) {
+		 set rs.Data("APPTService") = "Event: "_$p($g(^RBEV(eventId)), "^", 3)
+		 set rs.Data("APPTCareProvider") = $p($g(^RB("RES", resId)), "^", 17)
+	}
+	q 1
+]]></Implementation>
+</Method>
+
+<Method name="ApptWhiteboardPendingMonitorAppts">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>rs:%ResultSet</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	new apptId, show
+	set apptId = $g(rs.Data("APPTRowId"))
+	set show = 0
+	
+	if ..ApptWhiteboardMonitorApptsFilterBySpecDepCode(rs){
+		set show = ##class(Custom.AUSW.SNAP.Utils).SNAPApptFilterPopulateOPDRoom(rs, apptId, "APPTOPDRoom")
+		set:show show = ..ApptWhiteboardPopulateEventService(rs)
+	}
+	
+	quit show
+]]></Implementation>
+</Method>
+
+<Method name="PatientHasApptInProgress">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>patientId:%Integer</FormalSpec>
+<ReturnType>%Boolean</ReturnType>
+<Implementation><![CDATA[
+	new seenStatus, resId, slotChld, apptChld, slotDate, hasApptInProgress, apptSeenDate, apptSeenTime, apptStatus
+	
+	set seenStatus = "A"
+	set hasApptInProgress = 0
+	
+	set (resId, slotChld, apptChld) = ""
+	for  {
+		if (apptChld = "") {	// Get next slot 
+			if (slotChld = "") {	// Get next resource
+				set resId = $o(^PAPERDR(patientId,"RB_Appt",seenStatus,resId))
+				quit:resId=""	// If no more resources in index, quit.
+			}
+			set slotChld = $o(^PAPERDR(patientId,"RB_Appt",seenStatus,resId,slotChld))
+			continue:slotChld=""	// If no more slots for resource, continue loop to check next resource
+		}
+		set apptChld = $o(^PAPERDR(patientId,"RB_Appt",seenStatus,resId,slotChld,apptChld))
+		continue:apptChld=""	// If no more apptChld in slots, continue the loop to check the next slot/resource
+
+		set hasApptInProgress = ..ApptIsInProgress(resId_"||"_slotChld_"||"_apptChld)
+		quit:hasApptInProgress
+	}
+	quit hasApptInProgress
+]]></Implementation>
+</Method>
+
+<Method name="ApptIsInProgress">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>apptId:%String</FormalSpec>
+<ReturnType>%Boolean</ReturnType>
+<Implementation><![CDATA[
+	new seenStatus, result, resId, slotChld, apptChld
+	
+	set seenStatus = "A"
+	set result = 0
+	
+	set resId = +apptId
+	set slotChld = $p(apptId, "||", 2)
+	set apptChld = $p(apptId, "||", 3)
+
+	if (resId'="")&&(slotChld'="")&&(apptChld'="") {
+		set slotDate = $p($g(^RBAS(resId, slotChld), ""), "^", 1)  //RB_ApptSchedule.AS_Date
+		set apptSeenDate = $p($g(^RBAS(resId, slotChld, "APPT", apptChld)), "^", 26)	// RB_Appointment.APPT_SeenDate
+		set apptSeenTime = $p($g(^RBAS(resId, slotChld, "APPT", apptChld)), "^", 27)	// RB_Appointment.APPT_SeenTime
+		set apptStatus = $p($g(^RBAS(resId, slotChld, "APPT", apptChld)), "^", 3)		// RB_Appointment.APPT_Status
+		
+		; An arrived and in progress (seen) appointment both have the status of "A", it's only when the seen date/time are entered
+		; that the appointment is in progress, however when changing the status from seen to booked, this doesn't clear out the seen date/time fields
+
+		if ((slotDate = +$h) && (apptSeenDate '= "") && (apptSeenTime '= "") && (apptStatus = seenStatus)) {
+			set result = 1
+		}
+	}
+	quit result
+]]></Implementation>
+</Method>
+</Class>
+</Export>

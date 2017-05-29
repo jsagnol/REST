@@ -1,0 +1,214 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.SWARH.Report.ZEN.StoredProc.SWARHZATD1005">
+<Description><![CDATA[
+<pre>
+***************************************************************************************************************************************
+* Report Code: SWARHZATD1005
+* Report Description: Handover Sheet
+* Menu Caption: Handover Sheet
+* Initial Release: 15/02/2017	Developer: Michael Welsh
+* Modified:(Include date, developer and description)
+***************************************************************************************************************************************
+</pre>]]></Description>
+<ProcedureBlock>0</ProcedureBlock>
+<Super>Custom.SWARH.Report.ZEN.StoredProc.Abstract</Super>
+<TimeCreated>60905,54849</TimeCreated>
+
+<Parameter name="CACHETEMPSUBSCRIPT">
+<Default>SWARH</Default>
+</Parameter>
+
+<Method name="SWARHZATD1005Execute">
+<Description>
+This is the Execute section for the %Library.Query. 
+All of the logic will be performed here.
+A new node for the ^CacheTemp global will be created and each subscript of this global will contain
+a row for the report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,Hospital:%Integer,Ward:%Integer]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Get reportid i.e. use $INCREMENT to add another node to ^CacheTemp global. 
+ // We use ^CacheTemp global because it will always use memory before disk
+ New repid,ind
+
+ // Use $Increment to get the next node
+ Set repid=$INCREMENT(^CacheTemp(..#CACHETEMPSUBSCRIPT))
+ 
+ New URNo,Surname,GivenName,Age,AdmDate,AdmTime,AdmCurrent,ExpDisDate,AdmDoctor,PresentingComplaint,BedID,BedCode,RoomCode,
+ 	WardID,WardDesc,LOS,Comments,HospDesc,HospDR,ServerNme,NameSpce,RunDate,RunTime
+
+ Set (URNo,Surname,GivenName,Age,AdmDate,AdmTime,AdmCurrent,ExpDisDate,AdmDoctor,PresentingComplaint,BedID,BedCode,RoomCode,
+ 	WardID,WardDesc,LOS,Comments,HospDesc,HospDR,ServerNme,NameSpce,RunDate,RunTime)=""
+ 
+ Set ind=1, END=0
+
+ //Start Monitor (if configured to capture stats)
+ Set mon=..MonitorBegin()
+
+ //Convert ODBC dates to cache format
+ //Set DateFrom=..ConvertDateToCache(DateFrom)
+ //Set DateTo=..ConvertDateToCache(DateTo)
+ 
+ &SQL(DECLARE SWARHZATD1005 CURSOR FOR
+ 	SELECT
+		BedAdm.ADM_PAADM_DR->PAADM_PAPMI_DR->PAPMI_No AS URNo
+        ,BedAdm.ADM_PAADM_DR->PAADM_PAPMI_DR->PAPMI_Name AS Surname
+        ,BedAdm.ADM_PAADM_DR->PAADM_PAPMI_DR->PAPMI_Name2 AS GivenName
+        ,BedAdm.ADM_PAADM_DR->PAADM_PAPMI_DR->PAPMI_PAPER_DR->PAPER_AgeYr AS Age
+        ,BedAdm.ADM_PAADM_DR->PAADM_AdmDate AS AdmDate
+        ,BedAdm.ADM_PAADM_DR->PAADM_AdmTime AS AdmTime
+        ,BedAdm.ADM_PAADM_DR->PAADM_Current AS AdmCurrent
+        ,BedAdm.ADM_PAADM_DR->PAADM_EstimDischargeDate AS ExpDisDate
+        ,BedAdm.ADM_PAADM_DR->PAADM_AdmDocCodeDR->CTPCP_Desc AS AdmDoctor
+        ,BedAdm.ADM_PAADM_DR->PAADM_MainMRADM_DR->MRADM_PresentComplaint AS PresentingComplaint
+        ,Bed.BED_RowID AS BedID
+        ,Bed.BED_Code AS BedCode
+        ,Left(Bed.BED_Room_DR->ROOM_Code,3) AS RoomCode
+        ,Bed.BED_WARD_ParRef->WARD_RowID AS WardID
+        ,Bed.BED_WARD_ParRef->WARD_Desc AS WardDesc
+        ,CASE WHEN DateDiff('d',BedAdm.ADM_PAADM_DR->PAADM_AdmDate,{fn CurDate()}) = 0 THEN 1
+        	ELSE DateDiff('d',BedAdm.ADM_PAADM_DR->PAADM_AdmDate,{fn CurDate()}) END AS LOS
+        ,(
+        	SELECT FLOOR_Text 
+        	FROM SQLUser.MR_FloorPlanNotes 
+        	WHERE FLOOR_ParRef = BedAdm.ADM_PAADM_DR->PAADM_MainMRADM_DR->MRADM_RowId 
+        	AND FLOOR_Childsub = (
+                SELECT MAX(FLOOR_Childsub)
+                FROM SQLUser.MR_FloorPlanNotes
+                WHERE FLOOR_ParRef = BedAdm.ADM_PAADM_DR->PAADM_MainMRADM_DR->MRADM_RowId))
+            AS Comments
+        ,BedAdm.ADM_PAADM_DR->PAADM_Hospital_DR->HOSP_Desc AS HospDesc
+        ,BedAdm.ADM_PAADM_DR->PAADM_Hospital_DR AS HospDR          
+    FROM
+	 	SQLUser.PAC_Bed Bed
+                LEFT OUTER JOIN SQLUser.PAC_BedAdm BedAdm ON (Bed.BED_RowID = BedAdm.ADM_ParRef)
+	WHERE
+	 	Bed.BED_WARD_ParRef->WARD_LocationDR->CTLOC_Hospital_DR = :Hospital
+	AND
+        Bed.BED_WARD_ParRef = :Ward	 
+    AND
+        Bed.BED_DateTo IS NULL)
+	 	
+ &SQL(OPEN SWARHZATD1005)
+  
+ Set ServerNme = $Get(%request.CgiEnvs("SERVER_NAME"))
+ Set NameSpce = $PIECE($namespace,"-") 
+ 
+ //FETCH FIRST ROW
+ Do FetchRow
+ 
+ While END=0 {
+  
+	 Do FormatDates, FormatTimes, FormatStrings
+  	 
+	 Set sort = ind	
+ 
+	 Set ^CacheTemp(..#CACHETEMPSUBSCRIPT,repid,sort)=$LISTBUILD(URNo,Surname,GivenName,Age,AdmDate,AdmTime,AdmCurrent,ExpDisDate,AdmDoctor,
+	 	PresentingComplaint,BedID,BedCode,RoomCode,WardID,WardDesc,LOS,Comments,HospDesc,HospDR,RunDate,RunTime,ServerNme,NameSpce)
+	 Set ind=ind+1
+ 
+	 //fetch rows
+	 Do FetchRow
+ }
+
+ &SQL(CLOSE SWARHZATD1005)
+ 
+ // Build QHandle (AtEnd,ReportID,Index)
+ Set QHandle=$listbuild(0,repid,0)
+
+ Quit $$$OK
+
+FetchRow
+ &sql(FETCH SWARHZATD1005 INTO :URNo,:Surname,:GivenName,:Age,:AdmDate,:AdmTime,:AdmCurrent,:ExpDisDate,:AdmDoctor,:PresentingComplaint,:BedID,
+ 	:BedCode,:RoomCode,:WardID,:WardDesc,:LOS,:Comments,:HospDesc,:HospDR)
+ If SQLCODE '= 0 Set END = 1
+ Quit
+  
+FormatDates
+ If AdmDate Set AdmDate = $ZD(AdmDate,4)
+ If ExpDisDate Set ExpDisDate = $ZD(ExpDisDate,4)
+ Set RunDate = $ZD($PIECE($HOROLOG,",",1),4) 
+ Quit
+  
+FormatTimes //Be sure to set fields in Query output as '%String' then format Reporting Services field as Time.
+ If AdmTime Set AdmTime =..ConvertTimeToHHMM(AdmTime) 
+ Set RunTime =..ConvertTimeToHHMM($PIECE($HOROLOG,",",2))       
+ Quit
+ 
+FormatStrings
+ Set Comments = $LISTTOSTRING(Comments,"&#x2028;") /* XSL-FO line feed code */
+ Quit
+]]></Implementation>
+</Method>
+
+<Method name="SWARHZATD1005Fetch">
+<Description>
+This is the Fetch component of the %Library.Query. 
+This should never have to change. It is designed to fetch the row for each subscript of the ^CacheTemp
+global and return this row to the Crystal Report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,&Row:%Library.List,&AtEnd:%Library.Integer=0]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // This fetch method should never have to change. 
+ // repid - Report ID
+ // ind   - sequence index which represents each row
+
+ New repid,ind
+
+ // Restore QHandle
+ Set AtEnd=$LIST(QHandle,1)
+ Set repid=$LIST(QHandle,2)
+ Set ind=$LIST(QHandle,3)
+
+ Set ind=$ORDER(^CacheTemp(..#CACHETEMPSUBSCRIPT,repid,ind))
+ If ind="" {	// if there are no more rows, finish fetching
+	 Set AtEnd=1
+	 Set Row=""
+ }
+ Else      {	// fetch row
+ 	Set Row=^CacheTemp(..#CACHETEMPSUBSCRIPT,repid,ind)
+ }
+
+ // Save QHandle
+ Set QHandle=$LISTBUILD(AtEnd,repid,ind)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="SWARHZATD1005Close">
+<Description>
+This is the Close component of the %Library.Query.
+This is standard code and should never have to change.
+This is where all the cleanup is performed, i.e. the purging of the temporary storage global ^CacheTemp.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>QHandle:%Library.Binary</FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Clean up by purging the temporary node in ^CacheTemp global
+ New repid,ind
+ Set repid=$LIST(QHandle,2)
+
+ Kill ^CacheTemp(..#CACHETEMPSUBSCRIPT,repid)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Query name="SWARHZATD1005">
+<Type>%Library.Query</Type>
+<FormalSpec>Hospital:%Integer,Ward:%Integer</FormalSpec>
+<SqlProc>1</SqlProc>
+<Parameter name="CONTAINID" value="0"/>
+<Parameter name="ROWSPEC" value="URNo:%String,Surname:%String,GivenName:%String,Age:%Integer,AdmDate:%Date,AdmTime:%String,AdmCurrent:%String,ExpDisDate:%Date,AdmDoctor:%String,PresentingComplaint:%String,BedID:%String,BedCode:%String,RoomCode:%String,WardID:%Integer,WardDesc:%String,LOS:%Integer,Comments:%String(MAXLEN=35000),HospDesc:%String,HospDR:%Integer,RunDate:%String,RunTime:%String,ServerNme:%String,NameSpce:%String"/>
+<Parameter name="SELECTMODE" value="ODBC"/>
+</Query>
+
+<Parameter name="SrcVer">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)</Description>
+<Default>$Id$</Default>
+</Parameter>
+</Class>
+</Export>

@@ -1,0 +1,210 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.SWARH.JS.PATrafficAccidentContact.Edit">
+<Description>
+Component JavaScript for: PATrafficAccidentContact.Edit</Description>
+<Modified>0</Modified>
+<Super>websys.AbstractJavaScript</Super>
+<TimeCreated>63537,10518.718292</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+This Parameter is updated by Perforce</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/SWARH/JS/PATrafficAccidentContact/Edit.xml#1 $</Default>
+</Parameter>
+
+<Method name="JSContent">
+<Description>
+ </Description>
+<Language>javascript</Language>
+<ClientMethod>1</ClientMethod>
+<Implementation><![CDATA[
+var newcontact=false
+obj=document.getElementById('PCTDesc')
+if ((obj)&&(obj.value=="")) { newcontact=true }
+
+function InitCustom() {
+
+	DocumentLoadHandler()
+	setDisableFields()
+
+	
+	//alert(newcontact)
+
+	obj=document.getElementById('CONTACTPhone')
+	if (obj) obj.onchange=phoneChangeHandler;
+
+	//obj=document.getElementById('PCTDesc')
+	//if (obj) obj.onchange=contactChangeHandler;
+
+	var obj=document.getElementById('update1')
+	if (obj) obj.onclick=UpdateCustom;
+}
+
+
+function UpdateCustom() {
+	if (!CheckMandatoryFields()) { return }
+	return UpdateHandler()
+	//return update1_click(); //UpdateAll from scripts directory should do this already
+	//return false;
+}
+
+function phoneChangeHandler() {
+	
+	var eSrc = websys_getSrcElement(e);
+	var lbl = document.getElementById('c' + eSrc) 
+	if ((eSrc)&&(eSrc.value!="")) {
+		if (!isTelephone(eSrc)) {
+		alert("\'" + 'Telephone number: ' + "\' " + t['XINVALID'] + "\n");
+		}
+	}
+}
+
+function contactLookUpSelect(str) {
+	
+	//var lu = str.split("^");	
+	var obj
+	obj=document.getElementById('PCTDesc');
+	//contactChangeHandler(null);
+	//if (obj) obj.value = lu[0];
+		
+}
+	
+
+function contactChangeHandler() {
+	var assign=""
+	var con=document.getElementById('PCTDesc')
+	var obj = document.getElementById("assignBill") 
+	if (obj) assign=obj.value
+	if ((con)&&(con.value!="")&&(assign!="")) {
+		if (con.value!=assign) {
+		alert("\'" + 'Contact Type: ' + "\' " + t['XINVALID'] + "\n");
+		con.value = "";
+			websys_firstfocus();
+			con.focus();
+		}
+	}
+}
+
+
+//check for a valid telephone number - accepts numerals, (, ), +, -
+function isTelephone(fld) {
+	
+	var reTele = /^[\d\+\(\)\-\s]*$/
+	var obj=fld.value
+	
+  	if ((obj)&&(obj.value!="")) {
+		if (!(reTele.test(obj))) {
+  		return false
+		obj.focus();
+		} else {
+		return true;
+		}
+	}
+}
+
+
+function CheckMandatoryFields() {
+	
+	var msg="";
+	
+		
+	var obj = document.getElementById('CONTACTPhone'); 
+	if ((obj)&&(obj.value!="")) {
+		if (!isTelephone(obj)) {
+			msg += "\'" + t['CONTACTPhone'] + "\' " + t['XINVALID'] + "\n";
+		}
+	}
+	var assign=""
+	var con=document.getElementById('PCTDesc')
+	var obj = document.getElementById("assignBill") 
+	if (obj) assign=obj.value
+	if ((con)&&(con.value!="")&&(assign!="")) {
+		if ((con.value!=assign)&&(newcontact==true)) {
+		//alert("\'" + 'Contact Type: ' + "\' " + t['XINVALID'] + "\n");
+		msg += "\'" + t['PCTDesc'] + "\' " + t['XINVALID'] + "\n";
+		//con.value = "";
+		//websys_firstfocus();
+		//con.focus();
+		}
+	}
+	
+
+	if (msg != "") {
+		alert(msg)
+		return false;
+	} else {
+		return true;
+	}
+}
+
+function setDisableFields() {
+	obj=document.getElementById('payor')
+	var con=document.getElementById('PCTDesc')
+	//alert(con.value)
+	group=document.getElementById("group")
+	//alert("group" + group.value +" " +obj.value)
+	if ((group)&&(group.value!="48")) {
+	//if (((obj.value=="TAC")||(obj.value=="DVA")||(obj.value=="MAB"))&&(con.value=="Authority Responsible")) {
+	//md 26/11/2003	
+	if ((obj.value=="1")&&(con.value=="Authority Responsible")) {
+		makeReadOnly()
+		}
+	}
+}
+
+function makeReadOnly() 	{
+	var el=document.forms["fPATrafficAccidentContact_Edit"].elements;
+	for (var i=0;i<el.length;i++) {
+			if (!(el[i].type=="hidden"))  {
+			el[i].disabled=true
+			}						
+		}
+	var arrLookUps=document.getElementsByTagName("IMG");
+	for (var i=0; i<arrLookUps.length; i++) {
+			if ((arrLookUps[i].id)&&(arrLookUps[i].id.charAt(0)=="l"))
+			arrLookUps[i].disabled=true;
+		}
+	
+	var obj=document.getElementById('update1');
+	if (obj) obj.disabled=false
+	
+	
+}
+
+websys_removeListener("load","onload",DocumentLoadHandler); 
+websys_addListener("load","onload",InitCustom);
+//document.body.onload = InitCustom;
+
+
+//tknoll-miller (SWARH) 2009-09-16 Load authorise script
+var authcfg = {
+   'buttons': [
+      'update1'
+   ],
+   'fields': {
+      'username': 'UserCode',
+      'password': 'PIN'
+   }
+};
+
+//tknoll-miller (SWARH) 2009-09-16 Load authorise script
+// Scope variables
+(function() {
+   var loadScript = function(type, src) {
+      var head = document.getElementsByTagName('head')[0];
+      var script = document.createElement('script');
+      script.type = type;
+      script.src = src;
+      head.appendChild(script);
+      websys_addListener('load', 'onload', function(){document.isLoaded=true});
+      return script;
+   };
+
+   loadScript('text/javascript', '../custom/SWARH/scripts/authorise4.js');
+})();
+//end tknoll-miller (SWARH) 2009-09-16 Load authorise script
+]]></Implementation>
+</Method>
+</Class>
+</Export>

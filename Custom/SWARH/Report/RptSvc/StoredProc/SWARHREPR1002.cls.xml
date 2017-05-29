@@ -1,0 +1,204 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.SWARH.Report.RptSvc.StoredProc.SWARHREPR1002">
+<Description><![CDATA[
+<pre>
+**************************************************************************************************************************************
+* Report Code: SWARHREPR1002
+* Report Description: Antibiotic Utilisation Review 
+* Menu Caption: Antibiotic Utilisation Review 
+* Initial release: 2
+* Developer: Sharon
+* Modified: 1st April 2014 - David Cottrill 
+* Now pulls Data from a date range
+**************************************************************************************************************************************
+</pre>]]></Description>
+<ProcedureBlock>0</ProcedureBlock>
+<Super>Custom.SWARH.Report.RptSvc.StoredProc.Abstract</Super>
+<TimeCreated>63121,72567.608121</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/SWARH/Report/RptSvc/StoredProc/SWARHREPR1002.xml#1 $</Default>
+</Parameter>
+
+<Method name="SWARHREPR1002Close">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)
+This is the Close component of the %Library.Query.
+This is standard code and should never have to change.
+This is where all the cleanup is performed, i.e. the purging of the temporary storage global ^CacheTemp.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>QHandle:%Library.Binary</FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Clean up by purging the temporary node in ^CacheTemp global
+ New repid,ind
+ Set repid=$li(QHandle,2)
+
+ //Start Monitor (if configured to capture stats)
+ i mon Do ..MonitorEnd(mon)
+
+ Kill ^CacheTemp("TRAK",repid)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="SWARHREPR1002Execute">
+<Description>
+This is the Execute section for the %Library.Query. 
+All of the logic will be performed here.
+A new node for the ^CacheTemp global will be created and each subscript of this global will contain
+a row for the report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,Hospital:%Library.Integer,DateFrom:%Date,DateTo:%Date,Clinician:%String]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Get reportid i.e. use $INCREMENT to add another node to ^CacheTemp global. 
+ // We use ^CacheTemp global because it will always use memory before disk
+ New repid,ind
+
+  // Use $Increment to get the next node
+ Set repid=$I(^CacheTemp("TRAK"))
+ 
+ New PAPMINo,PAPMIDOB,CTSEXDesc, PAADMAdmNo,PAADMAdmDate, PAADMAdmTime, PAADMDischgDate, PAADMDischgTime 
+ New QDateOfAudit, QAuditID, QDoctor, CTPCPTextOne, CTPCPCode, CTPCPDesc, CQAntibioticGuildlines,  CQGuildlinesReason, CQSiteInFect, CQSourceOFInfec, QAntibiotic, PHCGEName
+ Set (PAPMINo,PAPMIDOB, CTSEXDesc, PAADMAdmNo,PAADMAdmDate, PAADMAdmTime, PAADMDischgDate, PAADMDischgTime)=""
+ Set (QDateOfAudit,  QAuditID, QDoctor, CTPCPTextOne, CTPCPCode, CTPCPDesc, CQAntibioticGuildlines,  CQGuildlinesReason, CQSiteInFect, CQSourceOFInfec, QAntibiotic, PHCGEName)=""
+
+
+ s ind=1, END=0
+
+ //Start Monitor (if configured to capture stats)
+ s mon=..MonitorBegin()
+ 
+ // * NOTE: DO NOT DO "*W" ZSTRIP FROM DATES AS IT REMOVES THE WHITESPACE BETWEEN THE DATE AND TIME AND THIS BREAKS THE QUERY! */
+ //Convert ODBC dates to cache format
+ s DateFrom=..ConvertDateToCache(DateFrom)
+ s DateTo=..ConvertDateToCache(DateTo)
+ 
+ &SQL(DECLARE SWARHREPR1002Cursor CURSOR FOR 
+	SELECT
+		  QUESPAPatMasDR->PAPMI_No
+	    , QUESPAPatMasDR->PAPMI_DOB
+	    , QUESPAPatMasDR->PAPMI_PAPER_DR->PAPER_Sex_DR->CTSEX_Desc
+	    , QUESPAAdmDR->PAADM_AdmNo
+	    , QUESPAAdmDR->PAADM_AdmDate
+	    , QUESPAAdmDR->PAADM_AdmTime
+	    , QUESPAAdmDR->PAADM_DischgDate
+    	, QUESPAAdmDR->PAADM_DischgTime
+	    , QDateOfAudit
+	    , QAuditID
+	    , QDoctor
+	    , CTPCP_TextOne,CTPCP_Code,CTPCP_Desc
+	    , CQAntibioticGuildlines
+	    , CQGuildlinesReason
+	    , CQSiteInFect
+	    , CQSourceOFInfec
+	    , QAntibiotic
+	    , PHCGE_Name
+	FROM
+	    Sqluser.questionnaire.QAUR 
+	    left Join Sqluser.PHC_Generic PHC ON QAntibiotic = PHC.PHCGE_RowId
+	    LEFT OUTER JOIN Sqluser.CT_CareProv ON QDoctor = CTPCP_RowID
+	    
+	WHERE (QDateOfAudit BETWEEN :DateFrom and :DateTo)
+		AND (QUESPAAdmDR->PAADM_Hospital_DR = :Hospital)
+		AND (QDoctor = :Clinician OR (:Clinician IS NULL))
+)
+ &SQL(OPEN SWARHREPR1002Cursor)
+ 
+ //FETCH FIRST ROW
+ d FetchRow
+ 
+  
+ while END=0 {
+  
+	 d FormatDates
+  	 d FormatTimes
+  	 
+	 s sort = ind		// don't sort - uncomment this line if you've sorted in the query
+ 
+	 s ^CacheTemp("TRAK",repid,sort)=$LB(PAPMINo,PAPMIDOB,CTSEXDesc, PAADMAdmNo,PAADMAdmDate, PAADMAdmTime, PAADMDischgDate, PAADMDischgTime,QDateOfAudit, QAuditID, QDoctor, CTPCPTextOne, CTPCPCode, CTPCPDesc, CQAntibioticGuildlines,  CQGuildlinesReason, CQSiteInFect, CQSourceOFInfec, QAntibiotic, PHCGEName)
+	 s ind=ind+1
+ 
+	 //fetch rows
+	 d FetchRow
+
+ }
+
+ &SQL(CLOSE SWARHREPR1002Cursor)
+ 
+ // Build QHandle (AtEnd,ReportID,Index)
+ Set QHandle=$lb(0,repid,0)
+
+ Quit $$$OK
+ 
+
+FetchRow
+ &sql(FETCH SWARHREPR1002Cursor INTO :PAPMINo,:PAPMIDOB,:CTSEXDesc, :PAADMAdmNo,:PAADMAdmDate, :PAADMAdmTime, :PAADMDischgDate, :PAADMDischgTime,:QDateOfAudit, :QAuditID, :QDoctor, :CTPCPTextOne, :CTPCPCode, :CTPCPDesc, :CQAntibioticGuildlines,  :CQGuildlinesReason, :CQSiteInFect, :CQSourceOFInfec, :QAntibiotic, :PHCGEName)
+ if SQLCODE '= 0 set END = 1
+ q
+ 
+FormatDates
+ s PAPMIDOB=..ConvertDateToODBC(PAPMIDOB)
+ s QDateOfAudit=..ConvertDateToODBC(QDateOfAudit)
+ s PAADMAdmDate=..ConvertDateToODBC(PAADMAdmDate)
+ s PAADMDischgDate=..ConvertDateToODBC(PAADMDischgDate)
+ q
+ 
+FormatTimes
+ s PAADMAdmTime=..ConvertTimeToODBC(PAADMAdmTime)
+ s PAADMDischgTime=..ConvertTimeToODBC(PAADMDischgTime)
+ 
+ q
+]]></Implementation>
+</Method>
+
+<Method name="SWARHREPR1002Fetch">
+<Description>
+This is the Fetch component of the %Library.Query. 
+This should never have to change. It is designed to fetch the row for each subscript of the ^CacheTemp
+global and return this row to the Crystal Report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,&Row:%Library.List,&AtEnd:%Library.Integer=0]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // This fetch method should never have to change. 
+
+ // repid - Report ID
+ // ind   - sequence index which represents each row
+
+ New repid,ind
+
+ // Restore QHandle
+ Set AtEnd=$li(QHandle,1)
+ Set repid=$li(QHandle,2)
+ Set ind=$li(QHandle,3)
+
+ Set ind=$o(^CacheTemp("TRAK",repid,ind))
+ If ind="" {	// if there are no more rows, finish fetching
+	 Set AtEnd=1
+	 Set Row=""
+ }
+ Else      {	// fetch row
+ 	Set Row=^CacheTemp("TRAK",repid,ind)
+ }
+
+ // Save QHandle
+ s QHandle=$lb(AtEnd,repid,ind)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Query name="SWARHREPR1002">
+<Type>%Library.Query</Type>
+<FormalSpec>Hospital:%Library.Integer,DateFrom:%Date,DateTo:%Date,Clinician:%String</FormalSpec>
+<SqlProc>1</SqlProc>
+<Parameter name="CONTAINID" value="0"/>
+<Parameter name="ROWSPEC" value="PAPMINo:%Library.String,PAPMIDOB:%Library.Date,CTSEXDesc:%Library.String,PAADMAdmNo:%Library.String,PAADMAdmDate:%Library.Date,PAADMAdmTime:%Library.Time,PAADMDischgDate:%Library.Date,PAADMDischgTime:%Library.Time,QDateOfAudit:%Library.Date, QAuditID:%Library.String, QDoctor:%Library.Integer, CTPCPTextOne:%Library.String, CTPCPCode:%Library.String, CTPCPDesc:%Library.String, CQAntibioticGuildlines:%Library.String,  CQGuildlinesReason:%Library.String, CQSiteInFect:%Library.String, CQSourceOFInfec:%Library.String, QAntibiotic:%Library.String, PHCGEName:%Library.String"/>
+<Parameter name="SELECTMODE" value="ODBC"/>
+</Query>
+</Class>
+</Export>

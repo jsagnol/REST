@@ -1,0 +1,227 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.SWARHCUS78PrintHistoryPathResults">
+<Description>
+Path Results Print History</Description>
+<ClassType/>
+<ProcedureBlock>0</ProcedureBlock>
+<Super>%Library.RegisteredObject</Super>
+<TimeCreated>61579,40584</TimeCreated>
+
+<Method name="PrintHistoryPathResultsClose">
+<Description>
+This is the Close component of the %Library.Query.
+This is standard code and should never have to change.
+This is where all the cleanup is performed, i.e. the purging of the temporary storage global ^CacheTemp.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>QHandle:%Library.Binary</FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Clean up by purging the temporary node in ^CacheTemp global
+ New repid
+ Set repid=$li(QHandle,2)
+ Kill ^CacheTemp(repid)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="PrintHistoryPathResultsExecute">
+<Description>
+This is the Execute section for the %Library.Query. 
+All of the logic will be performed here.
+A new node for the ^CacheTemp global will be created and each subscript of this global will contain
+a row for the report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,DateFrom:%Date,DateTo:%Date,Hospital:%Integer]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+	
+ k ^zbernard	
+ // Get reportid i.e. use $INCREMENT to add another node to ^CacheTemp global. 
+ // We use ^CacheTemp global because it will always use memory before disk
+ New repid,ind
+
+ // Use $Increment to get the next node
+ Set repid=$I(^CacheTemp)
+ s ^zBernard("1")=(1)
+
+ // Build data into ^CacheTemp(ReportID)
+ // e.g. Set ^CacheTemp(ReportID,Index)=$LB(f1,f2,f3)
+ New Number,String,Date,Time,c,n
+ n OEORDRowId,OEORDDate,PAADMADMNo,PAADMDischgDate,PAPMINo,PAPMIName,PAPMIName2,ID,P1,PrintDate,ReportDR,CTLOCDesc,HOSPRowID,HOSPDesc
+ s (OEORDRowId,ID,HOSPRowID)=0
+ s (OEORDDate,PAADMADMNo,PAADMDischgDate,PAPMINo,PAPMIName,PAPMIName2,P1,PrintDate,ReportDR,CTLOCDesc,HOSPDesc)=""
+
+ s ind=1
+
+ //Convert ODBC dates to cache format
+ s DateFrom=$$intdate^SSUTIL4(DateFrom)
+ s DateTo=$$intdate^SSUTIL4(DateTo)
+
+ //s ^bernard("2")=(2)
+ 
+ &sql(declare PrintHistoryPathResults cursor for
+
+Select  OEORD_RowId,
+		OEORD_Date,
+		OEORD_Adm_DR->PAADM_ADMNo,
+		OEORD_Adm_DR->PAADM_DischgDate,
+		OEORD_Adm_DR->PAADM_PAPMI_DR->PAPMI_No,
+		OEORD_Adm_DR->PAADM_PAPMI_DR->PAPMI_Name,
+		OEORD_Adm_DR->PAADM_PAPMI_DR->PAPMI_Name2,
+		ID,
+		P1,
+		PrintDate,
+		ReportDR,
+		LocationDR->CTLOC_Desc,
+		LocationDR->CTLOC_Hospital_DR->HOSP_RowID,
+		LocationDR->CTLOC_Hospital_DR->HOSP_Desc
+        
+From    SQLUser.OE_Order,
+		Websys.PrintHistory
+        
+Where   OEORD_Adm_DR->PAADM_DischgDate between :DateFrom and :DateTo
+And		LocationDR->CTLOC_Hospital_DR->HOSP_RowID=:Hospital
+And     {fn CONVERT(websys.PrintHistory.P1,SQL_INTEGER)}!=SQLUser.OE_Order.OEORD_RowId
+And     Websys.PrintHistory.ReportDR=14
+ 
+ )
+ 
+ &sql(open PrintHistoryPathResults)
+
+ //fetch first row 
+ &sql(fetch PrintHistoryPathResults into :OEORDRowId,:OEORDDate,:PAADMADMNo,:PAADMDischgDate,:PAPMINo,:PAPMIName,:PAPMIName2,:ID,:P1,:PrintDate,:ReportDR,:CTLOCDesc,:HOSPRowID,:HOSPDesc
+ )
+
+ while 'SQLCODE{
+ d FormatDates
+ //d FormatTimes
+
+ // build the row
+ Set ^CacheTemp(repid,ind)=$LB(OEORDRowId,OEORDDate,PAADMADMNo,PAADMDischgDate,PAPMINo,PAPMIName,PAPMIName2,ID,P1,PrintDate,ReportDR,CTLOCDesc,HOSPRowID,HOSPDesc)
+ s ind=ind+1
+ //fetch rows
+ &sql(fetch PrintHistoryPathResults into :OEORDRowId,:OEORDDate,:PAADMADMNo,:PAADMDischgDate,:PAPMINo,:PAPMIName,:PAPMIName2,:ID,:P1,:PrintDate,:ReportDR,:CTLOCDesc,:HOSPRowID,:HOSPDesc)
+ }
+
+ //s ^zBernard("3")=(3)
+ &sql(close PrintHistoryPathResults)
+
+ // Build QHandle (AtEnd,ReportID,Index)
+ Set QHandle=$lb(0,repid,0)
+
+ //s ^zBernard("4")=(4)
+ Quit $$$OK
+
+
+FormatDates
+ // Convert the dates to ODBC date format
+ If PAADMDischgDate Set PAADMDischgDate=$ZD(PAADMDischgDate,3)
+ If OEORDDate Set OEORDDate=$ZD(OEORDDate,3)
+ If PrintDate Set PrintDate=$ZD(PrintDate,3)
+ 
+
+ //s ^zBernard("5")=(5)
+ Quit
+
+FormatTimes
+ // Convert the times to ODBC time format
+ // Uncomment following line and replace timefieldname
+ // If timefieldname Set timefieldname=$ZT(timefieldname,2)
+ // Quit
+]]></Implementation>
+</Method>
+
+<Method name="PrintHistoryPathResultsFetch">
+<Description>
+This is the Fetch component of the %Library.Query. 
+This should never have to change. It is designed to fetch the row for each subscript of the ^CacheTemp
+global and return this row to the Crystal Report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,&Row:%Library.List,&AtEnd:%Library.Integer=0]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // This fetch method should never have to change. 
+
+ // repid - Report ID
+ // ind   - sequence index which represents each row
+
+ New repid,ind
+
+ // Restore QHandle
+ Set AtEnd=$li(QHandle,1)
+ Set repid=$li(QHandle,2)
+ Set ind=$li(QHandle,3)
+
+ Set ind=$o(^CacheTemp(repid,ind))
+ If ind="" {	// if there are no more rows, finish fetching
+ Set AtEnd=1
+ Set Row=""
+ }
+ Else      {	// fetch row
+ Set Row=^CacheTemp(repid,ind)
+ }
+
+ // Save QHandle
+ s QHandle=$lb(AtEnd,repid,ind)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Query name="PrintHistoryPathResults">
+<Description>
+GHA List reports Stored Procedure
+It expects 2 parameter of type date and will return a list of records:
+Field1 - Integer
+Field2 - String(MAXLEN=255)
+Field3 - Date
+Field4 - Time</Description>
+<Type>%Library.Query</Type>
+<FormalSpec>DateFrom:%Date,DateTo:%Date,Hospital:%Integer</FormalSpec>
+<SqlProc>1</SqlProc>
+<Parameter name="CONTAINID" value="0"/>
+<Parameter name="ROWSPEC" value="OEORDRowId:%Integer,OEORDDate:%Date,PAADMADMNo:%String(MAXLEN=255),PAADMDischgDate:%Date,PAPMINo:%String(MAXLEN=255),PAPMIName:%String(MAXLEN=255),PAPMIName2:%String(MAXLEN=255),ID:%Integer,P1:%String(MAXLEN=255),PrintDate:%Date,ReportDR:%String(MAXLEN=255),CTLOCDesc:%String(MAXLEN=255),HOSPRowID:%Integer,HOSPDesc:%String(MAXLEN=255)"/>
+<Parameter name="SELECTMODE" value="ODBC"/>
+</Query>
+
+<Query name="LookUpHospital">
+<Description>
+Lookup on Hospital returning all active services</Description>
+<Type>%Library.SQLQuery</Type>
+<FormalSpec>Hospital:%String</FormalSpec>
+<SqlQuery><![CDATA[SELECT HOSP_Desc, HOSP_RowId, HOSP_Code
+FROM SQLUser.CT_Hospital
+WHERE ((%ALPHAUP HOSP_Desc %STARTSWITH %ALPHAUP :Hospital) OR (%ALPHAUP HOSP_Code %STARTSWITH %ALPHAUP :Hospital))
+AND (HOSP_DateFrom <= CURRENT_DATE)
+AND ((HOSP_DateTo IS NULL) OR (HOSP_DateTo >= CURRENT_DATE))
+ORDER BY HOSP_Desc]]></SqlQuery>
+<Parameter name="CONTAINID" value="2"/>
+<Parameter name="ROWSPEC" value="Description:%String,HIDDEN:%String,HIDDEN:%String"/>
+</Query>
+
+<Method name="LookUpBrokerHospital">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>itmjs:%Library.String="",itmjsex:%Library.String="",Hospital:%Library.String=""</FormalSpec>
+<Implementation><![CDATA[
+ n id,code,desc,activedate
+
+ s (id,code,desc)=""
+
+ ; Try and find a matching code
+ &sql(SELECT	HOSP_Desc, HOSP_RowId, HOSP_Code
+ INTO	:desc, :id, :code
+ FROM	SQLUser.CT_Hospital
+ WHERE	((%ALPHAUP HOSP_Desc = %ALPHAUP :Hospital) OR (%ALPHAUP HOSP_Code = %ALPHAUP :Hospital))
+ AND (HOSP_DateFrom <= CURRENT_DATE)
+ AND ((HOSP_DateTo IS NULL) OR (HOSP_DateTo >= CURRENT_DATE))
+ )
+ ;
+ i SQLCODE s desc=Hospital q 0
+ s retval=itmjs_"('"_$ZCVT(desc,"O","JS")_"');"
+ i itmjsex'="""" s retval=retval_itmjsex_"('"_$ZCVT(desc,"O","JS")_"^"_id_"^"_$ZCVT(code,"O","JS")_"');"
+ &javascript<#(retval)#>
+ q 1
+]]></Implementation>
+</Method>
+</Class>
+</Export>

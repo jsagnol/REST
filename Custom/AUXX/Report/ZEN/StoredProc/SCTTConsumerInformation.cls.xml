@@ -1,0 +1,426 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.AUXX.Report.ZEN.StoredProc.SCTTConsumerInformation">
+<Description>
+Report Name: Confidential Referral Coversheet
+Report Code: AUXX.SCTT0001
+TRC Number: 152012</Description>
+<ProcedureBlock>0</ProcedureBlock>
+<Super>Report.Abstract</Super>
+<TimeCreated>62970,48071.923811</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/AUXX/Report/ZEN/StoredProc/SCTTConsumerInformation.xml#1 $</Default>
+</Parameter>
+
+<Method name="ConInfoClose">
+<Description>
+This is the Close component of the %Library.Query.
+This is standard code and should never have to change.
+This is where all the cleanup is performed, i.e. the purging of the temporary storage global ^CacheTemp.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>QHandle:%Library.Binary</FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+	// Clean up by purging the temporary node in ^CacheTemp global
+	New repid
+	Set repid=$LIST(QHandle,2)
+
+	//Start Monitor (if configured to capture stats)
+	i mon Do ..MonitorEnd(mon)
+
+	Kill ^CacheTemp("TRAK",repid)
+
+	Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="ConInfoExecute">
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,EpisodeID:%Library.String,PatientID:%Library.String]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+	// Get reportid i.e. use $INCREMENT to add another node to ^CacheTemp("TRAK") global. 
+	// We use ^CacheTemp global because CACHETEMP is a memory resident database
+	New repid,ind
+
+	// Use $Increment to get the next node and clean up
+	Set repid=$Increment(^CacheTemp("TRAK"))
+	
+	//Start Monitor (if configured to capture stats)
+	s mon=..MonitorBegin()
+	
+	s (Surname,GivenName,SecondName,DOB,EstDOB,EstDOBDesc,PrefName,Sex,Title,HomeAddress1,HomeAddress2,HomeCity,HomeState,HomeZip,PostalAddress1,PostalAddress2,PostalCity,PostalState,PostalZip)=""
+	s (HomePhone,WorkPhone,MobilePhone,Email,PrefContact,CountryBirth,IndigStatus,InterReq,PrefLang,CommNeeds,RefName,RefDoctor,RefPhone,RefFax,RefEmail,RefAddress1,RefAddress2,RefCity,RefState,RefZip)=""
+	s (NokName1(1),NOKAddress1(1),NokAddress11(1),NokAddress12(1),NokCity1(1),NokState1(1),NokZip1(1),NokHomePhone1(1),NokWorkPhone1(1),NokMobilePhone1(1),NokRelation1(1),NokRelationCode1(1),CarerY1(1),LegalY1(1),NokName2(2),NOKAddress2(2),NokAddress21(2),NokAddress22(2),NokCity2(2),NokState2(2),NokZip2(2),NokHomePhone2(2),NokWorkPhone2(2),NokMobilePhone2(2),NokRelation2(2),NokRelationCode2(2),CarerY2(2),LegalY2(2))=""
+	s (LegalStatus,PensionType,ConsStatus,GovCardNo,Medicare,Payor,PayorNo,DVACardType,DVANo,CompType,Comments,HomeAddress,PostalAddress,RefAddress)=""
+	
+	i $g(EpisodeID) s EpisodeID=$zstrip(EpisodeID,"*CW")
+	i $g(PatientID) s PatientID=$zstrip(PatientID,"*CW")
+	i EpisodeID'="" {
+		s PatientID=$p($g(^PAADM(EpisodeID)),"^")
+	}
+	s PageTitle="Consumer Information"
+	s PageDesc="To collect common demographic and other essential consumer information that can be shared with another agency."_$c(13,10)_$c(13,10)_$c(13,10)_$c(13,10)
+	s PageSideText="Consumer Information"
+	s pat=##class(User.PAPatMas).%OpenId(PatientID)
+	i pat {
+		s Surname=pat.PAPMIName
+		s GivenName=pat.PAPMIName2
+		s SecondName=pat.PAPMIName3
+		s DOB=pat.PAPMIDOB
+		i DOB s DOB=$zd(DOB,4,,4)
+		s UR=pat.PAPMINo
+		s EstDOB=$s(pat.PAPMIPAPERDR.PAPEREstDOB="Y":1,1:2)
+		s EstDOBDesc=$s(pat.PAPMIPAPERDR.PAPEREstDOB="Y":"Yes",1:"No")
+		s PrefName=pat.PAPMIName4
+		s Sex=pat.PAPMISexDR.CTSEXCode
+		s SexDesc=pat.PAPMISexDR.CTSEXDesc
+		s Title=pat.PAPMITitleDR.TTLDesc
+		s HomeAddress1=pat.PAPMIPAPERDR.PAPERStName.GetAt(1)
+		s HomeAddress2=pat.PAPMIPAPERDR.PAPERForeignAddress
+		s HomeCity=pat.PAPMIPAPERDR.PAPERCityCodeDR.CTCITDesc
+		s HomeState=pat.PAPMIPAPERDR.PAPERCTProvinceDR.PROVDesc
+		s HomeZip=pat.PAPMIPAPERDR.PAPERZipDR.CTZIPCode
+		
+		s HomeAddress=HomeAddress1_$c(13,10)_$s($g(HomeAddress2)'="":HomeAddress2_$c(13,10),1:"")_HomeCity_" "_HomeState_" "_HomeZip
+		;s CaravlCode=##class(Region.AUXX.Utility.Utilities).GetMappedCode("PAC_TransportUsed","TRU_Code","SCTTCI",pat.PAPMIPAPERDR.PAPERTransportUsedDR.TRUCode)
+
+		f x=1:1:pat.PAPMIPAPERDR.ChildPATempAddress.Count() {
+			i ##class(Region.AUXX.Utility.Utilities).GetMappedCode("CT_AddrType","CTADR_Code","SCTTCI",pat.PAPMIPAPERDR.ChildPATempAddress.GetAt(x).ADDRAddressTypeDR.CTADRCode)="PA" {
+				i pat.PAPMIPAPERDR.ChildPATempAddress.GetAt(x).ADDRDateFrom<=+$h,$s(pat.PAPMIPAPERDR.ChildPATempAddress.GetAt(x).ADDRDateTo="":+$h,1:pat.PAPMIPAPERDR.ChildPATempAddress.GetAt(x).ADDRDateTo)>=+$h {
+					s PostalAddress1=pat.PAPMIPAPERDR.ChildPATempAddress.GetAt(x).ADDRStreet.GetAt(1)
+					s PostalAddress2=pat.PAPMIPAPERDR.ChildPATempAddress.GetAt(x).ADDRStreet2.GetAt(1)
+					s PostalCity=pat.PAPMIPAPERDR.ChildPATempAddress.GetAt(x).ADDRCityDR.CTCITDesc
+					s PostalState=pat.PAPMIPAPERDR.ChildPATempAddress.GetAt(x).ADDRProvinceDR.PROVDesc
+					s PostalZip=pat.PAPMIPAPERDR.ChildPATempAddress.GetAt(x).ADDRZipDR.CTZIPCode
+				}
+			}
+		}
+		s PostalAddress=PostalAddress1_$c(13,10)_$s($g(PostalAddress2)'="":PostalAddress2_$c(13,10),1:"")_PostalCity_" "_PostalState_" "_PostalZip
+		
+		s HomePhone=pat.PAPMIPAPERDR.PAPERTelH
+		s WorkPhone=pat.PAPMIPAPERDR.PAPERTelO
+		s MobilePhone=pat.PAPMIPAPERDR.PAPERMobPhone
+		s Email=pat.PAPMIPAPERDR.PAPEREmail
+		s PrefContact=pat.PAPMIPAPERDR.PAPERPreferredContactMethod
+		s (HomeMsg,WorkMsg,MobileMsg,EmailMsg)=0
+		f x=1:1:$l(pat.PAPMIPAPERDR.PAPERCanLeaveMessagesOn,"|") {
+			i $p(pat.PAPMIPAPERDR.PAPERCanLeaveMessagesOn,"|",x)="M" s HomeMsg=1
+			i $p(pat.PAPMIPAPERDR.PAPERCanLeaveMessagesOn,"|",x)="B" s WorkMsg=1
+			i $p(pat.PAPMIPAPERDR.PAPERCanLeaveMessagesOn,"|",x)="C" s MobileMsg=1
+			i $p(pat.PAPMIPAPERDR.PAPERCanLeaveMessagesOn,"|",x)="E" s EmailMsg=1
+		}
+		s CountryBirth=pat.PAPMIPAPERDR.PAPERCountryBirthDR.CTCOUDesc
+		s IndigStatus=pat.PAPMIPAPERDR.PAPERIndigStatDR.INDSTDesc
+		s InterReq=$s(pat.PAPMIPAPERDR.PAPERInterpreterRequired="Y":"Interpreter needed",pat.PAPMIPAPERDR.PAPERInterpreterRequired="N":"Interpreter not needed",1:"Not stated/Inadequately described")
+		s PrefLang=pat.PAPMIPAPERDR.PAPERPrefLanguageDR.PREFLDesc
+		s CommNeeds=pat.PAPMIPAPERDR.PAPERCommunicationNeedsDR.COMMNEEDSDesc
+		
+		s (CountryBirthCode,IndigStatusCode,InterReqCode,PrefLangCode,CommNeedsCode)=""
+		s CountryBirthCode=pat.PAPMIPAPERDR.PAPERCountryBirthDR.CTCOUCode
+		s IndigStatusCode=pat.PAPMIPAPERDR.PAPERIndigStatDR.INDSTCode
+		s InterReqCode=$s(pat.PAPMIPAPERDR.PAPERInterpreterRequired="Y":1,pat.PAPMIPAPERDR.PAPERInterpreterRequired="N":2,1:"9")
+		s PrefLangCode=pat.PAPMIPAPERDR.PAPERPrefLanguageDR.PREFLCode
+		s CommNeedsCode=pat.PAPMIPAPERDR.PAPERCommunicationNeedsDR.COMMNEEDSCode
+		/*		
+		i pat.PAPMIPAPERDR.PAPERFamilyDoctorDR {
+			i pat.PAPMIPAPERDR.PAPERFamilyDoctorDR.ChildPACRefDoctorClinic.Count()>=1 {
+				i pat.PAPMIPAPERDR.PAPERFamilyDoctorDR.ChildPACRefDoctorClinic.GetAt(1).CLNClinicDR {
+					s RefName=pat.PAPMIPAPERDR.PAPERFamilyDoctorDR.ChildPACRefDoctorClinic.GetAt(1).CLNClinicDR.CLNDesc
+					s RefDoctor=pat.PAPMIPAPERDR.PAPERFamilyDoctorDR.REFDForename_" "_pat.PAPMIPAPERDR.PAPERFamilyDoctorDR.REFDDesc
+					s RefPhone=pat.PAPMIPAPERDR.PAPERFamilyDoctorDR.ChildPACRefDoctorClinic.GetAt(1).CLNPhone
+					s RefFax=pat.PAPMIPAPERDR.PAPERFamilyDoctorDR.ChildPACRefDoctorClinic.GetAt(1).CLNFax
+					s RefEmail=pat.PAPMIPAPERDR.PAPERFamilyDoctorDR.ChildPACRefDoctorClinic.GetAt(1).CLNEmail
+					s RefAddress1=pat.PAPMIPAPERDR.PAPERFamilyDoctorDR.ChildPACRefDoctorClinic.GetAt(1).CLNAddress1
+					s RefAddress2=pat.PAPMIPAPERDR.PAPERFamilyDoctorDR.ChildPACRefDoctorClinic.GetAt(1).CLNAddress2
+					s RefCity=pat.PAPMIPAPERDR.PAPERFamilyDoctorDR.ChildPACRefDoctorClinic.GetAt(1).CLNCityDR.CTCITDesc
+					s RefState=pat.PAPMIPAPERDR.PAPERFamilyDoctorDR.ChildPACRefDoctorClinic.GetAt(1).CLNCityDR.CTCITProvinceDR.PROVDesc
+					s RefZip=pat.PAPMIPAPERDR.PAPERFamilyDoctorDR.ChildPACRefDoctorClinic.GetAt(1).CLNZipDR.CTZIPCode
+			
+					s RefAddress=RefAddress1_$c(13,10)_$s($g(RefAddress2)'="":RefAddress2_$c(13,10),1:"")_RefCity_" "_RefState_" "_RefZip
+				}
+			}
+		}
+		*/
+		i pat.PAPMIPAPERDR.PAPERFamilyDoctorClinicDR,pat.PAPMIPAPERDR.PAPERFamilyDoctorDR {
+			s RefName=pat.PAPMIPAPERDR.PAPERFamilyDoctorClinicDR.CLNClinicDR.CLNDesc
+			s RefDoctor=pat.PAPMIPAPERDR.PAPERFamilyDoctorDR.REFDForename_" "_pat.PAPMIPAPERDR.PAPERFamilyDoctorDR.REFDDesc
+			s RefPhone=pat.PAPMIPAPERDR.PAPERFamilyDoctorClinicDR.CLNPhone
+			s RefFax=pat.PAPMIPAPERDR.PAPERFamilyDoctorClinicDR.CLNFax
+			s RefEmail=pat.PAPMIPAPERDR.PAPERFamilyDoctorClinicDR.CLNEmail
+			s RefAddress1=pat.PAPMIPAPERDR.PAPERFamilyDoctorClinicDR.CLNAddress1
+			s RefAddress2=pat.PAPMIPAPERDR.PAPERFamilyDoctorClinicDR.CLNAddress2
+			s RefCity=pat.PAPMIPAPERDR.PAPERFamilyDoctorClinicDR.CLNCityDR.CTCITDesc
+			s RefState=pat.PAPMIPAPERDR.PAPERFamilyDoctorClinicDR.CLNCityDR.CTCITProvinceDR.PROVDesc
+			s RefZip=pat.PAPMIPAPERDR.PAPERFamilyDoctorClinicDR.CLNZipDR.CTZIPCode
+			
+			s RefAddress=RefAddress1_$c(13,10)_$s($g(RefAddress2)'="":RefAddress2_$c(13,10),1:"")_RefCity_" "_RefState_" "_RefZip
+		}
+		s nok=0,PrimaryList=""
+		
+		s nok=0
+		f {
+			s nok=$o(^PAPER(PatientID,"NOK",nok)) q:nok=""
+			s nokOBJ=##class(User.PANok).%OpenId(PatientID_"||"_nok)
+			i nokOBJ {
+				i nokOBJ.NOKDateFrom<=+$h,$s(nokOBJ.NOKDateTo="":+$h,1:nokOBJ.NOKDateTo)>=+$h {
+					s (found1,found2)=0
+					i 'found1 {
+						i nokOBJ.NOKFirstContact="Y" {
+							s found1=1
+							s NokName1(1)=$s(nokOBJ.NOKPAPERDR:nokOBJ.NOKPAPERDR.PAPERName2_" "_nokOBJ.NOKPAPERDR.PAPERName,1:nokOBJ.NOKName2_" "_nokOBJ.NOKName)
+							s NokAddress11(1)=$s(nokOBJ.NOKPAPERDR:nokOBJ.NOKPAPERDR.PAPERStName.GetAt(1),1:nokOBJ.NOKStNameLine1)
+							s NokAddress21(1)=$s(nokOBJ.NOKPAPERDR:nokOBJ.NOKPAPERDR.PAPERForeignAddress,1:nokOBJ.NOKAddress2)
+							s NokCity1(1)=$s(nokOBJ.NOKPAPERDR:nokOBJ.NOKPAPERDR.PAPERCityCodeDR.CTCITDesc,1:nokOBJ.NOKCityCodeDR.CTCITDesc)
+							s NokState1(1)=$s(nokOBJ.NOKPAPERDR:nokOBJ.NOKPAPERDR.PAPERCTProvinceDR.PROVDesc,1:nokOBJ.NOKProvinceDR.PROVDesc)
+							s NokZip1(1)=$s(nokOBJ.NOKPAPERDR:nokOBJ.NOKPAPERDR.PAPERZipDR.CTZIPCode,1:nokOBJ.NOKZipDR.CTZIPCode)
+							s NokHomePhone1(1)=$s(nokOBJ.NOKPAPERDR:nokOBJ.NOKPAPERDR.PAPERTelH,1:nokOBJ.NOKTelH)
+							s NokWorkPhone1(1)=$s(nokOBJ.NOKPAPERDR:nokOBJ.NOKPAPERDR.PAPERTelO,1:nokOBJ.NOKTelO)
+							s NokMobilePhone1(1)=$s(nokOBJ.NOKPAPERDR:nokOBJ.NOKPAPERDR.PAPERMobPhone,1:nokOBJ.NOKMobPhone)
+							
+							s NokRelation1(1)=nokOBJ.NOKRelationDR.CTRLTDesc
+							s NokRelationCode1(1)=##class(Custom.AUXXUtilities).GetMappedCode("CT_Relation","CTRLT_Code","SCTTCI",nokOBJ.NOKRelationDR.CTRLTCode)
+
+							i (",1,2,")[(","_nokOBJ.NOKContactTypeDR.CONTTPCode_",") { s CarerY1(1)="YES" } else { s CarerY1(1)="NO" }
+							i (",003,004,007,")[(","_nokOBJ.NOKContactTypeDR.CONTTPCode_",") { s LegalY1(1)="YES" } else { s LegalY1(1)="NO" }
+							
+							;s NokId11(1)=$s(nokOBJ.NOKPAPERDR:nokOBJ.NOKPAPERDR.PAPERStName.GetAt(1),1:nokOBJ.NOKStNameLine1)
+							;s NokId1(1)=$s(nokOBJ.NOKPAPERDR:nokOBJ.NOKPAPERDR.PAPERStName.GetAt(1),1:nokOBJ.NOKStNameLine1)
+							
+							s NOKAddress1(1)=NokAddress11(1)_$c(13,10)_$s($g(NokAddress21(1))'="":NokAddress21(1)_$c(13,10),1:"")_NokCity1(1)_" "_NokState1(1)_" "_NokZip1(1)
+						}
+					}
+					i 'found2,'found1 {
+						s found2=1
+						s NokName2(2)=$s(nokOBJ.NOKPAPERDR:nokOBJ.NOKPAPERDR.PAPERName2_" "_nokOBJ.NOKPAPERDR.PAPERName,1:nokOBJ.NOKName2_" "_nokOBJ.NOKName)
+						s NokAddress12(2)=$s(nokOBJ.NOKPAPERDR:nokOBJ.NOKPAPERDR.PAPERStName.GetAt(1),1:nokOBJ.NOKStNameLine1)
+						s NokAddress22(2)=$s(nokOBJ.NOKPAPERDR:nokOBJ.NOKPAPERDR.PAPERForeignAddress,1:nokOBJ.NOKAddress2)
+						s NokCity2(2)=$s(nokOBJ.NOKPAPERDR:nokOBJ.NOKPAPERDR.PAPERCityCodeDR.CTCITDesc,1:nokOBJ.NOKCityCodeDR.CTCITDesc)
+						s NokState2(2)=$s(nokOBJ.NOKPAPERDR:nokOBJ.NOKPAPERDR.PAPERCTProvinceDR.PROVDesc,1:nokOBJ.NOKProvinceDR.PROVDesc)
+						s NokZip2(2)=$s(nokOBJ.NOKPAPERDR:nokOBJ.NOKPAPERDR.PAPERZipDR.CTZIPCode,1:nokOBJ.NOKZipDR.CTZIPCode)
+						s NokHomePhone2(2)=$s(nokOBJ.NOKPAPERDR:nokOBJ.NOKPAPERDR.PAPERTelH,1:nokOBJ.NOKTelH)
+						s NokWorkPhone2(2)=$s(nokOBJ.NOKPAPERDR:nokOBJ.NOKPAPERDR.PAPERTelO,1:nokOBJ.NOKTelO)
+						s NokMobilePhone2(2)=$s(nokOBJ.NOKPAPERDR:nokOBJ.NOKPAPERDR.PAPERMobPhone,1:nokOBJ.NOKMobPhone)
+						
+						s NokRelation2(2)=nokOBJ.NOKRelationDR.CTRLTDesc
+						s NokRelationCode2(2)=##class(Custom.AUXXUtilities).GetMappedCode("CT_Relation","CTRLT_Code","SCTTCI",nokOBJ.NOKRelationDR.CTRLTCode)
+
+						i (",1,2,")[(","_nokOBJ.NOKContactTypeDR.CONTTPCode_",") { s CarerY2(2)="YES" } else { s CarerY2(2)="NO" }
+						i (",003,004,007,")[(","_nokOBJ.NOKContactTypeDR.CONTTPCode_",") { s LegalY2(2)="YES" } else { s LegalY2(2)="NO" }
+						
+						;s NokId11(1)=$s(nokOBJ.NOKPAPERDR:nokOBJ.NOKPAPERDR.PAPERStName.GetAt(1),1:nokOBJ.NOKStNameLine1)
+						;s NokId1(1)=$s(nokOBJ.NOKPAPERDR:nokOBJ.NOKPAPERDR.PAPERStName.GetAt(1),1:nokOBJ.NOKStNameLine1)
+	
+						s NOKAddress2(2)=NokAddress12(2)_$c(13,10)_$s($g(NokAddress22(2))'="":NokAddress22(2)_$c(13,10),1:"")_NokCity2(2)_" "_NokState2(2)_" "_NokZip2(2)
+					}
+				}
+			}
+		}
+		
+		/*
+		f x=1:1:pat.ChildPANok.Count() {
+			s nokid=pat.ChildPANok.GetAt(x).%Id()
+			i pat.ChildPANok.GetAt(x).NOKDateFrom<=+$h,$s(pat.ChildPANok.GetAt(x).NOKDateTo="":+$h,1:pat.ChildPANok.GetAt(x).NOKDateTo)>=+$h,+nokid=pat.%Id() {
+				s nok=$i(nok)
+				i pat.ChildPANok.GetAt(x).NOKPAPERDR {
+					s NokId(nok)=pat.ChildPANok.GetAt(x).NOKPAPERDR.%Id()
+					s NokId1(nok)=pat.ChildPANok.GetAt(x).NOKPAPERDR.PAPERName2_"^"_pat.ChildPANok.GetAt(x).NOKPAPERDR.PAPERName_"^"_$s(pat.ChildPANok.GetAt(x).NOKPAPERDR.PAPERSexDR:pat.ChildPANok.GetAt(x).NOKPAPERDR.PAPERSexDR.%Id(),1:"")_"^"_pat.ChildPANok.GetAt(x).NOKPAPERDR.PAPERDob_"^"_$s(pat.ChildPANok.GetAt(x).NOKRelationDR:pat.ChildPANok.GetAt(x).NOKRelationDR.%Id(),1:"")
+					s NokName(nok)=pat.ChildPANok.GetAt(x).NOKPAPERDR.PAPERName2_" "_pat.ChildPANok.GetAt(x).NOKPAPERDR.PAPERName
+					s NokAddress1(nok)=pat.ChildPANok.GetAt(x).NOKPAPERDR.PAPERStName.GetAt(1)
+					s NokAddress2(nok)=pat.ChildPANok.GetAt(x).NOKPAPERDR.PAPERForeignAddress
+					s NokCity(nok)=pat.ChildPANok.GetAt(x).NOKPAPERDR.PAPERCityCodeDR.CTCITDesc
+					s NokState(nok)=pat.ChildPANok.GetAt(x).NOKPAPERDR.PAPERCTProvinceDR.PROVDesc
+					s NokZip(nok)=pat.ChildPANok.GetAt(x).NOKPAPERDR.PAPERZipDR.CTZIPCode
+					s NokHomePhone(nok)=pat.ChildPANok.GetAt(x).NOKPAPERDR.PAPERTelH
+					s NokWorkPhone(nok)=pat.ChildPANok.GetAt(x).NOKPAPERDR.PAPERTelO
+					s NokMobilePhone(nok)=pat.ChildPANok.GetAt(x).NOKPAPERDR.PAPERMobPhone
+				} else {
+					s NokId1(nok)=pat.ChildPANok.GetAt(x).NOKName2_"^"_pat.ChildPANok.GetAt(x).NOKName_"^"_$s(pat.ChildPANok.GetAt(x).NOKSexDR:pat.ChildPANok.GetAt(x).NOKSexDR.%Id(),1:"")_"^"_pat.ChildPANok.GetAt(x).NOKDateOfBirth_"^"_$s(pat.ChildPANok.GetAt(x).NOKRelationDR:pat.ChildPANok.GetAt(x).NOKRelationDR.%Id(),1:"")
+					s NokName(nok)=pat.ChildPANok.GetAt(x).NOKName2_" "_pat.ChildPANok.GetAt(x).NOKName
+					s NokAddress1(nok)=pat.ChildPANok.GetAt(x).NOKStNameLine1
+					s NokAddress2(nok)=pat.ChildPANok.GetAt(x).NOKAddress2
+					s NokCity(nok)=pat.ChildPANok.GetAt(x).NOKCityCodeDR.CTCITDesc
+					s NokState(nok)=pat.ChildPANok.GetAt(x).NOKProvinceDR.PROVDesc
+					s NokZip(nok)=pat.ChildPANok.GetAt(x).NOKZipDR.CTZIPCode
+					s NokHomePhone(nok)=pat.ChildPANok.GetAt(x).NOKTelH
+					s NokWorkPhone(nok)=pat.ChildPANok.GetAt(x).NOKTelO
+					s NokMobilePhone(nok)=pat.ChildPANok.GetAt(x).NOKMobPhone
+				}
+				s NokPrimary(nok)=pat.ChildPANok.GetAt(x).NOKFirstContact
+				s NokRelation(nok)=pat.ChildPANok.GetAt(x).NOKRelationDR.CTRLTDesc
+				s NokRelationCode(nok)=##class(Custom.AUXXUtilities).GetMappedCode("CT_Relation","CTRLT_Code","SCTTCI",pat.ChildPANok.GetAt(x).NOKRelationDR.CTRLTCode)
+				s NokType=pat.ChildPANok.GetAt(x).NOKContactTypeDR.CONTTPCode
+				
+				i NokPrimary(nok)="Y" {
+					i PrimaryList'="" s PrimaryList=PrimaryList_","_nok
+					i PrimaryList="" s PrimaryList=nok
+				}
+				i (",1,2,")[(","_NokType_",") { s CarerY(nok)="YES" } else { s CarerY(nok)="NO" }
+				i (",003,004,007,")[(","_NokType_",") { s LegalY(nok)="YES" } else { s LegalY(nok)="NO" }
+					
+				s NOKAddress(nok)=NokAddress1(nok)_$c(13,10)_$s($g(NokAddress2(nok))'="":NokAddress2(nok)_$c(13,10),1:"")_NokCity(nok)_" "_NokState(nok)_" "_NokZip(nok)
+			}
+		}
+		
+		k NokName1(1),NokAddress11(1),NokAddress21(1),NokCity1(1),NokState1(1),NokZip1(1),NokHomePhone1(1),NokWorkPhone1(1),NokMobilePhone1(1),NokRelation1(1),CarerY1(1),LegalY1(1),NokName2(2),NokAddress12(2),NokAddress22(2),NokCity2(2),NokState2(2),NokZip2(2),NokHomePhone2(2),NokWorkPhone2(2),NokMobilePhone2(2),NokRelation2(2),CarerY2(2),LegalY2(2),NOKAddress1(1),NOKAddress2(2),NokRelationCode1(1),NokRelationCode2(2)
+		s (x,found)=0
+		f {
+			s x=$o(NokId1(x)) q:x=""
+			i NokPrimary(x)="Y" {
+				s NokName1(1)=$g(NokName(x))
+				s NokAddress11(1)=$g(NokAddress1(x))
+				s NokAddress21(1)=$g(NokAddress2(x))
+				s NokCity1(1)=$g(NokCity(x))
+				s NokState1(1)=$g(NokState(x))
+				s NokZip1(1)=$g(NokZip(x))
+				s NokHomePhone1(1)=$g(NokHomePhone(x))
+				s NokWorkPhone1(1)=$g(NokWorkPhone(x))
+				s NokMobilePhone1(1)=$g(NokMobilePhone(x))
+				s NokRelation1(1)=$g(NokRelation(x))
+				s NokRelationCode1(1)=$g(NokRelationCode(x))
+				s CarerY1(1)=$g(CarerY(x))
+				s LegalY1(1)=$g(LegalY(x))
+				s NokId11(1)=$g(NokId1(x))
+				s NokId1(1)=$g(NokId(x))
+				s NOKAddress1(1)=$g(NOKAddress(x))
+			} elseif (('found)&&(NokPrimary(x)'="Y")) {
+				s found=1
+				s NokName2(2)=$g(NokName(x))
+				s NokAddress12(2)=$g(NokAddress1(x))
+				s NokAddress22(2)=$g(NokAddress2(x))
+				s NokCity2(2)=$g(NokCity(x))
+				s NokState2(2)=$g(NokState(x))
+				s NokZip2(2)=$g(NokZip(x))
+				s NokHomePhone2(2)=$g(NokHomePhone(x))
+				s NokWorkPhone2(2)=$g(NokWorkPhone(x))
+				s NokMobilePhone2(2)=$g(NokMobilePhone(x))
+				s NokRelation2(2)=$g(NokRelation(x))
+				s NokRelationCode2(2)=$g(NokRelationCode(x))
+				s CarerY2(2)=$g(CarerY(x))
+				s LegalY2(2)=$g(LegalY(x))
+				s NokId12(2)=$g(NokId1(x))
+				s NokId2(2)=$g(NokId(x))
+				s NOKAddress2(2)=$g(NOKAddress(x))
+			}
+		}
+				*/
+
+		s (LegalStatusCode,PensionTypeCode,DVACardTypeCode,CompTypeCode)=""
+		
+		i $g(EpisodeID)'="" {
+			s adm2obj=##class(User.PAAdm2).%OpenId(EpisodeID)
+			i adm2obj {
+				s LegalStatus=adm2obj.PAADM2LegalStatusDR.LSTIDesc
+				s LegalStatusCode=##class(Custom.AUXXUtilities).GetMappedCode("PAC_LegalStatusIndicator","LSTI_Code","SCTTCI",adm2obj.PAADM2LegalStatusDR.LSTICode)
+				k adm2obj
+			}
+		}
+		s PensionType=pat.PAPMIPensionTypeDR.PENSTYPEDesc
+		s PensionTypeCode=##class(Custom.AUXXUtilities).GetMappedCode("PAC_PensionType","PENSTYPE_Code","SCTTCI",pat.PAPMIPensionTypeDR.PENSTYPECode)
+		s GovCardNo=pat.PAPMIPAPERDR.PAPERGovernCardNo
+		s Medicare=pat.PAPMIMedicare_" "_pat.PAPMIMedicareCode
+		
+		f x=1:1:pat.PAPMIPAPERDR.ChildPAPersonInsurance.Count() {
+			s Payor=pat.PAPMIPAPERDR.ChildPAPersonInsurance.GetAt(x).INSInsTypeDR.INSTDesc
+			s PayorNo=pat.PAPMIPAPERDR.ChildPAPersonInsurance.GetAt(x).INSHealthFundNo
+		}
+		s DVACardType=pat.PAPMICardTypeDR.CARDDesc
+		s DVACardTypeCode=pat.PAPMICardTypeDR.CARDCode
+		s DVANo=pat.PAPMIDVAnumber
+
+		;s CompType=$s(pat.PAPMIPAPERDR.PAPERInsTypeDR.INSTCategory="Auto":"Transport Accident Commission",pat.PAPMIPAPERDR.PAPERInsTypeDR.INSTCategory="Veteran":"Department of Veterans Affairs",pat.PAPMIPAPERDR.PAPERInsTypeDR.INSTCategory="Labour":"Work Cover",1:"Not Applicable")
+		;s CompTypeCode=$s(pat.PAPMIPAPERDR.PAPERInsTypeDR.INSTCategory="Auto":1,pat.PAPMIPAPERDR.PAPERInsTypeDR.INSTCategory="Veteran":2,pat.PAPMIPAPERDR.PAPERInsTypeDR.INSTCategory="Labour":3,1:0)
+		i $g(EpisodeID)'="" {
+			s admobj=##class(User.PAAdm).%OpenId(EpisodeID)
+			i admobj {
+				f x=1:1:admobj.ChildPAAdmInsurance.Count() {
+					s CompType=$s(admobj.ChildPAAdmInsurance.GetAt(x).INSInsTypeDR.INSTCategory="Auto":"Transport Accident Commission",admobj.ChildPAAdmInsurance.GetAt(x).INSInsTypeDR.INSTCategory="Veteran":"Department of Veterans Affairs",admobj.ChildPAAdmInsurance.GetAt(x).INSInsTypeDR.INSTCategory="Labour":"Work Cover",1:"Not Applicable")
+					s CompTypeCode=$s(admobj.ChildPAAdmInsurance.GetAt(x).INSInsTypeDR.INSTCategory="Auto":1,admobj.ChildPAAdmInsurance.GetAt(x).INSInsTypeDR.INSTCategory="Veteran":2,admobj.ChildPAAdmInsurance.GetAt(x).INSInsTypeDR.INSTCategory="Labour":3,1:0)
+				}
+				k admobj
+			}
+		}
+		s Comments=""
+		f x=1:1:pat.PAPMIPAPERDR.PAPERRemark.Count() {
+			i Comments'="" s Comments=Comments_$c(13,10)_pat.PAPMIPAPERDR.PAPERRemark.GetAt(x)
+			i Comments="" s Comments=pat.PAPMIPAPERDR.PAPERRemark.GetAt(x)
+		}
+		i pat.PAPMIPAPERDR.PAPERRemark.Count()<3 {
+			f x=pat.PAPMIPAPERDR.PAPERRemark.Count():1:3 {
+				s Comments=Comments_$c(13,10)
+			}
+		}
+
+		s ConsStatus=pat.PAPMIPAPERDR.PAPERConcessCardTypeDR.CONCCARDCode
+		i ConsStatus'="" {
+			i ConsStatus="1" s ConsStatus=1
+			i ConsStatus="2" s ConsStatus=9
+			i ConsStatus="3" s ConsStatus=9
+			i ConsStatus="4" s ConsStatus=1
+			i ConsStatus="5" s ConsStatus=2
+			i ConsStatus="9" s ConsStatus=9
+		}
+
+		s ind=$i(ind)
+		s ^CacheTemp("TRAK",repid,ind)=$lb("CI",PageTitle,PageDesc,PageSideText,Surname,GivenName,SecondName,DOB,EstDOB,EstDOBDesc,PrefName,Sex,SexDesc,Title,HomeAddress1,HomeAddress2,HomeCity,HomeState,HomeZip,PostalAddress1,PostalAddress2,PostalCity,PostalState,PostalZip,HomePhone,WorkPhone,MobilePhone,Email,PrefContact,CountryBirth,IndigStatus,InterReq,PrefLang,CommNeeds,RefName,RefDoctor,RefPhone,RefFax,RefEmail,RefAddress1,RefAddress2,RefCity,RefState,RefZip,NokName1(1),NokAddress11(1),NokAddress21(1),NokCity1(1),NokState1(1),NokZip1(1),NokHomePhone1(1),NokWorkPhone1(1),NokMobilePhone1(1),NokRelation1(1),CarerY1(1),LegalY1(1),NokName2(2),NokAddress12(2),NokAddress22(2),NokCity2(2),NokState2(2),NokZip2(2),NokHomePhone2(2),NokWorkPhone2(2),NokMobilePhone2(2),NokRelation2(2),CarerY2(2),LegalY2(2),LegalStatus,PensionType,ConsStatus,GovCardNo,Medicare,Payor,PayorNo,DVACardType,DVANo,CompType,Comments,UR,NOKAddress1(1),NOKAddress2(2),HomeAddress,PostalAddress,NokRelationCode1(1),NokRelationCode2(2),HomeMsg,WorkMsg,MobileMsg,EmailMsg,CountryBirthCode,IndigStatusCode,InterReqCode,PrefLangCode,CommNeedsCode,LegalStatusCode,PensionTypeCode,DVACardTypeCode,CompTypeCode,RefAddress)
+		k pat
+	}
+
+	// Build QHandle (AtEnd,ReportID,Index)
+	Set QHandle=$LISTBUILD(0,repid,0)
+	Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="ConInfoFetch">
+<Description>
+This is the Fetch component of the %Library.Query. 
+This should never have to change. It is designed to fetch the row for each subscript of the 
+^CacheTemp("TRAK" global and return this row to the Report writer</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,&Row:%Library.List,&AtEnd:%Library.Integer=0]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+	// This fetch method should never have to change. 
+	// repid - Report ID
+	// ind   - sequence index which represents each row
+	New repid,ind
+
+	// Restore QHandle
+	Set AtEnd=$LI(QHandle,1)
+	Set repid=$LI(QHandle,2)
+	Set ind=$LI(QHandle,3)
+
+	Set ind=$order(^CacheTemp("TRAK",repid,ind))
+	If ind="" {	// if there are no more rows, finish fetching
+		Set AtEnd=1
+		Set Row=""
+	} else {	// fetch row
+		Set Row=^CacheTemp("TRAK",repid,ind)
+	}
+
+	// Save QHandle
+	Set QHandle=$lb(AtEnd,repid,ind)
+	Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Query name="ConInfo">
+<Description>
+This is the Stored Procedure Template. For Sample use only.
+It expects one parameter of type integer and will return 4 fields:
+Field1 - Integer
+Field2 - String
+Field3 - Date
+Field4 - Time</Description>
+<Type>%Library.Query</Type>
+<FormalSpec>EpisodeID:%Library.String,PatientID:%Library.String</FormalSpec>
+<SqlProc>1</SqlProc>
+<Parameter name="CONTAINID" value="0"/>
+<Parameter name="ROWSPEC" value="FormCode:%String,PageTitle:%String,PageDesc:%String,PageSideText:%String,Surname:%String,GivenName:%String,SecondName:%String,DOB:%String,EstDOB:%String,EstDOBDesc:%String,PrefName:%String,Sex:%String,SexDesc:%String,Title:%String,HomeAddress1:%String,HomeAddress2:%String,HomeCity:%String,HomeState:%String,HomeZip:%String,PostalAddress1:%String,PostalAddress2:%String,PostalCity:%String,PostalState:%String,PostalZip:%String,HomePhone:%String,WorkPhone:%String,MobilePhone:%String,Email:%String,PrefContact:%String,CountryBirth:%String,IndigStatus:%String,InterReq:%String,PrefLang:%String,CommNeeds:%String,RefName:%String,RefDoctor:%String,RefPhone:%String,RefFax:%String,RefEmail:%String,RefAddress1:%String,RefAddress2:%String,RefCity:%String,RefState:%String,RefZip:%String,NokName1:%String,NokAddress11:%String,NokAddress21:%String,NokCity1:%String,NokState1:%String,NokZip1:%String,NokHomePhone1:%String,NokWorkPhone1:%String,NokMobilePhone1:%String,NokRelation1:%String,CarerY1:%String,LegalY1:%String,NokName2:%String,NokAddress12:%String,NokAddress22:%String,NokCity2:%String,NokState2:%String,NokZip2:%String,NokHomePhone2:%String,NokWorkPhone2:%String,NokMobilePhone2:%String,NokRelation2:%String,CarerY2:%String,LegalY2:%String,LegalStatus:%String,PensionType:%String,ConsStatus:%String,GovCardNo:%String,Medicare:%String,Payor:%String,PayorNo:%String,DVACardType:%String,DVANo:%String,CompType:%String,Comments:%String,UR:%String,NOKAddress1:%String,NOKAddress2:%String,HomeAddress:%String,PostalAddress:%String,NokRelationCode1:%String,NokRelationCode2:%String,HomeMsg:%String,WorkMsg:%String,MobileMsg:%String,EmailMsg:%String,CountryBirthCode:%String,IndigStatusCode:%String,InterReqCode:%String,PrefLangCode:%String,CommNeedsCode:%String,LegalStatusCode:%String,PensionTypeCode:%String,DVACardTypeCode:%String,CompTypeCode:%String,RefAddress:%String"/>
+</Query>
+</Class>
+</Export>

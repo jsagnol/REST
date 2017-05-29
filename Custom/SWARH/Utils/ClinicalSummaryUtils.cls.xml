@@ -1,0 +1,168 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.SWARH.Utils.ClinicalSummaryUtils">
+<Description>
+Custom.SWARH.Utils.ClinicalSummaryUtils</Description>
+<ProcedureBlock>1</ProcedureBlock>
+<Super>%SOAP.WebService</Super>
+<TimeCreated>63873,49605.896267</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/SWARH/Utils/ClinicalSummaryUtils.xml#1 $</Default>
+</Parameter>
+
+<Parameter name="SERVICENAME">
+<Description>
+Name of the WebService.</Description>
+<Default>ClinicalSummaryUtils</Default>
+</Parameter>
+
+<Parameter name="NAMESPACE">
+<Description>
+TODO: change this to actual SOAP namespace.
+SOAP Namespace for the WebService</Description>
+<Default>http://tempuri.org</Default>
+</Parameter>
+
+<Parameter name="USECLASSNAMESPACES">
+<Description>
+Namespaces of referenced classes wil be used in the WSDL.</Description>
+<Default>1</Default>
+</Parameter>
+
+<Method name="GetDischargeSummaryFromEpisode">
+<Description>
+TODO: add arguments and implementation.
+GetDischargeSummaryFromEpisode</Description>
+<FormalSpec>PAADMAdmNo:%String</FormalSpec>
+<ReturnType>%Stream.GlobalBinary</ReturnType>
+<WebMethod>1</WebMethod>
+<Implementation><![CDATA[
+	
+	//s PAADMAdmNo="IP2128554"
+	&SQL(
+	
+        select DataId INTO :DocID from websys.Document where ID=(
+                select DocumentDR from websys.RequestedReportHistory where ID=(
+                        select RequestedReportHistoryDR FROM websys.PrintHistory where P1=(
+                                select MAX(DIS_PADischargeSummary_DR) from SQLUser.PA_Adm2DischargeSummary where DIS_ParRef=(
+                                        select PAADM_RowID from SQLUser.PA_Adm WHERE PAADM_AdmNo=:PAADMAdmNo
+                                        ) AND DIS_PADischargeSummary_DR->DIS_Version_DR IS NULL
+                                ) and P3=2125 AND Status='P'
+                        )
+                )
+        )
+	
+	s doc=##Class(websys.DocumentPDF).%OpenId(DocID)
+	return doc.docData
+]]></Implementation>
+</Method>
+
+<Method name="CheckDischargeSummaryExistsForEpisode">
+<FormalSpec>PAADMAdmNo:%String</FormalSpec>
+<ReturnType>%String</ReturnType>
+<WebMethod>1</WebMethod>
+<Implementation><![CDATA[
+	set DocID=0
+	&SQL(
+        select DataId INTO :DocID from websys.Document where ID=(
+                select DocumentDR from websys.RequestedReportHistory where ID=(
+                        select RequestedReportHistoryDR FROM websys.PrintHistory where P1=(
+                               select MAX(DIS_PADischargeSummary_DR) from SQLUser.PA_Adm2DischargeSummary where DIS_ParRef=(
+                                        select PAADM_RowID from SQLUser.PA_Adm WHERE PAADM_AdmNo=:PAADMAdmNo
+                                        ) AND DIS_PADischargeSummary_DR->DIS_Version_DR IS NULL
+                                ) and P3=2125 AND Status='P'
+                        )
+                )
+        )
+	return DocID
+]]></Implementation>
+</Method>
+
+<Method name="GetDischargeDateFromDischargeSummary">
+<FormalSpec>PAADMAdmNo:%String</FormalSpec>
+<ReturnType>%String</ReturnType>
+<WebMethod>1</WebMethod>
+<Implementation><![CDATA[
+ 	&SQL(
+	 	select TOP 1 DIS_PADischargeSummary_DR->DIS_Date INTO :DischargeSummaryDate
+        	from SQLUser.PA_Adm2DischargeSummary where DIS_ParRef=(
+             	select PAADM_RowID from SQLUser.PA_Adm WHERE PAADM_AdmNo=:PAADMAdmNo
+             ) 
+             AND DIS_PADischargeSummary_DR->DIS_Version_DR IS NULL
+             ORDER BY DIS_ChildSub DESC
+    )
+    return DischargeSummaryDate
+]]></Implementation>
+</Method>
+
+<Method name="GetClinicianClinic">
+<FormalSpec>REFDCode:%String</FormalSpec>
+<ReturnType>%String</ReturnType>
+<WebMethod>1</WebMethod>
+<Implementation><![CDATA[
+	//Return a comma seperated list of clinics REFDCode is assigned to
+	set (ClinicCode,ClincCodeResponse,CLNDateTo)=""
+	 	&SQL(DECLARE ClinicCursor CURSOR FOR
+	 	SELECT CLN_Code,CLN_DateTo FROM SQLUser.PAC_RefDoctorClinic WHERE CLN_ParRef = (SELECT REFD_RowID FROM SQLUser.PAC_RefDoctor WHERE REFD_Code=:REFDCode)
+    )
+    &SQL(Open ClinicCursor)
+    &SQL(Fetch ClinicCursor INTO :ClinicCode,:CLNDateTo)
+    while 'SQLCODE{
+	    if ((CLNDateTo = "") || (CLNDateTo > $P($NOW(),",",1))) {
+		    if ClincCodeResponse'="" {
+			    set ClincCodeResponse=ClincCodeResponse_","
+		    }
+		    set ClincCodeResponse=ClincCodeResponse_ClinicCode
+	    }
+	    &SQL(Fetch ClinicCursor INTO :ClinicCode,:CLNDateTo)
+    }
+    &SQL(Close ClinicCursor)
+    return ClincCodeResponse
+]]></Implementation>
+</Method>
+
+<Method name="GetDestinationClinics">
+<FormalSpec>PAADMAdmNo:%String</FormalSpec>
+<ReturnType>%String</ReturnType>
+<WebMethod>1</WebMethod>
+<Implementation><![CDATA[
+	set (REFDCode, REFDTitle, REFDForename, REFDDesc, REFDBusPhone, CLNCode, DestinationClinicsResponse)=""
+	
+	&SQL(DECLARE DestinationClinicsCursor CURSOR FOR
+		SELECT REF_RefDoc_DR->REFD_Code
+,       REF_RefDoc_DR->REFD_Title
+,       REF_RefDoc_DR->REFD_Forename
+,       REF_RefDoc_DR->REFD_Desc
+,       REF_RefDoc_DR->REFD_BusPhone
+,       REF_RefDocClinic_DR->CLN_Clinic_DR->CLN_Code
+		FROM SQLUser.PA_DischargeSummaryRefDoc
+		WHERE REF_ParRef=(
+		        SELECT MAX(DIS_PADischargeSummary_DR)
+		        FROM SQLUser.PA_Adm2DischargeSummary
+		        WHERE DIS_ParRef=(
+		                SELECT PAADM_RowID
+		                FROM SQLUser.PA_Adm
+		                WHERE PAADM_AdmNo= :PAADMAdmNo
+		                )
+		        )
+	)
+	&SQL(Open DestinationClinicsCursor)
+    &SQL(Fetch DestinationClinicsCursor INTO :REFDCode, :REFDTitle, :REFDForename, :REFDDesc, :REFDBusPhone, :CLNCode)
+	while 'SQLCODE{
+			if CLNCode'="" {
+			    if DestinationClinicsResponse'="" {
+				    set DestinationClinicsResponse=DestinationClinicsResponse_","
+			    }
+			    set DestinationClinicsResponse=DestinationClinicsResponse_REFDCode_"^"_REFDTitle_"^"_REFDForename_"^"_REFDDesc_"^"_REFDBusPhone_"^"_CLNCode
+			}
+	   &SQL(Fetch DestinationClinicsCursor INTO  :REFDCode, :REFDTitle, :REFDForename, :REFDDesc, :REFDBusPhone, :CLNCode)
+    }
+    &SQL(Close DestinationClinicsCursor)
+    return DestinationClinicsResponse
+]]></Implementation>
+</Method>
+</Class>
+</Export>

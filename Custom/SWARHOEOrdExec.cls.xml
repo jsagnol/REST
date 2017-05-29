@@ -1,0 +1,560 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.SWARHOEOrdExec">
+<Super>%RegisteredObject</Super>
+<TimeCreated>61774,56210.937252</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/SWARHOEOrdExec.xml#1 $</Default>
+</Parameter>
+
+<Method name="SetMedExpReviewedFlag">
+<Description>
+TRC 41184: 
+  args as a single string := {OE_Order.OEORD_RowId}||{OEORI_Childsub} 
+  returns 1 if success, else 0</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>args:%String=""</FormalSpec>
+<ReturnType>%Integer</ReturnType>
+<Implementation><![CDATA[
+	q:args="" 0
+	;n ord,itm,done
+	s done=0
+	s ord=$p(args,"||")
+	s itm=$p(args,"||",2)	
+	i ord,ord'="" d
+	. i itm,itm'="" d
+	. . s $p(^OEORD(ord,"I",itm,11),"^",55)="Y"
+	. . s done=1
+	q done
+]]></Implementation>
+</Method>
+
+<Method name="CalculateDuration">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>oe:%String,oei:%String</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	s duration=""
+	s frequencydelay=$p($g(^OEORD(oe,"I",oei,12)),"^",4)
+	s ordsttdate=$p($g(^OEORD(oe,"I",oei,1)),"^",9)
+	s ordstttime=$p($g(^OEORD(oe,"I",oei,1)),"^",10)
+	s ordenddate=$p($g(^OEORD(oe,"I",oei,9)),"^",9)
+	s ordendtime=$p($g(^OEORD(oe,"I",oei,9)),"^",10)
+	
+	//i frequencydelay,ordsttdate,ordstttime,ordenddate,ordendtime {
+	i ordsttdate,ordstttime,ordenddate,ordendtime {
+		s startsecs=(ordsttdate*86400)+ordstttime
+		s endsecs=(ordenddate*86400)+ordendtime
+		s dursecs=endsecs-startsecs
+		s durmins=dursecs\60
+		s durdays=durmins\1440 i durdays>0 s duration=durdays_" DAYS"
+		s durhours=(durmins#1440)\60 i durhours>0 s duration=duration_" "_durhours_" HOURS"
+		s durmins=(durmins#1440)#60 i durmins>0 s duration=duration_" "_durmins_" MINUTES"
+	}
+	q duration
+]]></Implementation>
+</Method>
+
+<Method name="GetMedExpiryMessage">
+<Description>
+TRC 41184:
+args as a single string := {OE_Order.OEORD_RowId}^{OEORI_Childsub}
+returns a Medication Expiry Message, "NOARGS" meaning no arguments
+passed to the routine.
+returns "NOMSG" if not applicable</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>args:%String=""</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	q:args="" "NOARGS"
+	;n ord,itm,expMsg,ordSttDate,genericName,daysToExp,nowDate,dayFactor,warnDays,duration,arcim,reqMsg
+	s expMsg="NOMSG"
+	s ord=$p(args,"||")
+	s itm=$p(args,"||",2)
+	q:$p(^OEORD(ord,"I",itm,11),"^",55)="Y" expMsg
+	
+	; if the patient is not a current admission, or this is not a Pharmacy item, return
+	; without any message
+	;s currentadm=..CheckAdmissionPharm(args)
+	;q:currentadm="false" expMsg
+	
+	s ordSttDate=$p(^OEORD(ord,"I",itm,1),"^",9)
+	s nowDate=$p($h,",",1)
+	s reqMsg=0
+	s duration=$p(^OEORD(ord,"I",itm,2),"^",6)
+	i $g(duration)'="" {
+		s duration=##Class(%Collation).AlphaUp($p(^PHCDU(duration),"^",3))
+	} else {
+		; Retrieve Duration
+		s duration=..CalculateDuration(ord,itm)
+		i $p(duration," ",2)="DAYS" {
+			s dayFactor=$p(duration," ",1)				
+		    if $p(duration," ",1)>28 {
+				s warnDays=2
+				s reqMsg=1
+			}
+			if $p(duration," ",1)>89 {
+				s warnDays=10
+				s reqMsg=1
+			}
+		} else {
+			s dayFactor=1
+			s warnDays=2
+		}
+	}
+	q:$g(duration)="" "NODUR"
+	i duration="1MONTH" d
+	. s dayFactor=30
+	. s warnDays=2
+	. s reqMsg=1
+	i duration="3MONTHS" d
+	. s dayFactor=90
+	. s warnDays=10
+	. s reqMsg=1
+	i duration="6MONTHS" d
+	. s dayFactor=180
+	. s warnDays=10
+	. s reqMsg=1
+	i reqMsg d
+	. s ordenddate=$p($g(^OEORD(ord,"I",itm,9)),"^",9)
+ 	. i ordenddate>=nowDate,(ordenddate-warnDays)<=nowDate d
+	. . s arcim=$p(^OEORD(ord,"I",itm,1),"^",2)
+	. . ;s genericName=$p(^ARCIM($p(arcim,"||"),$p(arcim,"||",2),8),"^",21)
+	. . set genericName=..GetGenericName(args)
+	. . s expMsg="Note medication order ["_genericName_"] is due to"
+	. . s expMsg=expMsg_" expire"
+	. . i (ordenddate-nowDate)=0 d
+	. . . s expMsg=expMsg_" today."
+	. . i (ordenddate-nowDate)'=0 d
+	. . . s expMsg=expMsg_" in ["_(ordenddate-nowDate)_"] Days."
+	. . s expMsg=expMsg_" Select OK if the medication has been reviewed or re-ordered."
+	i $d(^CacheTemp("debug","Custom.SWARHOEOrdExec")),$g(^CacheTemp("debug","Custom.SWARHOEOrdExec"))=1 d
+	. s ^CacheTemp("debug","Custom.SWARHOEOrdExec",args,$h)="args:"_args_"^expDate: "_$g(expDate)_"|"_##class(websys.Conversions).DateLogicalToHtml(expDate)_"^ord: "_$g(ord)_"^itm: "_$g(itm)_"^ordSttDate: "_$g(ordSttDate)_"|"_##class(websys.Conversions).DateLogicalToHtml(ordSttDate)_"^nowDate: "_$g(nowDate)_"|"_##class(websys.Conversions).DateLogicalToHtml(nowDate)_"^reqMsg: "_$g(reqMsg)_"^duration: "_$g(duration)_"^dayFactor: "_$g(dayFactor)_"^warnDays: "_$g(warnDays)_"^arcim: "_$g(arcim)_"^genericName: "_$g(genericName)_"^expMsg: "_$g(expMsg)
+	q expMsg
+]]></Implementation>
+</Method>
+
+<Method name="GetExecutionInfo">
+<Description>
+TRC 40682:
+returns string: {Order||OrderItem}^{Generic Name}^{Frequency Code}^{Next Scheduled Administration} </Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>order:%String=""</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	q:order="" ""
+	;s ^zpatrickh("debug","T40682","GetExecutionInfo","start",$p($h,",",2))="start"
+	s retStr=""
+	s firstAdmin=""
+	s ord=$p(order,"||")
+	s itm=$p(order,"||",2)
+	i $d(^OEORD(ord,"I",itm,"X")) d
+	. s fANode=$o(^OEORD(ord,"I",itm,"X",0))
+	. s fADateL=$p(^OEORD(ord,"I",itm,"X",fANode),"^")
+	. s fATimeL=$p(^OEORD(ord,"I",itm,"X",fANode),"^",2)
+	. s fADateH=##class(websys.Conversions).DateLogicalToHtml(fADateL)
+	. s fATimeH=##class(websys.Conversions).TimeLogicalToHtml(fATimeL)
+	. i fADateL>$p($h,",") d
+	. . s firstAdmin=firstAdmin_fADateH_" "
+	. i fADateL<$p($h,",") d
+	. . s firstAdmin=firstAdmin_fADateH_" "
+	. s firstAdmin=firstAdmin_fATimeH
+	. s arcim=$p(^OEORD(ord,"I",itm,1),"^",2)
+	. s genericName=$p(^ARCIM($p(arcim,"||"),$p(arcim,"||",2),8),"^",21)
+	. s freqCode=$p(^PHCFR($p(^OEORD(ord,"I",itm,2),"^",4)),"^")
+	i $g(firstAdmin)'="",$g(genericName)'="",$g(freqCode)'="" d
+	. s retStr=order_"^"_genericName_"^"_freqCode_"^"_firstAdmin
+	q retStr
+]]></Implementation>
+</Method>
+
+<Method name="IsAuthorisedToAdminister">
+<Description>
+TRC 40828:
+Checks if the given is appropriately authorised to action an administration
+by checking that they are not in the 'Student Nurse' Security Group.
+Parameters : A string containing the TrakCare user login name
+Returns 1 if valid, else 0 as a string.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>arg:%String=""</FormalSpec>
+<ReturnType>%Integer</ReturnType>
+<Implementation><![CDATA[
+	q:arg="" 0
+	s (argx,valid)=0
+	s (ctpcptypedr,ctpcpid,typecode)=""
+	s initial=$zconvert(arg,"U")
+	s initial=$zstrip(initial,"*CW")
+	s argx=$o(^SSU("SSUSR",0,"SSUSR_Initials",initial,argx))
+	i argx="" q:0
+	i argx'="" d
+	. s ousr=argx
+	. s ctpcpid=$p(^SSU("SSUSR",argx),"^",14)
+	. i ctpcpid'="" d
+	. . s ctpcptypedr=$p($g(^CTPCP(ctpcpid,1)),"^",4)
+	. . i ctpcptypedr'="" d
+	. . . s typecode=$zconvert($p($g(^CT("CPT",ctpcptypedr)),"^",1),"U")
+	. . . i typecode'="" d
+	. . . . i (typecode="NUR6")||(typecode="SN") d
+	. . . . . s valid=1
+	q valid
+]]></Implementation>
+</Method>
+
+<Method name="ValidateFirstSignature">
+<Description>
+TRC 40828</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>arg:%String=""</FormalSpec>
+<ReturnType>%Integer</ReturnType>
+<Implementation><![CDATA[
+	q:arg="" 0
+	s (argx,valid)=0
+	s (ctpcptypedr,ctpcpid,typecode)=""
+	s initial=$zconvert(arg,"U")
+	s initial=$zstrip(initial,"*CW")
+	s argx=$o(^SSU("SSUSR",0,"SSUSR_Initials",initial,argx))
+	i argx="" q:0
+	i argx'="" d
+	. s ousr=argx
+	. s ctpcpid=$p(^SSU("SSUSR",argx),"^",14)
+	. i ctpcpid'="" d
+	. . s ctpcptypedr=$p($g(^CTPCP(ctpcpid,1)),"^",4)
+	. . i ctpcptypedr'="" d
+	. . . s typecode=$zconvert($p($g(^CT("CPT",ctpcptypedr)),"^",1),"U")
+	. . . i typecode'="" d
+	. . . . i (typecode="NUM")||(typecode="NUR1")||(typecode="NUR4")||(typecode="NUR7")||(typecode="NUR8")||(typecode="DR")||(typecode="SN")||(typecode="NUR6") d
+	. . . . . s valid=1
+	q valid
+]]></Implementation>
+</Method>
+
+<Method name="ValidateList1">
+<Description>
+TRC 40828</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>arg:%String=""</FormalSpec>
+<ReturnType>%Integer</ReturnType>
+<Implementation><![CDATA[
+	q:arg="" 0
+	s (argx,valid)=0
+	s initial=$zconvert(arg,"U")
+	s initial=$zstrip(initial,"*CW")
+	s argx=$o(^SSU("SSUSR",0,"SSUSR_Initials",initial,argx))
+	i argx'="" s ousr=argx
+	i argx="" q:0
+	s ssu=0 f  s ssu=$o(^SSU("SSUSR",ssu)) q:ssu=""  d
+	. i $zconvert($p(^SSU("SSUSR",ssu),"^"),"U")=initial d
+	. . s ossug=$p($g(^SSU("SSGRP",$p(^SSU("SSUSR",ssu),"^",5))),"^")
+	. . i ossug'="" d
+	. . . i (ossug="Enrolled Nurse - Medication Training")||(ossug="Nurse Unit Manager")||(ossug="Registered Nurse Division 1")||(ossug="Enrolled Nurse")||(ossug="Registered Midwife")||(ossug="Psychiatric Nurse")||(ossug="Doctor")||(ossug="Student Nurse") d
+	. . . . s valid=1
+	. . . . q
+	. q:valid=1
+	q valid
+]]></Implementation>
+</Method>
+
+<Method name="ValidateList2">
+<Description>
+TRC 40828</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>arg:%String=""</FormalSpec>
+<ReturnType>%Integer</ReturnType>
+<Implementation><![CDATA[
+	q:arg="" 0
+	s (argx,valid)=0
+	s (ctpcptypedr,ctpcpid,typecode)=""
+	s initial=$zconvert(arg,"U")
+	s initial=$zstrip(initial,"*CW")
+	s argx=$o(^SSU("SSUSR",0,"SSUSR_Initials",initial,argx))
+	i argx="" q:0
+	i argx'="" d
+	. s ousr=argx
+	. s ctpcpid=$p(^SSU("SSUSR",argx),"^",14)
+	. i ctpcpid'="" d
+	. . s ctpcptypedr=$p($g(^CTPCP(ctpcpid,1)),"^",4)
+	. . i ctpcptypedr'="" d
+	. . . s typecode=$zconvert($p($g(^CT("CPT",ctpcptypedr)),"^",1),"U")
+	. . . i typecode'="" d
+	. . . . i (typecode="NUR6")||(typecode="SN") d
+	. . . . . s valid=1
+	q valid
+]]></Implementation>
+</Method>
+
+<Method name="ValidateList3">
+<Description>
+TRC 40828</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>arg:%String=""</FormalSpec>
+<ReturnType>%Integer</ReturnType>
+<Implementation><![CDATA[
+	q:arg="" 0
+	s (argx,valid)=0
+	s (ctpcptypedr,ctpcpid,typecode)=""
+	s initial=$zconvert(arg,"U")
+	s initial=$zstrip(initial,"*CW")
+	s argx=$o(^SSU("SSUSR",0,"SSUSR_Initials",initial,argx))
+	i argx="" q:0
+	i argx'="" d
+	. s ousr=argx
+	. s ctpcpid=$p(^SSU("SSUSR",argx),"^",14)
+	. i ctpcpid'="" d
+	. . s ctpcptypedr=$p($g(^CTPCP(ctpcpid,1)),"^",4)
+	. . i ctpcptypedr'="" d
+	. . . s typecode=$zconvert($p($g(^CT("CPT",ctpcptypedr)),"^",1),"U")
+	. . . i typecode'="" d
+	. . . i (typecode="NUM")||(typecode="NUR1")||(typecode="NUR4")||(typecode="NUR7")||(typecode="NUR8")||(typecode="DR") d
+	. . . . s valid=1
+	q valid
+]]></Implementation>
+</Method>
+
+<Method name="AuthorizeUserValidate">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>user1:%String="",user2:%String="",OrderItems:%String</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	set table="CT_CarPrvTp",field="CTCPT_Code",report="CPTYPEAUTH"
+	set valid=0,firstAuth="FA",secondAuth="SA"
+	kill OE
+	if $l(OrderItems,"^")>1 {
+		for i=1:1:$l(OrderItems,"^") if $piece(OrderItems,"^",i)'="" set OE($piece(OrderItems,"^",i))=""
+	} else {
+		if $piece(OrderItems,"^")'="" set OE($piece(OrderItems,"^"))=""
+	}
+	
+	set requiredDual="",optionalDual=""
+	set OrderItem="" for {
+		set OrderItem=$order(OE(OrderItem)) quit:OrderItem=""
+		if ..GetDualSignatureRequired(OrderItem)="Y" set OE(OrderItem)="Y",requiredDual="Y"
+		else  set optionalDual="Y"
+	}
+	if requiredDual="Y",optionalDual="Y" {
+		set valid=2
+	} elseif (requiredDual="Y")&&(optionalDual="")&&(user2="") {
+		set valid="DUAL"
+	} else {
+		if requiredDual'="Y" {
+			if user1'="",user2="" {
+				set valid=0
+				set typecode=..GetCareProviderTypeFromUser(user1)
+				if firstAuth=..GetNationalCode(table,field,report,typecode) set valid=1
+			}
+			if user1'="",user2'="" {
+				set valid=0
+				set typecode=..GetCareProviderTypeFromUser(user1)
+				if firstAuth=..GetNationalCode(table,field,report,typecode) set valid=1
+				if valid=1 {
+					set valid=0
+					set typecode=..GetCareProviderTypeFromUser(user2)
+					set AuthCode=..GetNationalCode(table,field,report,typecode)
+					if (AuthCode'="")&&((AuthCode=firstAuth)||(AuthCode=secondAuth)) set valid=1
+				}
+			}
+		} else {
+			if user1'="",user2'="" {
+				set u1typecode=..GetCareProviderTypeFromUser(user1)
+				set u1AuthCode=..GetNationalCode(table,field,report,u1typecode)
+				set u2typecode=..GetCareProviderTypeFromUser(user2)
+				set u2AuthCode=..GetNationalCode(table,field,report,u2typecode)
+				if (u1AuthCode)=firstAuth&&((u2AuthCode=firstAuth)||(u2AuthCode=secondAuth)) set valid=1
+			}
+		}
+	}
+	if user1="",user2="" set valid=0
+	quit valid
+]]></Implementation>
+</Method>
+
+<Method name="GetCareProviderTypeFromUser">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>user:%String</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	quit:user="" ""
+	set typecode=""
+	set userid="",userid=$order(^SSU("SSUSR",0,"SSUSR_Initials",$$ALPHAUP^SSUTIL4(user),""))
+	if userid'="" {
+		set ctpcpid=$piece(^SSU("SSUSR",userid),"^",14)
+		if ctpcpid'="" {
+			set ctpcptypedr=$piece($get(^CTPCP(ctpcpid,1)),"^",4)
+			if ctpcptypedr'="" {
+				set typecode=$zconvert($piece($get(^CT("CPT",ctpcptypedr)),"^",1),"U")
+			}
+		}
+	}
+	quit typecode
+]]></Implementation>
+</Method>
+
+<Method name="GetNationalCode">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>table:%String,field:%String,report:%String,code:%String</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	quit:$get(table)="" ""
+	quit:$get(field)="" ""
+	quit:$get(report)="" ""
+	quit:$get(code)="" ""
+	set found=""
+	set ReportingType="",ReportingType=$order(^PAC("REPTYPE",0,"Code",$$ALPHAUP^SSUTIL4(report),""))
+	quit:ReportingType="" ""
+	set nat="" for {
+		set nat=$order(^PAC("NATC",0,"Table",$$ALPHAUP^SSUTIL4(table),$$ALPHAUP^SSUTIL4(field),ReportingType,nat)) quit:nat=""
+		quit:found'=""
+		if $p($get(^PAC("NATC",nat)),"^",8)=code set found=$piece($get(^PAC("NATC",nat)),"^",9)
+	}
+	quit found
+]]></Implementation>
+</Method>
+
+<Method name="GetGenericName">
+<Description>
+TRC 40105:
+returns string: {Generic Name} </Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>orderItemID:%String</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	set generic=""
+	set arcim = ""
+	set orderItem = ##Class(User.OEOrdItem).%OpenId(orderItemID)
+		
+	set:(orderItem '= "") arcim = orderItem.OEORIItmMastDR
+	set drgMast = ""
+	if (arcim.ARCIMPHCDFDR '= ""){
+		set drgMast = arcim.ARCIMPHCDFDR.PHCDFPHCDParRef ; old structure
+	}
+	if (drgMast = "") {
+		set drgMast = arcim.ARCIMDrgMastDR ; TF/AMP level
+	}
+	if (arcim.ARCIMDrgFormPackDR'="") { ; AMPP level
+		set drgMast = arcim.ARCIMDrgFormPackDR.PACKParRef.PHCDFPHCDParRef
+	}
+	if (drgMast '= ""){
+		if (drgMast.PHCDLocalName'="") {
+			set generic = drgMast.PHCDLocalName
+		} else {
+			set generic = drgMast.PHCDName
+		}
+		if (drgMast.PHCDGenericDR.PHCGELocalName'="") {
+			set generic = drgMast.PHCDGenericDR.PHCGELocalName
+		} else {
+			set generic = drgMast.PHCDGenericDR.PHCGEName
+		}
+	} else {
+		 set generic = arcim.ARCIMDesc
+	}
+	if (arcim.ARCIMDMDGenericDR){
+		if (arcim.ARCIMDMDGenericDR.PHCGELocalName'="") {
+			set generic = arcim.ARCIMDMDGenericDR.PHCGELocalName
+		} else {
+			set generic = arcim.ARCIMDMDGenericDR.PHCGEName
+		}
+	}
+	q generic
+]]></Implementation>
+</Method>
+
+<Method name="CheckAdmissionPharm">
+<Description>
+TRC 40105:
+Checks if the patient is a current admission and this is a Pharmacy order
+Returns true if both conditions are met</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>orderItemID:%String</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	set result="false"
+	set orderItem = ##Class(User.OEOrdItem).%OpenId(orderItemID)
+	set OEORDAdmDR=$piece($get(^OEORD(OEORDRowId)),"^",1)
+ 	if $get(OEORDAdmDR)'="" {
+ 		if $piece($get(^PAADM(OEORDAdmDR)),"^",20)="A" {
+ 			set itemcat=""
+ 			set arc=""
+ 			set arc=$piece($get(^OEORD(+id,"I",$piece(id,"||",2),1)),"^",2)
+ 			set itemcat=$piece($get(^ARCIM(+arc,1,1)),"^",10)
+ 			if $piece($get(^ARC("IC",+itemcat)),"^",8)=$order(^OEC("ORCAT",0,"Code","PHARM",0)){
+	 			 set result="true"
+ 				}
+ 			}
+ 	}
+	q result
+]]></Implementation>
+</Method>
+
+<UDLText name="T">
+<Content><![CDATA[
+// get drug form scheduled class
+
+]]></Content>
+</UDLText>
+
+<Method name="GetDualSignatureRequired">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>OrderItemID:%String</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	set ScheduleClass="N",arcim=""
+	set orderItem = ##Class(User.OEOrdItem).%OpenId(OrderItemID)
+	set:(orderItem '= "") arcim = orderItem.OEORIItmMastDR
+	if arcim'="" {
+		set drgForm = "", drgFromPack = ""
+		; old structure
+		if (arcim.ARCIMPHCDFDR '= "") set drgForm = arcim.ARCIMPHCDFDR 
+		; AMPP level
+		if (arcim.ARCIMDrgFormPackDR'="") set drgFromPack = arcim.ARCIMDrgFormPackDR
+		if (drgForm '= "")&&(drgForm.PHCDFScheduleClassDR.PHCSDCCSDrugAdmFlag'="") set ScheduleClass=drgForm.PHCDFScheduleClassDR.PHCSDCCSDrugAdmFlag
+		if (drgFromPack'="")&&(drgFromPack.PACKParRef.PHCDFScheduleClassDR.PHCSDCCSDrugAdmFlag'="") set ScheduleClass=drgFromPack.PACKParRef.PHCDFScheduleClassDR.PHCSDCCSDrugAdmFlag
+	}
+	quit ScheduleClass
+]]></Implementation>
+</Method>
+
+<Method name="FindScheduleDrug">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>OrderItems:%String</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	kill OE
+	if $l(OrderItems,"^")>1 {
+		for i=1:1:$l(OrderItems,"^") if $piece(OrderItems,"^",i)'="" set OE($piece(OrderItems,"^",i))=""
+	} else {
+		if $piece(OrderItems,"^")'="" set OE($piece(OrderItems,"^"))=""
+	}
+	
+	set requiredDual=""
+	set OrderItem="" for {
+		set OrderItem=$order(OE(OrderItem)) quit:OrderItem=""
+		if ..GetDualSignatureRequired(OrderItem)="Y" set OE(OrderItem)="Y",requiredDual="Y"
+	}
+	quit requiredDual
+]]></Implementation>
+</Method>
+
+<Method name="FindScheduleDrugName">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>OrderItems:%String</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	kill OE
+	if $l(OrderItems,"^")>1 {
+		for i=1:1:$l(OrderItems,"^") if $piece(OrderItems,"^",i)'="" set OE($piece(OrderItems,"^",i))=""
+	} else {
+		if $piece(OrderItems,"^")'="" set OE($piece(OrderItems,"^"))=""
+	}
+	
+	set drugname=""
+	set OrderItem="" for {
+		set OrderItem=$order(OE(OrderItem)) quit:OrderItem=""
+		if ..GetDualSignatureRequired(OrderItem)="Y" set drugname=drugname_$s($l(drugname):",",1:"")_..GetGenericName(OrderItem)
+	}
+	quit drugname
+]]></Implementation>
+</Method>
+</Class>
+</Export>

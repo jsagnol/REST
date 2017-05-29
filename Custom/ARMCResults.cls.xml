@@ -1,0 +1,224 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.ARMCResults">
+<ClassType/>
+<ProcedureBlock>0</ProcedureBlock>
+<Super>%Library.RegisteredObject</Super>
+<TimeCreated>61221,1745.556665</TimeCreated>
+
+<Method name="ResultsReportClose">
+<Description>
+This is the Close component of the %Library.Query.
+This is standard code and should never have to change.
+This is where all the cleanup is performed, i.e. the purging of the temporary storage global ^CacheTemp.</Description>
+<ClassMethod>1</ClassMethod>
+<CodeMode>code</CodeMode>
+<FormalSpec>QHandle:%Library.Binary</FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Clean up by purging the temporary node in ^CacheTemp global
+ New repid
+ Set repid=$li(QHandle,2)
+ Kill ^CacheTemp(repid)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="ResultsReportExecute">
+<Description>
+This is the Execute section for the %Library.Query. 
+All of the logic will be performed here.
+A new node for the ^CacheTemp global will be created and each subscript of this global will contain
+a row for the report.</Description>
+<ClassMethod>1</ClassMethod>
+<CodeMode>code</CodeMode>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,OrderID:%String]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+	
+	
+ // Get reportid i.e. use $INCREMENT to add another node to ^CacheTemp global. 
+ // We use ^CacheTemp global because it will always use memory before disk
+ New repid,ind
+
+
+ k ^znunilla
+ // Use $Increment to get the next node
+ Set repid=$I(^CacheTemp)
+
+
+ // Build data into ^CacheTemp(ReportID)
+ // e.g. Set ^CacheTemp(ReportID,Index)=$LB(f1,f2,f3)
+ n Number,String,Date,Time,c,n,str,SECID
+ n TRRowId,TRDateVerified,TRTimeVerified,RESSTCode,SECText,ACTCode,OEORIRowId,OEORILabReceiveDate,OEORILaReceiveTime,CTPCPDesc,ARCIMDesc,PAPMINo,PAPMIName,PAPMIName2,PAPMIDOB,PAPERAgeYr,PAPERTelH,CTCITDesc,CTSEXCode,ORCATCode,SECChildsub,SECRowId
+ s (TRRowId)=0
+ s (TRDateVerified,TRTimeVerified,RESSTCode,SECText,ACTCode,OEORIRowId,OEORILabReceiveDate,OEORILabReceiveTime,CTPCPDesc,ARCIMDesc,PAPMINo,PAPMIName,PAPMIName2,PAPMIDOB,PAPERAgeYr,PAPERTelH,CTCITDesc,CTSEXCode,ORCATCode,SECChildsub,SECRowId)=""
+
+ s ind=1
+ s (index,counter)=0
+
+
+ &sql(declare ResultsReport cursor for
+ SELECT
+			TR_RowId, 
+			TR_DateVerified, 
+			TR_TimeVerified,
+			TR_ResStat_DR->RESST_Code,
+			SEC_Text,
+			SEC_Rowid,
+			TR_Action_DR->ACT_Code,
+			OEORI_RowId, 
+			OEORI_LabReceiveDate,
+			OEORI_LabReceiveTime,
+			OEORI_Doctor_DR->CTPCP_Desc,
+			OEORI_ItmMast_DR->ARCIM_Desc,
+			PAADM_PAPMI_DR->PAPMI_No, 
+			PAADM_PAPMI_DR->PAPMI_Name, 
+			PAADM_PAPMI_DR->PAPMI_Name2,
+			PAADM_PAPMI_DR->PAPMI_DOB,
+			PAADM_PAPMI_DR->PAPMI_PAPER_DR->PAPER_AgeYr, 
+			PAADM_PAPMI_DR->PAPMI_PAPER_DR->PAPER_TelH,
+			PAADM_PAPMI_DR->PAPMI_PAPER_DR->PAPER_CityCode_DR->CTCIT_Desc,
+			PAADM_PAPMI_DR->PAPMI_PAPER_DR->PAPER_SEX_DR->CTSEX_Code,
+			OEORI_ItmMast_DR->ARCIM_ItemCat_DR->ARCIC_OrdCat_DR->ORCAT_Code
+			FROM
+			sqluser.OE_TextResult,
+			sqluser.OE_Order,
+			sqluser.OE_TextResultSection,
+			sqluser.PA_Adm,
+			sqluser.OE_OrdItem,
+			sqluser.OE_OrdTextResult
+			WHERE
+			TR_OEORD_DR = OEORD_RowId AND
+			TR_RowId = SEC_ParRef AND
+			OEORD_Adm_DR = PAADM_RowID AND
+			OEORD_RowId = OEORI_OEORD_ParRef AND
+			TRES_OETR_DR=TR_RowId AND
+			OEORI_RowId=TRES_ParRef AND
+			OEORI_RowId=:OrderID)
+
+
+ &sql(open ResultsReport)
+
+ //fetch first row
+ &sql(fetch ResultsReport into :TRRowId,:TRDateVerified,:TRTimeVerified,:RESSTCode,:SECText,:SECRowId,:ACTCode,:OEORIRowId,:OEORILabReceiveDate,:OEORILabReceiveTime,:CTPCPDesc,:ARCIMDesc,:PAPMINo,:PAPMIName,:PAPMIName2,:PAPMIDOB,:PAPERAgeYr,:PAPERTelH,:CTCITDesc,:CTSEXCode,:ORCATCode)
+
+
+
+
+ while 'SQLCODE{
+	
+	d FormatDates
+ d FormatTimes
+
+
+ n SECChildsub,count,i
+ //reset working variables
+ s (SECChildsub,count,SECID,i)=0
+
+
+
+ s SECChildsub=$p($g(SECRowId),"||",2)
+ s SECID=$p($g(SECRowId),"||",1)
+
+
+ //^OETR({OE_TextResult.TR_RowId},"SEC",{SEC_Childsub}
+ //Check how many lines there are for the multi-line field SECText
+ //i $g(^OETR(SECID,"SEC",SECChildsub,"REM",0))'="" 
+ s count=$g(^OETR(SECID,"SEC",SECChildsub,"REM",0))
+
+
+ //loop through each line appending the text into a single string
+ f i=1:1:count  d
+ .i i>1 s SECText=SECText_$char(13)_$g(^OETR(SECID,"SEC",SECChildsub,"REM",i))
+ .i i'>1 s SECText=$g(^OETR(SECID,"SEC",SECChildsub,"REM",i))
+
+
+ //s SECText=$zstrip(SECText,"*C")
+
+
+ // build the row
+ Set ^CacheTemp(repid,ind)=$LB(TRRowId,TRDateVerified,TRTimeVerified,RESSTCode,SECText,ACTCode,OEORIRowId,OEORILabReceiveDate,OEORILabReceiveTime,CTPCPDesc,ARCIMDesc,PAPMINo,PAPMIName,PAPMIName2,PAPMIDOB,PAPERAgeYr,PAPERTelH,CTCITDesc,CTSEXCode,ORCATCode)
+ s ind=ind+1
+
+ //fetch next rows
+ &sql(fetch ResultsReport into :TRRowId,:TRDateVerified,:TRTimeVerified,:RESSTCode,:SECText,:SECRowId,:ACTCode,:OEORIRowId,:OEORILabReceiveDate,:OEORILabReceiveTime,:CTPCPDesc,:ARCIMDesc,:PAPMINo,:PAPMIName,:PAPMIName2,:PAPMIDOB,:PAPERAgeYr,:PAPERTelH,:CTCITDesc,:CTSEXCode,:ORCATCode)
+
+ }
+
+ &sql(close ResultsReport)
+
+ // Build QHandle (AtEnd,ReportID,Index)
+ Set QHandle=$lb(0,repid,0)
+
+ Quit $$$OK
+
+FormatDates
+ // Convert the dates to ODBC date format
+ If TRDateVerified Set TRDateVerified=$ZD(TRDateVerified,3)
+ If OEORILabReceiveDate Set OEORILabReceiveDate=$ZD(OEORILabReceiveDate,3)
+ If PAPMIDOB Set PAPMIDOB=$ZD(PAPMIDOB,3)
+ Quit
+			
+FormatTimes
+ // Convert the times to ODBC time format
+ If TRTimeVerified Set TRTimeVerified=$ZT(TRTimeVerified,2)
+ If OEORILabReceiveTime Set OEORILabReceiveTime=$ZT(OEORILabReceiveTime,2)
+ Quit
+]]></Implementation>
+</Method>
+
+<Method name="ResultsReportFetch">
+<Description>
+This is the Fetch component of the %Library.Query. 
+This should never have to change. It is designed to fetch the row for each subscript of the ^CacheTemp
+global and return this row to the Crystal Report.</Description>
+<ClassMethod>1</ClassMethod>
+<CodeMode>code</CodeMode>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,&Row:%Library.List,&AtEnd:%Library.Integer=0]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // This fetch method should never have to change. 
+
+ // repid - Report ID
+ // ind   - sequence index which represents each row
+
+ New repid,ind
+
+ // Restore QHandle
+ Set AtEnd=$li(QHandle,1)
+ Set repid=$li(QHandle,2)
+ Set ind=$li(QHandle,3)
+
+ Set ind=$o(^CacheTemp(repid,ind))
+ If ind="" {	// if there are no more rows, finish fetching
+ Set AtEnd=1
+ Set Row=""
+ }
+ Else      {	// fetch row
+ Set Row=^CacheTemp(repid,ind)
+ }
+
+ // Save QHandle
+ s QHandle=$lb(AtEnd,repid,ind)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Query name="ResultsReport">
+<Description>
+WL Standby Report
+It expects 1 parameter and will return rows of data:
+Field1 - Integer
+Field2 - String(MAXLEN=255)
+Field3 - Date
+Field4 - Time</Description>
+<Type>%Library.Query</Type>
+<FormalSpec>OrderID:%String</FormalSpec>
+<SqlProc>1</SqlProc>
+<Parameter name="CONTAINID" value="0"/>
+<Parameter name="ROWSPEC" value="TRRowId:%Integer,TRDateVerified:%Date,TRTimeVerified:%String(MAXLEN=255),RESSTCode:%String(MAXLEN=255),SECText:%String(MAXLEN=8000),ACTCode:%String(MAXLEN=255),OEORIRowId:%String(MAXLEN=255),OEORILabReceiveDate:%Date,OEORILabReceiveTime:%String(MAXLEN=255),CTPCPDesc:%String(MAXLEN=255),ARCIMDesc:%String(MAXLEN=255),PAPMINo:%String(MAXLEN=255),PAPMIName:%String(MAXLEN=255),PAPMIName2:%String(MAXLEN=255),PAPMIDOB:%Date,PAPERAgeYr:%String(MAXLEN=255),PAPERTelH:%String(MAXLEN=255),CTCITDesc:%String(MAXLEN=255),CTSEXCode:%String(MAXLEN=255),ORCATCode:%String(MAXLEN=255)"/>
+<Parameter name="SELECTMODE" value="ODBC"/>
+</Query>
+</Class>
+</Export>

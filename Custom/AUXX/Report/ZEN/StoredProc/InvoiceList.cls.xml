@@ -1,0 +1,175 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.AUXX.Report.ZEN.StoredProc.InvoiceList">
+<ProcedureBlock>0</ProcedureBlock>
+<Super>Report.Abstract</Super>
+<TimeCreated>59968,40117.421121</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/AUXX/Report/ZEN/StoredProc/InvoiceList.xml#1 $</Default>
+</Parameter>
+
+<UDLText name="T">
+<Content><![CDATA[
+// Report Name: Trak.Invoice List
+
+]]></Content>
+</UDLText>
+
+<UDLText name="T">
+<Content><![CDATA[
+// Report Code: AUXX.FIN0005
+
+]]></Content>
+</UDLText>
+
+<UDLText name="T">
+<Content><![CDATA[
+// LOGTRAK Number: 72210 
+
+]]></Content>
+</UDLText>
+
+<Method name="GetInvoiceListClose">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>QHandle:%Library.Binary</FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Clean up by purging the temporary node in ^CacheTemp global
+ New repid
+ Set repid=$LIST(QHandle,2)
+ 
+ //Start Monitor (if configured to capture stats)
+ i mon Do ..MonitorEnd(mon)
+
+ Kill ^CacheTemp("TRAK",repid)
+ 
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="GetInvoiceListExecute">
+<Description>
+This is the Execute section for the %Library.Query. 
+All of the logic will be performed here.
+A new node for the ^CacheTemp global will be created and each subscript of this global will contain
+a row for the report.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,DateFrom:%Date,DateTo:%Date,Hospital:%String]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+  
+ // Get reportid i.e. use $INCREMENT to add another node to ^CacheTemp global. 
+ // We use ^CacheTemp global because it will always use memory before disk
+ New repid,ind
+
+ // Use $Increment to get the next node
+ Set repid=$I(^CacheTemp("TRAK"))
+ 
+ //Start Monitor (if configured to capture stats)
+ s mon=..MonitorBegin()
+ 
+ // Build data into ^CacheTemp("TRAK",ReportID)
+ // e.g. Set ^CacheTemp("TRAK",ReportID,Index)=$LB(f1,f2,f3)
+ New Number,String,Date,Time,c,n,Print,Invoice
+ New ARPBLRowId,PAPMINo,PAADMADMNo,PAPMIName,ARPBLDateFrom,ARPBLDateTo,ARPBLBillNo,ARPBLDatePrinted,ARPBLAmountToPay,PAPMIName2,PAPMIName3,INSTCode,INSTDesc,INSTRowId,PAADMType,PatientName,HOSPRowId,HOSPCode,HOSPDesc,InvoiceNo,DatePrinted,PAADMTypeDesc,SortDate
+ Set (ARPBLRowId,ARPBLAmountToPay,INSTRowId)=0
+ Set (PAPMINo,PAADMADMNo,PAPMIName,ARPBLDateFrom,ARPBLDateTo,ARPBLBillNo,ARPBLDatePrinted,PAPMIName2,PAPMIName3,INSTCode,INSTDesc,PAADMType,PatientName,HOSPRowId,HOSPCode,HOSPDesc,InvoiceNo,DatePrinted,PAADMTypeDesc,SortDate)=""
+
+ i $g(Hospital)'="" s Hospital=$zstrip(Hospital,"*WC")
+
+ Set DateFrom=..ConvertDateToCache(DateFrom)
+ Set DateTo=..ConvertDateToCache(DateTo)
+
+ &SQL(DECLARE Invoices CURSOR FOR
+ SELECT
+ ARPBL_RowId,
+ ARPBL_PAADM_DR->PAADM_PAPMI_DR->PAPMI_No,
+ ARPBL_PAADM_DR->PAADM_ADMNo,
+ ARPBL_PAADM_DR->PAADM_PAPMI_DR->PAPMI_Name,
+ ARPBL_DateFrom,
+ ARPBL_DateTo,
+ ARPBL_BillNo,
+ ARPBL_DatePrinted,
+ ARPBL_TotalAllowed,
+ ARPBL_PAADM_DR->PAADM_PAPMI_DR->PAPMI_Name2,
+ ARPBL_PAADM_DR->PAADM_PAPMI_DR->PAPMI_Name3,
+ ARPBL_InsuranceType_DR->INST_Code,
+ ARPBL_InsuranceType_DR->INST_Desc,
+ ARPBL_InsuranceType_DR,
+ ARPBL_PAADM_DR->PAADM_Epissubtype_DR->SUBT_Desc,
+ ARPBL_Hospital_DR->HOSP_RowId,
+ ARPBL_Hospital_DR->HOSP_Code,
+ ARPBL_Hospital_DR->HOSP_Desc,
+ ARPBL_DatePrinted
+ INTO :ARPBLRowId,:PAPMINo,:PAADMADMNo,:PAPMIName,:ARPBLDateFrom,:ARPBLDateTo,:ARPBLBillNo,:ARPBLDatePrinted,:ARPBLAmountToPay,:PAPMIName2,:PAPMIName3,:INSTCode,:INSTDesc,:INSTRowId,:PAADMSubType,:HOSPRowId,:HOSPCode,:HOSPDesc,:SortDate
+ FROM SQLUser.AR_PatientBill
+ WHERE ARPBL_DatePrinted between :DateFrom and :DateTo
+ AND ARPBL_BillRefund='B' and ARPBL_TotalAllowed>0
+ AND (({fn CONCAT( ',', {fn CONCAT((:Hospital),',')})} [ {fn CONCAT( ',', {fn CONCAT((ARPBL_Hospital_DR),',')})}) OR (:Hospital IS NULL)))
+
+ &SQL(OPEN Invoices)
+ f  &SQL(FETCH Invoices) q:SQLCODE'=0  d
+ . d FormatDates
+ . //s PAADMTypeDesc=##class(websys.StandardTypeItem).GetExactDescription("AdmType",PAADMType)
+ . s ind=$i(ind)
+ . //s sort=$G(HOSPDesc)_" "_$G(PAADMSubTypeDesc)_" "_$G(SortDate)_" "_ind
+ . s sort=$G(HOSPDesc)_" "_$G(PAADMSubType)_" "_$G(SortDate)_" "_ind
+ . //s ^CacheTemp("TRAK",repid,sort)=$LB(ARPBLRowId,PAPMINo,PAADMADMNo,PAPMIName,ARPBLDateFrom,ARPBLDateTo,ARPBLBillNo,ARPBLDatePrinted,ARPBLAmountToPay,PAPMIName2,PAPMIName3,INSTCode,INSTDesc,INSTRowId,PAADMSubType,PatientName,HOSPRowId,HOSPCode,HOSPDesc,PAADMTypeDesc)
+ . s ^CacheTemp("TRAK",repid,sort)=$LB(ARPBLRowId,PAPMINo,PAADMADMNo,PAPMIName,ARPBLDateFrom,ARPBLDateTo,ARPBLBillNo,ARPBLDatePrinted,ARPBLAmountToPay,PAPMIName2,PAPMIName3,INSTCode,INSTDesc,INSTRowId,PAADMSubType,PatientName,HOSPRowId,HOSPCode,HOSPDesc)
+ &SQL(CLOSE Invoices)
+
+ // Build QHandle (AtEnd,ReportID,Index)
+ Set QHandle=$lb(0,repid,0)
+ Quit $$$OK
+
+FormatDates
+ // Convert the dates to ODBC date format
+ Set ARPBLDateTo=..ConvertDateToODBC(ARPBLDateTo)
+ Set ARPBLDateFrom=..ConvertDateToODBC(ARPBLDateFrom)
+ Set ARPBLDatePrinted=..ConvertDateToODBC(ARPBLDatePrinted)
+ Quit
+]]></Implementation>
+</Method>
+
+<Method name="GetInvoiceListFetch">
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,&Row:%Library.List,&AtEnd:%Library.Integer=0]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // This fetch method should never have to change.
+ // repid - Report ID
+ // ind   - sequence index which represents each row
+
+ New repid,ind
+
+ // Restore QHandle
+ Set AtEnd=$LI(QHandle,1)
+ Set repid=$LI(QHandle,2)
+ Set ind=$LI(QHandle,3)
+
+ Set ind=$order(^CacheTemp("TRAK",repid,ind))
+ If ind="" {	// if there are no more rows, finish fetching
+ 	Set AtEnd=1
+ 	Set Row=""
+ }  Else  {	// fetch row
+ 	Set Row=^CacheTemp("TRAK",repid,ind)
+ }
+
+ // Save QHandle
+ Set QHandle=$lb(AtEnd,repid,ind)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Query name="GetInvoiceList">
+<Type>%Library.Query</Type>
+<FormalSpec>DateFrom:%Date,DateTo:%Date,Hospital:%String</FormalSpec>
+<SqlProc>1</SqlProc>
+<Parameter name="CONTAINID" value="0"/>
+<Parameter name="ROWSPEC" value="ARPBLRowId:%Integer,PAPMINo:%String(MAXLEN=255),PAADMADMNo:%String(MAXLEN=255),PAPMIName:%String(MAXLEN=255),ARPBLDateFrom:%Date,ARPBLDateTo:%Date,ARPBLBillNo:%String(MAXLEN=255),ARPBLDatePrinted:%Date,ARPBLAmountToPay:%Float,PAPMIName2:%String(MAXLEN=255),PAPMIName3:%String(MAXLEN=255),INSTCode:%String(MAXLEN=255),INSTDesc:%String(MAXLEN=255),INSTRowId:%Integer,PAADMSubType:%String(MAXLEN=255),PatientName:%String(MAXLEN=255),HOSPRowId:%Integer,HOSPCode:%String(MAXLEN=255),HOSPDesc:%String(MAXLEN=255)"/>
+</Query>
+</Class>
+</Export>

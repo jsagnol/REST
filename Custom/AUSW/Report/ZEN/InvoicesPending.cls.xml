@@ -1,0 +1,144 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.AUSW.Report.ZEN.InvoicesPending">
+<Super>Custom.AUXX.Report.ZEN.Abstract</Super>
+<TimeCreated>61543,54550.041409</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/AUSW/Report/ZEN/InvoicesPending.xml#1 $</Default>
+</Parameter>
+
+<UDLText name="T">
+<Content><![CDATA[
+// Report Name: Trak Invoices Pending <br>
+
+]]></Content>
+</UDLText>
+
+<UDLText name="T">
+<Content><![CDATA[
+// Report Code: AUXX.FIN0004 <br>
+
+]]></Content>
+</UDLText>
+
+<UDLText name="T">
+<Content><![CDATA[
+// LOGTRAK Number: 72209 <br>
+
+]]></Content>
+</UDLText>
+
+<Property name="DateTo">
+<Type>%String</Type>
+<Parameter name="ZENURL" value="P1"/>
+</Property>
+
+<Property name="Facility">
+<Type>%String</Type>
+<Parameter name="ZENURL" value="P2"/>
+</Property>
+
+<XData name="ReportDefinition">
+<XMLNamespace>http://www.intersystems.com/zen/report/definition</XMLNamespace>
+<Data><![CDATA[
+<report xmlns='http://www.intersystems.com/zen/report/definition'
+   queryClass='Custom.AUSW.Report.ZEN.StoredProc.InvoicesPending' queryName='InvoicesPending' name='InvoicesPending'>
+  <parameter expression='..DateTo'/>
+  <parameter expression='..Facility'/>
+  <attribute name='ReportTitle' expression='$$$Text("@InvoicesPending@Invoices Pending")'/>
+  <attribute name='timestamp' expression='$ZDATETIME($H, 2, 2)'/>
+  <attribute name='username' expression='..Username'/>
+  <attribute name="dateto" expression="..DisplayDate(..DateTo)"/>
+    
+  <group name="Facility" breakOnField="HOSPDesc">
+  <attribute name="description" field="HOSPDesc" />
+ 
+  <group name="Status" breakOnField="Status">
+  <attribute name="description" field="Status" />
+         <aggregate name='TotalBalance' type='SUM' field='ARPBLAmountToPay'/>
+         <group name='Detail'>           
+	    <attribute field='PAPMINo' name='PAPMINo'/>
+	    <attribute field='PAADMADMNo' name='PAADMADMNo'/>
+  	    <attribute fields='PAPMIName,PAPMIName2,PAPMIName3' name='PatientName' expression='..DisplayName(%val("PAPMIName"),%val("PAPMIName2"),%val("PAPMIName3"))'/>
+        <attribute field='ARPBLAdmDate' name='ARPBLAdmDate' expression='..DisplayDate(%val)'/>
+        <attribute field='ARPBLDischDate' name='ARPBLDischDate' expression='..DisplayDate(%val)'/>
+	    <attribute field='AUXITCode' name='AUXITCode'/> 
+        <attribute field='ARPBLAmountToPay' name='ARPBLAmountToPay'/>
+	    <attribute field='INSTCode' name='INSTCode'/>
+	    <attribute field='HOSPDesc' name='HOSPDesc'/>
+	    </group>
+          </group>
+           </group>
+        </report>
+]]></Data>
+</XData>
+
+<XData name="ReportDisplay">
+<XMLNamespace>http://www.intersystems.com/zen/report/display</XMLNamespace>
+<Data><![CDATA[
+<report xmlns='http://www.intersystems.com/zen/report/display'
+xmlns:auxxstyle='http://www.intersystems.com/zen/report/display/auxx/style'
+xmlns:auxx='http://www.intersystems.com/zen/report/display/auxx'
+  name='InvoicesPending'>
+ <document width= "#(..ReportWidth)#" height="#(..ReportHeight)#" marginLeft="#(..DocMarginLeft)#" marginRight="#(..DocMarginRight)#" 
+marginTop="#(..DocMarginTop)#" marginBottom="#(..DocMarginBottom)#" footerHeight="#(..DocFooterHeight)#" headerHeight="#(..DocHeaderHeight)#" 
+regionBeforeExtent="#(..DocHeaderHeight)#" regionAfterExtent="#(..DocFooterHeight)#">
+<auxxstyle:auxxgroupheader/>
+<auxxstyle:auxxgroupsummary/>
+<auxxstyle:auxxhospitalheader/>
+<auxxstyle:auxxpagefooter/>
+<auxxstyle:auxxpageheader/>
+<auxxstyle:auxxparameterheader/>
+<auxxstyle:auxxreporttitle/>
+<auxxstyle:auxxtablecolumn/>
+</document>
+<auxx:PageHeader pagetitle='@ReportTitle'/>
+<auxx:ReportFooter username='@username' timestamp='@timestamp'/>
+
+<body>
+<!-- REPORT HEADER -->
+<auxx:ReportHeader reporttitle='@ReportTitle'/>
+<auxx:ReportParameterHeader label='@Facility:@Facility:' field='@facility' xcondition="string-length(@facility)>0"/>
+<auxx:ReportParameterHeader label='@UpToandIncludingDate:@Up To and Including Date' field="@dateto" /> 
+<line pattern="solid" width="100%"/>
+<line pattern="empty" width="100%"></line> 
+<auxx:NoResults xcondition="not(Facility)" />
+
+<group name='Facility'>
+<auxx:GroupHeader label="@Facility:@Facility" field="@description" />
+<line pattern="empty" lineHeight="1mm" />
+<group name='Status' pagebreak="true">
+<auxx:GroupHeader label="@Status:@Status:" field="@description"/>
+<line pattern="empty" lineHeight="1mm" />
+     <table class='auxxtablecolumn'  group='Detail' >
+        <item field='@PAPMINo' width="10%" caption='@URN@URN'/>
+        <item field='@PAADMADMNo' width="11%" caption="@EpisodeNo@Episode No" />
+        <item field='@PatientName' width="21%" caption="@Name@Name" />
+        <item field='@ARPBLAdmDate' width="10%" caption="@AdmissionDate@Admission Date" />
+        <item field='@ARPBLDischDate' width="10%" caption="@DischargeDate@Discharge Date" />
+        <item field='@ARPBLAmountToPay' width="10%" formatNumber="##,###,##0.00" style="text-align:right" caption='@Amount$@Amount $'/>   	    
+        <item field='' width="1%"/>
+        <item field='@INSTCode' width="13%" caption='@Payor@Payor'/> 
+        <item field='' width="1%"/>
+        <item field='@AUXITCode' width="13%" caption='@Plan@Plan'/> 
+    </table>
+        <line pattern="empty" width="100%"></line> 
+   <table width='100%'  class="auxxgroupsummary">
+   <block width='65%'>        	
+ 	<item value='@TotalBalancefor@Total Balance for ' />
+ 	<item field='@description'  />
+ 	</block>
+ 	<block width='10%' style="text-align:right"> 	
+ 	<item field="TotalBalance" formatNumber="##,###,##0.00"  />		
+	</block>	
+   </table>
+ </group> </group>
+</body>
+</report>
+]]></Data>
+</XData>
+</Class>
+</Export>

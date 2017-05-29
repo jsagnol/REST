@@ -1,0 +1,249 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.AUXX.Report.ZEN.StoredProc.WLHIPS">
+<ProcedureBlock>0</ProcedureBlock>
+<Super>Report.Abstract</Super>
+<TimeCreated>61093,56478.893328</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+This Parameter should be updated when synced from Perforce</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/AUXX/Report/ZEN/StoredProc/WLHIPS.xml#1 $</Default>
+</Parameter>
+
+<UDLText name="T">
+<Content><![CDATA[
+// Report Name: AUXX WL Hospital Initiated Postponements<br>
+
+]]></Content>
+</UDLText>
+
+<UDLText name="T">
+<Content><![CDATA[
+// Report Code: AUXX.WLT0001 <br>
+
+]]></Content>
+</UDLText>
+
+<UDLText name="T">
+<Content><![CDATA[
+// Logtrak Number:  <br>
+
+]]></Content>
+</UDLText>
+
+<Method name="GetRecordsClose">
+<Final>0</Final>
+<ClassMethod>1</ClassMethod>
+<CodeMode>code</CodeMode>
+<FormalSpec>QHandle:%Library.Binary</FormalSpec>
+<Private>0</Private>
+<ReturnType>%Library.Status</ReturnType>
+<SqlProc>0</SqlProc>
+<Implementation><![CDATA[
+ // Clean up by purging the temporary node in ^CacheTemp global
+ New repid
+ Set repid=$li(QHandle,2)
+ 
+ //Start Monitor (if configured to capture stats)
+ i mon Do ..MonitorEnd(mon)
+ 
+ Kill ^CacheTemp("TRAK",repid)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="GetRecordsExecute">
+<ClassMethod>1</ClassMethod>
+<CodeMode>code</CodeMode>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,DateFrom:%Date,DateTo:%Date,Hospital:%String,ReasonGroup:%String]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+	
+ // Get reportid i.e. use $INCREMENT to add another node to ^CacheTemp global. 
+ // We use ^CacheTemp global because it will always use memory before disk
+ New repid,ind
+
+ // Use $Increment to get the next node
+ Set repid=$I(^CacheTemp("TRAK"))
+
+  //Start Monitor (if configured to capture stats)
+  s mon=..MonitorBegin()
+ 
+ // Build data into ^CacheTemp(ReportID)
+ // e.g. Set ^CacheTemp(ReportID,Index)=$LB(f1,f2,f3)
+ New Number,String,Date,Time,c,n
+ n WLDate,ADMCancelDate,PAPMINo,PAPMIName,PAPMIName2,REACode,READesc,CTLOCCode,CTLOCDesc,CTPCPDesc,HOSPDesc,WLNo,SPPPDesc,WLRGDesc,WLSCode,WLPCode,WLOperativeEpisode
+ s (WLDate,ADMCancelDate,PAPMINo,PAPMIName,PAPMIName2,REACode,READesc,CTLOCCode,CTLOCDesc,CTPCPDesc,HOSPDesc,WLNo,SPPPDesc,WLRGDesc,WLSCode,WLPCode,WLOperativeEpisode)=""
+ s ind=1
+
+ //Start Monitor (if configured to capture stats)
+ s mon=..MonitorBegin()
+
+ // Strip white space/control chars from blank variables
+ i $g(Hospital)'="" s Hospital=$zstrip(Hospital,"*C")
+ i $g(ReasonGroup)'="" s ReasonGroup=$zstrip(ReasonGroup,"*C")
+ 
+  //Convert ODBC dates to cache format
+ s DateFrom=$$intdate^SSUTIL4(DateFrom)
+ s DateTo=$$intdate^SSUTIL4(DateTo) 
+ 
+ &sql(declare GetRecords cursor for
+ SELECT 
+ ADM_ParRef->WL_Date,
+ ADM_CancelDate,
+ ADM_ParRef->WL_PAPMI_DR->PAPMI_No,
+ ADM_ParRef->WL_PAPMI_DR->PAPMI_Name,
+ ADM_ParRef->WL_PAPMI_DR->PAPMI_Name2,
+ ADM_CancelReason_DR->REA_Code,
+  ADM_CancelReason_DR->REA_Desc,
+ ADM_ParRef->WL_CTLOC_DR->CTLOC_Code,
+ ADM_ParRef->WL_CTLOC_DR->CTLOC_Desc,
+ ADM_ParRef->WL_Doctor_DR->CTPCP_Desc,
+ ADM_ParRef->WL_Hospital_DR->HOSP_Desc,
+ ADM_ParRef->WL_No,
+ ADM_ParRef->WL_StateProc_DR->SPPP_Desc,
+ ADM_CancelReason_DR->REA_ReasonGroup_DR->WLRG_Desc,
+ ADM_ParRef->WL_WaitListStatus_DR->WLS_Code,
+ ADM_ParRef->WL_WaitListPrior_DR->WLP_Code,
+ ADM_ParRef->WL_OperativeEpisode
+ FROM SQLUser.PA_WaitingListADM
+ WHERE ADM_CancelDate between :DateFrom and :DateTo and   
+ (({fn CONCAT( ',', {fn CONCAT((:Hospital),',')})} [ {fn CONCAT( ',', {fn CONCAT((adm_parref->WL_Hospital_DR->HOSP_RowId),',')})}) OR (:Hospital IS NULL))
+ AND (({fn CONCAT( ',', {fn CONCAT((:ReasonGroup),',')})} [ {fn CONCAT( ',', {fn CONCAT((adm_CancelREASON_dr->REA_ReasonGroup_DR->WLRG_RowId),',')})}) OR (:ReasonGroup IS NULL))
+ AND ADM_CancelReason_DR->REA_ReasonGroup_DR->WLRG_Code in ('006','010','C','H')
+ )
+ &sql(open GetRecords)
+
+ //fetch first row
+ &sql(fetch GetRecords into :WLDate,:ADMCancelDate,:PAPMINo,:PAPMIName,:PAPMIName2,:REACode,:READesc,:CTLOCCode,:CTLOCDesc,:CTPCPDesc,:HOSPDesc,:WLNo,:SPPPDesc,:WLRGDesc,:WLSCode,:WLPCode,:WLOperativeEpisode)
+
+ while 'SQLCODE{
+  d FormatDates  
+
+ // build the row
+ Set ^CacheTemp("TRAK",repid,$ZCVT(HOSPDesc,"U")_" "_$ZCVT(WLRGDesc,"U")_" "_PAPMINo_" "_WLNo_" "_ADMCancelDate_ind)=$LB(WLDate,ADMCancelDate,PAPMINo,PAPMIName,PAPMIName2,REACode,READesc,CTLOCCode,CTLOCDesc,CTPCPDesc,HOSPDesc,WLNo,SPPPDesc,WLRGDesc,WLSCode,WLPCode,WLOperativeEpisode)
+ s ind=ind+1
+ //fetch rows
+ &sql(fetch GetRecords into :WLDate,:ADMCancelDate,:PAPMINo,:PAPMIName,:PAPMIName2,:REACode,:READesc,:CTLOCCode,:CTLOCDesc,:CTPCPDesc,:HOSPDesc,:WLNo,:SPPPDesc,:WLRGDesc,:WLSCode,:WLPCode,:WLOperativeEpisode)}
+
+ &sql(close GetRecords)
+
+ // Build QHandle (AtEnd,ReportID,Index)
+ Set QHandle=$lb(0,repid,0)
+
+ Quit $$$OK
+
+FormatDates
+ // Convert the dates to ODBC date format
+ If WLDate Set WLDate=..ConvertDateToODBC(WLDate)
+ If ADMCancelDate Set ADMCancelDate=..ConvertDateToODBC(ADMCancelDate)
+ Quit
+]]></Implementation>
+</Method>
+
+<Method name="GetRecordsFetch">
+<Final>0</Final>
+<ClassMethod>1</ClassMethod>
+<CodeMode>code</CodeMode>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,&Row:%Library.List,&AtEnd:%Library.Integer=0]]></FormalSpec>
+<Private>0</Private>
+<ReturnType>%Library.Status</ReturnType>
+<SqlProc>0</SqlProc>
+<Implementation><![CDATA[
+ // This fetch method should never have to change. 
+
+ // repid - Report ID
+ // ind   - sequence index which represents each row
+
+ New repid,ind
+
+ // Restore QHandle
+ Set AtEnd=$li(QHandle,1)
+ Set repid=$li(QHandle,2)
+ Set ind=$li(QHandle,3)
+
+ Set ind=$o(^CacheTemp("TRAK",repid,ind))
+ If ind="" {	// if there are no more rows, finish fetching
+ Set AtEnd=1
+ Set Row=""
+ }
+ Else      {	// fetch row
+ Set Row=^CacheTemp("TRAK",repid,ind)
+ }
+
+ // Save QHandle
+ s QHandle=$lb(AtEnd,repid,ind)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Query name="GetRecords">
+<Type>%Library.Query</Type>
+<FormalSpec>DateFrom:%Date,DateTo:%Date,Hospital:%String,ReasonGroup:%String</FormalSpec>
+<SqlProc>1</SqlProc>
+<Parameter name="CONTAINID" value="0"/>
+<Parameter name="ROWSPEC" value="WLDate:%Date,ADMCancelDate:%Date,PAPMINo:%String(MAXLEN=255),PAPMIName:%String(MAXLEN=255),PAPMIName2:%String(MAXLEN=255),REACode:%String(MAXLEN=255),READesc:%String(MAXLEN=255),CTLOCCode:%String(MAXLEN=255),CTLOCDesc:%String(MAXLEN=255),CTPCPDesc:%String(MAXLEN=255),HOSPDesc:%String(MAXLEN=255),WLNo:%String(MAXLEN=255),SPPPDesc:%String(MAXLEN=255),WLRGDesc:%String(MAXLEN=255),WLSCode:%String,WLPCode:%String,WLOperativeEpisode:%String"/>
+</Query>
+
+<Method name="Freeze">
+<Description>
+Write out performance stats to websys.Monitor 
+[Previously private]</Description>
+<ClassMethod>1</ClassMethod>
+<Implementation><![CDATA[
+ Do mon.Freeze()
+ Do mon.%Save()
+ Do mon.%Close()
+ Quit
+]]></Implementation>
+</Method>
+
+<Method name="PerformanceCaptureStatsFlag">
+<Description>
+Return TrakCare Configuration Manager Capture Performance Statistics flag
+[Previously private]</Description>
+<ClassMethod>1</ClassMethod>
+<ReturnType>%Integer</ReturnType>
+<Implementation><![CDATA[	Quit $lg($g(^websys.ConfigurationD(1)),29)
+]]></Implementation>
+</Method>
+
+<Query name="LookUpRG">
+<Type>%Library.SQLQuery</Type>
+<FormalSpec>var:%String</FormalSpec>
+<SqlQuery><![CDATA[SELECT WLRG_Desc,WLRG_RowId,WLRG_Code
+FROM SQLUser.PAC_WLReasonGroup
+WHERE ((%UPPER WLRG_Desc %STARTSWITH %UPPER :var) OR (%UPPER WLRG_Code %STARTSWITH %UPPER :var))
+AND ((WLRG_DateFrom <= current_Date) OR (WLRG_DateFrom IS NULL))
+AND ((WLRG_DateTo >= current_date) OR (WLRG_DateTo IS NULL)
+AND WLRG_Code in ('006','010','C','H')
+)]]></SqlQuery>
+<Parameter name="CONTAINID" value="2"/>
+<Parameter name="ROWSPEC" value="Description:%String,HIDDEN:%String,Code:%String"/>
+</Query>
+
+<Method name="LookUpRGBroker">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>itmjs:%Library.String="",itmjsex:%Library.String="",var:%Library.String=""</FormalSpec>
+<Implementation><![CDATA[
+ n id,code,desc
+ s (id,code,desc)=""
+ &SQL(SELECT DISTINCT
+ WLRG_Desc,WLRG_RowId,WLRG_Code
+ INTO :desc,:id,:code
+ FROM  SQLUser.PAC_WLReasonGroup
+ WHERE ((%ALPHAUP WLrg_Desc = %ALPHAUP :var) OR (%ALPHAUP WLRG_Code = %ALPHAUP :var))
+ AND ((WLRG_DateFrom <= current_Date) OR (WLRG_DateFrom IS NULL))
+ AND ((WLRG_DateTo >= current_date) OR (WLRG_DateTo IS NULL))
+ AND WLRG_Code in ('006','010','C','H') )
+ ;
+ i SQLCODE s desc=var q 0
+ s retval=itmjs_"('"_$ZCVT(desc,"O","JS")_"');"
+ i itmjsex'="""" s retval=retval_itmjsex_"('"_$ZCVT(desc,"O","JS")_"^"_id_"^"_$ZCVT(code,"O","JS")_"');"
+ &javascript<#(retval)#>
+ q 1
+]]></Implementation>
+</Method>
+</Class>
+</Export>

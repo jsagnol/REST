@@ -1,0 +1,278 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.AUXX.Report.ZEN.StoredProc.SurgicalPreferences">
+<ProcedureBlock>0</ProcedureBlock>
+<Super>Report.Abstract</Super>
+<TimeCreated>60172,53753.272085</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/AUXX/Report/ZEN/StoredProc/SurgicalPreferences.xml#1 $</Default>
+</Parameter>
+
+<UDLText name="T">
+<Content><![CDATA[
+// Report Name: Surgical Preference List <br>
+
+]]></Content>
+</UDLText>
+
+<UDLText name="T">
+<Content><![CDATA[
+// Report Code: AUXX.OPT0005 <br>
+
+]]></Content>
+</UDLText>
+
+<UDLText name="T">
+<Content><![CDATA[
+// Report Description: Identifies the Order Items and Equipment required by the Care Provider to perform a procedure.
+
+]]></Content>
+</UDLText>
+
+<Method name="GetListClose">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>QHandle:%Library.Binary</FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Clean up by purging the temporary node in ^CacheTemp global
+ New repid
+ Set repid=$li(QHandle,2)
+
+ //Start Monitor (if configured to capture stats)
+ i mon Do ..MonitorEnd(mon)
+
+ Kill ^CacheTemp("TRAK",repid)
+
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="GetListExecute">
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,CareProv:%Library.String,oper:%String,anaes:%String,recoper:%String]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Get reportid i.e. use $INCREMENT to add another node to ^CacheTemp global. 
+ // We use ^CacheTemp global because it will always use memory before disk
+ New repid,ind,END,BuildRow
+ New EQRowID,EQChildSub,ANMETCode,ANMETDesc,SPPPCode,SPPPDesc,TTLCode,CTPCPDesc,CTPCPFirstName,CTPCPOtherName,CTPCPSurname
+ New ARCIMCode,ARCIMDesc,ARCICDesc,ARCIMInsCoDesc,ARCOSCode,ARCOSDesc,ORCATDesc,EQQty,pass
+ New EQARCIMCode,EQARCIMDesc,EQARCICDesc,EQARCIMInsCoDesc,EQEquipQTY,ANMETRowId,SPPPRowId,RECOPERRowId
+ New ProductRef,OrderCode,OrderDescription,OrderCategory,RECOPERCode,RECOPERDesc,RECOPERText,EQSequenceNo,EQParRef
+
+ S (EQRowID,EQChildSub,ANMETCode,ANMETDesc,SPPPCode,SPPPDesc,TTLCode,CTPCPDesc,CTPCPFirstName,CTPCPOtherName,CTPCPSurname)=""
+ S (ARCIMCode,ARCIMDesc,ARCICDesc,ARCIMInsCoDesc,ARCOSCode,ARCOSDesc,ORCATDesc,EQQty,pass)=""
+ S (EQARCIMCode,EQARCIMDesc,EQARCICDesc,EQARCIMInsCoDesc,EQEquipQTY,ANMETRowId,SPPPRowId,RECOPERRowId,ProductDesc)=""
+ S (ProductRef,OrderCode,OrderDescription,OrderCategory,RECOPERCode,RECOPERDesc,RECOPERText,EQSequenceNo,EQParRef,ProductDesc)=""
+ 
+ // Use $Increment to get the next node and clean up
+ Set repid=$Increment(^CacheTemp("TRAK"))
+ Kill ^CacheTemp("TRAK",repid)
+ 
+ //Start Monitor (if configured to capture stats)
+ s mon=..MonitorBegin()
+ 
+ i $g(CareProv)'="" s CareProv=$zstrip(CareProv,"*CW")
+ i $g(anaes)'="" s anaes=$zstrip(anaes,"*CW")
+ i $g(oper)'="" s oper=$zstrip(oper,"*CW")
+
+ &SQL(DECLARE PREF CURSOR FOR
+ SELECT 
+ EQ_RowID,
+ EQ_ChildSub,
+ EQ_ParRef,
+ EQ_ParRef->ORP_AnaestMethod_DR,
+ EQ_ParRef->ORP_AnaestMethod_DR->ANMET_Code,
+ EQ_ParRef->ORP_AnaestMethod_DR->ANMET_Desc,
+ EQ_ParRef->ORP_StatePPP_DR,
+ EQ_ParRef->ORP_StatePPP_DR->SPPP_Code,
+ EQ_ParRef->ORP_StatePPP_DR->SPPP_Desc,
+ EQ_ParRef->ORP_RecovStatePPP_DR,
+ EQ_ParRef->ORP_RecovStatePPP_DR->SPPP_Code,
+ EQ_ParRef->ORP_RecovStatePPP_DR->SPPP_Desc,
+ EQ_ParRef->ORP_RecovText,
+ EQ_ParRef->ORP_ParRef->CTPCP_Title_DR->TTL_Code,
+ EQ_ParRef->ORP_ParRef->CTPCP_Desc,
+ EQ_ParRef->ORP_ParRef->CTPCP_FirstName,
+ EQ_ParRef->ORP_ParRef->CTPCP_OtherName,
+ EQ_ParRef->ORP_ParRef->CTPCP_Surname,
+ EQ_ARCIM_DR->ARCIM_Code,
+ EQ_ARCIM_DR->ARCIM_Desc,
+ EQ_ARCIM_DR->ARCIM_ItemCat_DR->ARCIC_Desc,
+ EQ_ARCIM_DR->ARCIM_InsCoDesc,
+ EQ_ARCOS_DR->ARCOS_Code,
+ EQ_ARCOS_DR->ARCOS_Desc,
+ EQ_ARCOS_DR->ARCOS_OrdCat_DR->ORCAT_Desc,
+ EQ_Qty,
+ EQ_ORCEquipDR->EQ_Code,
+ EQ_ORCEquipDR->EQ_Desc,
+ EQ_ORCEquipDR->EQ_ARCIM_DR->ARCIM_ItemCat_DR->ARCIC_Desc,
+ EQ_ORCEquipDR->EQ_ARCIM_DR->ARCIM_InsCoDesc,
+ EQ_EquipQTY,
+ EQ_CTPCP_DR->CTPCP_Code,
+ EQ_CTPCP_DR->CTPCP_Desc,
+ EQ_CTPCP_DR->CTPCP_CarPrvTp_DR->CTCPT_Desc,
+ EQ_StaffQty,
+ EQ_SequenceNo
+ INTO :EQRowID,:EQChildSub,:EQParRef,:ANMETRowId,:ANMETCode,:ANMETDesc,:SPPPRowId,:SPPPCode,:SPPPDesc,:RECOPERRowId,:RECOPERCode,:RECOPERDesc,:RECOPERText,:TTLCode,:CTPCPDesc,:CTPCPFirstName,:CTPCPOtherName,:CTPCPSurname,:ARCIMCode,:ARCIMDesc,:ARCICDesc,:ARCIMInsCoDesc,:ARCOSCode,:ARCOSDesc,:ORCATDesc,:EQQty,:EQARCIMCode,:EQARCIMDesc,:EQARCICDesc,:EQARCIMInsCoDesc,:EQEquipQTY,:CTPCPCode,:CTPCPDesc,:EQCareProvType,:EQStaffQty,:EQSequenceNo
+ FROM SqlUser.CT_CareProvORPrefEq
+ WHERE (({fn CONCAT( ',', {fn CONCAT((:CareProv),',')})} [ {fn CONCAT( ',', {fn CONCAT((EQ_ParRef->ORP_ParRef),',')})}) OR (:CareProv IS NULL)))
+ &SQL(OPEN PREF)
+ f  &SQL(FETCH PREF) q:SQLCODE'=0  d
+ . s BuildRow=1
+ . d SetCodeDescriptionAndQuantity
+ . d Data
+ .i ProductRef'="" d BuildRow		
+ &SQL(CLOSE PREF)
+
+ // Build QHandle (AtEnd,ReportID,Index)
+ Set QHandle=$lb(0,repid,0)
+ Quit $$$OK
+
+Data
+ i BuildRow {
+	 s (prefP,prefAM,prefRP) =""
+	 i $g(ANMETCode)'="" {
+		 s SPPPRowId=ANMETRowId
+		 s SPPPCode="Anaesthetic Method: " _ ANMETDesc
+		 s SPPPDesc=ANMETDesc
+	 }elseif $g(SPPPCode)'="" {
+		 s SPPPRowId=SPPPRowId
+		 s SPPPCode="Procedure: " _SPPPDesc
+	 }elseif $g(RECOPERCode)'="" {
+		 s SPPPRowId=RECOPERRowId
+		 s SPPPCode="Recovery Procedure: " _RECOPERDesc
+		 s SPPPDesc=RECOPERDesc
+	 }	 
+ }
+ q
+
+SetCodeDescriptionAndQuantity
+ s (OrderCode,OrderDescription,OrderCategory,ProductRef,SortOrder)=""
+ if $ZSTRIP(ARCIMCode,"*CW")'="" {
+	 s OrderCode=ARCIMCode
+	 s OrderDescription=ARCIMDesc
+	 s OrderCategory=ARCICDesc
+	 s OrderQuantity=EQQty
+	 s ProductRef=1,ProductDesc="Order Items"
+ } elseif $ZSTRIP(ARCOSCode,"*CW")'="" {
+	 s OrderCode=ARCOSCode
+	 s OrderDescription=ARCOSDesc
+	 s OrderCategory=ORCATDesc
+	 s OrderQuantity=EQQty
+	 s ProductRef=1,ProductDesc="Order Items"
+ } elseif $ZSTRIP(EQARCIMCode,"*CW")'="" {
+	 s OrderCode=EQARCIMCode
+	 s OrderDescription=EQARCIMDesc
+	 i EQARCICDesc'="" {s OrderCategory=EQARCICDesc} 
+	 i EQARCICDesc="" {s OrderCategory="Equipment Preference"}
+	 s OrderQuantity=EQEquipQTY
+	 s ProductRef=2,ProductDesc="Equipment Items"
+ } elseif $ZSTRIP(EQStaffQty,"*CW")'="" {
+	 s OrderCode=""
+	 i CTPCPDesc'="" {
+		 s OrderDescription=CTPCPDesc
+		 s OrderQuantity=""
+		 }else {
+			 s OrderDescription=##Class(websys.StandardTypeItem).GetDescription("AnaestOtherStaff",EQCareProvType)
+			 s OrderQuantity=EQStaffQty
+		 }
+	 s OrderCategory=EQCareProvType
+	 s ProductRef=3,ProductDesc="Staff Required"
+ } else {
+	 s BuildRow=0
+ }	
+ q
+
+BuildRow
+ s pass=0
+ i recoper=""{		 
+		i anaes'="",oper="" {
+			i (","_anaes_",")[(","_ANMETRowId_",") {s pass=1} 	
+ 		} 
+ 		elseif anaes="",oper'="" {
+	 		i $g(RECOPERRowId)=""{
+				i (","_oper_",")[(","_SPPPRowId_",") {s pass=1} 
+ 			} 
+ 		}
+ 		elseif anaes'="",oper'="" {
+			i (","_anaes_",")[(","_ANMETRowId_",") {s pass=1}
+			i $g(RECOPERRowId)=""{
+				i (","_oper_",")[(","_SPPPRowId_",") {s pass=1} 
+			}
+ 		} 
+ 		elseif anaes="",oper="" {s pass=1} 	 	
+  	
+  }
+ 
+  
+ i recoper'=""{	 
+ 
+	 i $g(RECOPERRowId)'=""{ 
+	 	i (","_recoper_",")[(","_SPPPRowId_",") {s pass=1} 	 
+	 }
+ 	 	i anaes'="",oper="" {
+	 		i (","_anaes_",")[(","_ANMETRowId_",") {s pass=1}	
+	 	} 
+	 	elseif anaes="",oper'="" {
+	 		i (","_oper_",")[(","_SPPPRowId_",") {s pass=1}		
+	 	}   
+     	elseif anaes'="",oper'="" {
+	 		i (","_anaes_",")[(","_ANMETRowId_",") {s pass=1}
+	 		i (","_oper_",")[(","_SPPPRowId_",") {s pass=1}
+     	} 
+     ;elseif anaes="",oper="" {s pass=1} 	 
+ 		
+ 	}
+ i pass=1 {
+ 		s ind=$i(ind)
+ 	 	s ^CacheTemp("TRAK",repid,$ZCVT(SPPPDesc,"U")_$ZCVT(ProductRef,"U")_ind)=$LB(EQRowID,EQChildSub,EQParRef,SPPPCode,SPPPDesc,TTLCode,CTPCPDesc,CTPCPFirstName,CTPCPOtherName,CTPCPSurname,OrderQuantity,ProductRef,OrderCode,OrderDescription,OrderCategory,EQSequenceNo,ANMETRowId,SPPPRowId,RECOPERRowId,ProductDesc)
+ }
+ q
+]]></Implementation>
+</Method>
+
+<Method name="GetListFetch">
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,&Row:%Library.List,&AtEnd:%Library.Integer=0]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // This fetch method should never have to change. 
+
+ // repid - Report ID
+ // ind   - sequence index which represents each row
+
+ New repid,ind
+
+ // Restore QHandle
+ Set AtEnd=$li(QHandle,1)
+ Set repid=$li(QHandle,2)
+ Set ind=$li(QHandle,3)
+
+ Set ind=$o(^CacheTemp("TRAK",repid,ind))
+ If ind="" {	// if there are no more rows, finish fetching
+ Set AtEnd=1
+ Set Row=""
+ }
+ Else      {	// fetch row
+ Set Row=^CacheTemp("TRAK",repid,ind)
+ }
+
+ // Save QHandle
+ s QHandle=$lb(AtEnd,repid,ind)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Query name="GetList">
+<Type>%Library.Query</Type>
+<FormalSpec>CareProv:%Library.String,oper:%String,anaes:%String,recoper:%String</FormalSpec>
+<SqlProc>1</SqlProc>
+<Parameter name="CONTAINID" value="0"/>
+<Parameter name="ROWSPEC" value="EQRowID:%Library.String(MAXLEN=255),EQChildSub:%Library.Integer,EQParRef:%String,SPPPCode:%Library.String(MAXLEN=255),SPPPDesc:%Library.String(MAXLEN=255),TTLCode:%Library.String(MAXLEN=255),CTPCPDesc:%Library.String(MAXLEN=255),CTPCPFirstName:%Library.String(MAXLEN=255),CTPCPOtherName:%Library.String(MAXLEN=255),CTPCPSurname:%Library.String(MAXLEN=255),EQQty:%Library.String(MAXLEN=255),ProductRef:%Library.String(MAXLEN=255),OrderCode:%Library.String(MAXLEN=255),OrderDescription:%Library.String(MAXLEN=255),OrderCategory:%Library.String(MAXLEN=255),EQSequenceNo:%String,ANMETRowId:%String,SPPPRowId:%String,RECOPERRowId:%String,ProductDesc:%String"/>
+</Query>
+</Class>
+</Export>

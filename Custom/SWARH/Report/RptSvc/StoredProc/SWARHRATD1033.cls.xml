@@ -1,0 +1,283 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="Custom.SWARH.Report.RptSvc.StoredProc.SWARHRATD1033">
+<Description><![CDATA[
+<pre>
+**************************************************************************************************************************************
+* Report Code: SWARHRATD1033
+* Report Description: Unplanned Readmissions With Diagnosis
+* Menu Caption: Unplanned Readmissions With Diagnosis
+* Report shows: Episodes within given date range that have an episode immediately prior and within 28 days, specifiying 'No intent to readmit'
+* Report Fields: Patient Name, UR, Age, Days between episodes, Dischg Date, Adm Date, Episode, Admission Source, Inpat Type, Doctor, Diagnosis
+* Initial release: Dunno
+* Developer: Dunno
+* Modified: Jayson Sagnol 09/09/2013
+* 
+**************************************************************************************************************************************
+</pre>
+Class for SWARHRATD1033 Report]]></Description>
+<ProcedureBlock>0</ProcedureBlock>
+<Super>Custom.SWARH.Report.RptSvc.StoredProc.Abstract</Super>
+<TimeCreated>60905,54849</TimeCreated>
+
+<Parameter name="SrcVer">
+<Description>
+Location and Revision of this file in Perforce (Auto-updating)</Description>
+<Default>$Id: //custom_ccrs/au/AUSW/T2016/BASE/cls/Custom/SWARH/Report/RptSvc/StoredProc/SWARHRATD1033.xml#1 $</Default>
+</Parameter>
+
+<UDLText name="T">
+<Content><![CDATA[
+// Report Name: Unplanned Readmissions With Diagnosis<br>
+
+]]></Content>
+</UDLText>
+
+<UDLText name="T">
+<Content><![CDATA[
+// Report Code: SWARHRATD1033 <br>
+
+]]></Content>
+</UDLText>
+
+<Method name="SWARHRATD1033Close">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>QHandle:%Library.Binary</FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // Clean up by purging the temporary node in ^CacheTemp global
+ New repid
+ Set repid=$li(QHandle,2)
+ 
+ //Close Monitor (if configured to capture stats)
+ i mon Do ..MonitorEnd(mon)
+ 
+ Kill ^CacheTemp("TRAK",repid)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="SWARHRATD1033Execute">
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,Hospital:%String,DateFrom:%Date,DateTo:%Date,DaysElapsed:%String]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+	
+ // Get reportid i.e. use $INCREMENT to add another node to ^CacheTemp global. 
+ // We use ^CacheTemp global because it will always use memory before disk
+ New repid,ind
+
+ // Use $Increment to get the next node
+ Set repid=$I(^CacheTemp("TRAK"))
+
+ //Start Monitor (if configured to capture stats)
+ s mon=..MonitorBegin()
+ 
+ // Build data into ^CacheTemp(ReportID)
+ new Number,String,Date,Time,c,n
+ 
+ new PAADMRowID,PAADMADMNo,PAADMAdmDate,PAADMAdmTime,IPATCode,WARDCode,PAADMDischgDate,PAADMDischgTime,ADSOUCode,CTLOCRowId,CTLOCCode,CTLOCDesc,CTLOCHospitalDR,HOSPCode,HOSPDesc,MRADMPresentComplaint,CTPCPSurname,CTPCPFirstName,PAPMIRowID,PAPMIName,PAPMIName2,PAPMIName3,PAPMINo,PAPERAgeYr,MRADMRowId,ICD10CodeList
+ new PrevPAADMRowID,PrevPAADMAdmNo,PrevPAADMAdmDate,PrevPAADMAdmTime,PrevPAADMDischgDate,PrevPAADMDischgTime,PrevICD10CodeList,PrevWARDRowID,PrevWARDCode,PrevADSOUCode,PrevIPATCode,PrevCTPCPSurname,PrevCTPCPFirstName,PrevADSOUCode,DaysBetweenEpisodes
+ set (PAADMRowID,PAADMADMNo,PAADMAdmDate,PAADMAdmTime,IPATCode,WARDCode,PAADMDischgDate,PAADMDischgTime,ADSOUCode,CTLOCRowId,CTLOCCode,CTLOCDesc,CTLOCHospitalDR,HOSPCode,HOSPDesc,MRADMPresentComplaint,CTPCPSurname,CTPCPFirstName,PAPMIRowID,PAPMIName,PAPMIName2,PAPMIName3,PAPMINo,PAPERAgeYr,MRADMRowId,ICD10CodeList)=""
+ set (PrevPAADMRowID,PrevPAADMAdmNo,PrevPAADMAdmDate,PrevPAADMAdmTime,PrevPAADMDischgDate,PrevPAADMDischgTime,PrevICD10CodeList,PrevWARDRowID,PrevWARDCode,PrevADSOUCode,PrevIPATCode,PrevCTPCPSurname,PrevCTPCPFirstName,PrevADSOUCode,DaysBetweenEpisodes)=""
+ set ind=1
+
+ //Convert ODBC dates to cache format
+ s DateFrom=..ConvertDateToCache(DateFrom)
+ s DateTo=..ConvertDateToCache(DateTo)
+
+ set EndDate = DateTo + 28
+
+ &sql(DECLARE Readmission CURSOR FOR
+ SELECT
+    PAADM_RowId,
+    PAADM_ADMNo,
+    PAADM_AdmDate,
+    PAADM_AdmTime,
+    PAADM_InPatAdmType_DR->IPAT_Code,
+    PAADM_CurrentWard_DR->WARD_Code,
+    PAADM_DischgDate,
+    PAADM_DischgTime,
+    PAADM_AdmSrc_DR->ADSOU_Code,
+    PAADM_DepCode_DR->CTLOC_RowId,
+    PAADM_DepCode_DR->CTLOC_Code,
+    PAADM_DepCode_DR->CTLOC_Desc,
+    PAADM_DepCode_DR->CTLOC_Hospital_DR,
+    PAADM_DepCode_DR->CTLOC_Hospital_DR->HOSP_Code,
+    PAADM_DepCode_DR->CTLOC_Hospital_DR->HOSP_Desc,
+    PAADM_MainMRADM_DR->MRADM_PresentComplaint,
+    PAADM_AdmDocCodeDR->CTPCP_Surname,
+    PAADM_AdmDocCodeDR->CTPCP_FirstName,
+    PAPMI_RowID,
+    PAPMI_Name,
+    PAPMI_Name2,
+    PAPMI_Name3,
+    PAPMI_No,
+    PAADM_PAPMI_DR->PAPMI_RowID->PAPER_AgeYr,
+    PAADM_MainMRADM_DR->MRADM_RowId
+    INTO :PAADMRowID,:PAADMADMNo,:PAADMAdmDate,:PAADMAdmTime,:IPATCode,:WARDCode,:PAADMDischgDate,:PAADMDischgTime,:ADSOUCode,:CTLOCRowId,:CTLOCCode,:CTLOCDesc,:CTLOCHospitalDR,:HOSPCode,:HOSPDesc,:MRADMPresentComplaint,:CTPCPSurname,:CTPCPFirstName,:PAPMIRowID,:PAPMIName,:PAPMIName2,:PAPMIName3,:PAPMINo,:PAPERAgeYr,:MRADMRowId
+    FROM SQLUser.PA_Adm A
+        LEFT OUTER JOIN SQLUser.PA_PatMas B ON A.PAADM_PAPMI_DR = B.PAPMI_RowId
+      
+    WHERE PAADM_Type = 'I'
+    AND PAADM_VisitStatus NOT IN ('C')
+    AND PAADM_AdmDate between :DateFrom and :DateTo
+    AND PAADM_Hospital_DR =:Hospital
+    )
+
+ &sql(open Readmission)
+ 
+ for  &SQL(FETCH Readmission) q:SQLCODE'=0  do ProcessData
+ 
+ &SQL(CLOSE Readmission)
+  // Build QHandle (AtEnd,ReportID,Index)
+ Set QHandle=$lb(0,repid,0)
+ Quit $$$OK 
+ 
+ProcessData
+ set PrevPAADMRowID=""
+ // If episoed is unplanned readmission, get prev adm deets and build row.
+ set DaysBetweenEpisodes=..CheckUnplannedReadm(PAADMRowID,DaysElapsed)
+ if (DaysBetweenEpisodes){
+	 
+	 // Current ICD List
+	 Set ICD10CodeList = ..GetICD10DetailsList(MRADMRowId) 
+	 
+	 // Previous Admission
+	 Set PrevPAADMRowID = ..GetPreviousInpatientEpisode(PAADMRowID) 
+	 Set PrevPAADMAdmDate = $P($G(^PAADM(PrevPAADMRowID)), "^", 6)
+	 Set PrevPAADMAdmTime = $P($G(^PAADM(PrevPAADMRowID)), "^", 7)
+	 Set PrevPAADMDischgDate = $P($G(^PAADM(PrevPAADMRowID)), "^", 17)
+	 Set PrevPAADMDischgTime = $P($G(^PAADM(PrevPAADMRowID)), "^", 18)
+	 
+	 // Previous episode number
+	 Set PrevPAADMAdmNo = $P($G(^PAADM(PrevPAADMRowID)), "^",81) 
+	 
+	 // Previous ICD List
+	 Set PrevMRADMRowID = $P($G(^PAADM(PrevPAADMRowID)),"^",61) 
+	 Set PrevICD10CodeList = ..GetICD10DetailsList(PrevMRADMRowID) 
+	 
+	 // Previous Ward code
+	 Set PrevWARDRowID = $P($G(^PAADM(PrevPAADMRowID)),"^",70)
+	 Set PrevWardCode = $P($G(^PAWARD(PrevWARDRowID)),"^",1)
+	 
+	 // Previous ADSOU Code
+	 Set PrevADSOURowID = $P($G(^PAADM(PrevPAADMRowID)),"^",10) 
+	 Set PrevADSOUCode = $P($G( ^PAC("ADSOU",PrevADSOURowID)),"^",1)
+	 
+	 // Previous IPAT Code
+	 Set PrevIPATRowID = $P($G(^PAADM(PrevPAADMRowID,2)),"^",28)
+	 Set PrevIPATCode = $P($G(^PAC("IPAT",PrevIPATRowID)),"^",1)
+	 
+	 // Previous Doctor
+	 Set PrevCTPCPRowID = $P($G(^PAADM(PrevPAADMRowID)),"^",9) 
+	 Set PrevCTPCPSurname = $P($G(^CTPCP(PrevCTPCPRowID,3)),"^",30)
+	 Set PrevCTPCPFirstName = $P($G(^CTPCP(PrevCTPCPRowID,3)),"^",27)
+	
+	 Do BuildRow
+ }
+ Quit
+ 
+BuildRow
+ Do FormatDates
+ Do FormatTimes
+
+ 
+ Set ind=$i(ind)
+ Set ^CacheTemp("TRAK",repid,PAPMINo_" "_PAADMAdmDate_" "_PAADMAdmTime_ind)=$LB(PAADMRowID,PAADMADMNo,PAADMAdmDate,PAADMAdmTime,IPATCode,WARDCode,PAADMDischgDate,PAADMDischgTime,ADSOUCode,CTLOCRowId,CTLOCCode,CTLOCDesc,CTLOCHospitalDR,HOSPCode,HOSPDesc,MRADMPresentComplaint,CTPCPSurname,CTPCPFirstName,PAPMIRowID,PAPMIName,PAPMIName2,PAPMIName3,PAPMINo,PAPERAgeYr,MRADMRowId,ICD10CodeList,PrevPAADMRowID,PrevPAADMAdmNo,PrevPAADMAdmDate,PrevPAADMAdmTime,PrevPAADMDischgDate,PrevPAADMDischgTime,PrevICD10CodeList,PrevWardCode,PrevADSOUCode,PrevIPATCode,PrevCTPCPSurname,PrevCTPCPFirstName,DaysBetweenEpisodes)
+ Quit
+
+
+FormatDates
+ // Convert the dates to ODBC date format
+ If PAADMAdmDate Set PAADMAdmDate=..ConvertDateToODBC(PAADMAdmDate)
+ If PAADMDischgDate Set PAADMDischgDate=..ConvertDateToODBC(PAADMDischgDate)
+ If PrevPAADMAdmDate Set PrevPAADMAdmDate=..ConvertDateToODBC(PrevPAADMAdmDate)
+ If PrevPAADMDischgDate Set PrevPAADMDischgDate=..ConvertDateToODBC(PrevPAADMDischgDate)
+ Quit
+ 
+FormatTimes
+ // Convert the times to ODBC time format
+ If PAADMAdmTime Set PAADMAdmTime=$ZT(PAADMAdmTime,1) 
+ If PAADMDischgTime Set PAADMDischgTime=$ZT(PAADMDischgTime,1)
+ If PrevPAADMAdmTime Set PrevPAADMAdmTime=$ZT(PrevPAADMAdmTime,1)
+ If PrevPAADMDischgTime Set PrevPAADMDischgTime=$ZT(PrevPAADMDischgTime,1)
+]]></Implementation>
+</Method>
+
+<Method name="CheckUnplannedReadm">
+<Description>
+Check if adm is unplanned within date range. Returns Days between episodes</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>PAADMRowID,DaysElapsed</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+ Set DaysBetween=0
+ Set (PrevMRADMIntentToReadmit,PrevPAADMAdmDate,PrevPAADMAdmTime)=""
+ Set PAADMAdmDate = $P($G(^PAADM(PAADMRowID)), "^", 6)
+ Set PAADMAdmTime = $P($G(^PAADM(PAADMRowID)), "^", 7)
+ 
+ Set PrevPAADMRowId = ..GetPreviousInpatientEpisode(PAADMRowID)
+  
+ If (PrevPAADMRowId)
+ {	
+    Set PrevPAADMAdmDate = $P($G(^PAADM(PrevPAADMRowId)), "^", 6)
+    Set PrevPAADMAdmTime = $P($G(^PAADM(PrevPAADMRowId)), "^", 7)
+    Set PrevPAADMDischgDate = $P($G(^PAADM(PrevPAADMRowId)), "^", 17)
+    Set PrevPAADMDischgTime = $P($G(^PAADM(PrevPAADMRowId)), "^", 18)
+    Set PrevMRADMRowId = $P($G(^PAADM(PrevPAADMRowId)),"^",61)
+ 	Set PrevMRADMIntentToReadmit = $P($G(^MR(PrevMRADMRowId, "PRO", 1)),"^",66)
+ }
+ If (PrevMRADMIntentToReadmit=6) //No intent to readmit within 28 days
+ {
+	If ((PAADMAdmDate-PrevPAADMDischgDate < DaysElapsed) || ((PAADMAdmDate-PrevPAADMDischgDate = 0) && (PAADMAdmTime-PrevPAADMDischgTime) > 0))
+	{
+ 	 Set DaysBetween=PAADMAdmDate-PrevPAADMDischgDate
+	} 
+ }
+ Else
+ {
+	Set DaysBetween=0
+ }
+ Quit DaysBetween
+]]></Implementation>
+</Method>
+
+<Method name="SWARHRATD1033Fetch">
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&QHandle:%Library.Binary,&Row:%Library.List,&AtEnd:%Library.Integer=0]]></FormalSpec>
+<ReturnType>%Library.Status</ReturnType>
+<Implementation><![CDATA[
+ // This fetch method should never have to change. 
+
+ New repid,ind
+
+ // Restore QHandle
+ Set AtEnd=$li(QHandle,1)
+ Set repid=$li(QHandle,2)
+ Set ind=$li(QHandle,3)
+
+ Set ind=$o(^CacheTemp("TRAK",repid,ind))
+ If ind="" {	// if there are no more rows, finish fetching
+ Set AtEnd=1
+ Set Row=""
+ }
+ Else      {	// fetch row
+ Set Row=^CacheTemp("TRAK",repid,ind)
+ }
+
+ // Save QHandle
+ s QHandle=$lb(AtEnd,repid,ind)
+ Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Query name="SWARHRATD1033">
+<Type>%Library.Query</Type>
+<FormalSpec>Hospital:%String,DateFrom:%Date,DateTo:%Date,DaysElapsed:%String</FormalSpec>
+<SqlProc>1</SqlProc>
+<Parameter name="CONTAINID" value="0"/>
+<Parameter name="ROWSPEC" value="PAADMRowID:%String,PAADMADMNo:%String,PAADMAdmDate:%String,PAADMAdmTime:%String,IPATCode:%String,WARDCode:%String,PAADMDischgDate:%String,PAADMDischgTime:%String,ADSOUCode:%String,CTLOCRowId:%String,CTLOCCode:%String,CTLOCDesc:%String,CTLOCHospitalDR:%String,HOSPCode:%String,HOSPDesc:%String,MRADMPresentComplaint:%String,CTPCPSurname:%String,CTPCPFirstName:%String,PAPMIRowID:%String,PAPMIName:%String,PAPMIName2:%String,PAPMIName3:%String,PAPMINo:%String,PAPERAgeYr:%String,MRADMRowId:%String,ICD10CodeList:%String,PrevPAADMRowID:%String,PrevPAADMAdmNo:%String,PrevPAADMAdmDate:%String,PrevPAADMAdmTime:%String,PrevPAADMDischgDate:%String,PrevPAADMDischgTime:%String,PrevICD10CodeList:%String,PrevWARDCode:%String,PrevADSOUCode:%String,PrevIPATCode:%String,PrevCTPCPSurname:%String,PrevCTPCPFirstName:%String,DaysBetweenEpisodes:%String"/>
+</Query>
+</Class>
+</Export>
